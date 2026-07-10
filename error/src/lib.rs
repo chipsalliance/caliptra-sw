@@ -1589,14 +1589,14 @@ impl CaliptraError {
             "Runtime Error: Attested CSR COSE Sign1 encoding error"
         ),
         (
-            RUNTIME_CCIV_CONTEXT_NOT_FOUND,
+            RUNTIME_DPE_CONTEXT_NOT_FOUND,
             0x000E0093,
-            "Runtime Error: CCIV context not found"
+            "Runtime Error: DPE context not found"
         ),
         (
-            RUNTIME_MULTIPLE_CCIV_CONTEXTS_FOUND,
+            RUNTIME_MULTIPLE_DPE_CONTEXTS_FOUND,
             0x000E0094,
-            "Runtime Error: Multiple CCIV contexts found"
+            "Runtime Error: Multiple DPE contexts found"
         ),
         (
             RUNTIME_INVOKE_DPE_RESPONSE_TOO_LARGE,

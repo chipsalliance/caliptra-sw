@@ -57,6 +57,8 @@ pub const CMB_AES_KEY_SHARE_SIZE: u32 = 32;
 pub const DOT_OWNER_PK_HASH_SIZE: u32 = 13 * 4;
 pub const CLEARED_NON_FATAL_FW_ERROR_SIZE: u32 = 4;
 pub const MCU_FIRMWARE_LOADED_SIZE: u32 = 4;
+#[cfg(feature = "runtime")]
+pub const SOC_MANIFEST_SVN_SIZE: u32 = 4;
 pub const _DPE_PL_CONTEXT_LIMITS_WITH_PAD_SIZE: u32 = 4; // u8 + u8 + 2 bytes padding
 
 #[cfg(feature = "runtime")]
@@ -94,6 +96,15 @@ pub type StashMeasurementArray = [MeasurementLogEntry; MEASUREMENT_MAX_COUNT];
 #[cfg(feature = "runtime")]
 pub type AuthManifestImageMetadataList =
     [AuthManifestImageMetadata; AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT];
+
+#[cfg(feature = "runtime")]
+#[derive(Clone, Copy, FromBytes, Immutable, IntoBytes, KnownLayout, Zeroize, Default)]
+#[repr(C)]
+pub struct CaliptraManagedDpeContextIndices {
+    pub cciv: u8,
+    pub mcu_rt: u8,
+    pub reserved: [u8; 2],
+}
 
 #[derive(Clone, Immutable, IntoBytes, KnownLayout, TryFromBytes, Zeroize)]
 #[repr(C)]
@@ -381,6 +392,14 @@ pub struct PersistentData {
     /// changing the frozen ROM binary. FMC writes this during handoff,
     /// runtime reads it for MLDSA signing operations.
     pub rt_mldsa_keypair_seed_kv_hdl: HandOffDataHandle,
+
+    /// SoC manifest SVN, stored after auth manifest validation.
+    /// Used as the MCU RT current_svn when creating the MCU RT DPE context.
+    #[cfg(feature = "runtime")]
+    pub soc_manifest_svn: u32,
+
+    #[cfg(feature = "runtime")]
+    pub caliptra_managed_dpe_context_indices: CaliptraManagedDpeContextIndices,
 }
 
 impl PersistentData {
@@ -548,7 +567,30 @@ impl PersistentData {
                 addr_of!((*P).dpe_pl0_context_limit) as u32,
                 memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
             );
+            persistent_data_offset += _DPE_PL_CONTEXT_LIMITS_WITH_PAD_SIZE;
+            assert_eq!(
+                addr_of!((*P).rt_mldsa_keypair_seed_kv_hdl) as u32,
+                memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
+            );
+            persistent_data_offset += size_of::<HandOffDataHandle>() as u32;
+            #[cfg(feature = "runtime")]
+            {
+                assert_eq!(
+                    addr_of!((*P).soc_manifest_svn) as u32,
+                    memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
+                );
+                persistent_data_offset += SOC_MANIFEST_SVN_SIZE;
+                assert_eq!(
+                    addr_of!((*P).caliptra_managed_dpe_context_indices) as u32,
+                    memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
+                );
+                persistent_data_offset += size_of::<CaliptraManagedDpeContextIndices>() as u32;
+            }
 
+            assert_eq!(
+                memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset,
+                memory_layout::DATA_ORG
+            );
             assert_eq!(P.add(1) as u32, memory_layout::DATA_ORG);
         }
     }

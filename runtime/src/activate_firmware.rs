@@ -18,7 +18,7 @@ use crate::authorize_and_stash::{self, AuthorizeAndStashCmd};
 use crate::drivers::{McuFwStatus, McuResetReason};
 use crate::Drivers;
 use crate::{manifest::find_metadata_entry, mutrefbytes};
-use caliptra_api::mailbox::{AuthAndStashFlags, AuthorizeAndStashReq, ImageHashSource};
+use caliptra_api::mailbox::{AuthorizeAndStashReq, ImageHashSource};
 use caliptra_auth_man_types::ImageMetadataFlags;
 use caliptra_common::mailbox_api::{ActivateFirmwareReq, ActivateFirmwareResp, MailboxRespHeader};
 use caliptra_drivers::dma::MCU_SRAM_OFFSET;
@@ -202,28 +202,32 @@ impl ActivateFirmwareCmd {
                 )
                 .map_err(|_| ())?;
 
-            // Verify MCU after loading
+            // Update MCU RT DPE context with new measurement.
+            // SVN stays the same as the recovery boot value.
             let auth_and_stash_req = AuthorizeAndStashReq {
                 fw_id: ActivateFirmwareReq::MCU_IMAGE_ID.to_le_bytes(),
                 measurement: [0; 48],
                 source: ImageHashSource::LoadAddress.into(),
-                flags: AuthAndStashFlags::SKIP_STASH.bits(),
                 image_size: mcu_image_size,
                 ..Default::default()
             };
 
             let pl0_pauser_locality = drivers.persistent_data.get().manifest1.header.pl0_pauser;
-            let authorization_result = AuthorizeAndStashCmd::authorize_and_stash(
-                drivers,
-                &auth_and_stash_req,
-                pl0_pauser_locality,
-            )
-            .map_err(|_| ())?;
+            let (authorization_result, measurement) =
+                AuthorizeAndStashCmd::authorize_image(drivers, &auth_and_stash_req)
+                    .map_err(|_| ())?;
 
             // Make sure the image was properly authorized.
             if authorization_result != authorize_and_stash::IMAGE_AUTHORIZED {
                 return Err(());
             }
+            drivers
+                .update_caliptra_managed_measurement(
+                    Drivers::MCU_RT_TCI_TYPE,
+                    &measurement,
+                    Some(pl0_pauser_locality),
+                )
+                .map_err(|_| ())?;
 
             drivers.persistent_data.get_mut().mcu_firmware_loaded = McuFwStatus::Loaded.into();
         }

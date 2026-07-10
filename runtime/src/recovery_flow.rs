@@ -118,12 +118,14 @@ impl RecoveryFlow {
         let digest: [u8; 48] = digest.into();
         cprintln!("[rt] Verifying MCU digest: {}", HexBytes(&digest));
         // verify the digest
+        let soc_manifest_svn = drivers.persistent_data.get().soc_manifest_svn;
         let auth_and_stash_req = AuthorizeAndStashReq {
             fw_id: [2, 0, 0, 0],
             measurement: digest,
             source: ImageHashSource::InRequest.into(),
             // We want to make sure this measurement is not skipped.
             flags: 0,
+            svn: soc_manifest_svn,
             ..Default::default()
         };
 
