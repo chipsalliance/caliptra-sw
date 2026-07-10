@@ -59,6 +59,8 @@ use authorize_and_stash::AuthorizeAndStashCmd;
 use caliptra_cfi_lib::{
     cfi_assert, cfi_assert_bool, cfi_assert_eq, cfi_assert_ne, cfi_launder, CfiCounter,
 };
+#[cfg(feature = "mldsa_attestation")]
+use caliptra_drivers::Array4x12;
 pub use drivers::{Drivers, PauserPrivileges};
 use mailbox::Mailbox;
 
@@ -515,9 +517,9 @@ fn mldsa_dpe_env(
         &mut drivers.trng,
         &mut drivers.hmac384,
         &mut drivers.key_vault,
-        &pdata.pq_devid_cdi,
+        Array4x12::from(&pdata.pq_devid_cdi),
         &mut pdata.exported_cdi_slots,
-        &pdata.mldsa_exported_cdi_slots,
+        &mut pdata.mldsa_exported_cdi_slots,
     )?;
     let pl0_pauser = pdata.manifest1.header.pl0_pauser;
     let (nb, nf) = Drivers::get_cert_validity_info(&pdata.manifest1);
