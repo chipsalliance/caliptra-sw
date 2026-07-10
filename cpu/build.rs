@@ -10,109 +10,117 @@ fn main() {
     // Put the linker script somewhere the linker can find it.
     fs::write(
         out_dir.join("link.x"),
-        r#"SECTIONS 
+        r#"PHDRS
+    {
+        text   PT_LOAD FLAGS(5);
+        rodata PT_LOAD FLAGS(4);
+        data   PT_LOAD FLAGS(6);
+        stack  PT_LOAD FLAGS(6);
+        estack PT_LOAD FLAGS(6);
+        nstack PT_LOAD FLAGS(6);
+    }
+
+    SECTIONS
     {
         .text : ALIGN(4)
         {
             _stext = .;
-    
+
             KEEP(*(.init .init.*));
             *(.text .text.*);
             KEEP(*(.vectors))
-    
+
             . = ALIGN(4);
             _etext = .;
-        } > REGION_TEXT
-    
+        } > REGION_TEXT :text
+
         .rodata : ALIGN(4)
         {
             _srodata = .;
-            
+
             *(.srodata .srodata.*);
             *(.rodata .rodata.*);
-    
+
             . = ALIGN(4);
             _erodata = .;
-        } > REGION_RODATA
-    
-        .data : AT (_erodata) ALIGN(4) 
+        } > REGION_RODATA :rodata
+
+        .data : AT (_erodata) ALIGN(4)
         {
             _sidata = LOADADDR(.data);
             _sdata = .;
-            
+
             /* Must be called __global_pointer$ for linker relaxations to work. */
             PROVIDE(__global_pointer$ = . + 0x800);
-       
+
             *(.sdata .sdata.* .sdata2 .sdata2.*);
             *(.data .data.*);
-            
+
             . = ALIGN(4);
             _edata = .;
-        } > REGION_DATA 
-    
-     
-        .bss (NOLOAD) : ALIGN(4) 
+        } > REGION_DATA :data
+
+        .bss (NOLOAD) : ALIGN(4)
         {
             _sbss = .;
-    
+
             *(.bss*)
             *(.sbss*)
             *(COMMON)
             . = ALIGN(4);
-            
+
             _ebss = .;
-        } > REGION_BSS
-    
+        } > REGION_BSS :data
+
         .stack (NOLOAD): ALIGN(4)
         {
             _estack = .;
-            
+
             . = . + STACK_SIZE;
-    
+
             . = ALIGN(4);
             _sstack = .;
-        } > REGION_STACK
-    
+        } > REGION_STACK :stack
+
         .estack (NOLOAD): ALIGN(4)
         {
             _eestack = .;
-            
+
             . = . + ESTACK_SIZE;
-    
+
             . = ALIGN(4);
             _sestack = .;
-        } > REGION_ESTACK
-    
+        } > REGION_ESTACK :estack
+
         .nstack (NOLOAD): ALIGN(4)
         {
             _enstack = .;
-            
+
             . = . + NSTACK_SIZE;
-    
+
             . = ALIGN(4);
             _snstack = .;
-        } > REGION_NSTACK
-    
-    
+        } > REGION_NSTACK :nstack
+
         .got (INFO) :
         {
             KEEP(*(.got .got.*));
         }
-    
-        .eh_frame (INFO) : 
-        { 
+
+        .eh_frame (INFO) :
+        {
             KEEP(*(.eh_frame))
         }
-        
+
         .eh_frame_hdr (INFO) :
         {
-            *(.eh_frame_hdr) 
+            *(.eh_frame_hdr)
         }
     }
-    
+
     _bss_len  = SIZEOF(.bss);
     _data_len = SIZEOF(.data);
-    
+
     ASSERT(SIZEOF(.got) == 0, ".got section detected");
     ASSERT(SIZEOF(.bss) == 0, ".bss section detected");
     ASSERT(SIZEOF(.stack) == STACK_SIZE, ".stack section overflow");
