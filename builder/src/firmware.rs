@@ -517,6 +517,20 @@ pub mod driver_tests {
         ..BASE_FWID
     };
 
+    pub const CSRNG_RESEED_TESTS: FwId = FwId {
+        bin_name: "csrng_reseed_tests",
+        ..BASE_FWID
+    };
+
+    pub const CSRNG_RESEED_HEALTH_FAIL_TESTS: FwId = FwId {
+        bin_name: "csrng_reseed_health_fail_tests",
+        // Enables the CSRNG_RESEED_FAILURE hook to simulate a reseed failure.
+        fw_type: FirmwareType::Source {
+            features: &["emu", "fips-test-hooks"],
+        },
+        ..BASE_FWID
+    };
+
     pub const TRNG_DRIVER_RESPONDER: FwId = FwId {
         bin_name: "trng_driver_responder",
         ..BASE_FWID
@@ -798,6 +812,8 @@ pub const REGISTERED_FW: &[&FwId] = &[
     &driver_tests::CSRNG_CONFIG_UNLOCK_TESTS,
     &driver_tests::CSRNG_RUNTIME_HEALTH_FAIL_TESTS,
     &driver_tests::CSRNG_ENTROPY_CONFIG_WARM_RESET_TESTS,
+    &driver_tests::CSRNG_RESEED_TESTS,
+    &driver_tests::CSRNG_RESEED_HEALTH_FAIL_TESTS,
     &driver_tests::TRNG_DRIVER_RESPONDER,
     &driver_tests::PERSISTENT,
     &driver_tests::DMA_SHA384,

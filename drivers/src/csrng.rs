@@ -28,8 +28,6 @@ use caliptra_registers::csrng::CsrngReg;
 use caliptra_registers::entropy_src::{self, regs::AlertFailCountsReadVal, EntropySrcReg};
 use caliptra_registers::soc_ifc::{self, SocIfcReg};
 
-use core::mem::MaybeUninit;
-
 // https://opentitan.org/book/hw/ip/csrng/doc/theory_of_operation.html#command-description
 pub const MAX_SEED_WORDS: usize = 12;
 const WORDS_PER_BLOCK: usize = 4;
@@ -102,31 +100,28 @@ impl Csrng {
         seed: Seed,
         persistent_data: PersistentDataAccessor,
     ) -> CaliptraResult<Self> {
-        const FALSE: u32 = MultiBitBool::False as u32;
-        const TRUE: u32 = MultiBitBool::True as u32;
-
         let mut result = Self { csrng, entropy_src };
         let e = result.entropy_src.regs_mut();
 
         // Configure and enable entropy_src if not already enabled.
         // If already enabled, assume it was configured correctly by a previous call.
-        if e.module_enable().read().module_enable() == FALSE {
+        if e.module_enable().read().module_enable() == MULTIBIT_FALSE {
             // Configure entropy_src
             let entropy_cfg = read_entropy_configuration(&soc_ifc.regs(), persistent_data);
             set_health_check_thresholds(e, entropy_cfg.entropy_cfg.clone());
 
             let rng_bit_enable = if entropy_cfg.entropy_cfg_extension.rng_bit_enable() {
-                TRUE
+                MULTIBIT_TRUE
             } else {
-                FALSE
+                MULTIBIT_FALSE
             };
 
             e.conf().write(|w| {
-                w.fips_enable(TRUE)
-                    .entropy_data_reg_enable(FALSE)
+                w.fips_enable(MULTIBIT_TRUE)
+                    .entropy_data_reg_enable(MULTIBIT_FALSE)
                     // THRESHOLD_SCOPE=FALSE so adaptive-proportion and Markov health
                     // tests score each of the 4 RNG bus lanes individually.
-                    .threshold_scope(FALSE)
+                    .threshold_scope(MULTIBIT_FALSE)
                     .rng_bit_enable(rng_bit_enable)
                     .rng_bit_sel(entropy_cfg.entropy_cfg_extension.rng_bit_sel())
             });
@@ -138,9 +133,9 @@ impl Csrng {
                 & 1
                 == 1
             {
-                e.entropy_control().modify(|w| w.es_type(TRUE));
+                e.entropy_control().modify(|w| w.es_type(MULTIBIT_TRUE));
             }
-            e.module_enable().write(|w| w.module_enable(TRUE));
+            e.module_enable().write(|w| w.module_enable(MULTIBIT_TRUE));
             check_for_alert_state(result.entropy_src.regs())?;
 
             // Lock entropy_src configuration if not in debug mode.
@@ -153,18 +148,47 @@ impl Csrng {
                 e.sw_regupd().modify(|w| w.sw_regupd(false));
             }
         }
-
         let c = result.csrng.regs_mut();
 
-        if c.ctrl().read().enable() == FALSE {
-            c.ctrl()
-                .write(|w| w.enable(TRUE).sw_app_enable(TRUE).read_int_state(TRUE));
+        if c.ctrl().read().enable() == MULTIBIT_FALSE {
+            c.ctrl().write(|w| {
+                w.enable(MULTIBIT_TRUE)
+                    .sw_app_enable(MULTIBIT_TRUE)
+                    .read_int_state(MULTIBIT_TRUE)
+            });
         }
 
         send_command(&mut result.csrng, Command::Uninstantiate)?;
         send_command(&mut result.csrng, Command::Instantiate(seed))?;
 
         Ok(result)
+    }
+
+    /// Return 4 randomly generated [`u32`]s as a tuple.
+    ///
+    /// The return type is a tuple of 4 `u32`s which fits entirely in registers
+    /// on RV32, guaranteeing no hidden out-pointer and no `memcpy` on the
+    /// return path regardless of optimization level. Safe to call before CFI
+    /// counters are initialized.
+    pub fn generate4(&mut self) -> CaliptraResult<(u32, u32, u32, u32)> {
+        let token = self.manage_entropy_src_and_reseed()?;
+        self.do_generate4(token)
+    }
+
+    fn do_generate4(&mut self, _token: GenerateToken) -> CaliptraResult<(u32, u32, u32, u32)> {
+        send_command(
+            &mut self.csrng,
+            Command::Generate {
+                num_128_bit_blocks: 1,
+            },
+        )?;
+        wait::until(|| self.csrng.regs().genbits_vld().read().genbits_vld());
+        Ok((
+            self.csrng.regs().genbits().read(),
+            self.csrng.regs().genbits().read(),
+            self.csrng.regs().genbits().read(),
+            self.csrng.regs().genbits().read(),
+        ))
     }
 
     /// Return 12 randomly generated [`u32`]s.
@@ -185,41 +209,84 @@ impl Csrng {
     /// }
     /// ```
     pub fn generate12(&mut self) -> CaliptraResult<[u32; 12]> {
-        check_for_alert_state(self.entropy_src.regs())?;
-
-        send_command(
-            &mut self.csrng,
-            Command::Generate {
-                num_128_bit_blocks: 12 / WORDS_PER_BLOCK,
-            },
-        )?;
-
-        let mut result = MaybeUninit::<[u32; 12]>::uninit();
-        let dest = result.as_mut_ptr() as *mut u32;
-        unsafe {
-            wait::until(|| self.csrng.regs().genbits_vld().read().genbits_vld());
-            dest.add(0).write(self.csrng.regs().genbits().read());
-            dest.add(1).write(self.csrng.regs().genbits().read());
-            dest.add(2).write(self.csrng.regs().genbits().read());
-            dest.add(3).write(self.csrng.regs().genbits().read());
-            wait::until(|| self.csrng.regs().genbits_vld().read().genbits_vld());
-            dest.add(4).write(self.csrng.regs().genbits().read());
-            dest.add(5).write(self.csrng.regs().genbits().read());
-            dest.add(6).write(self.csrng.regs().genbits().read());
-            dest.add(7).write(self.csrng.regs().genbits().read());
-            wait::until(|| self.csrng.regs().genbits_vld().read().genbits_vld());
-            dest.add(8).write(self.csrng.regs().genbits().read());
-            dest.add(9).write(self.csrng.regs().genbits().read());
-            dest.add(10).write(self.csrng.regs().genbits().read());
-            dest.add(11).write(self.csrng.regs().genbits().read());
-            let out = result.assume_init();
-            #[cfg(feature = "fips-test-hooks")]
-            let out = crate::FipsTestHook::corrupt_data_if_hook_set(
+        let token = self.manage_entropy_src_and_reseed()?;
+        let result = self.do_generate::<12>(token, 12 / WORDS_PER_BLOCK)?;
+        #[cfg(feature = "fips-test-hooks")]
+        let result = unsafe {
+            crate::FipsTestHook::corrupt_data_if_hook_set(
                 crate::FipsTestHook::CSRNG_CORRUPT_OUTPUT,
-                &out,
-            );
-            Ok(out)
+                &result,
+            )
+        };
+        Ok(result)
+    }
+
+    /// Number of Generate calls before the reseed interval at which entropy_src
+    /// is pre-enabled, so it is ready by the time the reseed is needed.
+    /// Covers the ~2 ms entropy_src startup at typical generate cadence.
+    pub const ENTROPY_SRC_PRE_ENABLE_HEADROOM: u32 = 5;
+
+    /// Disable entropy_src.
+    ///
+    /// Must be called only after any in-flight Reseed has consumed its seed
+    /// from the esfinal FIFO; disabling mid-Reseed clears that FIFO and hangs
+    /// the CSRNG in `MainSmReseedPrep`. Pair with `wait_for_csrng_idle`.
+    pub(crate) fn disable_entropy_source(&mut self) {
+        self.entropy_src
+            .regs_mut()
+            .module_enable()
+            .write(|w| w.module_enable(MULTIBIT_FALSE));
+    }
+
+    pub(crate) fn enable_entropy_source(&mut self) {
+        self.entropy_src
+            .regs_mut()
+            .module_enable()
+            .write(|w| w.module_enable(MULTIBIT_TRUE));
+    }
+
+    /// Called before every Generate command. Keeps entropy_src disabled except
+    /// during a short window around each reseed:
+    ///
+    /// Phase 1 — pre-enable (`counter >= interval - HEADROOM`): enable
+    /// entropy_src in the background so its startup health checks overlap with
+    /// the next few Generates.
+    ///
+    /// Phase 2 — reseed (`counter >= interval`): reseed from entropy_src,
+    /// then disable it again. The Generate runs with entropy_src off.
+    fn manage_entropy_src_and_reseed(&mut self) -> CaliptraResult<GenerateToken> {
+        let interval = self.csrng.regs().reseed_interval().read();
+        let counter = self.csrng.regs().reseed_counter_2().read();
+        if counter >= interval {
+            self.ensure_entropy_src_enabled(&Seed::EntropySrc)?;
+            self.reseed(Seed::EntropySrc)?;
+            self.disable_entropy_source();
+            return Ok(GenerateToken(()));
         }
+
+        let pre_enable_threshold = interval.saturating_sub(Self::ENTROPY_SRC_PRE_ENABLE_HEADROOM);
+        if counter >= pre_enable_threshold {
+            self.enable_entropy_source();
+        }
+
+        Ok(GenerateToken(()))
+    }
+
+    fn do_generate<const N: usize>(
+        &mut self,
+        _token: GenerateToken,
+        num_128_bit_blocks: usize,
+    ) -> CaliptraResult<[u32; N]> {
+        send_command(&mut self.csrng, Command::Generate { num_128_bit_blocks })?;
+
+        let mut result = [0u32; N];
+        for block in result.chunks_mut(WORDS_PER_BLOCK) {
+            wait::until(|| self.csrng.regs().genbits_vld().read().genbits_vld());
+            for word in block.iter_mut() {
+                *word = self.csrng.regs().genbits().read();
+            }
+        }
+        Ok(result)
     }
 
     /// Return 16 randomly generated [`u32`]s (512 bits = four 128-bit GENBITS
@@ -235,22 +302,8 @@ impl Csrng {
     ///
     /// Returns an error if the internal generate command fails.
     pub fn generate16(&mut self) -> CaliptraResult<[u32; 16]> {
-        check_for_alert_state(self.entropy_src.regs())?;
-
-        send_command(
-            &mut self.csrng,
-            Command::Generate {
-                num_128_bit_blocks: 16 / WORDS_PER_BLOCK,
-            },
-        )?;
-
-        let mut result = [0u32; 16];
-        for block in result.chunks_mut(WORDS_PER_BLOCK) {
-            wait::until(|| self.csrng.regs().genbits_vld().read().genbits_vld());
-            for word in block.iter_mut() {
-                *word = self.csrng.regs().genbits().read();
-            }
-        }
+        let token = self.manage_entropy_src_and_reseed()?;
+        let result = self.do_generate::<16>(token, 16 / WORDS_PER_BLOCK)?;
         #[cfg(feature = "fips-test-hooks")]
         let result = unsafe {
             crate::FipsTestHook::corrupt_data_if_hook_set(
@@ -261,8 +314,23 @@ impl Csrng {
         Ok(result)
     }
 
+    /// Reseed the DRBG with the given seed. Returns only after the CSRNG has
+    /// fully processed the Reseed — `send_command` alone returns when the
+    /// command is accepted into the staging FIFO, not when the seed has been
+    /// consumed. Callers that disable entropy_src after this call need that
+    /// stronger guarantee.
     pub fn reseed(&mut self, seed: Seed) -> CaliptraResult<()> {
-        send_command(&mut self.csrng, Command::Reseed(seed))
+        self.ensure_entropy_src_enabled(&seed)?;
+        // FIPS test hook: inject a reseed failure for testing on platforms
+        // where the real TRNG cannot produce bad entropy (e.g. FPGA itrng).
+        // No-op unless `fips-test-hooks` is enabled and the host arms
+        // `CSRNG_RESEED_FAILURE` in `cptra_dbg_manuf_service_reg`.
+        #[cfg(feature = "fips-test-hooks")]
+        unsafe {
+            crate::FipsTestHook::error_if_hook_set(crate::FipsTestHook::CSRNG_RESEED_FAILURE)?;
+        }
+        send_command(&mut self.csrng, Command::Reseed(seed))?;
+        self.wait_for_csrng_idle()
     }
 
     /// Tear down the current DRBG instance and create a new one with the
@@ -280,8 +348,29 @@ impl Csrng {
     /// Returns an error if either the internal `Uninstantiate` or
     /// `Instantiate` command fails.
     pub fn reinstantiate(&mut self, seed: Seed) -> CaliptraResult<()> {
+        self.ensure_entropy_src_enabled(&seed)?;
         send_command(&mut self.csrng, Command::Uninstantiate)?;
         send_command(&mut self.csrng, Command::Instantiate(seed))
+    }
+
+    /// Enables entropy_src and waits for it to be ready if the seed source is
+    /// `EntropySrc` and the module is currently disabled. No-op for
+    /// `Seed::Constant` since entropy_src is not needed in that case.
+    fn ensure_entropy_src_enabled(&mut self, seed: &Seed) -> CaliptraResult<()> {
+        if matches!(seed, Seed::EntropySrc) {
+            if self
+                .entropy_src
+                .regs()
+                .module_enable()
+                .read()
+                .module_enable()
+                != MULTIBIT_TRUE
+            {
+                self.enable_entropy_source();
+            }
+            check_for_alert_state(self.entropy_src.regs())?;
+        }
+        Ok(())
     }
 
     pub fn update(&mut self, additional_data: &[u32]) -> CaliptraResult<()> {
@@ -308,6 +397,29 @@ impl Csrng {
 
     pub fn zeroize(&mut self) -> CaliptraResult<()> {
         send_command(&mut self.csrng, Command::Uninstantiate)
+    }
+
+    /// Wait for the CSRNG main SM to return to Idle. `send_command` returns
+    /// when the command is accepted into the staging FIFO, not when the CSRNG
+    /// finishes executing it.
+    fn wait_for_csrng_idle(&self) -> CaliptraResult<()> {
+        const MAIN_SM_IDLE: u32 = 0x4e;
+        const ALERT_HANG: u32 = 0x1fb;
+        loop {
+            let csrng_state = self.csrng.regs().main_sm_state().read().main_sm_state();
+            let es_state = self
+                .entropy_src
+                .regs()
+                .main_sm_state()
+                .read()
+                .main_sm_state();
+            if csrng_state == MAIN_SM_IDLE {
+                return Ok(());
+            }
+            if es_state == ALERT_HANG {
+                return check_for_alert_state(self.entropy_src.regs());
+            }
+        }
     }
 }
 
@@ -357,6 +469,9 @@ pub enum Seed<'a> {
     Constant(&'a [u32]),
 }
 
+/// Proof token that `manage_entropy_src_and_reseed` has been called.
+struct GenerateToken(());
+
 enum Command<'a> {
     Instantiate(Seed<'a>),
     Reseed(Seed<'a>),
@@ -370,6 +485,9 @@ enum MultiBitBool {
     False = 9,
     True = 6,
 }
+
+const MULTIBIT_FALSE: u32 = MultiBitBool::False as u32;
+const MULTIBIT_TRUE: u32 = MultiBitBool::True as u32;
 
 /// Contains counts of failing health checks.
 ///

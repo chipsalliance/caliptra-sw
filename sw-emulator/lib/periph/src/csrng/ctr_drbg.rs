@@ -32,6 +32,8 @@ pub struct CtrDrbg {
     v: Block,
     key: Key,
     generated_bytes: Vec<Block>,
+    reseed_interval: u32,
+    reseed_counter: u32,
 }
 
 impl CtrDrbg {
@@ -40,6 +42,8 @@ impl CtrDrbg {
             v: [0; BLOCK_LEN_BYTES],
             key: [0; KEY_LEN_BYTES],
             generated_bytes: vec![],
+            reseed_interval: 0xffffffffu32,
+            reseed_counter: 0u32,
         }
     }
 
@@ -70,6 +74,8 @@ impl CtrDrbg {
         self.key = [0; KEY_LEN_BYTES];
         self.v = [0; BLOCK_LEN_BYTES];
         self.update(seed_material);
+        // Instantiate resets the reseed counter (RTL state_db resets to 0).
+        self.reseed_counter = 0;
     }
 
     pub fn reseed(&mut self, seed: Instantiate) {
@@ -81,10 +87,18 @@ impl CtrDrbg {
             Instantiate::Bytes(bytes) => *bytes,
         };
         self.update(seed_material);
+        // Reseed resets the reseed counter, matching the RTL state_db.
+        self.reseed_counter = 0;
     }
 
     pub fn generate(&mut self, num_128_bit_blocks: usize) {
         // Section 10.2.1.5 (page 55).
+        // The RTL NACKs with CMD_STS_RESEED_CNT_EXCEEDED when
+        // RESEED_COUNTER >= RESEED_INTERVAL; model that by producing no output.
+        if self.reseed_counter >= self.reseed_interval {
+            return;
+        }
+        self.reseed_counter += 1;
 
         let additional_input = [0; SEED_LEN_BYTES];
         self.generated_bytes.clear();
@@ -109,6 +123,16 @@ impl CtrDrbg {
 
     pub fn pop_block(&mut self) -> Option<Block> {
         self.generated_bytes.pop()
+    }
+
+    /// Store the reseed interval written to the CSRNG RESEED_INTERVAL register.
+    pub fn set_reseed_interval(&mut self, interval: u32) {
+        self.reseed_interval = interval;
+    }
+
+    /// Current reseed counter value, exposed for the RESEED_COUNTER_* registers.
+    pub fn reseed_counter(&self) -> u32 {
+        self.reseed_counter
     }
 
     #[allow(dead_code)]

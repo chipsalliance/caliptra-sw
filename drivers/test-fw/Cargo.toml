@@ -31,6 +31,7 @@ hex = { workspace = true }
 emu = ["caliptra-test-harness/emu"]
 fpga_realtime = ["caliptra-drivers/fpga_realtime"]
 fpga_subsystem = ["caliptra-drivers/fpga_subsystem"]
+fips-test-hooks = ["caliptra-drivers/fips-test-hooks"]
 
 
 # This feature is used to filter all these binary targets during normal builds
@@ -284,4 +285,14 @@ required-features = ["riscv"]
 [[bin]]
 name = "csrng_entropy_config_warm_reset_tests"
 path = "src/bin/csrng_entropy_config_warm_reset_tests.rs"
+required-features = ["riscv"]
+
+[[bin]]
+name = "csrng_reseed_tests"
+path = "src/bin/csrng_reseed_tests.rs"
+required-features = ["riscv"]
+
+[[bin]]
+name = "csrng_reseed_health_fail_tests"
+path = "src/bin/csrng_reseed_health_fail_tests.rs"
 required-features = ["riscv"]
