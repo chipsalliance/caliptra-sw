@@ -162,6 +162,19 @@ impl ModelEmulated {
     }
 }
 
+impl ModelEmulated {
+    /// Returns true when the emulated CPU is halted via the VeeR MPMC
+    /// low-power CSR (not the RISC-V `wfi` instruction, which this emulator
+    /// treats as a no-op).
+    ///
+    /// This reflects the VeeR EL2 core-halt power-management state tracked by the
+    /// CPU (`Cpu::read_halted`), used by external schedulers to drop the core off
+    /// their event queue while it is idle.
+    pub fn cpu_halted(&self) -> bool {
+        self.cpu.read_halted()
+    }
+}
+
 fn hash_slice(slice: &[u8]) -> u64 {
     let mut hasher = DefaultHasher::new();
     std::hash::Hash::hash_slice(slice, &mut hasher);
