@@ -24,14 +24,9 @@ use crate::packet::{copy_from_mbox, copy_to_mbox};
 use crate::Drivers;
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_common::mailbox_api::{GetPqCsrReq, GetPqCsrResp};
-use caliptra_drivers::{
-    hmac384_kdf, Array4x12, CaliptraError, CaliptraResult, Mldsa87, Mldsa87PubKey, Mldsa87Seed,
-    Mldsa87Signature, Sha256Alg, MLDSA87_PRIVATE_SEED_BYTES,
-};
+use caliptra_drivers::{CaliptraError, CaliptraResult, Mldsa87, Mldsa87Signature};
 use caliptra_x509::{MlDsa87CsrBuilder, PqDevIdCsrTbsMlDsa87, PqDevIdCsrTbsMlDsa87Params};
-use crypto::Digest;
 use zerocopy::{FromZeros, IntoBytes};
-use zeroize::Zeroizing;
 
 pub struct GetPqCsrCmd;
 
@@ -47,24 +42,20 @@ impl GetPqCsrCmd {
             return Err(CaliptraError::RUNTIME_PQC_NOT_INITIALIZED);
         }
 
-        // Re-derive the PQ.DevID ML-DSA-87 seed from the PQ.DevID CDI (held in
-        // persistent data). The seed is transient and zeroized as soon as the
-        // key pair operations are done.
-        let mut seed = Mldsa87Seed::default();
-        Self::derive_devid_seed(drivers, &mut seed)?;
-
-        // Regenerate the PQ.DevID public key from the seed.
-        let mut public_key = Mldsa87PubKey::default();
-        Mldsa87::pub_from_seed(&seed, &mut public_key, None)?;
+        // Re-derive the PQ.DevID ML-DSA-87 seed and public key from the PQ.DevID CDI (held in
+        // persistent data). The seed is transient and zeroized as soon as the key pair operations
+        // are done.
+        let (seed, pub_key, digest) = drivers.compute_mldsa_key_material()?;
 
         // Compute the subject serial number (uppercase hex of SHA-256 over the
         // encoded public key) and the unique endpoint identifier.
-        let subject_sn = Self::subject_sn(drivers, &public_key)?;
+        let mut subject_sn = [0u8; PqDevIdCsrTbsMlDsa87Params::SUBJECT_SN_LEN];
+        drivers.compute_subject_sn(&digest, &mut subject_sn)?;
         let ueid = drivers.soc_ifc.fuse_bank().ueid();
 
         // Build the CSR `To Be Signed` structure from the static template.
         let params = PqDevIdCsrTbsMlDsa87Params {
-            public_key: &public_key,
+            public_key: &pub_key,
             subject_sn: &subject_sn,
             ueid: &ueid,
         };
@@ -101,51 +92,5 @@ impl GetPqCsrCmd {
         resp.data_size = csr_len as u32;
 
         copy_to_mbox(drivers, resp.as_mut_bytes())
-    }
-
-    /// Derive the PQ.DevID ML-DSA-87 seed from the PQ.DevID CDI stored in
-    /// persistent data.
-    ///
-    /// This mirrors the ROM DICE convention of deriving the DevID key pair from
-    /// the DevID CDI, so the CSR here matches the PQ.DevID identity used
-    /// elsewhere in the runtime. The CDI is provisioned by SET_PQ_SEED and lives
-    /// in persistent data.
-    #[inline(never)]
-    fn derive_devid_seed(drivers: &mut Drivers, seed: &mut Mldsa87Seed) -> CaliptraResult<()> {
-        let cdi = Zeroizing::new(Array4x12::from(&drivers.persistent_data.get().pq_devid_cdi));
-        let mut output = Zeroizing::new(Array4x12::default());
-        hmac384_kdf(
-            &mut drivers.hmac384,
-            (&*cdi).into(),
-            b"pq_devid_keygen",
-            None,
-            &mut drivers.trng,
-            (&mut *output).into(),
-        )?;
-
-        let bytes = Zeroizing::new(<[u8; core::mem::size_of::<Array4x12>()]>::from(*output));
-        seed.copy_from_slice(&bytes[..MLDSA87_PRIVATE_SEED_BYTES]);
-        Ok(())
-    }
-
-    /// Compute the X.509 subject serial number: the uppercase hex encoding of
-    /// the SHA-256 digest of the encoded public key.
-    ///
-    /// This matches the RT alias serial-number derivation (see
-    /// `Drivers::compute_rt_alias_sn` and `DpePlatform::get_issuer_name`), which
-    /// hashes the public key and formats it via `Digest::write_hex_str`.
-    #[inline(never)]
-    fn subject_sn(
-        drivers: &mut Drivers,
-        public_key: &Mldsa87PubKey,
-    ) -> CaliptraResult<[u8; PqDevIdCsrTbsMlDsa87Params::SUBJECT_SN_LEN]> {
-        let digest = Digest::Sha256(crypto::Sha256(
-            drivers.sha256.digest(public_key.as_slice())?.into(),
-        ));
-        let mut subject_sn = [0u8; PqDevIdCsrTbsMlDsa87Params::SUBJECT_SN_LEN];
-        digest
-            .write_hex_str(&mut subject_sn)
-            .map_err(|_| CaliptraError::RUNTIME_PQ_CSR_SUBJECT_SN_FAILED)?;
-        Ok(subject_sn)
     }
 }
