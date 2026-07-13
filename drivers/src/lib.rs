@@ -100,13 +100,13 @@ pub use persistent::{AuthManifestImageMetadataList, ExportedCdiEntry, ExportedCd
 
 #[cfg(all(feature = "mldsa_attestation", feature = "runtime"))]
 pub use persistent::MldsaExportedCdiEntry;
-#[cfg(feature = "mldsa_attestation")]
-pub use persistent::PQ_DEVID_CDI_SIZE;
 pub use persistent::{
     FuseLogArray, IdevIdCsr, PcrLogArray, PersistentData, PersistentDataAccessor,
     StashMeasurementArray, FUSE_LOG_MAX_COUNT, MAX_FMC_ALIAS_CSR_SIZE, MAX_IDEVID_CSR_SIZE,
     MEASUREMENT_MAX_COUNT, MLDSA_EXPORTED_CDI_HANDLES_SIZE, PCR_LOG_MAX_COUNT,
 };
+#[cfg(feature = "mldsa_attestation")]
+pub use persistent::{PqDevIdCdi, PQ_DEVID_CDI_SIZE};
 pub use pic::{IntSource, Pic};
 pub use sha1::{Sha1, Sha1Digest, Sha1DigestOp};
 pub use sha256::{Sha256, Sha256Alg, Sha256DigestOp};

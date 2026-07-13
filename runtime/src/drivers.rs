@@ -23,6 +23,13 @@ use crate::{
     PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD, PL0_PAUSER_FLAG,
     PL1_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD,
 };
+#[cfg(feature = "mldsa_attestation")]
+use {
+    caliptra_drivers::{
+        hmac384_kdf, Mldsa87, Mldsa87PubKey, Mldsa87Seed, MLDSA87_PRIVATE_SEED_BYTES,
+    },
+    zeroize::Zeroizing,
+};
 
 use arrayvec::ArrayVec;
 use caliptra_cfi_derive::cfi_impl_fn;
@@ -894,5 +901,58 @@ impl Drivers {
         let mut initialization_values_hash = Array4x12::default();
         digest_op.finalize(&mut initialization_values_hash)?;
         Ok(initialization_values_hash)
+    }
+
+    /// Derive the PQ.DevID ML-DSA-87 seed from the PQ.DevID CDI stored in
+    /// persistent data.
+    ///
+    /// This mirrors the ROM DICE convention of deriving the DevID key pair from
+    /// the DevID CDI, so the CSR here matches the PQ.DevID identity used
+    /// elsewhere in the runtime. The CDI is provisioned by SET_PQ_SEED and lives
+    /// in persistent data.
+    #[cfg(feature = "mldsa_attestation")]
+    #[inline(never)]
+    pub fn derive_devid_seed(&mut self, seed: &mut Mldsa87Seed) -> CaliptraResult<()> {
+        let cdi = Zeroizing::new(Array4x12::from(&self.persistent_data.get().pq_devid_cdi));
+        let mut output = Zeroizing::new(Array4x12::default());
+        hmac384_kdf(
+            &mut self.hmac384,
+            (&*cdi).into(),
+            b"pq_devid_keygen",
+            None,
+            &mut self.trng,
+            (&mut *output).into(),
+        )?;
+
+        let bytes = Zeroizing::new(<[u8; core::mem::size_of::<Array4x12>()]>::from(*output));
+        seed.copy_from_slice(&bytes[..MLDSA87_PRIVATE_SEED_BYTES]);
+        Ok(())
+    }
+
+    #[cfg(feature = "mldsa_attestation")]
+    #[inline(never)]
+    pub fn compute_mldsa_key_material(
+        &mut self,
+    ) -> CaliptraResult<(Mldsa87Seed, Mldsa87PubKey, Digest)> {
+        let mut seed = Mldsa87Seed::default();
+        self.derive_devid_seed(&mut seed)?;
+
+        let mut pub_key = Mldsa87PubKey::default();
+        Mldsa87::pub_from_seed(&seed, &mut pub_key, None)?;
+
+        let digest = Digest::Sha256(crypto::Sha256(
+            self.sha256.digest(pub_key.as_slice())?.into(),
+        ));
+
+        Ok((seed, pub_key, digest))
+    }
+
+    #[cfg(feature = "mldsa_attestation")]
+    #[inline(never)]
+    pub fn compute_subject_sn(&mut self, digest: &Digest, sn: &mut [u8]) -> CaliptraResult<()> {
+        digest
+            .write_hex_str(sn)
+            .map_err(|_| CaliptraError::RUNTIME_PQ_CSR_SUBJECT_SN_FAILED)?;
+        Ok(())
     }
 }
