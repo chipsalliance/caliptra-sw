@@ -40,6 +40,8 @@ mod test_set_auth_manifest;
 #[cfg(feature = "mldsa_attestation")]
 mod test_set_pq_seed;
 mod test_sign_with_export_ecdsa;
+#[cfg(feature = "mldsa_attestation")]
+mod test_sign_with_exported_mldsa;
 mod test_stack_usage;
 mod test_stash_measurement;
 mod test_tagging;
