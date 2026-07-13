@@ -30,6 +30,8 @@ mod test_pcr;
 mod test_populate_idev;
 mod test_reallocate_dpe_context_limits;
 mod test_revoke_exported_cdi_handle;
+#[cfg(feature = "mldsa_attestation")]
+mod test_revoke_exported_cdi_handle_mldsa;
 mod test_set_auth_manifest;
 #[cfg(feature = "mldsa_attestation")]
 mod test_set_pq_seed;
