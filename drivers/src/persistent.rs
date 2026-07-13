@@ -143,6 +143,8 @@ pub type AuthManifestImageMetadataList =
 const _: () = assert!(MAX_IDEVID_CSR_SIZE < IDEVID_CSR_SIZE as usize);
 const _: () = assert!(MAX_FMC_ALIAS_CSR_SIZE < FMC_ALIAS_CSR_SIZE as usize);
 
+pub type PqDevIdCdi = [u8; PQ_DEVID_CDI_SIZE as usize];
+
 #[derive(Clone, FromZeros, IntoBytes, Zeroize)]
 #[repr(C)]
 pub struct IdevIdCsr {
@@ -351,9 +353,9 @@ pub struct PersistentData {
     pub dpe_pl1_context_limit: u8,
 
     #[cfg(feature = "mldsa_attestation")]
-    pub pq_devid_cdi: [u8; PQ_DEVID_CDI_SIZE as usize],
+    pub pq_devid_cdi: PqDevIdCdi,
     #[cfg(not(feature = "mldsa_attestation"))]
-    pq_devid_cdi: [u8; PQ_DEVID_CDI_SIZE as usize],
+    pq_devid_cdi: PqDevIdCdi,
 
     #[cfg(feature = "mldsa_attestation")]
     pub pqc_status_flags: u8,

@@ -36,7 +36,7 @@ use dpe::{EcdsaAlgorithm, ExportedCdiHandle, U8Bool, MAX_EXPORTED_CDI_SIZE};
 #[cfg(feature = "mldsa_attestation")]
 use {
     caliptra_drivers::{
-        Mldsa87, Mldsa87Mu, Mldsa87PubKey, Mldsa87Seed, Mldsa87Signature,
+        Mldsa87, Mldsa87Mu, Mldsa87PubKey, Mldsa87Seed, Mldsa87Signature, PqDevIdCdi,
         MLDSA87_PRIVATE_SEED_BYTES,
     },
     crypto::ml_dsa::{MldsaAlgorithm, MldsaPublicKey, MldsaSignature},
@@ -52,7 +52,7 @@ pub struct DpeCrypto<'a> {
     hasher: DpeHasher<'a>,
     cdi: Option<KeyId>,
     derived_key: Option<DerivedKey>,
-    key_id_rt_cdi: KeyId,
+    rt_cdi: RtCdi,
     exported_cdi_slots: &'a mut ExportedCdiHandles,
 }
 
@@ -81,7 +81,7 @@ impl<'a> DpeCrypto<'a> {
             hasher: DpeHasher::new(sha384)?,
             cdi: None,
             derived_key: None,
-            key_id_rt_cdi,
+            rt_cdi: RtCdi::Ec(key_id_rt_cdi),
             exported_cdi_slots,
         })
     }
@@ -94,7 +94,7 @@ impl<'a> DpeCrypto<'a> {
         trng: &'a mut Trng,
         hmac384: &'a mut Hmac384,
         key_vault: &'a mut KeyVault,
-        key_id_rt_cdi: KeyId,
+        pq_devid_cdi: &'a PqDevIdCdi,
         exported_cdi_slots: &'a mut ExportedCdiHandles,
     ) -> CaliptraResult<Self> {
         Ok(Self {
@@ -105,7 +105,7 @@ impl<'a> DpeCrypto<'a> {
             hasher: DpeHasher::new(sha384)?,
             cdi: None,
             derived_key: None,
-            key_id_rt_cdi,
+            rt_cdi: RtCdi::Mldsa(*pq_devid_cdi),
             exported_cdi_slots,
         })
     }
@@ -117,10 +117,20 @@ impl<'a> DpeCrypto<'a> {
         key_id: KeyId,
     ) -> Result<KeyId, CryptoError> {
         let context = self.hash_all(&[&measurement.as_slice(), &info])?;
+        #[cfg(feature = "mldsa_attestation")]
+        let array: Array4x12;
+        let key = match self.rt_cdi {
+            RtCdi::Ec(key_id) => KeyReadArgs::new(key_id).into(),
+            #[cfg(feature = "mldsa_attestation")]
+            RtCdi::Mldsa(pq_devid_cdi) => {
+                array = Array4x12::from(pq_devid_cdi);
+                (&array).into()
+            }
+        };
 
         hmac384_kdf(
             self.hmac384,
-            KeyReadArgs::new(self.key_id_rt_cdi).into(),
+            key,
             b"derive_cdi",
             Some(context.as_slice()),
             self.trng,
@@ -556,4 +566,10 @@ enum DerivedKey {
     Ec((KeyId, PubKey)),
     #[cfg(feature = "mldsa_attestation")]
     Mldsa(Mldsa87Seed),
+}
+
+enum RtCdi {
+    Ec(KeyId),
+    #[cfg(feature = "mldsa_attestation")]
+    Mldsa(PqDevIdCdi),
 }
