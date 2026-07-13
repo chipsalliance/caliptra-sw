@@ -1303,6 +1303,11 @@ impl CaliptraError {
             0x000E006A,
             "Runtime Error: Get PQ Cert Failed"
         ),
+        (
+            RUNTIME_SIGN_WITH_EXPORTED_MLDSA_NOT_SUPPORTED,
+            0x000E006A,
+            "Runtime Error: Sign with Exported MLDSA Not Supported"
+        ),
         // FMC Errors
         (FMC_GLOBAL_NMI, 0x000F0001, "FMC Error: Global NMI"),
         (
