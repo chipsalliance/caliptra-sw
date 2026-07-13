@@ -58,6 +58,25 @@ impl RevokeExportedCdiHandleCmd {
                 _ => (),
             }
         }
+
+        // An exported CDI handle may instead refer to an ML-DSA exported CDI,
+        // which is held in its own single-entry slot in persistent data.
+        #[cfg(feature = "mldsa_attestation")]
+        {
+            let slot = &mut drivers.persistent_data.get_mut().mldsa_exported_cdi_slots;
+            if constant_time_eq(&slot.handle, &cmd.exported_cdi_handle) && slot.active.get() {
+                #[cfg(feature = "cfi")]
+                cfi_assert!(constant_time_eq(&slot.handle, &cmd.exported_cdi_handle));
+
+                // Setting to false is redundant with zeroize but included for clarity.
+                slot.active = U8Bool::new(false);
+                slot.zeroize();
+
+                let mut resp = RevokeExportedCdiHandleResp::default();
+                return crate::packet::copy_to_mbox(drivers, resp.as_mut_bytes());
+            }
+        }
+
         Err(CaliptraError::RUNTIME_REVOKE_EXPORTED_CDI_HANDLE_NOT_FOUND)
     }
 }
