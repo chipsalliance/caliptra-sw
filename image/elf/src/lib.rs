@@ -17,6 +17,7 @@ use caliptra_image_gen::ImageGenratorExecutable;
 use caliptra_image_types::ImageRevision;
 use elf::abi::PT_LOAD;
 use elf::endian::AnyEndian;
+use elf::segment::ProgramHeader;
 use elf::ElfBytes;
 use std::path::PathBuf;
 
@@ -49,6 +50,15 @@ fn load_into_image(
     Ok(())
 }
 
+// Check if `seg` includes ELF header data or program header table.
+// ELF files begin with the ELF header and the program header table.
+// A segment contains such metadata if its file size is above 0 and
+// its file offset falls within the range of such metadata tables.
+fn segment_has_elf_metadata(seg: &ProgramHeader, elf: &ElfBytes<AnyEndian>) -> bool {
+    let phdr_table_end = elf.ehdr.e_phoff + elf.ehdr.e_phentsize as u64 * elf.ehdr.e_phnum as u64;
+    seg.p_filesz > 0 && seg.p_offset < phdr_table_end
+}
+
 impl ElfExecutable {
     pub fn open(
         path: &PathBuf,
@@ -75,9 +85,12 @@ impl ElfExecutable {
             bail!("ELF file has no segments");
         };
 
+        // To determine the base load address, find the minimum
+        // load address across the segments that are PT_LOAD and
+        // do not contain any ELF metadata.
         let Some(load_addr) = segments
             .iter()
-            .filter(|s| s.p_type == PT_LOAD)
+            .filter(|s| s.p_type == PT_LOAD && !segment_has_elf_metadata(s, &elf_file))
             .map(|s| s.p_paddr as u32)
             .min()
         else {
@@ -85,7 +98,8 @@ impl ElfExecutable {
         };
 
         for segment in segments {
-            if segment.p_type != PT_LOAD {
+            // Skip the segments using the same criterion as before.
+            if segment.p_type != PT_LOAD || segment_has_elf_metadata(&segment, &elf_file) {
                 continue;
             }
             let segment_data = elf_file.segment_data(&segment)?;
