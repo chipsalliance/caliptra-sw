@@ -43,7 +43,6 @@ fn main() {
         gen_local_devid_cert(out_dir);
         gen_fmc_alias_cert(out_dir);
         gen_rt_alias_cert(out_dir);
-        gen_pq_devid_cert(out_dir);
     }
 }
 
@@ -164,23 +163,4 @@ fn gen_rt_alias_cert(out_dir: &str) {
         }]);
     let template = bldr.tbs_template("Caliptra 1.0 Rt Alias", "Caliptra 1.0 FMC Alias");
     CodeGen::gen_code("RtAliasCertTbsEcc384", template, out_dir);
-}
-
-#[cfg(feature = "generate_templates")]
-fn gen_pq_devid_cert(out_dir: &str) {
-    let mut usage = KeyUsage::default();
-    // Allow signing other certificates.
-    usage.set_key_cert_sign(true);
-    // Allow signing attestation statements.
-    usage.set_digital_signature(true);
-
-    let bldr = cert::CertTemplateBuilder::<MlDsa87Algo>::new()
-        .add_basic_constraints_ext(true, 2)
-        .add_key_usage_ext(usage)
-        .add_ueid_ext(&[0xFF; 17]);
-    let template = bldr.tbs_template(
-        "Caliptra 1.0 MlDsa87 PQDevID",
-        "Caliptra 1.0 MlDsa87 PQDevID",
-    );
-    CodeGen::gen_code("PqDevIdCertTbsMlDsa87", template, out_dir);
 }
