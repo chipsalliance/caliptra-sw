@@ -18,7 +18,7 @@ use caliptra_common::mailbox_api::{MailboxRespHeader, PopulatePqCertReq};
 use caliptra_error::{CaliptraError, CaliptraResult};
 use zerocopy::{FromZeros, IntoBytes};
 
-use crate::{Drivers, MAX_MLDSA_CERT_CHAIN_SIZE};
+use crate::Drivers;
 
 pub struct PopulatePqCertCmd;
 impl PopulatePqCertCmd {
@@ -37,14 +37,9 @@ impl PopulatePqCertCmd {
             Err(CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL)?
         }
 
-        let mut tmp_chain = ArrayVec::<u8, MAX_MLDSA_CERT_CHAIN_SIZE>::new();
-        tmp_chain
-            .try_extend_from_slice(&cmd.cert[..cert_size])
+        let chain = ArrayVec::try_from(&cmd.cert[..cert_size])
             .map_err(|_| CaliptraError::RUNTIME_PQ_CERT_POPULATION_FAILED)?;
-        tmp_chain
-            .try_extend_from_slice(drivers.cert_chain.as_slice())
-            .map_err(|_| CaliptraError::RUNTIME_PQ_CERT_POPULATION_FAILED)?;
-        drivers.mldsa_cert_chain = tmp_chain;
+        drivers.mldsa_cert_chain = chain;
 
         crate::packet::copy_to_mbox(drivers, MailboxRespHeader::default().as_mut_bytes())
     }
