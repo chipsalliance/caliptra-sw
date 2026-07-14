@@ -53,10 +53,7 @@ jobs:
       - name: Build
         run: |
           cargo --config "$EXTRA_CARGO_CONFIG" build --locked
-          drivers/test-fw/build.sh
-          (cd fmc && ./build.sh)
-          (cd runtime && ./build.sh)
-          (cd rom/dev && ./build.sh)
+          cargo xtask build all
 
       - name: Build with OpenSSL
         run: |
@@ -146,11 +143,7 @@ jobs:
         uses: actions/checkout@v5
 
       - name: Build ROM artifacts
-        run: |
-          drivers/test-fw/build.sh
-          (cd fmc && ./build.sh)
-          (cd runtime && ./build.sh)
-          (cd rom/dev && ./build.sh)
+        run: cargo xtask build all
 
       - name: ROM Makefile
         run: |
