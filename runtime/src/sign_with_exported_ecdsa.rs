@@ -3,6 +3,8 @@
 use crate::{dpe_crypto::DpeCrypto, Drivers, PauserPrivileges};
 
 use caliptra_cfi_derive::cfi_impl_fn;
+#[cfg(feature = "cfi")]
+use caliptra_cfi_derive::cfi_mod_fn;
 use caliptra_cfi_lib::{cfi_assert, cfi_assert_bool, cfi_launder};
 
 use caliptra_common::mailbox_api::{SignWithExportedEcdsaReq, SignWithExportedEcdsaResp};
@@ -13,50 +15,13 @@ use crypto::{
         curve_384::{EcdsaPub384, EcdsaSignature384},
         EcdsaPubKey, EcdsaSignature,
     },
-    Crypto, Digest, PubKey, SignData, Signature,
+    Crypto, CryptoError, Digest, PubKey, SignData, Signature,
 };
 use dpe::MAX_EXPORTED_CDI_SIZE;
 use zerocopy::{FromZeros, IntoBytes};
 
 pub struct SignWithExportedEcdsaCmd;
 impl SignWithExportedEcdsaCmd {
-    /// SignWithExported signs a `digest` using an ECDSA keypair derived from a exported_cdi
-    /// handle and the CDI stored in DPE.
-    ///
-    /// # Arguments
-    ///
-    /// * `env` - DPE environment containing Crypto and Platform implementations
-    /// * `digest` - The data to be signed
-    /// * `exported_cdi_handle` - A handle from DPE that is exchanged for a CDI.
-    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
-    fn ecdsa_sign(
-        env: &mut DpeCrypto,
-        data: &SignData,
-        exported_cdi_handle: &[u8; MAX_EXPORTED_CDI_SIZE],
-    ) -> CaliptraResult<(Signature, PubKey)> {
-        let key_pair =
-            env.derive_key_pair_exported(exported_cdi_handle, b"Exported ECC", b"Exported ECC");
-
-        if cfi_launder(key_pair.is_ok()) {
-            #[cfg(feature = "cfi")]
-            cfi_assert!(key_pair.is_ok());
-        } else {
-            #[cfg(feature = "cfi")]
-            cfi_assert!(key_pair.is_err());
-        }
-        let signer = key_pair
-            .map_err(|_| CaliptraError::RUNTIME_SIGN_WITH_EXPORTED_ECDSA_KEY_DERIVIATION_FAILED)?;
-
-        let pub_key: PubKey = signer
-            .public_key()
-            .map_err(|_| CaliptraError::RUNTIME_SIGN_WITH_EXPORTED_ECDSA_KEY_DERIVIATION_FAILED)?;
-        let sig: Signature = signer
-            .sign(data)
-            .map_err(|_| CaliptraError::RUNTIME_SIGN_WITH_EXPORTED_ECDSA_SIGNATURE_FAILED)?;
-
-        Ok((sig, pub_key))
-    }
-
     #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn execute(drivers: &mut Drivers) -> CaliptraResult<()> {
@@ -96,7 +61,18 @@ impl SignWithExportedEcdsaCmd {
         let (
             Signature::Ecdsa(EcdsaSignature::Ecdsa384(EcdsaSignature384 { r, s })),
             PubKey::Ecdsa(EcdsaPubKey::Ecdsa384(EcdsaPub384 { x, y })),
-        ) = Self::ecdsa_sign(&mut crypto, &data, &cmd.exported_cdi_handle)?
+        ) = sign_exported(
+            &mut crypto,
+            &data,
+            &cmd.exported_cdi_handle,
+            b"Exported ECC",
+        )
+        .map_err(|e| match e {
+            ExportedSignError::Signature => {
+                CaliptraError::RUNTIME_SIGN_WITH_EXPORTED_ECDSA_SIGNATURE_FAILED
+            }
+            _ => CaliptraError::RUNTIME_SIGN_WITH_EXPORTED_ECDSA_KEY_DERIVIATION_FAILED,
+        })?
         else {
             return Err(CaliptraError::RUNTIME_SIGN_WITH_EXPORTED_ECDSA_INVALID_SIGNATURE);
         };
@@ -132,4 +108,45 @@ impl SignWithExportedEcdsaCmd {
         let _ = pdata;
         crate::packet::copy_to_mbox(drivers, resp.as_mut_bytes())
     }
+}
+
+/// Which step of an exported-CDI sign failed, so each command (ECDSA/ML-DSA) can
+/// map it to its own algorithm-specific error code.
+pub(crate) enum ExportedSignError {
+    /// No active exported-CDI slot matched the handle.
+    NotFound,
+    KeyDerivation,
+    Signature,
+}
+
+/// Derive the key pair bound to `exported_cdi_handle` (using `label`) and sign
+/// `data`, returning the signature and the derived public key. Shared by the
+/// SIGN_WITH_EXPORTED_{ECDSA,MLDSA} commands.
+#[cfg_attr(feature = "cfi", cfi_mod_fn)]
+pub(crate) fn sign_exported(
+    env: &mut DpeCrypto,
+    data: &SignData,
+    exported_cdi_handle: &[u8; MAX_EXPORTED_CDI_SIZE],
+    label: &[u8],
+) -> Result<(Signature, PubKey), ExportedSignError> {
+    let key_pair = env.derive_key_pair_exported(exported_cdi_handle, label, label);
+    if cfi_launder(key_pair.is_ok()) {
+        #[cfg(feature = "cfi")]
+        cfi_assert!(key_pair.is_ok());
+    } else {
+        #[cfg(feature = "cfi")]
+        cfi_assert!(key_pair.is_err());
+    }
+
+    let signer = key_pair.map_err(|e| match e {
+        CryptoError::InvalidExportedCdiHandle => ExportedSignError::NotFound,
+        _ => ExportedSignError::KeyDerivation,
+    })?;
+    let pub_key = signer
+        .public_key()
+        .map_err(|_| ExportedSignError::KeyDerivation)?;
+    let sig = signer
+        .sign(data)
+        .map_err(|_| ExportedSignError::Signature)?;
+    Ok((sig, pub_key))
 }

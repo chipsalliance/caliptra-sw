@@ -1,5 +1,6 @@
 // Licensed under the Apache-2.0 license
 
+use crate::sign_with_exported_ecdsa::{sign_exported, ExportedSignError};
 use crate::{dpe_crypto::DpeCrypto, Drivers, PauserPrivileges};
 
 #[cfg(feature = "cfi")]
@@ -11,45 +12,12 @@ use caliptra_error::{CaliptraError, CaliptraResult};
 
 use crypto::{
     ml_dsa::{MldsaPublicKey, MldsaSignature},
-    Crypto, CryptoError, Mu, PubKey, SignData, Signature,
+    Mu, PubKey, SignData, Signature,
 };
-use dpe::MAX_EXPORTED_CDI_SIZE;
 use zerocopy::{FromZeros, IntoBytes};
 
 pub struct SignWithExportedMldsaCmd;
 impl SignWithExportedMldsaCmd {
-    /// Sign `data` with an ML-DSA-87 key pair derived from an exported CDI
-    /// handle, returning the signature and the derived public key.
-    ///
-    /// This mirrors the ECDSA variant: the exported-CDI lookup and key
-    /// derivation live in [`DpeCrypto::derive_key_pair_exported`], which for the
-    /// ML-DSA signer reads the raw CDI from `mldsa_exported_cdi_slots`.
-    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
-    fn mldsa_sign(
-        env: &mut DpeCrypto,
-        data: &SignData,
-        exported_cdi_handle: &[u8; MAX_EXPORTED_CDI_SIZE],
-    ) -> CaliptraResult<(Signature, PubKey)> {
-        let signer = env
-            .derive_key_pair_exported(exported_cdi_handle, b"Exported ML-DSA", b"Exported ML-DSA")
-            .map_err(|e| match e {
-                // No active slot matched the handle.
-                CryptoError::InvalidExportedCdiHandle => {
-                    CaliptraError::RUNTIME_SIGN_WITH_EXPORTED_MLDSA_NOT_FOUND
-                }
-                _ => CaliptraError::RUNTIME_SIGN_WITH_EXPORTED_MLDSA_KEY_DERIVATION_FAILED,
-            })?;
-
-        let pub_key = signer
-            .public_key()
-            .map_err(|_| CaliptraError::RUNTIME_SIGN_WITH_EXPORTED_MLDSA_KEY_DERIVATION_FAILED)?;
-        let sig = signer
-            .sign(data)
-            .map_err(|_| CaliptraError::RUNTIME_SIGN_WITH_EXPORTED_MLDSA_SIGNATURE_FAILED)?;
-
-        Ok((sig, pub_key))
-    }
-
     #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn execute(drivers: &mut Drivers) -> CaliptraResult<()> {
@@ -98,7 +66,23 @@ impl SignWithExportedMldsaCmd {
         )?;
 
         let (Signature::Mldsa(MldsaSignature(sig)), PubKey::Mldsa(MldsaPublicKey(pub_key))) =
-            Self::mldsa_sign(&mut crypto, &data, &cmd.exported_cdi_handle)?
+            sign_exported(
+                &mut crypto,
+                &data,
+                &cmd.exported_cdi_handle,
+                b"Exported ML-DSA",
+            )
+            .map_err(|e| match e {
+                ExportedSignError::NotFound => {
+                    CaliptraError::RUNTIME_SIGN_WITH_EXPORTED_MLDSA_NOT_FOUND
+                }
+                ExportedSignError::KeyDerivation => {
+                    CaliptraError::RUNTIME_SIGN_WITH_EXPORTED_MLDSA_KEY_DERIVATION_FAILED
+                }
+                ExportedSignError::Signature => {
+                    CaliptraError::RUNTIME_SIGN_WITH_EXPORTED_MLDSA_SIGNATURE_FAILED
+                }
+            })?
         else {
             return Err(CaliptraError::RUNTIME_SIGN_WITH_EXPORTED_MLDSA_SIGNATURE_FAILED);
         };
