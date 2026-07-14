@@ -42,6 +42,11 @@ jobs:
   build:
     needs: lint
     runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        revision: ["latest", "2.1"]
+    env:
+      CALIPTRA_HW_REV: ${{ matrix.revision }}
     steps:
       - name: Checkout repo
         uses: actions/checkout@v5
