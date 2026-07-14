@@ -15,13 +15,19 @@ Abstract:
 use caliptra_common::mailbox_api::{
     GetFmcAliasCertResp, GetIdevCertReq, GetIdevCertResp, GetLdevCertResp, GetRtAliasCertResp,
 };
+#[cfg(feature = "mldsa_attestation")]
+use caliptra_common::mailbox_api::{GetPqCertReq, GetPqCertResp};
 
 use crate::Drivers;
 
+#[cfg(feature = "mldsa_attestation")]
+use caliptra_drivers::Mldsa87Signature;
 use caliptra_drivers::{
     hand_off::DataStore, CaliptraError, CaliptraResult, DataVault, Ecc384Scalar, Ecc384Signature,
     PersistentData,
 };
+#[cfg(feature = "mldsa_attestation")]
+use caliptra_x509::MlDsa87CertBuilder;
 use caliptra_x509::{Ecdsa384CertBuilder, Ecdsa384Signature};
 use zerocopy::{FromZeros, IntoBytes};
 
@@ -50,6 +56,36 @@ impl IDevIdCertCmd {
         let mut resp = GetIdevCertResp::default();
         let Some(cert_size) = builder.build(&mut resp.cert) else {
             return Err(CaliptraError::RUNTIME_GET_IDEVID_CERT_FAILED);
+        };
+
+        resp.cert_size = cert_size as u32;
+        crate::packet::copy_to_mbox(drivers, resp.as_mut_bytes())
+    }
+}
+
+#[cfg(feature = "mldsa_attestation")]
+pub struct PqCertCmd;
+#[cfg(feature = "mldsa_attestation")]
+impl PqCertCmd {
+    #[inline(never)]
+    pub(crate) fn execute(drivers: &mut Drivers) -> CaliptraResult<()> {
+        let mut cmd = GetPqCertReq::new_zeroed();
+        crate::packet::copy_from_mbox(drivers, cmd.as_mut_bytes())?;
+
+        // Validate tbs
+        if cmd.tbs_size as usize > cmd.tbs.len() {
+            return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
+        }
+
+        let sig = Mldsa87Signature::new(cmd.signature);
+
+        let Some(builder) = MlDsa87CertBuilder::new(&cmd.tbs[..cmd.tbs_size as usize], &sig) else {
+            return Err(CaliptraError::RUNTIME_GET_PQ_CERT_FAILED);
+        };
+
+        let mut resp = GetPqCertResp::default();
+        let Some(cert_size) = builder.build(&mut resp.cert) else {
+            return Err(CaliptraError::RUNTIME_GET_PQ_CERT_FAILED);
         };
 
         resp.cert_size = cert_size as u32;

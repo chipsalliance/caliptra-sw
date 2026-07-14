@@ -5,6 +5,7 @@ use caliptra_error::{CaliptraError, CaliptraResult};
 #[cfg(feature = "mldsa_attestation")]
 use caliptra_mldsa::MLDSA87_PRIVATE_SEED_BYTES;
 use caliptra_mldsa::{MLDSA87_PUBLIC_KEY_BYTES, MLDSA87_SIGNATURE_BYTES};
+#[cfg(feature = "mldsa_attestation")]
 use core::mem::size_of;
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
 
@@ -21,6 +22,8 @@ pub struct CommandId(pub u32);
 impl CommandId {
     pub const FIRMWARE_LOAD: Self = Self(0x46574C44); // "FWLD"
     pub const GET_IDEV_CERT: Self = Self(0x49444543); // "IDEC"
+    #[cfg(feature = "mldsa_attestation")]
+    pub const GET_PQ_CERT: Self = Self(0x47505143); // "GPQC"
     pub const GET_IDEV_INFO: Self = Self(0x49444549); // "IDEI"
     pub const POPULATE_IDEV_CERT: Self = Self(0x49444550); // "IDEP"
     pub const GET_LDEV_CERT: Self = Self(0x4C444556); // "LDEV"
@@ -307,6 +310,8 @@ pub enum MailboxReq {
     FwInfo(MailboxReqHeader),
     PopulateIdevCert(PopulateIdevCertReq),
     GetIdevCert(GetIdevCertReq),
+    #[cfg(feature = "mldsa_attestation")]
+    GetPqCert(GetPqCertReq),
     TagTci(TagTciReq),
     GetTaggedTci(GetTaggedTciReq),
     GetFmcAliasCert(GetFmcAliasCertReq),
@@ -343,6 +348,8 @@ impl MailboxReq {
             MailboxReq::GetLdevCert(req) => Ok(req.as_bytes()),
             MailboxReq::PopulateIdevCert(req) => req.as_bytes_partial(),
             MailboxReq::GetIdevCert(req) => req.as_bytes_partial(),
+            #[cfg(feature = "mldsa_attestation")]
+            MailboxReq::GetPqCert(req) => req.as_bytes_partial(),
             MailboxReq::TagTci(req) => Ok(req.as_bytes()),
             MailboxReq::GetTaggedTci(req) => Ok(req.as_bytes()),
             MailboxReq::GetFmcAliasCert(req) => Ok(req.as_bytes()),
@@ -379,6 +386,8 @@ impl MailboxReq {
             MailboxReq::FwInfo(req) => Ok(req.as_mut_bytes()),
             MailboxReq::PopulateIdevCert(req) => req.as_bytes_partial_mut(),
             MailboxReq::GetIdevCert(req) => req.as_bytes_partial_mut(),
+            #[cfg(feature = "mldsa_attestation")]
+            MailboxReq::GetPqCert(req) => req.as_bytes_partial_mut(),
             MailboxReq::TagTci(req) => Ok(req.as_mut_bytes()),
             MailboxReq::GetTaggedTci(req) => Ok(req.as_mut_bytes()),
             MailboxReq::GetFmcAliasCert(req) => Ok(req.as_mut_bytes()),
@@ -415,6 +424,8 @@ impl MailboxReq {
             MailboxReq::FwInfo(_) => CommandId::FW_INFO,
             MailboxReq::PopulateIdevCert(_) => CommandId::POPULATE_IDEV_CERT,
             MailboxReq::GetIdevCert(_) => CommandId::GET_IDEV_CERT,
+            #[cfg(feature = "mldsa_attestation")]
+            MailboxReq::GetPqCert(_) => CommandId::GET_PQ_CERT,
             MailboxReq::TagTci(_) => CommandId::DPE_TAG_TCI,
             MailboxReq::GetTaggedTci(_) => CommandId::DPE_GET_TAGGED_TCI,
             MailboxReq::GetFmcAliasCert(_) => CommandId::GET_FMC_ALIAS_CERT,
@@ -546,6 +557,75 @@ impl Default for GetIdevCertResp {
             hdr: MailboxRespHeader::default(),
             cert_size: 0,
             cert: [0u8; GetIdevCertResp::DATA_MAX_SIZE],
+        }
+    }
+}
+
+// GET_PQ_CERT
+#[cfg(feature = "mldsa_attestation")]
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+pub struct GetPqCertReq {
+    pub hdr: MailboxReqHeader,
+    pub tbs_size: u32,
+    pub signature: [u8; MLDSA87_SIGNATURE_BYTES],
+    pub tbs: [u8; GetPqCertReq::DATA_MAX_SIZE], // variable length
+}
+#[cfg(feature = "mldsa_attestation")]
+impl GetPqCertReq {
+    // GetPqCertResp::DATA_MAX_SIZE - MAX_MLDSA87_SIG_DER_LEN + 2-byte padding for alignment
+    pub const DATA_MAX_SIZE: usize = 3553;
+
+    pub fn as_bytes_partial(&self) -> CaliptraResult<&[u8]> {
+        if self.tbs_size as usize > Self::DATA_MAX_SIZE {
+            return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
+        }
+        let unused_byte_count = Self::DATA_MAX_SIZE - self.tbs_size as usize;
+        Ok(&self.as_bytes()[..size_of::<Self>() - unused_byte_count])
+    }
+
+    pub fn as_bytes_partial_mut(&mut self) -> CaliptraResult<&mut [u8]> {
+        if self.tbs_size as usize > Self::DATA_MAX_SIZE {
+            return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
+        }
+        let unused_byte_count = Self::DATA_MAX_SIZE - self.tbs_size as usize;
+        Ok(&mut self.as_mut_bytes()[..size_of::<Self>() - unused_byte_count])
+    }
+}
+#[cfg(feature = "mldsa_attestation")]
+impl Default for GetPqCertReq {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxReqHeader::default(),
+            tbs_size: 0,
+            signature: [0u8; MLDSA87_SIGNATURE_BYTES],
+            tbs: [0u8; GetPqCertReq::DATA_MAX_SIZE],
+        }
+    }
+}
+
+#[cfg(feature = "mldsa_attestation")]
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+pub struct GetPqCertResp {
+    pub hdr: MailboxRespHeader,
+    pub cert_size: u32,
+    pub cert: [u8; GetPqCertResp::DATA_MAX_SIZE], // variable length
+}
+#[cfg(feature = "mldsa_attestation")]
+impl GetPqCertResp {
+    pub const DATA_MAX_SIZE: usize = 8192;
+}
+#[cfg(feature = "mldsa_attestation")]
+impl ResponseVarSize for GetPqCertResp {}
+
+#[cfg(feature = "mldsa_attestation")]
+impl Default for GetPqCertResp {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxRespHeader::default(),
+            cert_size: 0,
+            cert: [0u8; GetPqCertResp::DATA_MAX_SIZE],
         }
     }
 }

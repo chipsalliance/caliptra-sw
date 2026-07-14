@@ -77,6 +77,8 @@ use crypto::{
     ecdsa::{curve_384::EcdsaPub384, EcdsaPubKey},
     CryptoSuite, PubKey,
 };
+#[cfg(feature = "mldsa_attestation")]
+use dice::PqCertCmd;
 pub use dice::{GetFmcAliasCertCmd, GetLdevCertCmd, IDevIdCertCmd};
 pub use disable::DisableAttestationCmd;
 pub use dpe::State;
@@ -214,6 +216,8 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
     match drivers.mbox.cmd() {
         CommandId::FIRMWARE_LOAD => return Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
         CommandId::GET_IDEV_CERT => IDevIdCertCmd::execute(drivers),
+        #[cfg(feature = "mldsa_attestation")]
+        CommandId::GET_PQ_CERT => PqCertCmd::execute(drivers),
         CommandId::GET_IDEV_INFO => {
             copy_from_mbox(drivers, MailboxReqHeader::new_zeroed().as_mut_bytes())?;
             IDevIdInfoCmd::execute(drivers)
