@@ -14,6 +14,8 @@ mod test_fips;
 mod test_get_fmc_alias_csr;
 mod test_get_idev_csr;
 #[cfg(feature = "mldsa_attestation")]
+mod test_get_pq_cert;
+#[cfg(feature = "mldsa_attestation")]
 mod test_get_pq_csr;
 mod test_info;
 mod test_invoke_dpe;
@@ -28,6 +30,8 @@ mod test_panic_missing;
 mod test_pauser_privilege_levels;
 mod test_pcr;
 mod test_populate_idev;
+#[cfg(feature = "mldsa_attestation")]
+mod test_populate_pq;
 mod test_reallocate_dpe_context_limits;
 mod test_revoke_exported_cdi_handle;
 #[cfg(feature = "mldsa_attestation")]

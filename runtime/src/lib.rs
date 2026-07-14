@@ -37,6 +37,8 @@ mod invoke_dpe_mldsa;
 pub mod mbox_response_writer;
 mod pcr;
 mod populate_idev;
+#[cfg(feature = "mldsa_attestation")]
+mod populate_pq;
 mod reallocate_dpe_context_limits;
 mod revoke_exported_cdi_handle;
 mod set_auth_manifest;
@@ -77,6 +79,8 @@ use crypto::{
     ecdsa::{curve_384::EcdsaPub384, EcdsaPubKey},
     CryptoSuite, PubKey,
 };
+#[cfg(feature = "mldsa_attestation")]
+use dice::PqCertCmd;
 pub use dice::{GetFmcAliasCertCmd, GetLdevCertCmd, IDevIdCertCmd};
 pub use disable::DisableAttestationCmd;
 pub use dpe::State;
@@ -87,6 +91,8 @@ pub use fips::FipsShutdownCmd;
 pub use fips::{fips_self_test_cmd, fips_self_test_cmd::SelfTestStatus};
 use platform::{Platform, MAX_OTHER_NAME_SIZE};
 pub use populate_idev::PopulateIDevIdCertCmd;
+#[cfg(feature = "mldsa_attestation")]
+pub use populate_pq::PopulatePqCertCmd;
 
 pub use get_fmc_alias_csr::GetFmcAliasCsrCmd;
 pub use get_idev_csr::GetIdevCsrCmd;
@@ -142,6 +148,11 @@ impl From<RtBootStatus> for u32 {
 
 pub const DPE_SUPPORT: Support = Support::all();
 pub const MAX_CERT_CHAIN_SIZE: usize = 4096;
+
+// Consists of public key (2592 bytes), signature (4627 bytes), and
+// some additional room for the rest of the TBS.
+#[cfg(feature = "mldsa_attestation")]
+pub const MAX_MLDSA_CERT_CHAIN_SIZE: usize = 8192;
 
 pub const PL0_PAUSER_FLAG: u32 = 1;
 pub const PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD: usize = 16;
@@ -209,6 +220,8 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
     match drivers.mbox.cmd() {
         CommandId::FIRMWARE_LOAD => return Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
         CommandId::GET_IDEV_CERT => IDevIdCertCmd::execute(drivers),
+        #[cfg(feature = "mldsa_attestation")]
+        CommandId::GET_PQ_CERT => PqCertCmd::execute(drivers),
         CommandId::GET_IDEV_INFO => {
             copy_from_mbox(drivers, MailboxReqHeader::new_zeroed().as_mut_bytes())?;
             IDevIdInfoCmd::execute(drivers)
@@ -233,6 +246,8 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         CommandId::DPE_TAG_TCI => TagTciCmd::execute(drivers),
         CommandId::DPE_GET_TAGGED_TCI => GetTaggedTciCmd::execute(drivers),
         CommandId::POPULATE_IDEV_CERT => PopulateIDevIdCertCmd::execute(drivers),
+        #[cfg(feature = "mldsa_attestation")]
+        CommandId::POPULATE_PQ_CERT => PopulatePqCertCmd::execute(drivers),
         CommandId::GET_FMC_ALIAS_CERT => GetFmcAliasCertCmd::execute(drivers),
         CommandId::GET_RT_ALIAS_CERT => GetRtAliasCertCmd::execute(drivers),
         CommandId::ADD_SUBJECT_ALT_NAME => AddSubjectAltNameCmd::execute(drivers),
@@ -471,6 +486,41 @@ fn ec_dpe_env(
             pl0_pauser,
             hashed_rt_pub_key,
             &drivers.cert_chain,
+            nb,
+            nf,
+            dmtf_device_info,
+            ueid,
+        ),
+        state: &mut pdata.dpe,
+    })
+}
+
+#[allow(dead_code)]
+#[cfg(feature = "mldsa_attestation")]
+fn mldsa_dpe_env(
+    drivers: &mut Drivers,
+    dmtf_device_info: Option<ArrayVec<u8, { MAX_OTHER_NAME_SIZE }>>,
+    ueid: Option<[u8; 17]>,
+) -> CaliptraResult<CaliptraDpeEnv<'_>> {
+    let (_, _, digest) = drivers.compute_mldsa_key_material()?;
+    let pdata = drivers.persistent_data.get_mut();
+    let crypto = DpeCrypto::new_mldsa87(
+        &mut drivers.sha384,
+        &mut drivers.trng,
+        &mut drivers.hmac384,
+        &mut drivers.key_vault,
+        &pdata.pq_devid_cdi,
+        &mut pdata.exported_cdi_slots,
+    )?;
+    let pl0_pauser = pdata.manifest1.header.pl0_pauser;
+    let (nb, nf) = Drivers::get_cert_validity_info(&pdata.manifest1);
+    Ok(CaliptraDpeEnv {
+        crypto,
+        platform: DpePlatform::new(
+            CaliptraDpeProfile::Mldsa,
+            pl0_pauser,
+            digest,
+            &drivers.mldsa_cert_chain,
             nb,
             nf,
             dmtf_device_info,

@@ -25,6 +25,7 @@ use crate::{
 };
 #[cfg(feature = "mldsa_attestation")]
 use {
+    crate::MAX_MLDSA_CERT_CHAIN_SIZE,
     caliptra_drivers::{
         hmac384_kdf, Mldsa87, Mldsa87PubKey, Mldsa87Seed, MLDSA87_PRIVATE_SEED_BYTES,
     },
@@ -116,6 +117,9 @@ pub struct Drivers {
 
     pub cert_chain: ArrayVec<u8, MAX_CERT_CHAIN_SIZE>,
 
+    #[cfg(feature = "mldsa_attestation")]
+    pub mldsa_cert_chain: ArrayVec<u8, MAX_MLDSA_CERT_CHAIN_SIZE>,
+
     #[cfg(feature = "fips_self_test")]
     pub self_test_status: SelfTestStatus,
 
@@ -158,6 +162,8 @@ impl Drivers {
             #[cfg(feature = "fips_self_test")]
             self_test_status: SelfTestStatus::Idle,
             cert_chain: ArrayVec::new(),
+            #[cfg(feature = "mldsa_attestation")]
+            mldsa_cert_chain: ArrayVec::new(),
             is_shutdown: false,
             dmtf_device_info: None,
         })
@@ -912,7 +918,7 @@ impl Drivers {
     /// in persistent data.
     #[cfg(feature = "mldsa_attestation")]
     #[inline(never)]
-    pub fn derive_devid_seed(&mut self, seed: &mut Mldsa87Seed) -> CaliptraResult<()> {
+    fn derive_devid_seed(&mut self, seed: &mut Mldsa87Seed) -> CaliptraResult<()> {
         let cdi = Zeroizing::new(Array4x12::from(&self.persistent_data.get().pq_devid_cdi));
         let mut output = Zeroizing::new(Array4x12::default());
         hmac384_kdf(
@@ -934,6 +940,10 @@ impl Drivers {
     pub fn compute_mldsa_key_material(
         &mut self,
     ) -> CaliptraResult<(Mldsa87Seed, Mldsa87PubKey, Digest)> {
+        if !self.persistent_data.get().pqc_mode_enabled() {
+            return Err(CaliptraError::RUNTIME_PQC_NOT_INITIALIZED);
+        }
+
         let mut seed = Mldsa87Seed::default();
         self.derive_devid_seed(&mut seed)?;
 
@@ -952,7 +962,7 @@ impl Drivers {
     pub fn compute_subject_sn(&mut self, digest: &Digest, sn: &mut [u8]) -> CaliptraResult<()> {
         digest
             .write_hex_str(sn)
-            .map_err(|_| CaliptraError::RUNTIME_PQ_CSR_SUBJECT_SN_FAILED)?;
+            .map_err(|_| CaliptraError::RUNTIME_PQ_SUBJECT_SN_FAILED)?;
         Ok(())
     }
 }

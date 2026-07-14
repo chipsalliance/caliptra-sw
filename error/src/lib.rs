@@ -1289,9 +1289,19 @@ impl CaliptraError {
             "Runtime Error: PQ.DevID CSR builder build failed"
         ),
         (
-            RUNTIME_PQ_CSR_SUBJECT_SN_FAILED,
+            RUNTIME_PQ_SUBJECT_SN_FAILED,
             0x000E0068,
-            "Runtime Error: PQ.DevID CSR subject serial number generation failed"
+            "Runtime Error: PQ.DevID subject serial number generation failed"
+        ),
+        (
+            RUNTIME_PQ_CERT_POPULATION_FAILED,
+            0x000E0069,
+            "Runtime Error: PQ Cert Population Failed"
+        ),
+        (
+            RUNTIME_GET_PQ_CERT_FAILED,
+            0x000E006A,
+            "Runtime Error: Get PQ Cert Failed"
         ),
         // FMC Errors
         (FMC_GLOBAL_NMI, 0x000F0001, "FMC Error: Global NMI"),
