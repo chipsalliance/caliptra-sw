@@ -31,7 +31,7 @@ pub type AxiAddr = u64;
 
 const TEST_SRAM_SIZE: usize = 4 * 1024;
 const EXTERNAL_TEST_SRAM_SIZE: usize = 1024 * 1024;
-const MCU_SRAM_SIZE: usize = 384 * 1024;
+const MCU_SRAM_SIZE: usize = 512 * 1024;
 
 pub struct AxiRootBus {
     pub reg: u32,
@@ -69,7 +69,7 @@ impl AxiRootBus {
         *SS_MCI_OFFSET + 0xc0_0000
     }
     pub fn mcu_sram_end() -> AxiAddr {
-        Self::mcu_sram_offset() + 2 * 1024 * 1024 - 1
+        Self::mcu_sram_offset() + MCU_SRAM_SIZE as u64 - 1
     }
     pub fn mcu_mbox0_sram_offset() -> AxiAddr {
         *SS_MCI_OFFSET + 0x40_0000
