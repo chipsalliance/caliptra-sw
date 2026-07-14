@@ -30,6 +30,8 @@ mod test_panic_missing;
 mod test_pauser_privilege_levels;
 mod test_pcr;
 mod test_populate_idev;
+#[cfg(feature = "mldsa_attestation")]
+mod test_populate_pq;
 mod test_reallocate_dpe_context_limits;
 mod test_revoke_exported_cdi_handle;
 #[cfg(feature = "mldsa_attestation")]

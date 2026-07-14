@@ -54,7 +54,6 @@ fn test_get_pq_cert() {
     let mut cert = [0u8; GetPqCertResp::DATA_MAX_SIZE];
     let cert_size = builder.build(&mut cert).unwrap();
 
-    // Invoke the command
     let mut cmd = MailboxReq::GetPqCert(req);
     cmd.populate_chksum().unwrap();
     let resp_bytes = model
@@ -80,7 +79,6 @@ fn test_get_pq_cert_tbs_size_too_large() {
     let chksum = calc_checksum(u32::from(CommandId::GET_PQ_CERT), &raw[4..]);
     raw[0..4].copy_from_slice(&chksum.to_le_bytes());
 
-    // Invoke the command
     let resp = model
         .mailbox_execute(u32::from(CommandId::GET_PQ_CERT), &raw)
         .unwrap_err();
