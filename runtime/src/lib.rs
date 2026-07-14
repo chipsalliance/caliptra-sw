@@ -37,6 +37,8 @@ mod invoke_dpe_mldsa;
 pub mod mbox_response_writer;
 mod pcr;
 mod populate_idev;
+#[cfg(feature = "mldsa_attestation")]
+mod populate_pq;
 mod reallocate_dpe_context_limits;
 mod revoke_exported_cdi_handle;
 mod set_auth_manifest;
@@ -89,6 +91,8 @@ pub use fips::FipsShutdownCmd;
 pub use fips::{fips_self_test_cmd, fips_self_test_cmd::SelfTestStatus};
 use platform::{Platform, MAX_OTHER_NAME_SIZE};
 pub use populate_idev::PopulateIDevIdCertCmd;
+#[cfg(feature = "mldsa_attestation")]
+pub use populate_pq::PopulatePqCertCmd;
 
 pub use get_fmc_alias_csr::GetFmcAliasCsrCmd;
 pub use get_idev_csr::GetIdevCsrCmd;
@@ -242,6 +246,8 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         CommandId::DPE_TAG_TCI => TagTciCmd::execute(drivers),
         CommandId::DPE_GET_TAGGED_TCI => GetTaggedTciCmd::execute(drivers),
         CommandId::POPULATE_IDEV_CERT => PopulateIDevIdCertCmd::execute(drivers),
+        #[cfg(feature = "mldsa_attestation")]
+        CommandId::POPULATE_PQ_CERT => PopulatePqCertCmd::execute(drivers),
         CommandId::GET_FMC_ALIAS_CERT => GetFmcAliasCertCmd::execute(drivers),
         CommandId::GET_RT_ALIAS_CERT => GetRtAliasCertCmd::execute(drivers),
         CommandId::ADD_SUBJECT_ALT_NAME => AddSubjectAltNameCmd::execute(drivers),

@@ -26,6 +26,8 @@ impl CommandId {
     pub const GET_PQ_CERT: Self = Self(0x47505143); // "GPQC"
     pub const GET_IDEV_INFO: Self = Self(0x49444549); // "IDEI"
     pub const POPULATE_IDEV_CERT: Self = Self(0x49444550); // "IDEP"
+    #[cfg(feature = "mldsa_attestation")]
+    pub const POPULATE_PQ_CERT: Self = Self(0x50505143); // "PPQC"
     pub const GET_LDEV_CERT: Self = Self(0x4C444556); // "LDEV"
     pub const GET_FMC_ALIAS_CERT: Self = Self(0x43455246); // "CERF"
     pub const GET_RT_ALIAS_CERT: Self = Self(0x43455252); // "CERR"
@@ -309,6 +311,8 @@ pub enum MailboxReq {
     FipsVersion(MailboxReqHeader),
     FwInfo(MailboxReqHeader),
     PopulateIdevCert(PopulateIdevCertReq),
+    #[cfg(feature = "mldsa_attestation")]
+    PopulatePqCert(PopulatePqCertReq),
     GetIdevCert(GetIdevCertReq),
     #[cfg(feature = "mldsa_attestation")]
     GetPqCert(GetPqCertReq),
@@ -347,6 +351,8 @@ impl MailboxReq {
             MailboxReq::FwInfo(req) => Ok(req.as_bytes()),
             MailboxReq::GetLdevCert(req) => Ok(req.as_bytes()),
             MailboxReq::PopulateIdevCert(req) => req.as_bytes_partial(),
+            #[cfg(feature = "mldsa_attestation")]
+            MailboxReq::PopulatePqCert(req) => req.as_bytes_partial(),
             MailboxReq::GetIdevCert(req) => req.as_bytes_partial(),
             #[cfg(feature = "mldsa_attestation")]
             MailboxReq::GetPqCert(req) => req.as_bytes_partial(),
@@ -385,6 +391,8 @@ impl MailboxReq {
             MailboxReq::FipsVersion(req) => Ok(req.as_mut_bytes()),
             MailboxReq::FwInfo(req) => Ok(req.as_mut_bytes()),
             MailboxReq::PopulateIdevCert(req) => req.as_bytes_partial_mut(),
+            #[cfg(feature = "mldsa_attestation")]
+            MailboxReq::PopulatePqCert(req) => req.as_bytes_partial_mut(),
             MailboxReq::GetIdevCert(req) => req.as_bytes_partial_mut(),
             #[cfg(feature = "mldsa_attestation")]
             MailboxReq::GetPqCert(req) => req.as_bytes_partial_mut(),
@@ -423,6 +431,8 @@ impl MailboxReq {
             MailboxReq::FipsVersion(_) => CommandId::VERSION,
             MailboxReq::FwInfo(_) => CommandId::FW_INFO,
             MailboxReq::PopulateIdevCert(_) => CommandId::POPULATE_IDEV_CERT,
+            #[cfg(feature = "mldsa_attestation")]
+            MailboxReq::PopulatePqCert(_) => CommandId::POPULATE_PQ_CERT,
             MailboxReq::GetIdevCert(_) => CommandId::GET_IDEV_CERT,
             #[cfg(feature = "mldsa_attestation")]
             MailboxReq::GetPqCert(_) => CommandId::GET_PQ_CERT,
@@ -1106,6 +1116,47 @@ impl Default for PopulateIdevCertReq {
             hdr: MailboxReqHeader::default(),
             cert_size: 0,
             cert: [0u8; PopulateIdevCertReq::MAX_CERT_SIZE],
+        }
+    }
+}
+
+// POPULATE_PQ_CERT
+// No command-specific output args
+#[cfg(feature = "mldsa_attestation")]
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+pub struct PopulatePqCertReq {
+    pub hdr: MailboxReqHeader,
+    pub cert_size: u32,
+    pub cert: [u8; PopulatePqCertReq::MAX_CERT_SIZE], // variable length
+}
+#[cfg(feature = "mldsa_attestation")]
+impl PopulatePqCertReq {
+    pub const MAX_CERT_SIZE: usize = 8192;
+
+    pub fn as_bytes_partial(&self) -> CaliptraResult<&[u8]> {
+        if self.cert_size as usize > Self::MAX_CERT_SIZE {
+            return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
+        }
+        let unused_byte_count = Self::MAX_CERT_SIZE - self.cert_size as usize;
+        Ok(&self.as_bytes()[..size_of::<Self>() - unused_byte_count])
+    }
+
+    pub fn as_bytes_partial_mut(&mut self) -> CaliptraResult<&mut [u8]> {
+        if self.cert_size as usize > Self::MAX_CERT_SIZE {
+            return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
+        }
+        let unused_byte_count = Self::MAX_CERT_SIZE - self.cert_size as usize;
+        Ok(&mut self.as_mut_bytes()[..size_of::<Self>() - unused_byte_count])
+    }
+}
+#[cfg(feature = "mldsa_attestation")]
+impl Default for PopulatePqCertReq {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxReqHeader::default(),
+            cert_size: 0,
+            cert: [0u8; PopulatePqCertReq::MAX_CERT_SIZE],
         }
     }
 }
