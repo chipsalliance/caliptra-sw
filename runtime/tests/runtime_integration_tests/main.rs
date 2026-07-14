@@ -14,6 +14,8 @@ mod test_fips;
 mod test_get_fmc_alias_csr;
 mod test_get_idev_csr;
 #[cfg(feature = "mldsa_attestation")]
+mod test_get_pq_cert;
+#[cfg(feature = "mldsa_attestation")]
 mod test_get_pq_csr;
 mod test_info;
 mod test_invoke_dpe;
