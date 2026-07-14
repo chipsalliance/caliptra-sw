@@ -41,8 +41,6 @@ impl SetPqSeedCmd {
         drivers.persistent_data.get_mut().pq_devid_cdi = out.into();
         drivers.persistent_data.get_mut().set_pqc_mode_enabled();
 
-        Drivers::create_mldsa_cert_chain(drivers)?;
-
         crate::packet::copy_to_mbox(drivers, MailboxRespHeader::default().as_mut_bytes())
     }
 

@@ -27,10 +27,8 @@ use crate::{
 use {
     crate::MAX_MLDSA_CERT_CHAIN_SIZE,
     caliptra_drivers::{
-        hmac384_kdf, Mldsa87, Mldsa87PubKey, Mldsa87Seed, Mldsa87Signature,
-        MLDSA87_PRIVATE_SEED_BYTES,
+        hmac384_kdf, Mldsa87, Mldsa87PubKey, Mldsa87Seed, MLDSA87_PRIVATE_SEED_BYTES,
     },
-    caliptra_x509::{MlDsa87CertBuilder, PqDevIdCertTbsMlDsa87, PqDevIdCertTbsMlDsa87Params},
     zeroize::Zeroizing,
 };
 
@@ -184,13 +182,6 @@ impl Drivers {
         if self.persistent_data.get().attestation_disabled.get() {
             DisableAttestationCmd::execute(self)
                 .map_err(|_| CaliptraError::RUNTIME_GLOBAL_EXCEPTION)?;
-        }
-
-        // On reset, if PQC mode is enabled, it must come from the previous SET_PQ_SEED command, so
-        // the PQ.DevID.CDI is already in persistent data. We need to rebuild the cert chain.
-        #[cfg(feature = "mldsa_attestation")]
-        if self.persistent_data.get().pqc_mode_enabled() {
-            Self::create_mldsa_cert_chain(self)?;
         }
 
         let reset_reason = self.soc_ifc.reset_reason();
@@ -695,62 +686,6 @@ impl Drivers {
         }
 
         drivers.cert_chain = cert_chain;
-        Ok(())
-    }
-
-    #[cfg(feature = "mldsa_attestation")]
-    #[inline(never)]
-    pub fn create_mldsa_cert_chain(drivers: &mut Drivers) -> CaliptraResult<()> {
-        // Re-derive the seed and public key from PQ.DevID.CDI.
-        let (seed, pub_key, digest) = drivers.compute_mldsa_key_material()?;
-
-        // Build TBS.
-        let mut subject_sn = [0u8; PqDevIdCertTbsMlDsa87Params::SUBJECT_SN_LEN];
-        drivers.compute_subject_sn(&digest, &mut subject_sn)?;
-        // SAFETY: The SHA-256 `digest` is known to be 32 bytes.
-        let subject_key_id: [u8; 20] = digest.as_slice()[..20].try_into().unwrap();
-        let serial_number = {
-            // The cert serial number also uses the first 20 bytes of the public key digest but
-            // with the first octet modified. See the comment of X509::cert_sn.
-            let mut sn = subject_key_id;
-            sn[0] &= !0x80;
-            sn[0] |= 0x04;
-            sn
-        };
-        let ueid = &drivers.soc_ifc.fuse_bank().ueid();
-        let (nb, nf) = Drivers::get_cert_validity_info(&drivers.persistent_data.get().manifest1);
-        let tbs = PqDevIdCertTbsMlDsa87::new(&PqDevIdCertTbsMlDsa87Params {
-            public_key: &pub_key,
-            subject_sn: &subject_sn,
-            issuer_sn: &subject_sn,
-            serial_number: &serial_number,
-            subject_key_id: &subject_key_id,
-            authority_key_id: &subject_key_id,
-            ueid,
-            not_before: &nb.value,
-            not_after: &nf.value,
-        });
-
-        // Self-sign the TBS with the seed.
-        let mut sig = Mldsa87Signature::default();
-        Mldsa87::sign_deterministic(&seed, tbs.tbs(), &mut sig)?;
-
-        // Build and store the cert chain.
-        let builder = MlDsa87CertBuilder::new(tbs.tbs(), &sig)
-            .ok_or(CaliptraError::RUNTIME_CERT_CHAIN_CREATION_FAILED)?;
-        let mut buf = [0u8; MAX_MLDSA_CERT_CHAIN_SIZE];
-        let cert_size = builder
-            .build(&mut buf)
-            .ok_or(CaliptraError::RUNTIME_CERT_CHAIN_CREATION_FAILED)?;
-        let cert_bytes = buf
-            .get(..cert_size)
-            .ok_or(CaliptraError::RUNTIME_CERT_CHAIN_CREATION_FAILED)?;
-        drivers.mldsa_cert_chain.clear();
-        drivers
-            .mldsa_cert_chain
-            .try_extend_from_slice(cert_bytes)
-            .map_err(|_| CaliptraError::RUNTIME_CERT_CHAIN_CREATION_FAILED)?;
-
         Ok(())
     }
 
