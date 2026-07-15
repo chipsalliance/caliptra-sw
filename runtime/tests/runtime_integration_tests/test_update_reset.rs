@@ -64,10 +64,7 @@ pub fn mbox_test_image_without_uart() -> &'static FwId<'static> {
 
 #[test]
 fn test_rt_pcr_updated_in_dpe() {
-    let image_options = ImageOptions {
-        pqc_key_type: FwVerificationPqcKeyType::LMS,
-        ..Default::default()
-    };
+    let image_options = ImageOptions::default();
     let runtime_test_args = RuntimeTestArgs {
         test_image_options: Some(image_options.clone()),
         ..Default::default()
@@ -98,10 +95,7 @@ fn test_rt_pcr_updated_in_dpe() {
 
 #[test]
 fn test_rt_journey_pcr_updated_with_good_fw() {
-    let image_options = ImageOptions {
-        pqc_key_type: FwVerificationPqcKeyType::LMS,
-        ..Default::default()
-    };
+    let image_options = ImageOptions::default();
     let runtime_test_args = RuntimeTestArgs {
         test_image_options: Some(image_options.clone()),
         test_fwid: Some(mbox_test_image()),
@@ -127,10 +121,7 @@ fn test_rt_journey_pcr_updated_with_good_fw() {
 
 #[test]
 fn test_rt_journey_pcr_not_updated_with_bad_fw() {
-    let image_options = ImageOptions {
-        pqc_key_type: FwVerificationPqcKeyType::LMS,
-        ..Default::default()
-    };
+    let image_options = ImageOptions::default();
     let runtime_test_args = RuntimeTestArgs {
         test_image_options: Some(image_options.clone()),
         test_fwid: Some(mbox_test_image()),
@@ -170,10 +161,7 @@ fn test_rt_journey_pcr_not_updated_with_bad_fw() {
 
 #[test]
 fn test_tags_persistence() {
-    let image_options = ImageOptions {
-        pqc_key_type: FwVerificationPqcKeyType::LMS,
-        ..Default::default()
-    };
+    let image_options = ImageOptions::default();
     let runtime_test_args = RuntimeTestArgs {
         test_image_options: Some(image_options.clone()),
         ..Default::default()
@@ -216,10 +204,7 @@ fn test_tags_persistence() {
 
 #[test]
 fn test_context_tags_validation() {
-    let image_options = ImageOptions {
-        pqc_key_type: FwVerificationPqcKeyType::LMS,
-        ..Default::default()
-    };
+    let image_options = ImageOptions::default();
     let runtime_test_args = RuntimeTestArgs {
         test_fwid: Some(mbox_test_image()),
         test_image_options: Some(image_options.clone()),
@@ -252,10 +237,7 @@ fn test_context_tags_validation() {
 
 #[test]
 fn test_context_has_tag_validation() {
-    let image_options = ImageOptions {
-        pqc_key_type: FwVerificationPqcKeyType::LMS,
-        ..Default::default()
-    };
+    let image_options = ImageOptions::default();
     let args = RuntimeTestArgs {
         test_fwid: Some(mbox_test_image()),
         test_image_options: Some(image_options.clone()),
@@ -283,10 +265,7 @@ fn test_context_has_tag_validation() {
 
 #[test]
 fn test_dpe_validation_deformed_structure() {
-    let image_options = ImageOptions {
-        pqc_key_type: FwVerificationPqcKeyType::LMS,
-        ..Default::default()
-    };
+    let image_options = ImageOptions::default();
     let args = RuntimeTestArgs {
         test_fwid: Some(mbox_test_image()),
         test_image_options: Some(image_options.clone()),
@@ -338,10 +317,7 @@ fn test_dpe_validation_deformed_structure() {
 
 #[test]
 fn test_dpe_validation_illegal_state() {
-    let image_options = ImageOptions {
-        pqc_key_type: FwVerificationPqcKeyType::LMS,
-        ..Default::default()
-    };
+    let image_options = ImageOptions::default();
     let args = RuntimeTestArgs {
         test_fwid: Some(mbox_test_image()),
         test_image_options: Some(image_options.clone()),
@@ -391,10 +367,7 @@ fn test_dpe_validation_illegal_state() {
 
 #[test]
 fn test_dpe_validation_used_context_threshold_exceeded() {
-    let image_options = ImageOptions {
-        pqc_key_type: FwVerificationPqcKeyType::LMS,
-        ..Default::default()
-    };
+    let image_options = ImageOptions::default();
     let args = RuntimeTestArgs {
         test_fwid: Some(mbox_test_image()),
         test_image_options: Some(image_options.clone()),
@@ -477,10 +450,7 @@ fn test_dpe_validation_used_context_threshold_exceeded() {
 
 #[test]
 fn test_pcr_reset_counter_persistence() {
-    let image_options = ImageOptions {
-        pqc_key_type: FwVerificationPqcKeyType::LMS,
-        ..Default::default()
-    };
+    let image_options = ImageOptions::default();
     let runtime_args = RuntimeTestArgs {
         test_image_options: Some(image_options.clone()),
         ..Default::default()
@@ -526,7 +496,6 @@ fn test_pcr_reset_counter_persistence() {
 fn get_image_opts(svn: u32) -> ImageOptions {
     ImageOptions {
         fw_svn: svn,
-        pqc_key_type: FwVerificationPqcKeyType::LMS,
         ..Default::default()
     }
 }

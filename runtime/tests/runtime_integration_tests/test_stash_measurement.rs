@@ -9,7 +9,6 @@ use caliptra_common::mailbox_api::{
     CommandId, MailboxReq, MailboxReqHeader, StashMeasurementReq, StashMeasurementResp,
 };
 use caliptra_hw_model::HwModel;
-use caliptra_image_types::FwVerificationPqcKeyType;
 use caliptra_runtime::RtBootStatus;
 use caliptra_test::DEFAULT_MCU_FW;
 use sha2::{Digest, Sha384};
@@ -19,10 +18,7 @@ use crate::common::{calculate_cptra_config_init_vals_hash, run_rt_test, RuntimeT
 
 #[test]
 fn test_stash_measurement() {
-    let image_options = ImageOptions {
-        pqc_key_type: FwVerificationPqcKeyType::LMS,
-        ..Default::default()
-    };
+    let image_options = ImageOptions::default();
     let runtime_test_args = RuntimeTestArgs {
         test_image_options: Some(image_options.clone()),
         ..Default::default()
@@ -101,10 +97,7 @@ fn test_stash_measurement() {
 
 #[test]
 fn test_pcr31_extended_upon_stash_measurement() {
-    let image_options = ImageOptions {
-        pqc_key_type: FwVerificationPqcKeyType::LMS,
-        ..Default::default()
-    };
+    let image_options = ImageOptions::default();
     let runtime_test_args = RuntimeTestArgs {
         test_fwid: Some(crate::test_update_reset::mbox_test_image()),
         test_image_options: Some(image_options.clone()),

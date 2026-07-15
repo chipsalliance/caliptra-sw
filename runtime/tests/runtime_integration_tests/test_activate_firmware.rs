@@ -114,10 +114,7 @@ fn load_and_authorize_fw(images: &[Image]) -> DefaultHwModel {
     let auth_manifest = create_auth_manifest_with_metadata(image_metadata);
     let runtime_args = RuntimeTestArgs {
         subsystem_mode: true,
-        test_image_options: Some(caliptra_builder::ImageOptions {
-            pqc_key_type: caliptra_image_types::FwVerificationPqcKeyType::LMS,
-            ..Default::default()
-        }),
+        test_image_options: Some(caliptra_builder::ImageOptions::default()),
         soc_manifest: Some(auth_manifest.as_bytes()),
         mcu_fw_image: Some(&images[0].contents),
         ..Default::default()

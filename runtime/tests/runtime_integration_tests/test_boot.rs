@@ -8,7 +8,6 @@ use caliptra_common::mailbox_api::{CommandId, MailboxReq, MailboxReqHeader, Stas
 use caliptra_hw_model::{
     BootParams, Fuses, HwModel, InitParams, SecurityState, SubsystemInitParams,
 };
-use caliptra_image_types::FwVerificationPqcKeyType;
 use caliptra_runtime::RtBootStatus;
 use sha2::{Digest, Sha384};
 use zerocopy::IntoBytes;
@@ -80,7 +79,6 @@ fn test_update() {
     let image_options = ImageOptions {
         fmc_version: DEFAULT_FMC_VERSION,
         app_version: 0xaabbccdd,
-        pqc_key_type: FwVerificationPqcKeyType::LMS,
         ..Default::default()
     };
     // Make image to update to. On the FPGA this needs to be done before executing the test,
@@ -118,12 +116,10 @@ fn test_stress_update() {
     let app_versions = [0xaaabbbbc, 0xaaabbbbd];
     let image_options_0 = ImageOptions {
         app_version: app_versions[0],
-        pqc_key_type: FwVerificationPqcKeyType::LMS,
         ..Default::default()
     };
     let image_options_1 = ImageOptions {
         app_version: app_versions[1],
-        pqc_key_type: FwVerificationPqcKeyType::LMS,
         ..Default::default()
     };
 
@@ -289,7 +285,7 @@ fn test_boot_encrypted_firmware_rri() {
     use crate::common::{default_soc_manifest_bytes, start_rt_test_pqc_model, DEFAULT_MCU_FW};
     use caliptra_image_types::FwVerificationPqcKeyType;
 
-    let pqc_key_type = FwVerificationPqcKeyType::LMS;
+    let pqc_key_type = FwVerificationPqcKeyType::MLDSA;
 
     // Create args with stop_at_rom and subsystem_mode enabled
     let args = RuntimeTestArgs {

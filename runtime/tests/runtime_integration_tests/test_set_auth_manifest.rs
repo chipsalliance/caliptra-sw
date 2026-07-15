@@ -87,7 +87,7 @@ pub fn create_auth_manifest_with_metadata(
 ) -> AuthorizationManifest {
     create_auth_manifest_with_metadata_with_svn(
         image_metadata_list,
-        FwVerificationPqcKeyType::LMS,
+        FwVerificationPqcKeyType::MLDSA,
         1,
     )
 }
@@ -134,7 +134,6 @@ fn create_auth_manifest_of_metadata_size(
 fn test_set_auth_manifest_cmd_external() {
     let auth_manifest = create_auth_manifest(&AuthManifestBuilderCfg {
         manifest_flags: AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED,
-        pqc_key_type: FwVerificationPqcKeyType::LMS,
         ..Default::default()
     });
     let buf = auth_manifest.as_bytes();
@@ -166,7 +165,7 @@ fn test_set_auth_manifest_cmd_external() {
             test_sram: Some(&test_sram),
             ..Default::default()
         },
-        FwVerificationPqcKeyType::LMS,
+        FwVerificationPqcKeyType::MLDSA,
     );
 
     model.step_until(|m| {

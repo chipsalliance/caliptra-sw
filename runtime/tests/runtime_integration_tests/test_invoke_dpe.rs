@@ -715,7 +715,7 @@ fn test_invoke_dpe_external_addr() {
     let certify_key_cmd = CertifyKeyCommandNoRef::new(CreateCertifyKeyCmdArgs::default());
 
     let external_response_info = {
-        let addr = model.staging_physical_address().unwrap();
+        let addr = model.staging_physical_address().unwrap() + 1024;
         Some(AxiResponseInfo {
             addr_lo: addr as u32,
             addr_hi: (addr >> 32) as u32,

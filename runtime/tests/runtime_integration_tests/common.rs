@@ -358,8 +358,7 @@ pub fn run_rt_test(args: RuntimeTestArgs) -> DefaultHwModel {
 }
 
 pub fn run_rt_test_return_fw(args: RuntimeTestArgs) -> (DefaultHwModel, ImageBundle) {
-    // TODO(clundin): Do we want to use MLDSA by default in 2.1?
-    let key_type = args.key_type.unwrap_or(FwVerificationPqcKeyType::LMS);
+    let key_type = args.key_type.unwrap_or(FwVerificationPqcKeyType::MLDSA);
     run_rt_test_pqc_return_fw(args, key_type)
 }
 
@@ -474,7 +473,7 @@ pub fn execute_dpe_cmd(
         _ => false,
     };
     let external_response_info = if external_response {
-        let addr = model.staging_physical_address().unwrap();
+        let addr = model.staging_physical_address().unwrap() + 1024;
         Some(AxiResponseInfo {
             addr_lo: addr as u32,
             addr_hi: (addr >> 32) as u32,
@@ -563,7 +562,7 @@ pub fn execute_dpe_cmd_raw(
         resp_hdr.as_mut_bytes()[..resp.len()].copy_from_slice(&resp);
     } else {
         let resp = model
-            .read_payload_from_ss_staging_area(size_of::<InvokeDpeResp>(), 0)
+            .read_payload_from_ss_staging_area(size_of::<InvokeDpeResp>(), 1024)
             .unwrap();
         resp_hdr.as_mut_bytes()[..resp.len()].copy_from_slice(&resp);
         check_header_checksum(resp_hdr.as_bytes_partial().unwrap()).unwrap();

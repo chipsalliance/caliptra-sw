@@ -447,7 +447,6 @@ fn test_set_auth_manifest_cannot_be_called_from_pl1() {
 fn test_sign_with_exported_ecdsa_cannot_be_called_from_pl1() {
     let mut image_opts = ImageOptions::default();
     image_opts.vendor_config.pl0_pauser = None;
-    image_opts.pqc_key_type = FwVerificationPqcKeyType::LMS;
 
     let args = RuntimeTestArgs {
         test_image_options: Some(image_opts),
@@ -479,7 +478,6 @@ fn test_sign_with_exported_ecdsa_cannot_be_called_from_pl1() {
 fn test_revoke_export_cdi_handle_cannot_be_called_from_pl1() {
     let mut image_opts = ImageOptions::default();
     image_opts.vendor_config.pl0_pauser = None;
-    image_opts.pqc_key_type = FwVerificationPqcKeyType::LMS;
 
     let args = RuntimeTestArgs {
         test_image_options: Some(image_opts),
@@ -511,7 +509,6 @@ fn test_revoke_export_cdi_handle_cannot_be_called_from_pl1() {
 fn test_export_cdi_cannot_be_called_from_pl1() {
     let mut image_opts = ImageOptions::default();
     image_opts.vendor_config.pl0_pauser = None;
-    image_opts.pqc_key_type = FwVerificationPqcKeyType::LMS;
 
     let args = RuntimeTestArgs {
         test_image_options: Some(image_opts),
@@ -836,10 +833,7 @@ fn test_measurement_log_pl_context_threshold() {
 
 #[test]
 fn test_pl0_unset_in_header() {
-    let fuses = Fuses {
-        fuse_pqc_key_type: FwVerificationPqcKeyType::LMS as u32,
-        ..Default::default()
-    };
+    let fuses = Fuses::default();
     let rom = crate::common::rom_for_fw_integration_tests().unwrap();
     let life_cycle = fuses.life_cycle;
     let mut model = caliptra_hw_model::new(
@@ -853,10 +847,7 @@ fn test_pl0_unset_in_header() {
     )
     .unwrap();
 
-    let mut opts = ImageOptions {
-        pqc_key_type: FwVerificationPqcKeyType::LMS,
-        ..Default::default()
-    };
+    let mut opts = ImageOptions::default();
     opts.vendor_config.pl0_pauser = None;
     let mut image_bundle =
         caliptra_builder::build_and_sign_image(&FMC_WITH_UART, &APP_WITH_UART, opts).unwrap();
@@ -865,19 +856,16 @@ fn test_pl0_unset_in_header() {
     // flag bit to make it valid. Also need to re-generate and re-sign the image.
     image_bundle.manifest.header.pl0_pauser = 1;
 
-    let opts = ImageOptions {
-        pqc_key_type: FwVerificationPqcKeyType::LMS,
-        ..Default::default()
-    };
+    let opts = ImageOptions::default();
     let ecc_index = opts.vendor_config.ecc_key_idx;
-    let lms_index = opts.vendor_config.pqc_key_idx;
+    let pqc_index = opts.vendor_config.pqc_key_idx;
     let gen = ImageGenerator::new(Crypto::default());
     let vendor_header_digest_384 = gen
         .vendor_header_digest_384(&image_bundle.manifest.header)
         .unwrap();
     let vendor_header_digest_holder = ImageSignData {
         digest_384: &vendor_header_digest_384,
-        mldsa_msg: None,
+        mldsa_msg: Some(gen.vendor_header_bytes(&image_bundle.manifest.header)),
     };
 
     let owner_header_digest_384 = gen
@@ -885,7 +873,7 @@ fn test_pl0_unset_in_header() {
         .unwrap();
     let owner_header_digest_holder = ImageSignData {
         digest_384: &owner_header_digest_384,
-        mldsa_msg: None,
+        mldsa_msg: Some(image_bundle.manifest.header.as_bytes()),
     };
 
     let fmc_elf = build_firmware_elf(&FMC_WITH_UART).unwrap();
@@ -904,10 +892,10 @@ fn test_pl0_unset_in_header() {
                 fw_svn: opts.fw_svn,
                 vendor_config: opts.vendor_config,
                 owner_config: opts.owner_config,
-                pqc_key_type: FwVerificationPqcKeyType::LMS,
+                pqc_key_type: FwVerificationPqcKeyType::MLDSA,
             },
             ecc_index,
-            lms_index,
+            pqc_index,
             &vendor_header_digest_holder,
             &owner_header_digest_holder,
         )
@@ -917,7 +905,7 @@ fn test_pl0_unset_in_header() {
     crate::common::test_upload_firmware(
         &mut model,
         &image_bundle.to_bytes().unwrap(),
-        FwVerificationPqcKeyType::LMS,
+        FwVerificationPqcKeyType::MLDSA,
     );
 
     model.step_until(|m| {
@@ -1000,7 +988,6 @@ fn test_user_not_pl0() {
 fn test_ocp_lock_commands_cannot_be_called_from_pl1() {
     let mut image_opts = ImageOptions::default();
     image_opts.vendor_config.pl0_pauser = None;
-    image_opts.pqc_key_type = FwVerificationPqcKeyType::LMS;
 
     let args = RuntimeTestArgs {
         test_image_options: Some(image_opts),
@@ -1051,7 +1038,6 @@ fn test_ocp_lock_commands_cannot_be_called_from_pl1() {
 fn test_external_dpe_responses_cannot_be_called_from_pl1() {
     let mut image_opts = ImageOptions::default();
     image_opts.vendor_config.pl0_pauser = None;
-    image_opts.pqc_key_type = FwVerificationPqcKeyType::LMS;
 
     let args = RuntimeTestArgs {
         test_image_options: Some(image_opts),
@@ -1094,7 +1080,6 @@ fn test_external_dpe_responses_cannot_be_called_from_pl1() {
 fn test_external_command_cannot_be_called_from_pl1() {
     let mut image_opts = ImageOptions::default();
     image_opts.vendor_config.pl0_pauser = None;
-    image_opts.pqc_key_type = FwVerificationPqcKeyType::LMS;
 
     let args = RuntimeTestArgs {
         test_image_options: Some(image_opts),
@@ -1129,7 +1114,6 @@ fn test_external_command_cannot_be_called_from_pl1() {
 fn test_aes_gcm_decrypt_dma_cannot_be_called_from_pl1() {
     let mut image_opts = ImageOptions::default();
     image_opts.vendor_config.pl0_pauser = None;
-    image_opts.pqc_key_type = FwVerificationPqcKeyType::LMS;
 
     let args = RuntimeTestArgs {
         test_image_options: Some(image_opts),

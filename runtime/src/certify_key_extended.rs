@@ -182,7 +182,7 @@ impl CertifyKeyExtendedCmd {
                 let len = size_of::<CertifyKeyExtendedResp>()
                     - CertifyKeyExtendedResp::CERTIFY_KEY_RESP_SIZE
                     + dpe_resp_len;
-                resp.size = len as u32;
+                resp.size = dpe_resp_len as u32;
                 Ok(len)
             }
             Err(e) => {
