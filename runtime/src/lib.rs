@@ -45,6 +45,8 @@ mod set_auth_manifest;
 #[cfg(feature = "mldsa_attestation")]
 mod set_pq_seed;
 mod sign_with_exported_ecdsa;
+#[cfg(feature = "mldsa_attestation")]
+mod sign_with_exported_mldsa;
 mod stash_measurement;
 mod subject_alt_name;
 mod update;
@@ -72,6 +74,8 @@ pub use crate::invoke_dpe::CaliptraDpeProfile;
 pub use crate::invoke_dpe_mldsa::InvokeDpeMldsa87Cmd;
 use crate::revoke_exported_cdi_handle::RevokeExportedCdiHandleCmd;
 use crate::sign_with_exported_ecdsa::SignWithExportedEcdsaCmd;
+#[cfg(feature = "mldsa_attestation")]
+use crate::sign_with_exported_mldsa::SignWithExportedMldsaCmd;
 pub use crate::subject_alt_name::AddSubjectAltNameCmd;
 pub use authorize_and_stash::{IMAGE_AUTHORIZED, IMAGE_HASH_MISMATCH, IMAGE_NOT_AUTHORIZED};
 pub use caliptra_common::fips::FipsVersionCmd;
@@ -308,6 +312,8 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         }
         CommandId::SIGN_WITH_EXPORTED_ECDSA => SignWithExportedEcdsaCmd::execute(drivers),
         CommandId::REVOKE_EXPORTED_CDI_HANDLE => RevokeExportedCdiHandleCmd::execute(drivers),
+        #[cfg(feature = "mldsa_attestation")]
+        CommandId::SIGN_WITH_EXPORTED_MLDSA => SignWithExportedMldsaCmd::execute(drivers),
         CommandId::REALLOCATE_DPE_CONTEXT_LIMITS => ReallocateDpeContextLimitsCmd::execute(drivers),
         _ => return Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
     }?;
@@ -511,6 +517,7 @@ fn mldsa_dpe_env(
         &mut drivers.key_vault,
         &pdata.pq_devid_cdi,
         &mut pdata.exported_cdi_slots,
+        &pdata.mldsa_exported_cdi_slots,
     )?;
     let pl0_pauser = pdata.manifest1.header.pl0_pauser;
     let (nb, nf) = Drivers::get_cert_validity_info(&pdata.manifest1);
