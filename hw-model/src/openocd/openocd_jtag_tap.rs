@@ -8,7 +8,7 @@
 
 #![allow(dead_code)]
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use anyhow::{bail, ensure, Context, Result};
@@ -200,6 +200,22 @@ impl OpenOcdJtagTap {
         let response = self.openocd.execute(cmd.as_str())?;
         if !response.is_empty() {
             bail!("unexpected response: '{response}'");
+        }
+        Ok(())
+    }
+
+    pub fn load_image(&mut self, path: &Path, addr: u32) -> Result<()> {
+        ensure!(
+            self.jtag_tap != JtagTap::NoTap,
+            JtagError::Tap(self.jtag_tap)
+        );
+        let cmd = format!("load_image {} 0x{:x} bin", path.display(), addr);
+        let response = self.openocd.execute(cmd.as_str())?;
+        if !response.contains("bytes written") {
+            return Err(anyhow::anyhow!(
+                "OpenOCD load_image failed or returned unexpected output: {}",
+                response
+            ));
         }
         Ok(())
     }
