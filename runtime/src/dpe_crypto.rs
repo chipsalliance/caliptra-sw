@@ -485,7 +485,27 @@ impl Crypto for DpeCrypto<'_> {
             }
 
             #[cfg(feature = "mldsa_attestation")]
-            Signer::Mldsa => Err(CryptoError::MismatchedAlgorithm),
+            Signer::Mldsa => {
+                let cdi_array = match self.rt_cdi {
+                    RtCdi::Mldsa(pq_devid_cdi) => Array4x12::from(pq_devid_cdi),
+                    _ => return Err(CryptoError::MismatchedAlgorithm),
+                };
+                let mut seed_array = Zeroizing::new(Array4x12::default());
+                hmac384_kdf(
+                    self.hmac384,
+                    (&cdi_array).into(),
+                    b"pq_devid_keygen",
+                    None,
+                    self.trng,
+                    (&mut *seed_array).into(),
+                )
+                .map_err(|e| CryptoError::CryptoLibError(u32::from(e)))?;
+                let seed_bytes =
+                    Zeroizing::new(<[u8; core::mem::size_of::<Array4x12>()]>::from(*seed_array));
+                let mut seed = Mldsa87Seed::default();
+                seed.copy_from_slice(&seed_bytes[..MLDSA87_PRIVATE_SEED_BYTES]);
+                Self::sign_helper_mldsa(data, &seed)
+            }
         }
     }
 }
