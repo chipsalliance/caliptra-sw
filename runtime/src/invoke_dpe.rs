@@ -117,7 +117,15 @@ impl InvokeDpeCmd {
         let mut writer = MboxResponseWriter::from_mbox_base();
         let mut w = OffsetResponseBuffer::new(&mut writer, size_of::<MailboxRespHeaderVarSize>());
 
-        let result = invoke_dpe_cmd(drivers, &command, None, ueid, None, &mut w);
+        let result = invoke_dpe_cmd(
+            CaliptraDpeProfile::Ecc384,
+            drivers,
+            &command,
+            None,
+            ueid,
+            None,
+            &mut w,
+        );
 
         if let Command::DestroyCtx(_) = command {
             // clear tags for destroyed contexts
@@ -180,6 +188,7 @@ impl InvokeDpeCmd {
 }
 
 pub fn invoke_dpe_cmd(
+    profile: CaliptraDpeProfile,
     drivers: &mut Drivers,
     command: &Command<'_>,
     dmtf_device_info: Option<ArrayVec<u8, { MAX_OTHER_NAME_SIZE }>>,
@@ -188,7 +197,13 @@ pub fn invoke_dpe_cmd(
     out: &mut dyn ResponseBuffer,
 ) -> Result<usize, DpeErrorCode> {
     let locality = locality.unwrap_or(drivers.mbox.user());
-    let mut env = ec_dpe_env(drivers, dmtf_device_info, ueid);
+    // The DPE environment differs by identity (ECDSA RT alias vs ML-DSA
+    // PQ.DevID), but the state and command execution are shared.
+    let mut env = match profile {
+        CaliptraDpeProfile::Ecc384 => ec_dpe_env(drivers, dmtf_device_info, ueid),
+        #[cfg(feature = "mldsa_attestation")]
+        CaliptraDpeProfile::Mldsa => crate::mldsa_dpe_env(drivers, dmtf_device_info, ueid),
+    };
     let env = match env.as_mut() {
         Ok(r) => r,
         Err(_) => {
@@ -197,6 +212,6 @@ pub fn invoke_dpe_cmd(
             ))
         }
     };
-    let dpe = &mut DpeInstance::initialized(DpeProfile::P384Sha384);
+    let dpe = &mut DpeInstance::initialized(profile.into());
     command.execute_serialized(dpe, env, locality, out)
 }
