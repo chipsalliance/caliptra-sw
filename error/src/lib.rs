@@ -1106,6 +1106,11 @@ impl CaliptraError {
             "DMA driver Error: Invalid target"
         ),
         (
+            DRIVER_DMA_AES_CHUNKING_UNSUPPORTED,
+            0x0000f007,
+            "DMA driver Error: AES cannot be split across multiple transfers"
+        ),
+        (
             DRIVER_SHA3_INVALID_STATE_ERR,
             0x0001f000,
             "SHA3 driver Error: Invalid op state"
