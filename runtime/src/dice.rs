@@ -30,6 +30,13 @@ use caliptra_drivers::{
 use caliptra_x509::MlDsa87CertBuilder;
 use caliptra_x509::{Ecdsa384CertBuilder, Ecdsa384Signature};
 use zerocopy::{FromZeros, IntoBytes};
+#[cfg(feature = "mldsa_attestation")]
+use {
+    caliptra_drivers::{
+        hmac384_kdf, Array4x12, Hmac384, Mldsa87Seed, PqDevIdCdi, Trng, MLDSA87_PRIVATE_SEED_BYTES,
+    },
+    zeroize::Zeroizing,
+};
 
 pub struct IDevIdCertCmd;
 impl IDevIdCertCmd {
@@ -395,4 +402,34 @@ fn cert_from_tbs_and_sig(
     };
 
     Ok(size)
+}
+
+/// Derive the PQ.DevID ML-DSA-87 seed from the PQ.DevID CDI stored in
+/// persistent data.
+///
+/// This mirrors the ROM DICE convention of deriving the DevID key pair from
+/// the DevID CDI, so the CSR here matches the PQ.DevID identity used
+/// elsewhere in the runtime. The CDI is provisioned by SET_PQ_SEED and lives
+/// in persistent data.
+#[cfg(feature = "mldsa_attestation")]
+pub fn derive_devid_seed(
+    cdi: &PqDevIdCdi,
+    seed: &mut Mldsa87Seed,
+    hmac384: &mut Hmac384,
+    trng: &mut Trng,
+) -> CaliptraResult<()> {
+    let cdi = Zeroizing::new(Array4x12::from(cdi));
+    let mut output = Zeroizing::new(Array4x12::default());
+    hmac384_kdf(
+        hmac384,
+        (&*cdi).into(),
+        b"pq_devid_keygen",
+        None,
+        trng,
+        (&mut *output).into(),
+    )?;
+
+    let bytes = Zeroizing::new(<[u8; core::mem::size_of::<Array4x12>()]>::from(*output));
+    seed.copy_from_slice(&bytes[..MLDSA87_PRIVATE_SEED_BYTES]);
+    Ok(())
 }
