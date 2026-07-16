@@ -641,16 +641,6 @@ impl HwModel for ModelFpgaRealtime {
             .into());
         }
 
-        let fpga_subsystem_mode = m.soc_ifc().cptra_hw_config().read().subsystem_mode_en();
-        if params.subsystem_mode != fpga_subsystem_mode {
-            return Err(format!(
-                "HwModel InitParams asked for subsystem_mode={}, but the FPGA reports subsystem_mode_en={}; \
-                    this bitstream may not support selecting subsystem mode via host input wires.",
-                params.subsystem_mode, fpga_subsystem_mode
-            )
-            .into());
-        }
-
         Ok(m)
     }
 
