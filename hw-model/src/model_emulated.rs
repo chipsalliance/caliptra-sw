@@ -265,7 +265,7 @@ impl HwModel for ModelEmulated {
     fn mailbox_timeout_cycles(&self) -> u32 {
         // Each step() advances a single emulated core cycle, so allow extra
         // cycles to accommodate long-running commands (e.g. ML-DSA). 1s @400MHz.
-        400000000
+        400_000_000
     }
 
     fn output(&mut self) -> &mut Output {

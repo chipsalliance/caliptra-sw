@@ -945,7 +945,7 @@ pub trait HwModel: SocManager {
     /// small. Backends override this as appropriate; the default matches the
     /// original Caliptra 1.x value (100ms @400MHz).
     fn mailbox_timeout_cycles(&self) -> u32 {
-        40000000 // 100ms @400MHz
+        40_000_000 // 100ms @400MHz
     }
 
     /// Wait for the response to a previous call to `start_mailbox_execute()`.

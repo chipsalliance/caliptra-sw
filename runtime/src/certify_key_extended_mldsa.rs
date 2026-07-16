@@ -46,7 +46,7 @@ impl CertifyKeyExtendedMldsa87Cmd {
         CertifyKeyExtendedCmd::certify_key(
             drivers,
             cmd.flags,
-            &cmd.certify_key_req[..],
+            &cmd.certify_key_req,
             CaliptraDpeProfile::Mldsa,
         )
     }

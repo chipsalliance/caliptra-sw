@@ -35,7 +35,7 @@ impl CertifyKeyExtendedCmd {
         Self::certify_key(
             drivers,
             cmd.flags,
-            &cmd.certify_key_req[..],
+            &cmd.certify_key_req,
             CaliptraDpeProfile::Ecc384,
         )
     }
