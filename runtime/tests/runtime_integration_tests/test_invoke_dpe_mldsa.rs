@@ -44,6 +44,7 @@ use openssl::pkey_ctx::PkeyCtx;
 use openssl::pkey_ml_dsa::{PKeyMlDsaBuilder, PKeyMlDsaParams, Variant};
 use openssl::signature::Signature;
 use openssl::x509::X509Req;
+use platform::MAX_CHUNK_SIZE;
 use x509_parser::{nom::Parser, prelude::*};
 use zerocopy::{FromBytes, IntoBytes};
 
@@ -62,7 +63,8 @@ fn set_pq_seed(model: &mut DefaultHwModel) {
 }
 
 // Build a cert out of a test TBS and invoke POPULATE_PQ_CERT to initialize the PQ cert.
-fn populate_pq_cert(model: &mut DefaultHwModel) {
+// Return the built cert for other test purposes.
+fn populate_pq_cert(model: &mut DefaultHwModel) -> Vec<u8> {
     // Generate an ML-DSA87 key pair
     let pk_builder = PKeyMlDsaBuilder::<Private>::from_seed(Variant::MlDsa87, &[0u8; 32]).unwrap();
     let priv_key = pk_builder.build().unwrap();
@@ -77,12 +79,12 @@ fn populate_pq_cert(model: &mut DefaultHwModel) {
     let sig = Mldsa87Signature::new(sig_bytes.try_into().unwrap());
     let builder = MlDsa87CertBuilder::new(tbs, &sig).unwrap();
     let mut cert = [0u8; PopulatePqCertReq::MAX_CERT_SIZE];
-    let cert_size = builder.build(&mut cert).unwrap() as u32;
+    let cert_size = builder.build(&mut cert).unwrap();
 
     // Build the request
     let mut cmd = MailboxReq::PopulatePqCert(PopulatePqCertReq {
         hdr: MailboxReqHeader { chksum: 0 },
-        cert_size,
+        cert_size: cert_size as u32,
         cert,
     });
     cmd.populate_chksum().unwrap();
@@ -92,6 +94,8 @@ fn populate_pq_cert(model: &mut DefaultHwModel) {
             cmd.as_bytes().unwrap(),
         )
         .unwrap();
+
+    cert[..cert_size].to_vec()
 }
 
 #[test]
@@ -139,24 +143,38 @@ fn test_invoke_dpe_get_certificate_chain_cmd() {
     });
 
     set_pq_seed(&mut model);
-    populate_pq_cert(&mut model);
+    let populated_cert = populate_pq_cert(&mut model);
 
-    let get_cert_chain_cmd = GetCertificateChainCmd {
-        offset: 0,
-        size: 2048,
-    };
-    let resp = execute_dpe_cmd(
-        PROFILE,
-        &mut model,
-        &mut Command::GetCertificateChain(&get_cert_chain_cmd),
-        DpeResult::Success,
+    // Collect the full chain by concatenating multiple chunks.
+    let mut full_chain = Vec::new();
+    let mut offset = 0;
+    loop {
+        let cmd = GetCertificateChainCmd {
+            offset,
+            size: MAX_CHUNK_SIZE as u32,
+        };
+        let resp = execute_dpe_cmd(
+            PROFILE,
+            &mut model,
+            &mut Command::GetCertificateChain(&cmd),
+            DpeResult::Success,
+        );
+        let Some(Response::GetCertificateChain(chunk)) = resp else {
+            panic!("Wrong response type!");
+        };
+        full_chain.extend_from_slice(&chunk.certificate_chain[..chunk.certificate_size as usize]);
+        offset += chunk.certificate_size;
+        if chunk.certificate_size < MAX_CHUNK_SIZE as u32 {
+            break;
+        }
+    }
+
+    assert!(
+        full_chain
+            .windows(populated_cert.len())
+            .any(|w| w == populated_cert.as_slice()),
+        "certificate chain does not contain the populated PQ cert"
     );
-    let Some(Response::GetCertificateChain(cert_chain)) = resp else {
-        panic!("Wrong response type!");
-    };
-
-    assert_eq!(cert_chain.certificate_size, 2048);
-    assert_ne!([0u8; 2048], cert_chain.certificate_chain);
 }
 
 #[test]
