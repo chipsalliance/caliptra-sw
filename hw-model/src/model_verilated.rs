@@ -144,6 +144,12 @@ impl HwModel for ModelVerilated {
         self.process_trng_end();
     }
 
+    fn mailbox_timeout_cycles(&self) -> u32 {
+        // Each step() advances a single RTL core cycle, so allow extra cycles to
+        // accommodate long-running commands (e.g. ML-DSA). 1s @400MHz.
+        400000000
+    }
+
     fn new_unbooted(params: crate::InitParams) -> Result<Self, Box<dyn std::error::Error>>
     where
         Self: Sized,

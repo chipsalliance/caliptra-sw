@@ -935,10 +935,23 @@ pub trait HwModel: SocManager {
         Ok(())
     }
 
+    /// Number of `step()` iterations to wait for a mailbox command to complete
+    /// before declaring a `MailboxTimeout`.
+    ///
+    /// On the emulator each `step()` advances a single emulated core cycle, so a
+    /// large count is needed to accommodate long-running commands (e.g. ML-DSA).
+    /// On real hardware (FPGA) the core runs in real time and each `step()` is a
+    /// real-time MMIO poll, so this count acts as a busy-wait bound and must stay
+    /// small. Backends override this as appropriate; the default matches the
+    /// original Caliptra 1.x value (100ms @400MHz).
+    fn mailbox_timeout_cycles(&self) -> u32 {
+        40000000 // 100ms @400MHz
+    }
+
     /// Wait for the response to a previous call to `start_mailbox_execute()`.
     fn finish_mailbox_execute(&mut self) -> std::result::Result<Option<Vec<u8>>, ModelError> {
         // Wait for the microcontroller to finish executing
-        let mut timeout_cycles = 400000000; // 1s @400MHz
+        let mut timeout_cycles = self.mailbox_timeout_cycles();
         while self.soc_mbox().status().read().status().cmd_busy() {
             self.step();
             timeout_cycles -= 1;
