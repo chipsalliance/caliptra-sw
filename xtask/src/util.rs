@@ -1,10 +1,11 @@
 // Licensed under the Apache-2.0 license
 
 use anyhow::{bail, Result};
-use log::log_enabled;
+use log::{debug, log_enabled};
 use std::process::{Command, Output};
 
 pub(crate) fn run_command(cmd: &mut Command) -> Result<()> {
+    debug!("Running {:?}", cmd);
     if log_enabled!(log::Level::Debug) {
         let status = cmd.status()?;
         if !status.success() {

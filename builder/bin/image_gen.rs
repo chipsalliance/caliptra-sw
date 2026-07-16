@@ -48,11 +48,21 @@ fn main() {
             arg!(--"pqc-key-type" [integer] "PQC key type to use (MLDSA: 1, LMS: 3)")
                 .value_parser(value_parser!(i32)),
         )
-        .arg(arg!(--"image-options" [FILE] "Override the `ImageOptions` struct for the image bundle with the given TOML file").value_parser(value_parser!(PathBuf)));
+        .arg(arg!(--"image-options" [FILE] "Override the `ImageOptions` struct for the image bundle with the given TOML file").value_parser(value_parser!(PathBuf)))
+        .arg(arg!(--"hw-revision" <REV> "Compile for a specific HW revision (defaults to latest)").value_parser(value_parser!(String)));
     let args = cmd.get_matches_mut();
 
     // Print help if the provided args did not create anything.
     let mut valid_cmd = false;
+
+    let rev = args.get_one::<String>("hw-revision");
+    if let Some(rev) = rev {
+        // SAFETY
+        // Has to be set before any other program thread is started.
+        unsafe {
+            std::env::set_var("CALIPTRA_HW_REV", rev);
+        }
+    }
 
     if let Some(path) = args.get_one::<PathBuf>("rom-no-log") {
         let rom = caliptra_builder::build_firmware_rom(&firmware::ROM).unwrap();

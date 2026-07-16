@@ -8,6 +8,7 @@ use std::{
     sync::LazyLock,
 };
 
+mod build;
 mod cargo_lock;
 mod ci;
 mod clippy;
@@ -27,6 +28,11 @@ struct Xtask {
     /// Enable verbose logging
     #[arg(short, long, global = true)]
     verbose: bool,
+    /// Specify the hardware revision to build against
+    ///
+    /// Valid forms are "x.y" or "latest".
+    #[arg(short, long, global = true)]
+    rev: Option<String>,
     #[command(subcommand)]
     xtask: Commands,
 }
@@ -61,6 +67,12 @@ enum Commands {
     CI {
         #[command(subcommand)]
         command: CICommands,
+    },
+
+    /// Build Firmware images
+    Build {
+        #[command(subcommand)]
+        command: BuildCommands,
     },
 }
 
@@ -101,6 +113,15 @@ pub enum CICommands {
     TestMatrix,
 }
 
+#[derive(Subcommand)]
+pub enum BuildCommands {
+    Rom,
+    Fmc,
+    Runtime,
+    TestFw,
+    All,
+}
+
 pub static PROJECT_ROOT: LazyLock<PathBuf> = LazyLock::new(|| {
     let current_dir = std::env::current_dir().expect("Could not get current directory");
     option_env!("CARGO_MANIFEST_DIR")
@@ -125,6 +146,16 @@ fn main() {
         LevelFilter::Info
     };
     let _ = SimpleLogger::new().with_level(level).init();
+
+    if let Some(rev) = cli.rev {
+        log::debug!("Setting CALIPTRA_HW_REV to `{}`", rev);
+        // SAFETY
+        // Has to be set before any other program thread is started.
+        unsafe {
+            std::env::set_var("CALIPTRA_HW_REV", rev);
+        }
+    }
+
     let result = match &cli.xtask {
         Commands::Clippy => clippy::clippy(),
         Commands::Precheckin => precheckin::precheckin(),
@@ -144,6 +175,13 @@ fn main() {
             CICommands::SizeHistory => ci::size_history(),
             CICommands::BitstreamDownloader { path } => ci::bitstream_download(path.clone()),
             CICommands::TestMatrix => Ok(()),
+        },
+        Commands::Build { command } => match command {
+            BuildCommands::Rom => build::build_rom(),
+            BuildCommands::Fmc => build::build_fmc(),
+            BuildCommands::Runtime => build::build_runtime(),
+            BuildCommands::TestFw => build::build_driver_test_fw(),
+            BuildCommands::All => build::build_all(),
         },
     };
     result.unwrap_or_else(|e| {

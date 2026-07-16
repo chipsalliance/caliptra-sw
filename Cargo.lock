@@ -1036,10 +1036,18 @@ name = "caliptra-registers"
 version = "0.1.0"
 dependencies = [
  "caliptra-registers-latest",
+ "caliptra-registers-rev-2-1",
 ]
 
 [[package]]
 name = "caliptra-registers-latest"
+version = "0.1.0"
+dependencies = [
+ "caliptra-ureg",
+]
+
+[[package]]
+name = "caliptra-registers-rev-2-1"
 version = "0.1.0"
 dependencies = [
  "caliptra-ureg",
