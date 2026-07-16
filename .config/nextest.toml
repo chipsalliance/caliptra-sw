@@ -25,6 +25,8 @@ default-filter = """
     - test(test_set_auth_manifest::test_set_auth_manifest_cmd_external)) |
 (package(caliptra-rom)
     - test(test_debug_unlock::)
+    - test(test_device_status_mode::test_device_status_mode_passive)
+    - test(test_device_status_mode::test_device_status_mode_subsystem)
     - test(test_fmcalias_derivation::test_zero_firmware_size)
     - test(test_uds_fe)
     - test(test_wdt_activation_and_stoppage::)
