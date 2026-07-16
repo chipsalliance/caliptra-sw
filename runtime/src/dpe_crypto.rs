@@ -35,6 +35,7 @@ use crypto::{
 use dpe::{EcdsaAlgorithm, ExportedCdiHandle, U8Bool, MAX_EXPORTED_CDI_SIZE};
 #[cfg(feature = "mldsa_attestation")]
 use {
+    crate::dice,
     caliptra_drivers::{
         Hmac384Key, Mldsa87, Mldsa87Mu, Mldsa87PubKey, Mldsa87Seed, Mldsa87Signature,
         MldsaExportedCdiEntry, PqDevIdCdi, MLDSA87_PRIVATE_SEED_BYTES,
@@ -485,7 +486,16 @@ impl Crypto for DpeCrypto<'_> {
             }
 
             #[cfg(feature = "mldsa_attestation")]
-            Signer::Mldsa => Err(CryptoError::MismatchedAlgorithm),
+            Signer::Mldsa => {
+                let cdi = match self.rt_cdi {
+                    RtCdi::Mldsa(ref pq_devid_cdi) => pq_devid_cdi,
+                    _ => return Err(CryptoError::MismatchedAlgorithm),
+                };
+                let mut seed = Mldsa87Seed::default();
+                dice::derive_devid_seed(cdi, &mut seed, self.hmac384, self.trng)
+                    .map_err(|e| CryptoError::CryptoLibError(u32::from(e)))?;
+                Self::sign_helper_mldsa(data, &seed)
+            }
         }
     }
 }
