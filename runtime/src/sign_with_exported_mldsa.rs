@@ -55,7 +55,7 @@ impl SignWithExportedMldsaCmd {
         };
 
         let pdata = drivers.persistent_data.get_mut();
-        let root_cdi = Array4x12::from(&pdata.pq_devid_cdi);
+        let root_cdi = Array4x12::from(pdata.pq_devid_cdi()?);
         let mut crypto = DpeCrypto::new_mldsa87(
             &mut drivers.sha384,
             &mut drivers.trng,

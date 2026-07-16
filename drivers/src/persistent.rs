@@ -352,14 +352,10 @@ pub struct PersistentData {
     pub dpe_pl0_context_limit: u8,
     pub dpe_pl1_context_limit: u8,
 
-    #[cfg(feature = "mldsa_attestation")]
-    pub pq_devid_cdi: PqDevIdCdi,
-    #[cfg(not(feature = "mldsa_attestation"))]
+    // Always private: the PQ.DevID CDI must only be reached through
+    // `pq_devid_cdi()`, which hands out a reference exclusively once the seed
+    // has been provisioned (see `pqc_mode_enabled`).
     pq_devid_cdi: PqDevIdCdi,
-
-    #[cfg(feature = "mldsa_attestation")]
-    pub pqc_status_flags: u8,
-    #[cfg(not(feature = "mldsa_attestation"))]
     pqc_status_flags: u8,
 
     #[cfg(all(feature = "mldsa_attestation", feature = "runtime"))]
@@ -386,8 +382,22 @@ impl PersistentData {
         self.pqc_status_flags & PQC_MODE_ENABLED_FLAG != 0
     }
 
+    /// Returns the provisioned PQ.DevID CDI, but only once a seed has been set
+    /// via `set_pq_devid_cdi` (i.e. the PQC-mode-enabled flag is set). Returns
+    /// `RUNTIME_PQC_NOT_INITIALIZED` otherwise, ensuring uninitialized CDI bytes
+    /// can never be read.
     #[cfg(feature = "mldsa_attestation")]
-    pub fn set_pqc_mode_enabled(&mut self) {
+    pub fn pq_devid_cdi(&self) -> CaliptraResult<&PqDevIdCdi> {
+        self.pqc_mode_enabled()
+            .then_some(&self.pq_devid_cdi)
+            .ok_or(CaliptraError::RUNTIME_PQC_NOT_INITIALIZED)
+    }
+
+    /// Stores the PQ.DevID CDI and atomically marks PQC mode enabled, upholding
+    /// the invariant that a readable CDI always has its status flag set.
+    #[cfg(feature = "mldsa_attestation")]
+    pub fn set_pq_devid_cdi(&mut self, cdi: PqDevIdCdi) {
+        self.pq_devid_cdi = cdi;
         self.pqc_status_flags |= PQC_MODE_ENABLED_FLAG;
     }
 

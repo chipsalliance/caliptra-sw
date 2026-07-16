@@ -38,8 +38,10 @@ impl SetPqSeedCmd {
         let mut out = Array4x12::default();
         Self::derive_pq_devid_cdi(drivers, &cmd.seed, &mut out)?;
 
-        drivers.persistent_data.get_mut().pq_devid_cdi = out.into();
-        drivers.persistent_data.get_mut().set_pqc_mode_enabled();
+        drivers
+            .persistent_data
+            .get_mut()
+            .set_pq_devid_cdi(out.into());
 
         crate::packet::copy_to_mbox(drivers, MailboxRespHeader::default().as_mut_bytes())
     }

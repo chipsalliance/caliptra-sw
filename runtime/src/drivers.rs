@@ -909,12 +909,8 @@ impl Drivers {
     #[cfg(feature = "mldsa_attestation")]
     #[inline(never)]
     fn derive_devid_seed(&mut self, seed: &mut Mldsa87Seed) -> CaliptraResult<()> {
-        dice::derive_devid_seed(
-            &self.persistent_data.get().pq_devid_cdi,
-            seed,
-            &mut self.hmac384,
-            &mut self.trng,
-        )
+        let pq_devid_cdi = self.persistent_data.get().pq_devid_cdi()?;
+        dice::derive_devid_seed(pq_devid_cdi, seed, &mut self.hmac384, &mut self.trng)
     }
 
     #[cfg(feature = "mldsa_attestation")]
@@ -922,10 +918,6 @@ impl Drivers {
     pub fn compute_mldsa_key_material(
         &mut self,
     ) -> CaliptraResult<(Mldsa87Seed, Mldsa87PubKey, Digest)> {
-        if !self.persistent_data.get().pqc_mode_enabled() {
-            return Err(CaliptraError::RUNTIME_PQC_NOT_INITIALIZED);
-        }
-
         let mut seed = Mldsa87Seed::default();
         self.derive_devid_seed(&mut seed)?;
 
