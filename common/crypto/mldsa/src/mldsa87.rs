@@ -168,6 +168,12 @@ fn scalar_add(out: &mut Scalar, lhs: &Scalar, rhs: &Scalar) {
     }
 }
 
+fn scalar_add_assign(out: &mut Scalar, rhs: &Scalar) {
+    for i in 0..K_DEGREE {
+        out.c[i] = reduce_once(out.c[i].wrapping_add(rhs.c[i]));
+    }
+}
+
 fn scalar_sub(out: &mut Scalar, lhs: &Scalar, rhs: &Scalar) {
     for i in 0..K_DEGREE {
         out.c[i] = mod_sub(lhs.c[i], rhs.c[i]);
@@ -254,9 +260,9 @@ fn vector8_zero(out: &mut Vector8) {
     *out = Vector8::default();
 }
 
-fn vector8_add(out: &mut Vector8, lhs: &Vector8, rhs: &Vector8) {
+fn vector8_add_assign(out: &mut Vector8, rhs: &Vector8) {
     for i in 0..8 {
-        scalar_add(&mut out.v[i], &lhs.v[i], &rhs.v[i]);
+        scalar_add_assign(&mut out.v[i], &rhs.v[i]);
     }
 }
 
@@ -880,8 +886,7 @@ fn generate_key_internal(
         }
     }
 
-    let t0_copy = priv_key.t0_ntt;
-    vector8_add(&mut priv_key.t0_ntt, &t0_copy, s2_ntt);
+    vector8_add_assign(&mut priv_key.t0_ntt, s2_ntt);
 
     state = KeygenState::V8(Vector8::default());
     let t1 = match &mut state {
