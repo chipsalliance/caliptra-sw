@@ -12,6 +12,7 @@ use caliptra_common::mailbox_api::{
 };
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{BootParams, DefaultHwModel, HwModel, InitParams};
+use caliptra_runtime::CaliptraDpeProfile;
 use dpe::{
     commands::{
         CertifyKeyCommand, CertifyKeyFlags, CertifyKeyP384Cmd, Command, DeriveContextCmd,
@@ -34,6 +35,8 @@ use openssl::{
     },
 };
 use zerocopy::{FromBytes, IntoBytes};
+
+const PROFILE: CaliptraDpeProfile = CaliptraDpeProfile::Ecc384;
 
 #[test]
 // Check if the owner and vendor cert validity dates are present in RT Alias cert
@@ -262,6 +265,7 @@ fn test_dpe_leaf_cert() {
         format: CertifyKeyCommand::FORMAT_X509,
     };
     let resp = execute_dpe_cmd(
+        PROFILE,
         &mut model,
         &mut Command::from(&certify_key_cmd),
         DpeResult::Success,
@@ -326,6 +330,7 @@ fn get_dpe_leaf_cert(model: &mut DefaultHwModel) -> CertifyKeyResp {
         format: CertifyKeyCommand::FORMAT_X509,
     };
     let resp = execute_dpe_cmd(
+        PROFILE,
         model,
         &mut Command::from(&certify_key_cmd),
         DpeResult::Success,
@@ -458,6 +463,7 @@ pub fn test_all_measurement_apis() {
         svn: 0,
     };
     let resp = execute_dpe_cmd(
+        PROFILE,
         &mut hw,
         &mut Command::DeriveContext(&derive_context_cmd),
         DpeResult::Success,
