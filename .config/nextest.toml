@@ -118,6 +118,8 @@ not (package(/caliptra-emu-.*/) |
        test(test_update_reset::test_update_reset_verify_image_failure) |
        test(test_debug_unlock::test_dbg_unlock_prod_unlock_levels_success) |
        test(test_debug_unlock::test_dbg_unlock_prod_unlock_levels_failure) |
+       test(test_device_status_mode::test_device_status_mode_passive) |
+       test(test_device_status_mode::test_device_status_mode_subsystem) |
        test(test_version::test_version) |
        test(test_warm_reset::test_warm_reset_version) |
        test(test_fips::test_fips_version))

@@ -554,11 +554,7 @@ impl HwModel for ModelFpgaRealtime {
 
         // TODO(mtimkovich): uds_fuse_row_granularity_64 should be written to cptra_hw_config
         // here but that register is readonly.
-
-        // Add the subsystem mode for core FPGA mode.
-        // bit 5: subsystem mode (0:passive, 1:subsystem)
-        let generic_input_wire0 = (params.subsystem_mode as u32) << 5;
-        m.set_generic_input_wires(&[generic_input_wire0, 0]);
+        m.set_generic_input_wires(&[0, 0]);
 
         // Set Security State signal wires
         m.set_security_state(params.security_state);
