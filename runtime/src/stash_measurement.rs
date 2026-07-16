@@ -98,6 +98,21 @@ impl StashMeasurementCmd {
         };
 
         if let DpeErrorCode::NoError = dpe_result {
+            if metadata == &[2, 0, 0, 0] {
+                let mcu_rt_dpe_context_idx = drivers
+                    .persistent_data
+                    .get()
+                    .state
+                    .get_active_context_pos(&ContextHandle::default(), locality)
+                    .map_err(|_| CaliptraError::RUNTIME_DPE_CONTEXT_NOT_FOUND)?;
+                drivers
+                    .persistent_data
+                    .get_mut()
+                    .caliptra_managed_dpe_context_indices
+                    .mcu_rt = u8::try_from(mcu_rt_dpe_context_idx)
+                    .map_err(|_| CaliptraError::RUNTIME_DPE_CONTEXT_NOT_FOUND)?;
+            }
+
             // Extend the measurement into PCR31
             drivers.pcr_bank.extend_pcr(
                 PCR_ID_STASH_MEASUREMENT,

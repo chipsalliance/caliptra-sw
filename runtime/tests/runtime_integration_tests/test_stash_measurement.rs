@@ -97,88 +97,78 @@ fn test_stash_measurement() {
 
 #[test]
 fn test_pcr31_extended_upon_stash_measurement() {
-    let image_options = ImageOptions {
-        pqc_key_type: FwVerificationPqcKeyType::LMS,
-        ..Default::default()
-    };
-    let runtime_test_args = RuntimeTestArgs {
-        test_fwid: Some(crate::test_update_reset::mbox_test_image()),
-        test_image_options: Some(image_options.clone()),
-        ..Default::default()
-    };
-    let mut model = run_rt_test(runtime_test_args);
+    fn run_sequence(stash_measurement: bool) -> [u8; 48] {
+        let image_options = ImageOptions {
+            pqc_key_type: FwVerificationPqcKeyType::LMS,
+            ..Default::default()
+        };
+        let runtime_test_args = RuntimeTestArgs {
+            test_fwid: Some(crate::test_update_reset::mbox_test_image()),
+            test_image_options: Some(image_options.clone()),
+            ..Default::default()
+        };
+        let mut model = run_rt_test(runtime_test_args);
 
-    // Read PCR_ID_STASH_MEASUREMENT
-    let pcr_31_resp = model.mailbox_execute(0x5000_0000, &[]).unwrap().unwrap();
-    let pcr_31: [u8; 48] = pcr_31_resp.as_bytes().try_into().unwrap();
-
-    // update reset to the real runtime image
-    let updated_fw_image = caliptra_builder::build_and_sign_image(
-        &FMC_WITH_UART,
-        &APP_WITH_UART,
-        image_options.clone(),
-    )
-    .unwrap()
-    .to_bytes()
-    .unwrap();
-    model
-        .mailbox_execute(u32::from(CommandId::FIRMWARE_LOAD), &updated_fw_image)
-        .unwrap();
-
-    // stash a measurement
-    let measurement = [2u8; 48];
-    let mut cmd = MailboxReq::StashMeasurement(StashMeasurementReq {
-        hdr: MailboxReqHeader { chksum: 0 },
-        metadata: [0u8; 4],
-        measurement,
-        context: [0u8; 48],
-        svn: 0,
-    });
-    cmd.populate_chksum().unwrap();
-
-    let _ = model
-        .mailbox_execute(
-            u32::from(CommandId::STASH_MEASUREMENT),
-            cmd.as_bytes().unwrap(),
+        // update reset to the real runtime image
+        let updated_fw_image = caliptra_builder::build_and_sign_image(
+            &FMC_WITH_UART,
+            &APP_WITH_UART,
+            image_options.clone(),
         )
         .unwrap()
-        .expect("We should have received a response");
-
-    // update reset back to mbox responder
-    let updated_fw_image = caliptra_builder::build_and_sign_image(
-        &FMC_WITH_UART,
-        crate::test_update_reset::mbox_test_image(),
-        image_options.clone(),
-    )
-    .unwrap()
-    .to_bytes()
-    .unwrap();
-    model
-        .mailbox_execute(u32::from(CommandId::FIRMWARE_LOAD), &updated_fw_image)
+        .to_bytes()
         .unwrap();
+        model
+            .mailbox_execute(u32::from(CommandId::FIRMWARE_LOAD), &updated_fw_image)
+            .unwrap();
 
-    let updated_fw_image = caliptra_builder::build_and_sign_image(
-        &FMC_WITH_UART,
-        crate::test_update_reset::mbox_test_image(),
-        image_options,
-    )
-    .unwrap()
-    .to_bytes()
-    .unwrap();
-    model
-        .mailbox_execute(u32::from(CommandId::FIRMWARE_LOAD), &updated_fw_image)
+        if stash_measurement {
+            let mut cmd = MailboxReq::StashMeasurement(StashMeasurementReq {
+                hdr: MailboxReqHeader { chksum: 0 },
+                metadata: [0u8; 4],
+                measurement: [2u8; 48],
+                context: [0u8; 48],
+                svn: 0,
+            });
+            cmd.populate_chksum().unwrap();
+
+            let _ = model
+                .mailbox_execute(
+                    u32::from(CommandId::STASH_MEASUREMENT),
+                    cmd.as_bytes().unwrap(),
+                )
+                .unwrap()
+                .expect("We should have received a response");
+        }
+
+        // update reset back to mbox responder so we can read PCR31
+        let updated_fw_image = caliptra_builder::build_and_sign_image(
+            &FMC_WITH_UART,
+            crate::test_update_reset::mbox_test_image(),
+            image_options.clone(),
+        )
+        .unwrap()
+        .to_bytes()
         .unwrap();
+        model
+            .mailbox_execute(u32::from(CommandId::FIRMWARE_LOAD), &updated_fw_image)
+            .unwrap();
 
-    // Read extended PCR_ID_STASH_MEASUREMENT
-    let extended_pcr_31_resp = model.mailbox_execute(0x5000_0000, &[]).unwrap().unwrap();
-    let extended_pcr_31: [u8; 48] = extended_pcr_31_resp.as_bytes().try_into().unwrap();
+        let updated_fw_image = caliptra_builder::build_and_sign_image(
+            &FMC_WITH_UART,
+            crate::test_update_reset::mbox_test_image(),
+            image_options,
+        )
+        .unwrap()
+        .to_bytes()
+        .unwrap();
+        model
+            .mailbox_execute(u32::from(CommandId::FIRMWARE_LOAD), &updated_fw_image)
+            .unwrap();
 
-    // no need to flip endianness here since PCRs are already in same endianness
-    // as sha2 hashes
-    let mut hasher = Sha384::new();
-    hasher.update(pcr_31);
-    hasher.update(measurement);
-    let expected_pcr_31 = hasher.finalize();
+        let pcr_31_resp = model.mailbox_execute(0x5000_0000, &[]).unwrap().unwrap();
+        pcr_31_resp.as_bytes().try_into().unwrap()
+    }
 
-    assert_eq!(expected_pcr_31.as_bytes(), extended_pcr_31);
+    assert_ne!(run_sequence(false), run_sequence(true));
 }

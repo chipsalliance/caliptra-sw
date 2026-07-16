@@ -192,9 +192,15 @@ pub fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
                 write_response(&mut drivers.mbox, root_measurement);
             }
             CommandId(OPCODE_READ_DPE_CCIV_CONTEXT_MEASUREMENT) => {
-                let cciv_idx =
-                    Drivers::get_dpe_cciv_context_idx(&drivers.persistent_data.get().state)
-                        .unwrap();
+                let dpe = &drivers.persistent_data.get().state;
+                let root_idx = Drivers::get_dpe_root_context_idx(dpe).unwrap() as u8;
+                let cciv_idx = Drivers::get_dpe_context_idx_by_tci_type(
+                    dpe,
+                    Drivers::CCIV_TCI_TYPE,
+                    None,
+                    Some(root_idx),
+                )
+                .unwrap();
                 let cciv_measurement = drivers.persistent_data.get().state.contexts[cciv_idx]
                     .tci
                     .tci_current
@@ -202,9 +208,15 @@ pub fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
                 write_response(&mut drivers.mbox, cciv_measurement);
             }
             CommandId(OPCODE_READ_DPE_CCIV_CONTEXT_CUMULATIVE) => {
-                let cciv_idx =
-                    Drivers::get_dpe_cciv_context_idx(&drivers.persistent_data.get().state)
-                        .unwrap();
+                let dpe = &drivers.persistent_data.get().state;
+                let root_idx = Drivers::get_dpe_root_context_idx(dpe).unwrap() as u8;
+                let cciv_idx = Drivers::get_dpe_context_idx_by_tci_type(
+                    dpe,
+                    Drivers::CCIV_TCI_TYPE,
+                    None,
+                    Some(root_idx),
+                )
+                .unwrap();
                 let cciv_measurement = drivers.persistent_data.get().state.contexts[cciv_idx]
                     .tci
                     .tci_cumulative
