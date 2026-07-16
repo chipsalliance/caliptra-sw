@@ -57,6 +57,8 @@ fn main() {
 
     let rev = args.get_one::<String>("hw-revision");
     if let Some(rev) = rev {
+        // SAFETY
+        // Has to be set before any other program thread is started.
         unsafe {
             std::env::set_var("CALIPTRA_HW_REV", rev);
         }

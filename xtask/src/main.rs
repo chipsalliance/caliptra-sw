@@ -149,6 +149,8 @@ fn main() {
 
     if let Some(rev) = cli.rev {
         log::debug!("Setting CALIPTRA_HW_REV to `{}`", rev);
+        // SAFETY
+        // Has to be set before any other program thread is started.
         unsafe {
             std::env::set_var("CALIPTRA_HW_REV", rev);
         }
