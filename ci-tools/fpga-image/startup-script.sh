@@ -10,12 +10,6 @@ echo 3 > /proc/sys/kernel/printk
 
 # TODO(clundin): There are a lot of hacks that get cleaned up if using initrd.
 
-# The VCK-190 image currently always has the same MAC. Do this for now until 
-# a better option is found.
-ip link set dev end0 down
-macchanger -r end0 || true
-ip link set dev end0 up
-
 # Overlay exists so we can proceed.
 if [[ -f "/etc/no_overlayfs" ]]; then
     echo "Skipping overlayfs setup for development image."
