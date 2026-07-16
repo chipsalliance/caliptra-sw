@@ -57,6 +57,7 @@ use authorize_and_stash::AuthorizeAndStashCmd;
 use caliptra_cfi_lib::{
     cfi_assert, cfi_assert_bool, cfi_assert_eq, cfi_assert_ne, cfi_launder, CfiCounter,
 };
+use caliptra_drivers::sha384::DpeHasher;
 pub use drivers::{Drivers, PauserPrivileges};
 use mailbox::Mailbox;
 
@@ -86,7 +87,7 @@ use dice::PqCertCmd;
 pub use dice::{GetFmcAliasCertCmd, GetLdevCertCmd, IDevIdCertCmd};
 pub use disable::DisableAttestationCmd;
 pub use dpe::State;
-use dpe_crypto::DpeCrypto;
+use dpe_crypto::{CryptoEngines, DpeCrypto};
 pub use dpe_platform::{DpePlatform, VENDOR_ID, VENDOR_SKU};
 pub use fips::FipsShutdownCmd;
 #[cfg(feature = "fips_self_test")]
@@ -472,11 +473,13 @@ fn ec_dpe_env(
         &rt_pub_key.y.into(),
     )));
     let crypto = DpeCrypto::new_ec(
-        &mut drivers.sha384,
-        &mut drivers.trng,
-        &mut drivers.ecc384,
-        &mut drivers.hmac384,
-        &mut drivers.key_vault,
+        CryptoEngines {
+            hasher: DpeHasher::new(&mut drivers.sha384)?,
+            trng: &mut drivers.trng,
+            ecc384: &mut drivers.ecc384,
+            hmac384: &mut drivers.hmac384,
+            key_vault: &mut drivers.key_vault,
+        },
         rt_pub_key,
         key_id_rt_cdi,
         key_id_rt_priv_key,
@@ -511,10 +514,13 @@ fn mldsa_dpe_env(
     let pdata = drivers.persistent_data.get_mut();
     let pq_devid_cdi = pdata.pq_devid_cdi()?;
     let crypto = DpeCrypto::new_mldsa87(
-        &mut drivers.sha384,
-        &mut drivers.trng,
-        &mut drivers.hmac384,
-        &mut drivers.key_vault,
+        CryptoEngines {
+            hasher: DpeHasher::new(&mut drivers.sha384)?,
+            trng: &mut drivers.trng,
+            ecc384: &mut drivers.ecc384,
+            hmac384: &mut drivers.hmac384,
+            key_vault: &mut drivers.key_vault,
+        },
         pq_devid_cdi,
         &mut pdata.exported_cdi_slots,
         &mut pdata.mldsa_exported_cdi_slots,

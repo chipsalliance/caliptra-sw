@@ -18,8 +18,8 @@ Abstract:
 pub use crate::fips::fips_self_test_cmd::SelfTestStatus;
 
 use crate::{
-    dice, CaliptraDpeEnv, CaliptraDpeProfile, DisableAttestationCmd, DpeCrypto, DpePlatform,
-    Mailbox, CALIPTRA_LOCALITY, DPE_SUPPORT, MAX_CERT_CHAIN_SIZE,
+    dice, CaliptraDpeEnv, CaliptraDpeProfile, CryptoEngines, DisableAttestationCmd, DpeCrypto,
+    DpePlatform, Mailbox, CALIPTRA_LOCALITY, DPE_SUPPORT, MAX_CERT_CHAIN_SIZE,
     PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD, PL0_PAUSER_FLAG,
     PL1_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD,
 };
@@ -36,6 +36,7 @@ use caliptra_cfi_lib::{
 };
 use caliptra_common::mailbox_api::AddSubjectAltNameReq;
 use caliptra_dpe_response_buffer::SliceResponseBuffer;
+use caliptra_drivers::sha384::DpeHasher;
 use caliptra_drivers::KeyId;
 use caliptra_drivers::{
     cprintln,
@@ -509,11 +510,13 @@ impl Drivers {
             &rt_pub_key.y.into(),
         )));
         let crypto = DpeCrypto::new_ec(
-            &mut drivers.sha384,
-            &mut drivers.trng,
-            &mut drivers.ecc384,
-            &mut drivers.hmac384,
-            &mut drivers.key_vault,
+            CryptoEngines {
+                hasher: DpeHasher::new(&mut drivers.sha384)?,
+                trng: &mut drivers.trng,
+                ecc384: &mut drivers.ecc384,
+                hmac384: &mut drivers.hmac384,
+                key_vault: &mut drivers.key_vault,
+            },
             rt_pub_key,
             key_id_rt_cdi,
             key_id_rt_priv_key,

@@ -1,12 +1,16 @@
 // Licensed under the Apache-2.0 license
 
 use crate::sign_with_exported_ecdsa::{sign_exported, ExportedSignError};
-use crate::{dpe_crypto::DpeCrypto, Drivers, PauserPrivileges};
+use crate::{
+    dpe_crypto::{CryptoEngines, DpeCrypto},
+    Drivers, PauserPrivileges,
+};
 
 #[cfg(feature = "cfi")]
 use caliptra_cfi_derive::cfi_impl_fn;
 
 use caliptra_common::mailbox_api::{SignWithExportedMldsaReq, SignWithExportedMldsaResp};
+use caliptra_drivers::sha384::DpeHasher;
 use caliptra_drivers::MLDSA87_MU_BYTES;
 use caliptra_error::{CaliptraError, CaliptraResult};
 
@@ -57,10 +61,13 @@ impl SignWithExportedMldsaCmd {
         let pdata = drivers.persistent_data.get_mut();
         let root_cdi = pdata.pq_devid_cdi()?;
         let mut crypto = DpeCrypto::new_mldsa87(
-            &mut drivers.sha384,
-            &mut drivers.trng,
-            &mut drivers.hmac384,
-            &mut drivers.key_vault,
+            CryptoEngines {
+                hasher: DpeHasher::new(&mut drivers.sha384)?,
+                trng: &mut drivers.trng,
+                ecc384: &mut drivers.ecc384,
+                hmac384: &mut drivers.hmac384,
+                key_vault: &mut drivers.key_vault,
+            },
             root_cdi,
             &mut pdata.exported_cdi_slots,
             &mut pdata.mldsa_exported_cdi_slots,
