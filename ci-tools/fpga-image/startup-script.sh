@@ -5,11 +5,6 @@
 # Startup script that is executed against the zcu104 UART. fpga-boss will
 # connect to this UART (via on-board FTDI chip) and send commands.
 
-# The VCK-190 image currently always has the same MAC. Do this for now until 
-# a better option is found.
-ip link set dev end0 down
-macchanger -r end0 || true
-ip link set dev end0 up
 
 # Load the IO module if it exists
 if [[ -f "/home/runner/io-module.ko" ]]; then
