@@ -15,7 +15,7 @@ Abstract:
 use core::mem::offset_of;
 
 use crate::authorize_and_stash::{self, AuthorizeAndStashCmd};
-use crate::drivers::{McuFwStatus, McuResetReason};
+use crate::drivers::{CaliptraManagedDpeContext, McuFwStatus, McuResetReason};
 use crate::Drivers;
 use crate::{manifest::find_metadata_entry, mutrefbytes};
 use caliptra_api::mailbox::{AuthorizeAndStashReq, ImageHashSource};
@@ -223,7 +223,7 @@ impl ActivateFirmwareCmd {
             }
             drivers
                 .update_caliptra_managed_measurement(
-                    Drivers::MCU_RT_TCI_TYPE,
+                    CaliptraManagedDpeContext::McuRt,
                     &measurement,
                     Some(pl0_pauser_locality),
                 )

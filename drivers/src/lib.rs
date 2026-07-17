@@ -112,7 +112,10 @@ pub use pcr_reset::PcrResetCounter;
 pub use persistent::fmc_alias_csr::FmcAliasCsrs;
 pub use persistent::IDEVID_CSR_ENVELOP_MARKER;
 #[cfg(feature = "runtime")]
-pub use persistent::{AuthManifestImageMetadataList, ExportedCdiEntry, ExportedCdiHandles};
+pub use persistent::{
+    AuthManifestImageMetadataList, CaliptraManagedDpeContextIndices, ExportedCdiEntry,
+    ExportedCdiHandles,
+};
 pub use persistent::{
     Ecc384IdevIdCsr, FuseLogArray, InitDevIdCsrEnvelope, Mldsa87IdevIdCsr, PcrLogArray,
     PersistentData, PersistentDataAccessor, StashMeasurementArray, ECC384_MAX_FMC_ALIAS_CSR_SIZE,
