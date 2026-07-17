@@ -68,8 +68,15 @@ impl StashMeasurementCmd {
             let ueid = Some(drivers.soc_ifc.fuse_bank().ueid());
             let mut buf = [0u8; size_of::<DeriveContextExportedCdiResp>()];
             let mut out = SliceResponseBuffer::new(&mut buf);
-            let derive_context_resp =
-                invoke_dpe_cmd(drivers, &command, None, ueid, Some(locality), &mut out);
+            let derive_context_resp = invoke_dpe_cmd(
+                crate::CaliptraDpeProfile::Ecc384,
+                drivers,
+                &command,
+                None,
+                ueid,
+                Some(locality),
+                &mut out,
+            );
 
             match derive_context_resp {
                 Ok(_) => DpeErrorCode::NoError,
