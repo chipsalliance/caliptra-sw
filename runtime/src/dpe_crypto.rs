@@ -181,15 +181,15 @@ impl<'a> DpeCrypto<'a> {
         info: &[u8],
     ) -> Result<Zeroizing<Array4x12>, CryptoError> {
         // Copy root CDI to the stack before borrowing self.hmac384/trng.
-        let root_copy: Array4x12 = match &self.rt_cdi {
-            Cdi::Mldsa(root) => **root,
+        let root_copy = match &self.rt_cdi {
+            Cdi::Mldsa(root) => root.clone(),
             _ => return Err(CryptoError::MismatchedAlgorithm),
         };
         let mut output = Zeroizing::new(Array4x12::default());
         self.derive_cdi_kdf(
             measurement,
             info,
-            (&root_copy).into(),
+            (&*root_copy).into(),
             (&mut *output).into(),
         )?;
         Ok(output)
@@ -564,12 +564,12 @@ impl Crypto for DpeCrypto<'_> {
 
             #[cfg(feature = "mldsa_attestation")]
             Signer::Mldsa { .. } => {
-                let cdi: Array4x12 = match self.rt_cdi {
-                    Cdi::Mldsa(ref pq_devid_cdi) => **pq_devid_cdi,
+                let cdi = match &self.rt_cdi {
+                    Cdi::Mldsa(pq_devid_cdi) => pq_devid_cdi.clone(),
                     _ => return Err(CryptoError::MismatchedAlgorithm),
                 };
                 let mut seed = Mldsa87Seed::default();
-                dice::derive_devid_seed(&(cdi.into()), &mut seed, self.hmac384, self.trng)
+                dice::derive_devid_seed(&((*cdi).into()), &mut seed, self.hmac384, self.trng)
                     .map_err(|e| CryptoError::CryptoLibError(u32::from(e)))?;
                 Self::sign_helper_mldsa(data, &seed)
             }
