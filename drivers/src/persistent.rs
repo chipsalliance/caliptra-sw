@@ -404,12 +404,26 @@ impl PersistentData {
     /// `RUNTIME_SET_PQ_SEED_ALREADY_SET` and leaves the existing value intact.
     #[cfg(feature = "mldsa_attestation")]
     pub fn set_pq_devid_cdi(&mut self, cdi: PqDevIdCdi) -> CaliptraResult<()> {
+        #[cfg(feature = "runtime")]
+        if self.attestation_disabled.get() {
+            return Err(CaliptraError::RUNTIME_SET_PQ_SEED_ATTESTATION_DISABLED);
+        }
         if self.pqc_mode_enabled() {
             return Err(CaliptraError::RUNTIME_SET_PQ_SEED_ALREADY_SET);
         }
         self.pq_devid_cdi = cdi;
         self.pqc_status_flags |= PQC_MODE_ENABLED_FLAG;
         Ok(())
+    }
+
+    /// When PQC mode is enabled, overwrites the PQ.DevID CDI with dummy bytes
+    /// and zeroizes the exported ML-DSA CDI slots; otherwise, does nothing.
+    #[cfg(feature = "mldsa_attestation")]
+    pub fn erase_pq_devid_cdi(&mut self, dummy_cdi: PqDevIdCdi) {
+        if self.pqc_mode_enabled() {
+            self.pq_devid_cdi = dummy_cdi;
+            self.mldsa_exported_cdi_slots.zeroize();
+        }
     }
 
     pub fn assert_matches_layout() {

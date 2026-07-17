@@ -101,6 +101,60 @@ pub fn run_pqc_rt_test() -> DefaultHwModel {
     model
 }
 
+#[cfg(feature = "mldsa_attestation")]
+pub const PQ_SEED: [u8; caliptra_common::mailbox_api::SET_PQ_SEED_SEED_SIZE] =
+    [0x5a; caliptra_common::mailbox_api::SET_PQ_SEED_SEED_SIZE];
+
+#[cfg(feature = "mldsa_attestation")]
+pub fn provision_pq_seed(model: &mut DefaultHwModel) {
+    use caliptra_common::mailbox_api::SetPqSeedReq;
+
+    let mut cmd = MailboxReq::SetPqSeed(SetPqSeedReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        seed: PQ_SEED,
+    });
+    cmd.populate_chksum().unwrap();
+    model
+        .mailbox_execute(u32::from(CommandId::SET_PQ_SEED), cmd.as_bytes().unwrap())
+        .unwrap();
+}
+
+#[cfg(feature = "mldsa_attestation")]
+pub fn get_pq_csr_checksum() -> u32 {
+    caliptra_common::checksum::calc_checksum(u32::from(CommandId::GET_PQ_CSR), &[])
+}
+
+#[cfg(feature = "mldsa_attestation")]
+pub fn get_pq_csr(model: &mut DefaultHwModel) -> Vec<u8> {
+    use caliptra_common::mailbox_api::GetPqCsrResp;
+    use zerocopy::{FromBytes, IntoBytes};
+
+    let payload = MailboxReqHeader {
+        chksum: get_pq_csr_checksum(),
+    };
+    let response = model
+        .mailbox_execute(u32::from(CommandId::GET_PQ_CSR), payload.as_bytes())
+        .unwrap()
+        .unwrap();
+    let csr_resp = GetPqCsrResp::ref_from_bytes(response.as_bytes()).unwrap();
+    csr_resp.data[..csr_resp.data_size as usize].to_vec()
+}
+
+#[cfg(feature = "mldsa_attestation")]
+pub fn mldsa_csr_public_key(csr_bytes: &[u8]) -> Vec<u8> {
+    use openssl::pkey::Public;
+    use openssl::pkey_ml_dsa::PKeyMlDsaParams;
+    use openssl::x509::X509Req;
+
+    let req = X509Req::from_der(csr_bytes).unwrap();
+    let pkey = req.public_key().unwrap();
+    PKeyMlDsaParams::<Public>::from_pkey(&pkey)
+        .unwrap()
+        .public_key()
+        .unwrap()
+        .to_vec()
+}
+
 // Boot the ML-DSA attestation runtime image **debug-locked** (Production
 // lifecycle) so the firmware actually arms the per-command watchdog. The
 // runtime's `start_wdt` (runtime/src/lib.rs) is a no-op unless the device is
