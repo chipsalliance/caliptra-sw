@@ -21,9 +21,10 @@ fn fill_max_dpe_contexts(model: &mut DefaultHwModel, pl0_limit: u32, pl1_limit: 
         ..Default::default()
     };
 
-    // In subsystem mode, Caliptra uses 3 base PL0 contexts (root + RT journey + MCU FW);
+    // In subsystem mode, Caliptra uses 5 base PL0 contexts
+    // (root + RT journey + SOMV + SOMO + MCU FW);
     // otherwise, 2 (root + RT journey).
-    let caliptra_base_pl0: u32 = if model.subsystem_mode() { 3 } else { 2 };
+    let caliptra_base_pl0: u32 = if model.subsystem_mode() { 5 } else { 2 };
 
     // Fill PL0 contexts
     println!("Filling PL0 contexts up to limit {}", pl0_limit);
@@ -96,10 +97,11 @@ fn reallocate_pl0_pl1_dpe_contexts(
 
 #[test]
 fn test_pl0_pl1_reallocation_range() {
-    // In subsystem mode, Caliptra uses 3 base PL0 contexts (root + RT journey + MCU FW);
+    // In subsystem mode, Caliptra uses 5 base PL0 contexts
+    // (root + RT journey + SOMV + SOMO + MCU FW);
     // we cannot reallocate below the used count.
     let first_model = run_rt_test(RuntimeTestArgs::default());
-    let min_pl0_limit: u32 = if first_model.subsystem_mode() { 3 } else { 2 };
+    let min_pl0_limit: u32 = if first_model.subsystem_mode() { 5 } else { 2 };
     drop(first_model);
 
     for pl0_limit in min_pl0_limit..caliptra_dpe::MAX_HANDLES as u32 {
@@ -172,8 +174,9 @@ fn test_pl0_pl1_reallocation_pl0_less_than_used() {
         ..Default::default()
     };
 
-    // Use some PL0 contexts
-    for _ in 0..12 {
+    // Use some PL0 contexts without breaching the default PL0 limit first.
+    let initial_pl0_contexts = if model.subsystem_mode() { 10 } else { 12 };
+    for _ in 0..initial_pl0_contexts {
         let _ = execute_dpe_cmd(
             &mut model,
             &mut Command::from(&derive_context_cmd),
@@ -256,8 +259,9 @@ fn test_pl0_pl1_reallocation_warm_reset() {
         ..Default::default()
     };
 
-    // Use some PL0 contexts
-    for _ in 0..12 {
+    // Use some PL0 contexts without breaching the default PL0 limit first.
+    let initial_pl0_contexts = if model.subsystem_mode() { 10 } else { 12 };
+    for _ in 0..initial_pl0_contexts {
         let _ = execute_dpe_cmd(
             &mut model,
             &mut Command::from(&derive_context_cmd),
@@ -281,10 +285,11 @@ fn test_pl0_pl1_reallocation_warm_reset() {
         .unwrap();
 
     // Use the rest of the PL0 contexts
-    // In subsystem mode, 3 contexts are used by Caliptra (root + RT journey + MCU FW);
+    // In subsystem mode, 5 contexts are used by Caliptra
+    // (root + RT journey + SOMV + SOMO + MCU FW);
     // otherwise, 2 contexts are used (root + RT journey).
-    let caliptra_contexts: u32 = if model.subsystem_mode() { 3 } else { 2 };
-    let remaining = 24 - caliptra_contexts - 12;
+    let caliptra_contexts: u32 = if model.subsystem_mode() { 5 } else { 2 };
+    let remaining = 24 - caliptra_contexts - initial_pl0_contexts;
     for _ in 0..remaining {
         let _ = execute_dpe_cmd(
             &mut model,

@@ -7,7 +7,7 @@ use caliptra_api::{
     SocManager,
 };
 use caliptra_auth_man_types::{
-    AuthManifestImageMetadata, AuthorizationManifest, ImageMetadataFlags,
+    AuthManifestImageMetadata, AuthManifestPreamble, AuthorizationManifest, ImageMetadataFlags,
 };
 use caliptra_builder::{
     firmware::{APP_WITH_UART, APP_WITH_UART_FPGA, FMC_WITH_UART},
@@ -56,6 +56,7 @@ use openssl::{
     x509::{X509Builder, X509},
     x509::{X509Name, X509NameBuilder},
 };
+use sha2::{Digest as Sha2DigestTrait, Sha384 as Sha384Hasher};
 use std::borrow::Cow;
 use std::io;
 use std::sync::atomic::{AtomicU32, Ordering};
@@ -108,6 +109,26 @@ fn default_soc_manifest(pqc_key_type: FwVerificationPqcKeyType, svn: u32) -> Aut
 pub fn default_soc_manifest_bytes(pqc_key_type: FwVerificationPqcKeyType, svn: u32) -> Vec<u8> {
     let manifest = default_soc_manifest(pqc_key_type, svn);
     manifest.as_bytes().to_vec()
+}
+
+pub fn soc_manifest_measurements(manifest: &AuthorizationManifest) -> ([u8; 48], [u8; 48]) {
+    let preamble = manifest.preamble.as_bytes();
+    let vendor_range = AuthManifestPreamble::vendor_signed_data_range();
+    let owner_range = AuthManifestPreamble::owner_pub_keys_range();
+    (
+        Sha384Hasher::digest(&preamble[vendor_range.start as usize..vendor_range.end as usize])
+            .into(),
+        Sha384Hasher::digest(&preamble[owner_range.start as usize..owner_range.end as usize])
+            .into(),
+    )
+}
+
+pub fn default_soc_manifest_measurements(
+    pqc_key_type: FwVerificationPqcKeyType,
+    svn: u32,
+) -> ([u8; 48], [u8; 48]) {
+    let manifest = default_soc_manifest(pqc_key_type, svn);
+    soc_manifest_measurements(&manifest)
 }
 
 pub fn test_upload_firmware<T: HwModel>(

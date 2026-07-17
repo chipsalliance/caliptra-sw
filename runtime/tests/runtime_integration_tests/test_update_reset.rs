@@ -76,14 +76,13 @@ fn read_48_byte_test_response(model: &mut DefaultHwModel, cmd: u32) -> [u8; 48] 
         .unwrap()
 }
 
-fn read_dpe_index_cache(model: &mut DefaultHwModel) -> [u8; 4] {
+fn read_dpe_index_cache(model: &mut DefaultHwModel) -> Vec<u8> {
     model
         .mailbox_execute(OPCODE_READ_DPE_INDEX_CACHE, &[])
         .unwrap()
         .expect("We should have received a response")
         .as_bytes()
-        .try_into()
-        .unwrap()
+        .to_vec()
 }
 
 fn extend_journey_measurement(prev_journey: [u8; 48], current: [u8; 48]) -> [u8; 48] {

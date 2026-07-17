@@ -15,7 +15,7 @@ Abstract:
 use crate::{
     authorize_and_stash::AuthorizeAndStashCmd,
     drivers::{McuFwStatus, McuResetReason},
-    set_auth_manifest::AuthManifestSource,
+    set_auth_manifest::{AuthManifestSource, AuthManifestUpdateMode},
     Drivers, SetAuthManifestCmd, IMAGE_AUTHORIZED,
 };
 #[cfg(feature = "cfi")]
@@ -81,9 +81,12 @@ impl RecoveryFlow {
         };
         result?;
 
-        if let Err(err) =
-            SetAuthManifestCmd::set_auth_manifest(drivers, AuthManifestSource::Mailbox, false)
-        {
+        if let Err(err) = SetAuthManifestCmd::set_auth_manifest(
+            drivers,
+            AuthManifestSource::Mailbox,
+            false,
+            AuthManifestUpdateMode::CreateMissingDpeContexts,
+        ) {
             let recovery_reason = DmaRecovery::recovery_reason_from_auth_manifest_error(err);
             Self::set_recovery_boot_failure(drivers, SOC_MANIFEST_INDEX, recovery_reason)?;
             return Err(err);
