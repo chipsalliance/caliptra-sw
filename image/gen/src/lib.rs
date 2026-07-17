@@ -168,6 +168,11 @@ pub struct ImageGeneratorVendorConfig {
     pub not_after: [u8; 15],
 
     pub pl0_pauser: Option<u32>,
+
+    /// When true, set the Debug Image bit in ImageHeader.flags.
+    /// A debug image is only accepted by ROM when SS_DEBUG_INTENT is asserted.
+    #[serde(default)]
+    pub debug_image: bool,
 }
 
 /// Image Generator Owner Configuration

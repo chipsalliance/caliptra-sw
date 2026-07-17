@@ -8,6 +8,7 @@ mod test_cfi;
 mod test_cm_sha;
 mod test_cpu_fault;
 mod test_debug_unlock;
+mod test_debug_image;
 mod test_derive_stable_key;
 mod test_dice_derivations;
 mod test_ecdsa_verify;

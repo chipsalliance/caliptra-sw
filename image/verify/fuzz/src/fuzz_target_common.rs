@@ -129,6 +129,10 @@ impl ImageVerificationEnv for TestEnv {
     }
 
     fn set_fw_extended_error(&mut self, _err: u32) {}
+
+    fn ss_debug_intent(&self) -> bool {
+        false
+    }
 }
 
 #[cfg(feature = "struct-aware")]
