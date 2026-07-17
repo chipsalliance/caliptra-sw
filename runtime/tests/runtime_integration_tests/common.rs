@@ -92,6 +92,83 @@ pub fn run_pqc_rt_test() -> DefaultHwModel {
     model
 }
 
+// Boot the ML-DSA attestation runtime image **debug-locked** (Production
+// lifecycle) so the firmware actually arms the per-command watchdog. The
+// runtime's `start_wdt` (runtime/src/lib.rs) is a no-op unless the device is
+// debug-locked, so the default (unlocked) test boots never enforce the WDT.
+// This helper enables realistic WDT-constrained tests for the PQC commands.
+//
+// WDT budget: `WdtTimeout::default()` = 20M cycles (WDT1), cascading to WDT2
+// (1 cycle) -> NMI -> `RUNTIME_GLOBAL_WDT_EXPIRED` fatal error.
+#[cfg(feature = "mldsa_attestation")]
+pub fn run_pqc_rt_test_wdt() -> DefaultHwModel {
+    use caliptra_builder::firmware::APP_MLDSA_ATTESTATION;
+    use caliptra_hw_model::{DeviceLifecycle, SecurityState};
+    use openssl::sha::sha384;
+
+    let security_state = *SecurityState::default()
+        .set_debug_locked(true)
+        .set_device_lifecycle(DeviceLifecycle::Production);
+
+    let mut image_options = ImageOptions::default();
+    image_options.vendor_config.pl0_pauser = Some(0x1);
+    image_options.fmc_version = DEFAULT_FMC_VERSION;
+    image_options.app_version = DEFAULT_APP_VERSION;
+
+    let image = caliptra_builder::build_and_sign_image(
+        &FMC_WITH_UART,
+        &APP_MLDSA_ATTESTATION,
+        image_options,
+    )
+    .unwrap();
+
+    // Debug-locked (Production) boot verifies the image signature, so the fuses
+    // must carry the vendor/owner public-key hashes of the signed image.
+    let vendor_pk_hash =
+        bytes_to_be_words_48(&sha384(image.manifest.preamble.vendor_pub_keys.as_bytes()));
+    let owner_pk_hash =
+        bytes_to_be_words_48(&sha384(image.manifest.preamble.owner_pub_keys.as_bytes()));
+
+    let image_info = vec![
+        ImageInfo::new(
+            StackRange::new(ROM_STACK_ORG + ROM_STACK_SIZE, ROM_STACK_ORG),
+            CodeRange::new(ROM_ORG, ROM_ORG + ROM_SIZE),
+        ),
+        ImageInfo::new(
+            StackRange::new(STACK_ORG + STACK_SIZE, STACK_ORG),
+            CodeRange::new(FMC_ORG, FMC_ORG + FMC_SIZE),
+        ),
+        ImageInfo::new(
+            StackRange::new(STACK_ORG + STACK_SIZE, STACK_ORG),
+            CodeRange::new(RUNTIME_ORG, RUNTIME_ORG + RUNTIME_SIZE),
+        ),
+    ];
+    let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
+
+    let mut model = caliptra_hw_model::new(
+        InitParams {
+            rom: &rom,
+            security_state,
+            stack_info: Some(StackInfo::new(image_info)),
+            ..Default::default()
+        },
+        BootParams {
+            fw_image: Some(&image.to_bytes().unwrap()),
+            fuses: Fuses {
+                key_manifest_pk_hash: vendor_pk_hash,
+                owner_pk_hash,
+                ..Default::default()
+            },
+            ..Default::default()
+        },
+    )
+    .unwrap();
+
+    model.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_runtime());
+
+    model
+}
+
 pub fn run_rt_test_base(args: RuntimeTestArgs, lms_verify: bool) -> (DefaultHwModel, ImageBundle) {
     let default_rt_fwid = if cfg!(feature = "fpga_realtime") {
         &APP_WITH_UART_FPGA

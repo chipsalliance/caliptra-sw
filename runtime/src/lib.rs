@@ -59,6 +59,8 @@ use authorize_and_stash::AuthorizeAndStashCmd;
 use caliptra_cfi_lib::{
     cfi_assert, cfi_assert_bool, cfi_assert_eq, cfi_assert_ne, cfi_launder, CfiCounter,
 };
+#[cfg(feature = "mldsa_attestation")]
+use caliptra_drivers::Array4x12;
 pub use drivers::{Drivers, PauserPrivileges};
 use mailbox::Mailbox;
 
@@ -458,6 +460,7 @@ impl DpeEnv for CaliptraDpeEnv<'_> {
     }
 }
 
+#[inline(never)]
 fn ec_dpe_env(
     drivers: &mut Drivers,
     dmtf_device_info: Option<ArrayVec<u8, { MAX_OTHER_NAME_SIZE }>>,
@@ -501,8 +504,8 @@ fn ec_dpe_env(
     })
 }
 
-#[allow(dead_code)]
 #[cfg(feature = "mldsa_attestation")]
+#[inline(never)]
 fn mldsa_dpe_env(
     drivers: &mut Drivers,
     dmtf_device_info: Option<ArrayVec<u8, { MAX_OTHER_NAME_SIZE }>>,
@@ -515,9 +518,9 @@ fn mldsa_dpe_env(
         &mut drivers.trng,
         &mut drivers.hmac384,
         &mut drivers.key_vault,
-        &pdata.pq_devid_cdi,
+        Array4x12::from(&pdata.pq_devid_cdi),
         &mut pdata.exported_cdi_slots,
-        &pdata.mldsa_exported_cdi_slots,
+        &mut pdata.mldsa_exported_cdi_slots,
     )?;
     let pl0_pauser = pdata.manifest1.header.pl0_pauser;
     let (nb, nf) = Drivers::get_cert_validity_info(&pdata.manifest1);
