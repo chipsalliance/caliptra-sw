@@ -271,3 +271,32 @@ fn test_vendor_auth_challenge_wrong_key_rejected() {
             if c == u32::from(CaliptraError::RUNTIME_VENDOR_AUTH_WRONG_PUBLIC_KEYS)
     ));
 }
+
+// Proves the hybrid strict-AND actually EXERCISES the ML-DSA path: with a valid ECC
+// signature and correct pubkeys/nonce, corrupting ONLY the ML-DSA signature must still be
+// rejected. (The tampered-body test above fails at the ECC gate first, so it never reaches
+// ML-DSA — a no-op ML-DSA verify would pass it. This one cannot.)
+#[test]
+#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
+fn test_vendor_auth_challenge_bad_mldsa_only_rejected() {
+    let keys = gen_vendor_auth_keys();
+    let mut model = boot_with_enrolled_anchor(&keys);
+
+    let nonce = hello(&mut model);
+    let mut req = build_challenge(&keys, 0x4D43_4D53, [0x11u8; 48], nonce);
+    // Corrupt ONLY the ML-DSA signature; ECC sig, pubkeys, and nonce stay valid, so the ECC
+    // gate and anchor/nonce checks pass and verification reaches the ML-DSA gate.
+    req.mldsa_signature[0] ^= 0x01;
+    let chksum = caliptra_common::checksum::calc_checksum(
+        u32::from(CommandId::VENDOR_AUTH_CHALLENGE),
+        &req.as_bytes()[4..],
+    );
+    req.hdr.chksum = chksum;
+
+    let err = exec_challenge(&mut model, &req).unwrap_err();
+    assert!(matches!(
+        err,
+        ModelError::MailboxCmdFailed(c)
+            if c == u32::from(CaliptraError::RUNTIME_VENDOR_AUTH_INVALID_SIGNATURE)
+    ));
+}

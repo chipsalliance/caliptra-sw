@@ -86,12 +86,21 @@ impl VendorAuth {
         // Random delay for CFI glitch protection (mirrors debug-unlock handle_token).
         CfiCounter::delay();
 
-        // (A) Consume the one-time nonce and require an exact match (freshness).
+        // (A) Consume the one-time nonce and require an exact match (freshness). CFI-hardened
+        // like debug-unlock's challenge compare (common/src/debug_unlock.rs:132-140): a single
+        // skipped/faulted branch must not bypass the one-time-use check. The signed message
+        // also covers `req.challenge`, and this gate forces req.challenge == the stored nonce,
+        // so the signature is effectively bound to the freshly-minted server nonce.
         let nonce = self
             .take_challenge()
             .ok_or(CaliptraError::RUNTIME_VENDOR_AUTH_NONCE_MISMATCH)?;
-        if req.challenge != nonce {
+        if cfi_launder(req.challenge) != nonce {
             return Err(CaliptraError::RUNTIME_VENDOR_AUTH_NONCE_MISMATCH);
+        } else {
+            cfi_assert_eq_12_words(
+                &Array4x12::from(req.challenge).0,
+                &Array4x12::from(nonce).0,
+            );
         }
 
         // (B) SHA-384(pubkeys) must match the enrolled anchor. Word-level Array4x12 compare
