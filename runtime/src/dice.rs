@@ -197,8 +197,8 @@ impl GetRtAliasCertCmd {
 ///
 /// # Returns
 ///
-/// * `Ecc384Signature` - The formed signature
-pub fn fmc_dice_sign(persistent_data: &PersistentData) -> Ecc384Signature {
+/// * `&Ecc384Signature` - The formed signature
+pub fn fmc_dice_sign(persistent_data: &PersistentData) -> &Ecc384Signature {
     persistent_data.rom.data_vault.fmc_dice_ecc_signature()
 }
 
@@ -210,8 +210,8 @@ pub fn fmc_dice_sign(persistent_data: &PersistentData) -> Ecc384Signature {
 ///
 /// # Returns
 ///
-/// * `Mldsa87Signature` - The formed signature
-pub fn fmc_dice_sign_mldsa87(persistent_data: &PersistentData) -> Mldsa87Signature {
+/// * `&Mldsa87Signature` - The formed signature
+pub fn fmc_dice_sign_mldsa87(persistent_data: &PersistentData) -> &Mldsa87Signature {
     persistent_data.rom.data_vault.fmc_dice_mldsa_signature()
 }
 
@@ -235,7 +235,7 @@ pub fn copy_fmc_alias_ecc384_cert(
         .ecc_fmcalias_tbs
         .get(..persistent_data.rom.fht.ecc_fmcalias_tbs_size.into());
     let sig = fmc_dice_sign(persistent_data);
-    ecc384_cert_from_tbs_and_sig(tbs, &sig, cert)
+    ecc384_cert_from_tbs_and_sig(tbs, sig, cert)
         .map_err(|_| CaliptraError::RUNTIME_GET_FMC_ALIAS_CERT_FAILED)
 }
 
@@ -259,7 +259,7 @@ pub fn copy_fmc_alias_mldsa87_cert(
         .mldsa_fmcalias_tbs
         .get(..persistent_data.rom.fht.mldsa_fmcalias_tbs_size.into());
     let sig = fmc_dice_sign_mldsa87(persistent_data);
-    mldsa87_cert_from_tbs_and_sig(tbs, &sig, cert)
+    mldsa87_cert_from_tbs_and_sig(tbs, sig, cert)
         .map_err(|_| CaliptraError::RUNTIME_GET_FMC_ALIAS_CERT_FAILED)
 }
 
