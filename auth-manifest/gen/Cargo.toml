@@ -20,4 +20,4 @@ memoffset.workspace = true
 zerocopy.workspace = true
 
 [dev-dependencies]
-caliptra-image-crypto = { workspace = true, default-features = false, features = ["rustcrypto"] }
+caliptra-image-crypto = { workspace = true, features = ["rustcrypto"] }

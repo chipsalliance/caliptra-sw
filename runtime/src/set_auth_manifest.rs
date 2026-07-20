@@ -800,6 +800,19 @@ impl SetAuthManifestCmd {
         if !verify_only {
             persistent_data.fw.auth_manifest_digest =
                 drivers.sha2_512_384.sha384_digest(manifest_buf)?.0;
+
+            // Enroll the vendor-command-auth anchor from the (now signature-verified) Vendor
+            // Ext 0x0001 record. The record is required on a v2 manifest.
+            let pk_hash = auth_manifest_preamble
+                .vendor_ext_auth_pk_hash()
+                .ok_or(CaliptraError::RUNTIME_AUTH_MANIFEST_MISSING_VENDOR_AUTH_PK_HASH)?;
+            // Store byte-for-byte; verify (VENDOR_AUTH_CHALLENGE) re-hashes the submitted
+            // pubkeys into a [u8;48] and compares against these bytes.
+            persistent_data
+                .fw
+                .vendor_cmd_pk_hash
+                .as_mut_bytes()
+                .copy_from_slice(&pk_hash);
         }
         Ok(())
     }
