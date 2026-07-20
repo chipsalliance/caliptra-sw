@@ -36,8 +36,34 @@ pub struct caliptra_buffer {
 }
 
 #[repr(C)]
+#[allow(non_camel_case_types)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum caliptra_hw_version {
+    CALIPTRA_HW_VERSION_2_0 = 0,
+    CALIPTRA_HW_VERSION_2_1 = 1,
+    CALIPTRA_HW_VERSION_2_2 = 2,
+}
+
+impl From<caliptra_hw_version> for caliptra_hw_model::CaliptraHwVersion {
+    fn from(v: caliptra_hw_version) -> Self {
+        match v {
+            caliptra_hw_version::CALIPTRA_HW_VERSION_2_0 => {
+                caliptra_hw_model::CaliptraHwVersion::V2_0
+            }
+            caliptra_hw_version::CALIPTRA_HW_VERSION_2_1 => {
+                caliptra_hw_model::CaliptraHwVersion::V2_1
+            }
+            caliptra_hw_version::CALIPTRA_HW_VERSION_2_2 => {
+                caliptra_hw_model::CaliptraHwVersion::V2_2
+            }
+        }
+    }
+}
+
+#[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct caliptra_model_init_params {
+    pub hw_version: caliptra_hw_version,
     pub rom: caliptra_buffer,
     pub dccm: caliptra_buffer,
     pub iccm: caliptra_buffer,
@@ -81,9 +107,12 @@ pub unsafe extern "C" fn caliptra_model_init_default(
         .unwrap()
     };
 
+    let hw_version = caliptra_hw_model::CaliptraHwVersion::from(params.hw_version);
+
     // Generate Model and cast to caliptra_model
     *model = Box::into_raw(Box::new(
         caliptra_hw_model::new_unbooted(InitParams {
+            hw_version,
             rom: slice::from_raw_parts(params.rom.data, params.rom.len),
             dccm: slice::from_raw_parts(params.dccm.data, params.dccm.len),
             iccm: slice::from_raw_parts(params.iccm.data, params.iccm.len),
