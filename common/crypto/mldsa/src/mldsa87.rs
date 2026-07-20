@@ -193,9 +193,9 @@ fn scalar_mul(out: &mut Scalar, lhs: &Scalar, rhs: &Scalar) {
     }
 }
 
-fn scalar_mul_add(out: &mut Scalar, a: &Scalar, b: &Scalar, c: &Scalar) {
+fn scalar_mul_add_assign(out: &mut Scalar, b: &Scalar, c: &Scalar) {
     for i in 0..K_DEGREE {
-        out.c[i] = reduce_once(a.c[i].wrapping_add(reduce_montgomery(
+        out.c[i] = reduce_once(out.c[i].wrapping_add(reduce_montgomery(
             (b.c[i] as u64).wrapping_mul(c.c[i] as u64),
         )));
     }
@@ -610,8 +610,7 @@ fn matrix87_expand_mul(out: &mut Vector8, rho: &[u8; K_RHO_BYTES], a: &Vector7) 
             derived_seed[K_RHO_BYTES + 1] = i as u8;
             derived_seed[K_RHO_BYTES] = j as u8;
             scalar_from_keccak_vartime(&mut m_ij, &derived_seed);
-            let out_vi_copy = out.v[i];
-            scalar_mul_add(&mut out.v[i], &out_vi_copy, &m_ij, &a.v[j]);
+            scalar_mul_add_assign(&mut out.v[i], &m_ij, &a.v[j]);
         }
     }
 }
@@ -707,8 +706,7 @@ fn matrix87_expand_mul_mask(
             derived_seed[K_RHO_BYTES + 1] = i as u8;
             derived_seed[K_RHO_BYTES] = j as u8;
             scalar_from_keccak_vartime(&mut m_ij, &derived_seed);
-            let out_copy = *out_scalar;
-            scalar_mul_add(out_scalar, &out_copy, &m_ij, &y_j);
+            scalar_mul_add_assign(out_scalar, &m_ij, &y_j);
         }
     }
 }
