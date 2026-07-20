@@ -171,6 +171,31 @@ pub fn create_test_auth_manifest_with_config<C: ImageGeneratorCrypto>(
     gen.generate(&gen_config).unwrap()
 }
 
+/// Like `create_test_auth_manifest_with_config` but with a caller-supplied vendor-command-auth
+/// PK-hash (0x0001 record). Used by end-to-end VENDOR_AUTH_CHALLENGE tests that sign with real
+/// keys. `pk_hash` must be the hardware-format (to_hw_format) SHA-384(ecc_pub ‖ mldsa_pub).
+pub fn create_test_auth_manifest_with_vendor_cmd_hash<C: ImageGeneratorCrypto>(
+    image_metadata_list: Vec<AuthManifestImageMetadata>,
+    pqc_key_type: FwVerificationPqcKeyType,
+    svn: u32,
+    vendor_cmd_auth_pk_hash: [u8; VENDOR_EXT_AUTH_PK_HASH_LEN],
+    crypto: C,
+) -> AuthorizationManifest {
+    let gen_config = AuthManifestGeneratorConfig {
+        vendor_fw_key_info: Some(default_test_vendor_fw_key_info()),
+        vendor_man_key_info: Some(default_test_vendor_man_key_info()),
+        owner_fw_key_info: Some(default_test_owner_fw_key_info()),
+        owner_man_key_info: Some(default_test_owner_man_key_info()),
+        image_metadata_list,
+        version: AUTH_MANIFEST_VERSION_V2,
+        flags: AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED,
+        pqc_key_type,
+        svn,
+        vendor_cmd_auth_pk_hash: Some(vendor_cmd_auth_pk_hash),
+    };
+    AuthManifestGenerator::new(crypto).generate(&gen_config).unwrap()
+}
+
 /// Create a test authorization manifest with custom metadata.
 /// Uses default test keys and VENDOR_SIGNATURE_REQUIRED flag.
 ///
