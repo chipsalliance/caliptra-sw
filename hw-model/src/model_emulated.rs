@@ -223,6 +223,7 @@ impl HwModel for ModelEmulated {
         let output_sink = output.sink().clone();
 
         let bus_args = CaliptraRootBusArgs {
+            hw_version: params.hw_version,
             rom: params.rom.into(),
             tb_services_cb: TbServicesCb::new(move |ch| {
                 output_sink.set_now(timer.now());
@@ -272,7 +273,9 @@ impl HwModel for ModelEmulated {
             hw_config
         };
         root_bus.soc_reg.set_hw_config(hw_config.into());
-        root_bus.soc_reg.set_hek_seed(&params.fuses.hek_seed);
+        if params.hw_version >= crate::CaliptraHwVersion::V2_1 {
+            root_bus.soc_reg.set_hek_seed(&params.fuses.hek_seed);
+        }
 
         root_bus.soc_reg.set_generic_input_wires(&[0, 0]);
 

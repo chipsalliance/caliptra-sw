@@ -31,11 +31,13 @@ mod iccm;
 mod key_vault;
 mod mailbox;
 pub mod mci;
+mod ml_dsa87;
 mod root_bus;
 mod sha512_acc;
 pub mod soc_reg;
 mod uart;
 
+pub use abr::Abr;
 pub use aes::Aes;
 pub use aes_clp::AesClp;
 pub use asym_ecc384::AsymEcc384;
@@ -52,6 +54,7 @@ pub use key_vault::KeyUsage;
 pub use key_vault::KeyVault;
 pub use mailbox::{MailboxExternal, MailboxInternal, MailboxRam, MailboxRequester};
 pub use mci::Mci;
+pub use ml_dsa87::Mldsa87;
 pub use root_bus::{
     ActionCb, CaliptraRootBus, CaliptraRootBusArgs, DownloadIdevidCsrCb, ReadyForFwCb,
     SocToCaliptraBus, TbServicesCb, UploadUpdateFwCb,
