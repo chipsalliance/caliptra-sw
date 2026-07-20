@@ -28,6 +28,8 @@ mod get_fmc_alias_csr;
 mod get_idev_csr;
 #[cfg(feature = "mldsa_attestation")]
 mod get_pq_csr;
+#[cfg(feature = "mldsa_attestation")]
+mod get_pq_info;
 pub mod handoff;
 mod hmac;
 pub mod info;
@@ -66,6 +68,8 @@ pub use crate::certify_key_extended::CertifyKeyExtendedCmd;
 pub use crate::certify_key_extended_mldsa::CertifyKeyExtendedMldsa87Cmd;
 #[cfg(feature = "mldsa_attestation")]
 pub use crate::get_pq_csr::GetPqCsrCmd;
+#[cfg(feature = "mldsa_attestation")]
+pub use crate::get_pq_info::GetPqInfoCmd;
 pub use crate::hmac::Hmac;
 pub use crate::invoke_dpe::CaliptraDpeProfile;
 #[cfg(feature = "mldsa_attestation")]
@@ -299,6 +303,8 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         CommandId::INVOKE_DPE_MLDSA87 => InvokeDpeMldsa87Cmd::execute(drivers),
         #[cfg(feature = "mldsa_attestation")]
         CommandId::GET_PQ_CSR => GetPqCsrCmd::execute(drivers),
+        #[cfg(feature = "mldsa_attestation")]
+        CommandId::GET_PQ_INFO => GetPqInfoCmd::execute(drivers),
         #[cfg(feature = "mldsa_attestation")]
         CommandId::CERTIFY_KEY_EXTENDED_MLDSA87 => CertifyKeyExtendedMldsa87Cmd::execute(drivers),
         CommandId::AUTHORIZE_AND_STASH => AuthorizeAndStashCmd::execute(drivers),
