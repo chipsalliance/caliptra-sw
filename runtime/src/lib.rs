@@ -57,8 +57,6 @@ use authorize_and_stash::AuthorizeAndStashCmd;
 use caliptra_cfi_lib::{
     cfi_assert, cfi_assert_bool, cfi_assert_eq, cfi_assert_ne, cfi_launder, CfiCounter,
 };
-#[cfg(feature = "mldsa_attestation")]
-use caliptra_drivers::Array4x12;
 pub use drivers::{Drivers, PauserPrivileges};
 use mailbox::Mailbox;
 
@@ -511,12 +509,13 @@ fn mldsa_dpe_env(
 ) -> CaliptraResult<CaliptraDpeEnv<'_>> {
     let (_, _, digest) = drivers.compute_mldsa_key_material()?;
     let pdata = drivers.persistent_data.get_mut();
+    let pq_devid_cdi = pdata.pq_devid_cdi()?;
     let crypto = DpeCrypto::new_mldsa87(
         &mut drivers.sha384,
         &mut drivers.trng,
         &mut drivers.hmac384,
         &mut drivers.key_vault,
-        Array4x12::from(&pdata.pq_devid_cdi),
+        pq_devid_cdi,
         &mut pdata.exported_cdi_slots,
         &mut pdata.mldsa_exported_cdi_slots,
     )?;

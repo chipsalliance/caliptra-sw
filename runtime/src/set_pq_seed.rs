@@ -28,18 +28,16 @@ impl SetPqSeedCmd {
             return Err(CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL);
         }
 
-        if drivers.persistent_data.get().pqc_mode_enabled() {
-            return Err(CaliptraError::RUNTIME_SET_PQ_SEED_ALREADY_SET);
-        }
-
         let mut cmd = SetPqSeedReq::new_zeroed();
         crate::packet::copy_from_mbox(drivers, cmd.as_mut_bytes())?;
 
         let mut out = Array4x12::default();
         Self::derive_pq_devid_cdi(drivers, &cmd.seed, &mut out)?;
 
-        drivers.persistent_data.get_mut().pq_devid_cdi = out.into();
-        drivers.persistent_data.get_mut().set_pqc_mode_enabled();
+        drivers
+            .persistent_data
+            .get_mut()
+            .set_pq_devid_cdi(out.into())?;
 
         crate::packet::copy_to_mbox(drivers, MailboxRespHeader::default().as_mut_bytes())
     }

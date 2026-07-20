@@ -38,7 +38,7 @@ use {
     crate::dice,
     caliptra_drivers::{
         Mldsa87, Mldsa87Mu, Mldsa87PubKey, Mldsa87Seed, Mldsa87Signature, MldsaExportedCdiEntry,
-        MLDSA87_PRIVATE_SEED_BYTES, PQ_DEVID_CDI_SIZE,
+        PqDevIdCdi, MLDSA87_PRIVATE_SEED_BYTES, PQ_DEVID_CDI_SIZE,
     },
     crypto::ml_dsa::{MldsaAlgorithm, MldsaPublicKey, MldsaSignature},
     zerocopy::FromBytes,
@@ -105,7 +105,7 @@ impl<'a> DpeCrypto<'a> {
         trng: &'a mut Trng,
         hmac384: &'a mut Hmac384,
         key_vault: &'a mut KeyVault,
-        root_cdi: Array4x12,
+        root_cdi: Zeroizing<PqDevIdCdi>,
         exported_cdi_slots: &'a mut ExportedCdiHandles,
         exported_cdi_slot: &'a mut MldsaExportedCdiEntry,
     ) -> CaliptraResult<Self> {
@@ -117,7 +117,7 @@ impl<'a> DpeCrypto<'a> {
             hasher: DpeHasher::new(sha384)?,
             cdi: None,
             derived_key: None,
-            rt_cdi: Cdi::Mldsa(Zeroizing::new(root_cdi)),
+            rt_cdi: Cdi::Mldsa(Zeroizing::new(Array4x12::from(&*root_cdi))),
             exported_cdi_slots,
         })
     }

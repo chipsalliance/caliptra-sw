@@ -36,12 +36,6 @@ impl GetPqCsrCmd {
     pub(crate) fn execute(drivers: &mut Drivers) -> CaliptraResult<()> {
         copy_from_mbox(drivers, GetPqCsrReq::new_zeroed().as_mut_bytes())?;
 
-        // The PQ.DevID CDI is only present once a seed has been provisioned via
-        // SET_PQ_SEED. Without it there is no identity to certify.
-        if !drivers.persistent_data.get().pqc_mode_enabled() {
-            return Err(CaliptraError::RUNTIME_PQC_NOT_INITIALIZED);
-        }
-
         // Re-derive the PQ.DevID ML-DSA-87 seed and public key from the PQ.DevID CDI (held in
         // persistent data). The seed is transient and zeroized as soon as the key pair operations
         // are done.

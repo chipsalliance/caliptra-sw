@@ -12,7 +12,8 @@ use caliptra_api::SocManager;
 use caliptra_builder::firmware::APP_MLDSA_ATTESTATION;
 use caliptra_common::checksum::calc_checksum;
 use caliptra_common::mailbox_api::{
-    CommandId, MailboxReq, MailboxReqHeader, SignWithExportedMldsaReq,
+    CommandId, MailboxReq, MailboxReqHeader, SetPqSeedReq, SignWithExportedMldsaReq,
+    SET_PQ_SEED_SEED_SIZE,
 };
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{HwModel, ModelError};
@@ -73,9 +74,23 @@ fn sign_full(
         .map(|resp| resp.expect("expected a SIGN_WITH_EXPORTED_MLDSA response"))
 }
 
+/// Provision the PQ.DevID CDI via SET_PQ_SEED, enabling PQC mode. Signing with an
+/// exported CDI requires this to have run first.
+fn set_pq_seed(model: &mut caliptra_hw_model::DefaultHwModel) {
+    let mut cmd = MailboxReq::SetPqSeed(SetPqSeedReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        seed: [0x5a; SET_PQ_SEED_SEED_SIZE],
+    });
+    cmd.populate_chksum().unwrap();
+    model
+        .mailbox_execute(u32::from(CommandId::SET_PQ_SEED), cmd.as_bytes().unwrap())
+        .expect("SET_PQ_SEED failed");
+}
+
 #[test]
 fn test_sign_with_exported_mldsa_invalid_sign_mode() {
     let mut model = run_pqc_rt_test();
+    set_pq_seed(&mut model);
 
     // sign_mode is neither SIGN_MODE_DATA nor SIGN_MODE_EXTERNAL_MU.
     let result = sign(&mut model, [0u8; 32], 0xDEAD_BEEF, b"message");
@@ -89,6 +104,7 @@ fn test_sign_with_exported_mldsa_invalid_sign_mode() {
 #[test]
 fn test_sign_with_exported_mldsa_external_mu_wrong_size() {
     let mut model = run_pqc_rt_test();
+    set_pq_seed(&mut model);
 
     // External-mu mode requires exactly MLDSA87_MU_BYTES (64) of message; any
     // other length is rejected before the CDI lookup.
@@ -111,6 +127,7 @@ fn test_sign_with_exported_mldsa_external_mu_wrong_size() {
 #[test]
 fn test_sign_with_exported_mldsa_message_too_large() {
     let mut model = run_pqc_rt_test();
+    set_pq_seed(&mut model);
 
     // A message_size larger than the buffer must be rejected as invalid params
     // (and must not be used to index the message buffer).
@@ -129,6 +146,7 @@ fn test_sign_with_exported_mldsa_message_too_large() {
 #[test]
 fn test_sign_with_exported_mldsa_handle_not_found() {
     let mut model = run_pqc_rt_test();
+    set_pq_seed(&mut model);
 
     // No CDI has been exported, so any handle must be rejected as not found.
     let result = sign(
@@ -140,6 +158,25 @@ fn test_sign_with_exported_mldsa_handle_not_found() {
     assert_error(
         &mut model,
         CaliptraError::RUNTIME_SIGN_WITH_EXPORTED_MLDSA_NOT_FOUND,
+        result.unwrap_err(),
+    );
+}
+
+#[test]
+fn test_sign_with_exported_mldsa_before_set_pq_seed() {
+    let mut model = run_pqc_rt_test();
+
+    // SET_PQ_SEED has not run, so PQC mode is not initialized. A well-formed
+    // request that reaches the CDI derivation must be rejected before signing.
+    let result = sign(
+        &mut model,
+        [0u8; 32],
+        SignWithExportedMldsaReq::SIGN_MODE_DATA,
+        b"message",
+    );
+    assert_error(
+        &mut model,
+        CaliptraError::RUNTIME_PQC_NOT_INITIALIZED,
         result.unwrap_err(),
     );
 }
