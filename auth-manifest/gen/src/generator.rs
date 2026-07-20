@@ -56,8 +56,7 @@ impl<Crypto: ImageGeneratorCrypto> AuthManifestGenerator<Crypto> {
         auth_manifest.preamble.svn = config.svn;
         auth_manifest.preamble.flags = config.flags.bits();
 
-        // Populate the Vendor Ext field BEFORE signing so the vendor signature (which covers
-        // vendor_signed_data_range = version..=vendor_pub_keys) authenticates it. Emit the
+        // Populate Vendor Ext BEFORE signing so the vendor signature covers it. Emit the
         // 0x0001 command-auth PK-hash record when provided.
         if let Some(pk_hash) = config.vendor_cmd_auth_pk_hash {
             let mut off = 0usize;

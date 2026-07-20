@@ -673,13 +673,9 @@ pub struct FwPersistentData {
 
     pub ocp_lock_metadata: OcpLockMetadataFirmware,
 
-    /// Vendor-unique command authentication anchor: `SHA-384(cmd_ecc_pub ‖ cmd_mldsa_pub)`
-    /// (48 bytes = SHA384_HASH_SIZE), enrolled from the Auth Manifest Vendor Ext `0x0001`
-    /// record at SET_AUTH_MANIFEST. Same lifecycle as `auth_manifest_digest`: retained across
-    /// warm/update reset, re-established each cold boot. Word array for alignment, matching
-    /// `auth_manifest_digest`. Sized as a literal `[u32; 12]` (not `SHA384_HASH_SIZE / 4`)
-    /// because this field is unconditional while that import is `runtime`-only, and this field
-    /// must have identical layout under both the `fmc` and `runtime` features.
+    /// Vendor-command-auth anchor: SHA-384(cmd_ecc_pub ‖ cmd_mldsa_pub), enrolled from Vendor
+    /// Ext 0x0001 at SET_AUTH_MANIFEST; same lifecycle as auth_manifest_digest. Literal
+    /// [u32;12] (not SHA384_HASH_SIZE/4) so layout is identical under fmc and runtime features.
     pub vendor_cmd_pk_hash: [u32; 12],
 
     pub version: u32,

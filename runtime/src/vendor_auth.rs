@@ -8,18 +8,15 @@ File Name:
 
 Abstract:
 
-    Runtime handling for vendor-unique command authentication.
-
-    Per-command challenge/response modeled on the production debug-unlock flow:
-    - VENDOR_AUTH_HELLO mints a fresh one-time nonce (Caliptra RAM).
-    - VENDOR_AUTH_CHALLENGE submits the vendor command-auth public keys and a
-      hybrid (ECDSA-P384 + ML-DSA-87) signature over `cmd_id ‖ body_hash ‖ nonce`,
-      which is verified against the anchor enrolled at SET_AUTH_MANIFEST
-      (FwPersistentData::vendor_cmd_pk_hash, the Vendor Ext 0x0001 record).
+    Vendor-unique command authentication. Per-command challenge/response modeled on
+    production debug-unlock: HELLO mints a one-time nonce; CHALLENGE hybrid-verifies
+    (ECDSA-P384 + ML-DSA-87) over cmd_id ‖ body_hash ‖ nonce against the anchor
+    enrolled at SET_AUTH_MANIFEST (FwPersistentData::vendor_cmd_pk_hash).
 
 --*/
 
 use crate::mutrefbytes;
+use caliptra_cfi_lib::{cfi_assert_eq_12_words, cfi_launder, CfiCounter};
 use caliptra_common::mailbox_api::{
     VendorAuthChallengeReq, VendorAuthChallengeResp, VendorAuthHelloResp, VENDOR_AUTH_NONCE_SIZE,
 };
@@ -71,14 +68,9 @@ impl VendorAuth {
         self.last_challenge.take()
     }
 
-    /// Handle VENDOR_AUTH_CHALLENGE: verify the submitted hybrid signature against the
-    /// enrolled anchor and the one-time nonce. Modeled on
-    /// `caliptra_common::debug_unlock::validate_debug_unlock_token`.
-    ///
-    /// `enrolled_pk_hash` is `FwPersistentData::vendor_cmd_pk_hash` (the Vendor Ext 0x0001
-    /// value, `SHA-384(cmd_ecc_pub ‖ cmd_mldsa_pub)`), as bytes.
-    ///
-    /// On success, echoes `(cmd_id, body_hash)` into the response for verify/execute binding.
+    /// Handle VENDOR_AUTH_CHALLENGE: hybrid-verify against the enrolled anchor
+    /// (`enrolled_pk_hash` = FwPersistentData::vendor_cmd_pk_hash) and the one-time nonce;
+    /// on success echo (cmd_id, body_hash). Modeled on validate_debug_unlock_token.
     pub fn handle_challenge(
         &mut self,
         sha2_512_384: &mut Sha2_512_384,
@@ -91,6 +83,9 @@ impl VendorAuth {
         let req = VendorAuthChallengeReq::read_from_bytes(cmd_bytes)
             .map_err(|_| CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE)?;
 
+        // Random delay for CFI glitch protection (mirrors debug-unlock handle_token).
+        CfiCounter::delay();
+
         // (A) Consume the one-time nonce and require an exact match (freshness).
         let nonce = self
             .take_challenge()
@@ -99,7 +94,8 @@ impl VendorAuth {
             return Err(CaliptraError::RUNTIME_VENDOR_AUTH_NONCE_MISMATCH);
         }
 
-        // (B) Hash the submitted public keys and require they match the enrolled anchor.
+        // (B) SHA-384(pubkeys) must match the enrolled anchor. Word-level Array4x12 compare
+        // with CFI hardening (like debug-unlock), not a byte-slice compare (endianness-safe).
         let pub_keys_digest = {
             let mut digest = Array4x12::default();
             let mut op = sha2_512_384.sha384_digest_init()?;
@@ -108,8 +104,11 @@ impl VendorAuth {
             op.finalize(&mut digest)?;
             digest
         };
-        if pub_keys_digest.as_bytes() != enrolled_pk_hash {
+        let enrolled_digest = Array4x12::from(enrolled_pk_hash);
+        if cfi_launder(pub_keys_digest) != enrolled_digest {
             return Err(CaliptraError::RUNTIME_VENDOR_AUTH_WRONG_PUBLIC_KEYS);
+        } else {
+            cfi_assert_eq_12_words(&pub_keys_digest.0, &enrolled_digest.0);
         }
 
         // Signed message = cmd_id(BE,4) ‖ body_hash(48) ‖ nonce(48). No domain separator
