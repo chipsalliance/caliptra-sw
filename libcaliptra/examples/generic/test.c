@@ -315,17 +315,33 @@ int boot_to_ready_for_fw(const test_info* info, bool req_idev_csr)
                                      itrng_entropy_repetition_count);
 
     // Set up our PAUSER value for the mailbox regs
+    if (caliptra_mbox_pauser_is_valid(info->apb_pauser)) {
+        printf("MBOX pauser should not be valid before being set\n");
+        return -1;
+    }
     status = caliptra_mbox_pauser_set_and_lock(info->apb_pauser);
     if (status) {
         printf("Set MBOX pauser Failed: 0x%x\n", status);
         return status;
     }
+    if (!caliptra_mbox_pauser_is_valid(info->apb_pauser)) {
+        printf("MBOX pauser should be valid after being set\n");
+        return -1;
+    }
 
     // Set up our PAUSER value for the fuse regs
+    if (caliptra_fuse_pauser_is_valid(info->apb_pauser)) {
+        printf("Fuse pauser should not be valid before being set\n");
+        return -1;
+    }
     status = caliptra_fuse_pauser_set_and_lock(info->apb_pauser);
     if (status) {
         printf("Set FUSE pauser Failed: 0x%x\n", status);
         return status;
+    }
+    if (!caliptra_fuse_pauser_is_valid(info->apb_pauser)) {
+        printf("Fuse pauser should be valid after being set\n");
+        return -1;
     }
 
     if ((status = caliptra_init_fuses(&info->fuses)) != 0) {
