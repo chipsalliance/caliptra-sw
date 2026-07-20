@@ -59,6 +59,42 @@ pub fn mbox_test_image_without_uart() -> &'static FwId<'static> {
     }
 }
 
+const OPCODE_INVALIDATE_DPE_INDEX_CACHE: u32 = 0x6000_0004;
+const OPCODE_READ_DPE_INDEX_CACHE: u32 = 0x6000_0005;
+const OPCODE_READ_CACHED_DPE_CCIV_CONTEXT_MEASUREMENT: u32 = 0x6000_0006;
+const OPCODE_READ_CACHED_DPE_CCIV_CONTEXT_CUMULATIVE: u32 = 0x6000_0007;
+const OPCODE_READ_CACHED_DPE_MCU_RT_CONTEXT_MEASUREMENT: u32 = 0x6000_0008;
+const OPCODE_READ_CACHED_DPE_MCU_RT_CONTEXT_CUMULATIVE: u32 = 0x6000_0009;
+
+fn read_48_byte_test_response(model: &mut DefaultHwModel, cmd: u32) -> [u8; 48] {
+    model
+        .mailbox_execute(cmd, &[])
+        .unwrap()
+        .expect("We should have received a response")
+        .as_bytes()
+        .try_into()
+        .unwrap()
+}
+
+fn read_dpe_index_cache(model: &mut DefaultHwModel) -> [u8; 4] {
+    model
+        .mailbox_execute(OPCODE_READ_DPE_INDEX_CACHE, &[])
+        .unwrap()
+        .expect("We should have received a response")
+        .as_bytes()
+        .try_into()
+        .unwrap()
+}
+
+fn extend_journey_measurement(prev_journey: [u8; 48], current: [u8; 48]) -> [u8; 48] {
+    use sha2::{Digest, Sha384};
+
+    let mut hasher = Sha384::new();
+    hasher.update(prev_journey);
+    hasher.update(current);
+    hasher.finalize().into()
+}
+
 #[test]
 fn test_rt_pcr_updated_in_dpe() {
     let image_options = ImageOptions {
@@ -892,4 +928,98 @@ fn test_cciv_updated_in_dpe() {
     // Compare actual vs expected
     assert_eq!(cciv_hash_mbox_bundle_exp, cciv_current);
     assert_eq!(cciv_journey_exp, cciv_journey);
+}
+
+#[cfg_attr(feature = "fpga_realtime", ignore)]
+#[test]
+fn test_dpe_index_cache_initialized_after_hitless_update() {
+    let image_opts = ImageOptions {
+        pqc_key_type: FwVerificationPqcKeyType::LMS,
+        ..Default::default()
+    };
+    let image_bundle_standard =
+        caliptra_builder::build_and_sign_image(&FMC_WITH_UART, &APP_WITH_UART, image_opts.clone())
+            .unwrap();
+
+    // Boot with the mailbox responder so the test can inspect persistent DPE state.
+    // Clearing the new cache fields simulates a fw-2.0.2 cold boot whose DCCM
+    // did not initialize the cache appended by fw-2.0.3.
+    let args = RuntimeTestArgs {
+        subsystem_mode: true,
+        test_fwid: Some(mbox_test_image()),
+        test_image_options: Some(image_opts.clone()),
+        ..Default::default()
+    };
+    let (mut model, image_bundle_mbox) = run_rt_test_return_fw(args);
+
+    let cciv_hash_mbox_bundle_exp: [u8; 48] =
+        calculate_cptra_config_init_vals_hash(&mut model, &image_bundle_mbox);
+    let cciv_hash_standard_bundle_exp: [u8; 48] =
+        calculate_cptra_config_init_vals_hash(&mut model, &image_bundle_standard);
+    assert_ne!(cciv_hash_mbox_bundle_exp, cciv_hash_standard_bundle_exp);
+
+    let initial_cciv_journey =
+        read_48_byte_test_response(&mut model, OPCODE_READ_CACHED_DPE_CCIV_CONTEXT_CUMULATIVE);
+    let initial_mcu_rt_current = read_48_byte_test_response(
+        &mut model,
+        OPCODE_READ_CACHED_DPE_MCU_RT_CONTEXT_MEASUREMENT,
+    );
+    let initial_mcu_rt_journey =
+        read_48_byte_test_response(&mut model, OPCODE_READ_CACHED_DPE_MCU_RT_CONTEXT_CUMULATIVE);
+
+    model
+        .mailbox_execute(OPCODE_INVALIDATE_DPE_INDEX_CACHE, &[])
+        .unwrap()
+        .expect("We should have received a response");
+    let invalid_cache = read_dpe_index_cache(&mut model);
+    assert_eq!(invalid_cache[0], 0);
+    assert_eq!(invalid_cache[1], 0xff);
+    assert_eq!(invalid_cache[2], 0xff);
+
+    // Hitlessly update from the simulated fw-2.0.2 DPE state to the new runtime.
+    // Update reset should initialize the cache once, then use it to update CCIV.
+    model
+        .mailbox_execute(
+            u32::from(CommandId::FIRMWARE_LOAD),
+            &image_bundle_standard.to_bytes().unwrap(),
+        )
+        .unwrap();
+    model.step_until_ready_for_runtime();
+
+    // Perform a second hitless update back to the mailbox responder. This proves
+    // the cache initialized during the first update persisted and remains usable.
+    model
+        .mailbox_execute(
+            u32::from(CommandId::FIRMWARE_LOAD),
+            &image_bundle_mbox.to_bytes().unwrap(),
+        )
+        .unwrap();
+    model.step_until_ready_for_runtime();
+
+    let initialized_cache = read_dpe_index_cache(&mut model);
+    assert_ne!(initialized_cache[0], 0);
+    assert_ne!(initialized_cache[1], 0xff);
+    assert_ne!(initialized_cache[2], 0xff);
+
+    let expected_cciv_journey_after_standard =
+        extend_journey_measurement(initial_cciv_journey, cciv_hash_standard_bundle_exp);
+    let expected_cciv_journey_after_mbox = extend_journey_measurement(
+        expected_cciv_journey_after_standard,
+        cciv_hash_mbox_bundle_exp,
+    );
+    let cciv_current =
+        read_48_byte_test_response(&mut model, OPCODE_READ_CACHED_DPE_CCIV_CONTEXT_MEASUREMENT);
+    let cciv_journey =
+        read_48_byte_test_response(&mut model, OPCODE_READ_CACHED_DPE_CCIV_CONTEXT_CUMULATIVE);
+    assert_eq!(cciv_current, cciv_hash_mbox_bundle_exp);
+    assert_eq!(cciv_journey, expected_cciv_journey_after_mbox);
+
+    let mcu_rt_current = read_48_byte_test_response(
+        &mut model,
+        OPCODE_READ_CACHED_DPE_MCU_RT_CONTEXT_MEASUREMENT,
+    );
+    let mcu_rt_journey =
+        read_48_byte_test_response(&mut model, OPCODE_READ_CACHED_DPE_MCU_RT_CONTEXT_CUMULATIVE);
+    assert_eq!(mcu_rt_current, initial_mcu_rt_current);
+    assert_eq!(mcu_rt_journey, initial_mcu_rt_journey);
 }
