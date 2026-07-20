@@ -35,7 +35,7 @@ The Runtime Firmware main function SHALL perform the following on cold boot rese
 
 * Initialize the [DICE Protection Environment (DPE)](#dice-protection-environment-dpe)
 * Initialize any SRAM structures used by Runtime Firmware
-* Upload the firwmare to the Manufacturer Control Unit (2.0, susbystem mode only)
+* Upload the firmware to the Manufacturer Control Unit (2.0, subsystem mode only)
 
 For behavior during other types of reset, see [Runtime firmware updates](#runtime-firmware-updates).
 
