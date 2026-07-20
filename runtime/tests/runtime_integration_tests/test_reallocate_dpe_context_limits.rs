@@ -11,8 +11,11 @@ use caliptra_builder::{
 use caliptra_common::mailbox_api::{MailboxReq, MailboxReqHeader};
 use caliptra_drivers::CaliptraError;
 use caliptra_hw_model::{DefaultHwModel, HwModel, ModelError};
+use caliptra_runtime::CaliptraDpeProfile;
 use dpe::commands::{Command, DeriveContextCmd, DeriveContextFlags};
 use zerocopy::FromBytes;
+
+const PROFILE: CaliptraDpeProfile = CaliptraDpeProfile::Ecc384;
 
 fn fill_max_dpe_contexts(model: &mut DefaultHwModel, pl0_limit: u32, pl1_limit: u32) {
     let base_derive_context_cmd = DeriveContextCmd {
@@ -32,11 +35,17 @@ fn fill_max_dpe_contexts(model: &mut DefaultHwModel, pl0_limit: u32, pl1_limit: 
             tci_type: i,
             ..base_derive_context_cmd
         };
-        let _ = execute_dpe_cmd(model, &mut Command::DeriveContext(&cmd), DpeResult::Success);
+        let _ = execute_dpe_cmd(
+            PROFILE,
+            model,
+            &mut Command::DeriveContext(&cmd),
+            DpeResult::Success,
+        );
     }
 
     // Trigger failure by trying to derive one more context to PL0
     let _ = execute_dpe_cmd(
+        PROFILE,
         model,
         &mut Command::DeriveContext(&base_derive_context_cmd),
         DpeResult::MboxCmdFailure(CaliptraError::RUNTIME_PL0_USED_DPE_CONTEXT_THRESHOLD_REACHED),
@@ -53,6 +62,7 @@ fn fill_max_dpe_contexts(model: &mut DefaultHwModel, pl0_limit: u32, pl1_limit: 
                 ..base_derive_context_cmd
             };
             let _ = execute_dpe_cmd(
+                PROFILE,
                 model,
                 &mut Command::DeriveContext(&derive_ctx_cmd),
                 DpeResult::Success,
@@ -64,12 +74,18 @@ fn fill_max_dpe_contexts(model: &mut DefaultHwModel, pl0_limit: u32, pl1_limit: 
                 tci_type: i + pl0_limit,
                 ..base_derive_context_cmd
             };
-            let _ = execute_dpe_cmd(model, &mut Command::DeriveContext(&cmd), DpeResult::Success);
+            let _ = execute_dpe_cmd(
+                PROFILE,
+                model,
+                &mut Command::DeriveContext(&cmd),
+                DpeResult::Success,
+            );
         }
     }
 
     // Trigger failure by trying to derive one more context to PL1
     let _ = execute_dpe_cmd(
+        PROFILE,
         model,
         &mut Command::DeriveContext(&base_derive_context_cmd),
         DpeResult::MboxCmdFailure(CaliptraError::RUNTIME_PL1_USED_DPE_CONTEXT_THRESHOLD_REACHED),
@@ -160,6 +176,7 @@ fn test_pl0_pl1_reallocation_pl0_less_than_used() {
             ..Default::default()
         };
         let _ = execute_dpe_cmd(
+            PROFILE,
             &mut model,
             &mut Command::DeriveContext(&derive_context_cmd),
             DpeResult::Success,
@@ -196,6 +213,7 @@ fn test_pl0_pl1_reallocation_pl1_less_than_used() {
                 ..base_derive_context_cmd
             };
             let _ = execute_dpe_cmd(
+                PROFILE,
                 &mut model,
                 &mut Command::DeriveContext(&derive_ctx_cmd),
                 DpeResult::Success,
@@ -208,6 +226,7 @@ fn test_pl0_pl1_reallocation_pl1_less_than_used() {
                 ..base_derive_context_cmd
             };
             let _ = execute_dpe_cmd(
+                PROFILE,
                 &mut model,
                 &mut Command::DeriveContext(&derive_ctx_cmd),
                 DpeResult::Success,
@@ -243,6 +262,7 @@ fn test_pl0_pl1_reallocation_warm_reset() {
             ..derive_context_cmd
         };
         let _ = execute_dpe_cmd(
+            PROFILE,
             &mut model,
             &mut Command::DeriveContext(&cmd),
             DpeResult::Success,
@@ -275,6 +295,7 @@ fn test_pl0_pl1_reallocation_warm_reset() {
             ..derive_context_cmd
         };
         let _ = execute_dpe_cmd(
+            PROFILE,
             &mut model,
             &mut Command::DeriveContext(&cmd),
             DpeResult::Success,
@@ -283,6 +304,7 @@ fn test_pl0_pl1_reallocation_warm_reset() {
 
     // Trigger failure by trying to derive one more context to PL0
     let _ = execute_dpe_cmd(
+        PROFILE,
         &mut model,
         &mut Command::DeriveContext(&derive_context_cmd),
         DpeResult::MboxCmdFailure(CaliptraError::RUNTIME_PL0_USED_DPE_CONTEXT_THRESHOLD_REACHED),

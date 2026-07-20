@@ -15,7 +15,7 @@ use caliptra_builder::{
 use caliptra_common::mailbox_api::{InvokeDpeReq, MailboxReq, MailboxReqHeader};
 use caliptra_drivers::CaliptraError;
 use caliptra_hw_model::{HwModel, ModelError};
-use caliptra_runtime::{RtBootStatus, DPE_SUPPORT, VENDOR_ID, VENDOR_SKU};
+use caliptra_runtime::{CaliptraDpeProfile, RtBootStatus, DPE_SUPPORT, VENDOR_ID, VENDOR_SKU};
 use cms::{
     cert::x509::der::{Decode, Encode},
     content_info::{CmsVersion, ContentInfo},
@@ -31,7 +31,7 @@ use dpe::{
     error::DpeErrorCode,
     response::{CertifyKeyResp, Response, SignResp},
     tci::TciMeasurement,
-    DpeProfile, TCI_SIZE,
+    TCI_SIZE,
 };
 use openssl::{
     bn::BigNum,
@@ -44,6 +44,8 @@ use sha2::{Digest, Sha384};
 use x509_parser::{nom::Parser, prelude::*};
 use zerocopy::{FromBytes, IntoBytes};
 
+const PROFILE: CaliptraDpeProfile = CaliptraDpeProfile::Ecc384;
+
 #[test]
 fn test_invoke_dpe_get_profile_cmd() {
     let mut model = run_rt_test(RuntimeTestArgs::default());
@@ -53,11 +55,11 @@ fn test_invoke_dpe_get_profile_cmd() {
     });
 
     let mut cmd: Command<'_> = Command::GetProfile(&GetProfileCmd);
-    let resp = execute_dpe_cmd(&mut model, &mut cmd, DpeResult::Success);
+    let resp = execute_dpe_cmd(PROFILE, &mut model, &mut cmd, DpeResult::Success);
     let Some(Response::GetProfile(profile)) = resp else {
         panic!("Wrong response type!");
     };
-    assert_eq!(profile.resp_hdr.profile, DpeProfile::P384Sha384);
+    assert_eq!(profile.resp_hdr.profile, PROFILE.into());
     assert_eq!(profile.vendor_id, VENDOR_ID);
     assert_eq!(profile.vendor_sku, VENDOR_SKU);
     assert_eq!(profile.flags, DPE_SUPPORT.bits());
@@ -91,6 +93,7 @@ fn test_invoke_dpe_get_certificate_chain_cmd() {
         size: 2048,
     };
     let resp = execute_dpe_cmd(
+        PROFILE,
         &mut model,
         &mut Command::GetCertificateChain(&get_cert_chain_cmd),
         DpeResult::Success,
@@ -114,6 +117,7 @@ fn test_invoke_dpe_sign_and_certify_key_cmds() {
         digest: TEST_DIGEST,
     };
     let sign_resp = execute_dpe_cmd(
+        PROFILE,
         &mut model,
         &mut Command::from(&sign_cmd),
         DpeResult::Success,
@@ -127,6 +131,7 @@ fn test_invoke_dpe_sign_and_certify_key_cmds() {
         format: CertifyKeyCommand::FORMAT_X509,
     };
     let certify_key_resp = execute_dpe_cmd(
+        PROFILE,
         &mut model,
         &mut Command::from(&certify_key_cmd),
         DpeResult::Success,
@@ -171,6 +176,7 @@ fn test_invoke_dpe_asymmetric_sign() {
         digest: TEST_DIGEST,
     };
     let resp = execute_dpe_cmd(
+        PROFILE,
         &mut model,
         &mut Command::from(&sign_cmd),
         DpeResult::Success,
@@ -195,6 +201,7 @@ fn test_dpe_header_error_code() {
     // cannot initialize non-simulation contexts so expect DPE cmd to fail
     let init_ctx_cmd = InitCtxCmd::new_use_default();
     let resp = execute_dpe_cmd(
+        PROFILE,
         &mut model,
         &mut Command::InitCtx(&init_ctx_cmd),
         DpeResult::DpeCmdFailure,
@@ -223,6 +230,7 @@ fn test_invoke_dpe_certify_key_csr() {
         format: CertifyKeyCommand::FORMAT_CSR,
     };
     let resp = execute_dpe_cmd(
+        PROFILE,
         &mut model,
         &mut Command::from(&certify_key_cmd),
         DpeResult::Success,
@@ -287,6 +295,7 @@ fn test_invoke_dpe_rotate_context() {
     };
 
     let resp = execute_dpe_cmd(
+        PROFILE,
         &mut model,
         &mut Command::RotateCtx(&rotate_ctx_cmd),
         DpeResult::Success,
@@ -303,6 +312,7 @@ fn test_invoke_dpe_rotate_context() {
     };
 
     let resp = execute_dpe_cmd(
+        PROFILE,
         &mut model,
         &mut Command::RotateCtx(&rotate_ctx_cmd),
         DpeResult::Success,
@@ -339,6 +349,7 @@ fn test_invoke_dpe_certify_key_with_non_critical_dice_extensions() {
         format: CertifyKeyCommand::FORMAT_X509,
     };
     let resp = execute_dpe_cmd(
+        PROFILE,
         &mut model,
         &mut Command::from(&certify_key_cmd),
         DpeResult::Success,
@@ -366,6 +377,7 @@ fn test_invoke_dpe_export_cdi_with_non_critical_dice_extensions() {
         ..Default::default()
     };
     let resp = execute_dpe_cmd(
+        PROFILE,
         &mut model,
         &mut Command::DeriveContext(&derive_ctx_cmd),
         DpeResult::Success,
@@ -396,6 +408,7 @@ fn test_export_cdi_attestation_not_disabled_after_update_reset() {
     };
 
     let _ = execute_dpe_cmd(
+        PROFILE,
         &mut model,
         &mut Command::DeriveContext(&derive_ctx_cmd),
         DpeResult::Success,
@@ -444,6 +457,7 @@ fn test_export_cdi_destroyed_root_context() {
     };
 
     let _ = execute_dpe_cmd(
+        PROFILE,
         &mut model,
         &mut Command::DeriveContext(&derive_ctx_cmd),
         DpeResult::Success,
@@ -499,6 +513,7 @@ fn test_certify_key_with_max_contexts() {
             ..base_derive_context_cmd
         };
         let _ = execute_dpe_cmd(
+            PROFILE,
             &mut model,
             &mut Command::DeriveContext(&cmd),
             DpeResult::Success,
@@ -507,6 +522,7 @@ fn test_certify_key_with_max_contexts() {
 
     // Trigger failure by trying to derive one more context to PL0
     let _ = execute_dpe_cmd(
+        PROFILE,
         &mut model,
         &mut Command::DeriveContext(&base_derive_context_cmd),
         DpeResult::MboxCmdFailure(CaliptraError::RUNTIME_PL0_USED_DPE_CONTEXT_THRESHOLD_REACHED),
@@ -526,6 +542,7 @@ fn test_certify_key_with_max_contexts() {
         };
 
         let _ = execute_dpe_cmd(
+            PROFILE,
             &mut model,
             &mut Command::from(&certify_key_cmd),
             DpeResult::Success,

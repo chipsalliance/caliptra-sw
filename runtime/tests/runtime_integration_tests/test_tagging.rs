@@ -5,6 +5,7 @@ use caliptra_common::mailbox_api::{
     CommandId, GetTaggedTciReq, GetTaggedTciResp, MailboxReq, MailboxReqHeader, TagTciReq,
 };
 use caliptra_hw_model::HwModel;
+use caliptra_runtime::CaliptraDpeProfile;
 use dpe::{
     commands::{Command, DeriveContextCmd, DestroyCtxCmd},
     context::ContextHandle,
@@ -16,6 +17,7 @@ const TAG: u32 = 1;
 const INVALID_TAG: u32 = 2;
 const DEFAULT_HANDLE: [u8; 16] = [0u8; 16];
 const BAD_HANDLE: [u8; 16] = [1u8; 16];
+const PROFILE: CaliptraDpeProfile = CaliptraDpeProfile::Ecc384;
 
 #[test]
 fn test_tagging_default_context() {
@@ -180,6 +182,7 @@ fn test_tagging_destroyed_context() {
         handle: ContextHandle::default(),
     };
     let resp = execute_dpe_cmd(
+        PROFILE,
         &mut model,
         &mut Command::DestroyCtx(&destroy_ctx_cmd),
         DpeResult::Success,
@@ -214,6 +217,7 @@ fn test_tagging_retired_context() {
     // retire context via DeriveContext
     let derive_context_cmd = DeriveContextCmd::default();
     let resp = execute_dpe_cmd(
+        PROFILE,
         &mut model,
         &mut Command::DeriveContext(&derive_context_cmd),
         DpeResult::Success,
@@ -258,6 +262,7 @@ fn test_tagging_retired_context() {
         ..Default::default()
     };
     let resp = execute_dpe_cmd(
+        PROFILE,
         &mut model,
         &mut Command::DeriveContext(&derive_context_cmd),
         DpeResult::Success,
