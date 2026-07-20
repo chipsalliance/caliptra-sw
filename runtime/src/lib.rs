@@ -22,6 +22,7 @@ mod certify_key_extended;
 mod cryptographic_mailbox;
 mod debug_unlock;
 pub mod dice;
+mod vendor_auth;
 mod disable;
 mod dpe_crypto;
 mod dpe_platform;
@@ -610,6 +611,9 @@ fn execute_command(
                 cmd_bytes,
             )
         }),
+        CommandId::VENDOR_AUTH_HELLO => {
+            drivers.vendor_auth.handle_hello(&mut drivers.trng, resp)
+        }
         CommandId::FE_PROG => FeProgrammingCmd::execute(drivers, cmd_bytes),
         CommandId::REALLOCATE_DPE_CONTEXT_LIMITS => {
             ReallocateDpeContextLimitsCmd::execute(drivers, cmd_bytes, resp)

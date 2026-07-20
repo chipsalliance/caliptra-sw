@@ -208,6 +208,10 @@ impl CommandId {
     pub const PRODUCTION_AUTH_DEBUG_UNLOCK_REQ: Self = Self(0x50445552); // "PDUR"
     pub const PRODUCTION_AUTH_DEBUG_UNLOCK_TOKEN: Self = Self(0x50445554); // "PDUT"
 
+    // Vendor-unique command authentication (per-command challenge/response).
+    pub const VENDOR_AUTH_HELLO: Self = Self(0x5641484C); // "VAHL" - request a one-time nonce
+    pub const VENDOR_AUTH_CHALLENGE: Self = Self(0x56414348); // "VACH" - submit signed challenge
+
     // Image metadata commands
     pub const GET_IMAGE_INFO: Self = Self(0x494D_4530); // "IME0"
 
@@ -425,6 +429,7 @@ pub enum MailboxResp {
     CmAesGcmDecryptDma(CmAesGcmDecryptDmaResp),
     GetMcuFwSize(GetMcuFwSizeResp),
     ProductionAuthDebugUnlockChallenge(ProductionAuthDebugUnlockChallenge),
+    VendorAuthHello(VendorAuthHelloResp),
     GetPcrLog(GetPcrLogResp),
     ReallocateDpeContextLimits(ReallocateDpeContextLimitsResp),
     OcpLockReportHekMetadata(OcpLockReportHekMetadataResp),
@@ -514,6 +519,7 @@ impl MailboxResp {
             MailboxResp::CmAesGcmDecryptDma(resp) => Ok(resp.as_bytes()),
             MailboxResp::GetMcuFwSize(resp) => Ok(resp.as_bytes()),
             MailboxResp::ProductionAuthDebugUnlockChallenge(resp) => Ok(resp.as_bytes()),
+            MailboxResp::VendorAuthHello(resp) => Ok(resp.as_bytes()),
             MailboxResp::GetPcrLog(resp) => Ok(resp.as_bytes()),
             MailboxResp::ReallocateDpeContextLimits(resp) => Ok(resp.as_bytes()),
             MailboxResp::OcpLockReportHekMetadata(resp) => Ok(resp.as_bytes()),
@@ -601,6 +607,7 @@ impl MailboxResp {
             MailboxResp::CmAesGcmDecryptDma(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::GetMcuFwSize(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::ProductionAuthDebugUnlockChallenge(resp) => Ok(resp.as_mut_bytes()),
+            MailboxResp::VendorAuthHello(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::GetPcrLog(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::ReallocateDpeContextLimits(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::OcpLockReportHekMetadata(resp) => Ok(resp.as_mut_bytes()),
@@ -771,6 +778,7 @@ pub enum MailboxReq {
     OcpLockTestAccessKey(OcpLockTestAccessKeyReq),
     ProductionAuthDebugUnlockReq(ProductionAuthDebugUnlockReq),
     ProductionAuthDebugUnlockToken(ProductionAuthDebugUnlockToken),
+    VendorAuthHello(VendorAuthHelloReq),
     GetPcrLog(MailboxReqHeader),
     ExternalMailboxCmd(ExternalMailboxCmdReq),
     FeProg(FeProgReq),
@@ -880,6 +888,7 @@ impl MailboxReq {
             MailboxReq::OcpLockTestAccessKey(req) => Ok(req.as_bytes()),
             MailboxReq::ProductionAuthDebugUnlockReq(req) => Ok(req.as_bytes()),
             MailboxReq::ProductionAuthDebugUnlockToken(req) => Ok(req.as_bytes()),
+            MailboxReq::VendorAuthHello(req) => Ok(req.as_bytes()),
             MailboxReq::GetPcrLog(req) => Ok(req.as_bytes()),
             MailboxReq::ExternalMailboxCmd(req) => Ok(req.as_bytes()),
             MailboxReq::FeProg(req) => Ok(req.as_bytes()),
@@ -987,6 +996,7 @@ impl MailboxReq {
             MailboxReq::OcpLockTestAccessKey(req) => Ok(req.as_mut_bytes()),
             MailboxReq::ProductionAuthDebugUnlockReq(req) => Ok(req.as_mut_bytes()),
             MailboxReq::ProductionAuthDebugUnlockToken(req) => Ok(req.as_mut_bytes()),
+            MailboxReq::VendorAuthHello(req) => Ok(req.as_mut_bytes()),
             MailboxReq::GetPcrLog(req) => Ok(req.as_mut_bytes()),
             MailboxReq::ExternalMailboxCmd(req) => Ok(req.as_mut_bytes()),
             MailboxReq::FeProg(req) => Ok(req.as_mut_bytes()),
@@ -1087,6 +1097,7 @@ impl MailboxReq {
             MailboxReq::ProductionAuthDebugUnlockToken(_) => {
                 CommandId::PRODUCTION_AUTH_DEBUG_UNLOCK_TOKEN
             }
+            MailboxReq::VendorAuthHello(_) => CommandId::VENDOR_AUTH_HELLO,
             MailboxReq::ExternalMailboxCmd(_) => CommandId::EXTERNAL_MAILBOX_CMD,
             MailboxReq::ReallocateDpeContextLimits(_) => CommandId::REALLOCATE_DPE_CONTEXT_LIMITS,
             MailboxReq::OcpLockReportHekMetadata(_) => CommandId::OCP_LOCK_REPORT_HEK_METADATA,
@@ -2748,6 +2759,37 @@ impl Request for ProductionAuthDebugUnlockToken {
     const ID: CommandId = CommandId::PRODUCTION_AUTH_DEBUG_UNLOCK_TOKEN; // TODO
     type Resp = MailboxRespHeader; // TODO Check
 }
+
+/// Size (bytes) of the vendor-command-auth one-time nonce (TRNG Array4x12 = 48 bytes).
+pub const VENDOR_AUTH_NONCE_SIZE: usize = 48;
+
+// VENDOR_AUTH_HELLO — request a fresh one-time nonce for vendor-command auth.
+#[repr(C)]
+#[derive(Debug, FromBytes, Immutable, IntoBytes, KnownLayout, PartialEq, Eq, Default)]
+pub struct VendorAuthHelloReq {
+    pub hdr: MailboxReqHeader,
+}
+impl Request for VendorAuthHelloReq {
+    const ID: CommandId = CommandId::VENDOR_AUTH_HELLO;
+    type Resp = VendorAuthHelloResp;
+}
+
+// VENDOR_AUTH_HELLO response — carries the 48-byte one-time nonce (Caliptra-minted).
+#[repr(C)]
+#[derive(Debug, FromBytes, Immutable, IntoBytes, KnownLayout, PartialEq, Eq, Clone)]
+pub struct VendorAuthHelloResp {
+    pub hdr: MailboxRespHeader,
+    pub challenge: [u8; 48],
+}
+impl Default for VendorAuthHelloResp {
+    fn default() -> Self {
+        Self {
+            hdr: Default::default(),
+            challenge: [0; 48],
+        }
+    }
+}
+impl Response for VendorAuthHelloResp {}
 
 // EXTERNAL_MAILBOX_CMD
 #[repr(C)]
