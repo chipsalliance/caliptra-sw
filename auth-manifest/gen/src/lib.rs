@@ -48,4 +48,10 @@ pub struct AuthManifestGeneratorConfig {
     pub owner_man_key_info: Option<AuthManifestGeneratorKeyConfig>,
 
     pub image_metadata_list: Vec<AuthManifestImageMetadata>,
+
+    /// Vendor-unique command authentication public-key hash
+    /// (`SHA-384(cmd_ecc_pub ‖ cmd_mldsa_pub)`, 48 bytes). When set, it is emitted as the
+    /// `0x0001` Vendor Ext TLV record and covered by the vendor signature. `None` leaves the
+    /// Vendor Ext empty (backward-compatible manifest).
+    pub vendor_cmd_auth_pk_hash: Option<[u8; VENDOR_EXT_AUTH_PK_HASH_LEN]>,
 }

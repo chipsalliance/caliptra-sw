@@ -4,7 +4,12 @@ use crate::{AuthManifestGenerator, AuthManifestGeneratorConfig, AuthManifestGene
 use caliptra_auth_man_types::{
     AuthManifestFlags, AuthManifestImageMetadata, AuthManifestPrivKeysConfig,
     AuthManifestPubKeysConfig, AuthorizationManifest, ImageMetadataFlags,
+    AUTH_MANIFEST_VERSION_V2, VENDOR_EXT_AUTH_PK_HASH_LEN,
 };
+
+/// Fixed vendor-command-auth PK-hash used by the default test manifest (v2 Vendor Ext 0x0001).
+pub const DEFAULT_TEST_VENDOR_CMD_AUTH_PK_HASH: [u8; VENDOR_EXT_AUTH_PK_HASH_LEN] =
+    [0xA5; VENDOR_EXT_AUTH_PK_HASH_LEN];
 use caliptra_image_fake_keys::*;
 use caliptra_image_gen::{from_hw_format, ImageGeneratorCrypto};
 use caliptra_image_types::FwVerificationPqcKeyType;
@@ -155,10 +160,11 @@ pub fn create_test_auth_manifest_with_config<C: ImageGeneratorCrypto>(
         owner_fw_key_info: Some(default_test_owner_fw_key_info()),
         owner_man_key_info: Some(default_test_owner_man_key_info()),
         image_metadata_list,
-        version: 1,
+        version: AUTH_MANIFEST_VERSION_V2,
         flags,
         pqc_key_type,
         svn,
+        vendor_cmd_auth_pk_hash: Some(DEFAULT_TEST_VENDOR_CMD_AUTH_PK_HASH),
     };
 
     let gen = AuthManifestGenerator::new(crypto);
