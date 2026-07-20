@@ -910,7 +910,7 @@ impl Drivers {
     #[inline(never)]
     fn derive_devid_seed(&mut self, seed: &mut Mldsa87Seed) -> CaliptraResult<()> {
         let pq_devid_cdi = self.persistent_data.get().pq_devid_cdi()?;
-        dice::derive_devid_seed(pq_devid_cdi, seed, &mut self.hmac384, &mut self.trng)
+        dice::derive_devid_seed(&pq_devid_cdi, seed, &mut self.hmac384, &mut self.trng)
     }
 
     #[cfg(feature = "mldsa_attestation")]

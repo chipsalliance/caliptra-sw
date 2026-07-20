@@ -14,6 +14,8 @@ use caliptra_image_types::ZeroizeWithByteScrub;
 use dpe::{ExportedCdiHandle, State, U8Bool, MAX_HANDLES};
 use zerocopy::{FromZeros, IntoBytes, KnownLayout, TryFromBytes};
 use zeroize::Zeroize;
+#[cfg(feature = "mldsa_attestation")]
+use zeroize::Zeroizing;
 
 #[cfg(feature = "runtime")]
 use crate::sha384::SHA384_HASH_SIZE;
@@ -382,23 +384,32 @@ impl PersistentData {
         self.pqc_status_flags & PQC_MODE_ENABLED_FLAG != 0
     }
 
-    /// Returns the provisioned PQ.DevID CDI, but only once a seed has been set
-    /// via `set_pq_devid_cdi` (i.e. the PQC-mode-enabled flag is set). Returns
-    /// `RUNTIME_PQC_NOT_INITIALIZED` otherwise, ensuring uninitialized CDI bytes
-    /// can never be read.
+    /// Returns a copy of the provisioned PQ.DevID CDI, but only once a seed has
+    /// been set via `set_pq_devid_cdi` (i.e. the PQC-mode-enabled flag is set).
+    /// Returns `RUNTIME_PQC_NOT_INITIALIZED` otherwise, ensuring uninitialized
+    /// CDI bytes can never be read.
+    ///
+    /// The copy is returned in a [`Zeroizing`] wrapper so the caller's transient
+    /// copy of this secret is scrubbed when it goes out of scope.
     #[cfg(feature = "mldsa_attestation")]
-    pub fn pq_devid_cdi(&self) -> CaliptraResult<&PqDevIdCdi> {
+    pub fn pq_devid_cdi(&self) -> CaliptraResult<Zeroizing<PqDevIdCdi>> {
         self.pqc_mode_enabled()
-            .then_some(&self.pq_devid_cdi)
+            .then(|| Zeroizing::new(self.pq_devid_cdi))
             .ok_or(CaliptraError::RUNTIME_PQC_NOT_INITIALIZED)
     }
 
     /// Stores the PQ.DevID CDI and atomically marks PQC mode enabled, upholding
-    /// the invariant that a readable CDI always has its status flag set.
+    /// the invariant that a readable CDI always has its status flag set. The CDI
+    /// is write-once: attempting to overwrite an already-provisioned CDI returns
+    /// `RUNTIME_SET_PQ_SEED_ALREADY_SET` and leaves the existing value intact.
     #[cfg(feature = "mldsa_attestation")]
-    pub fn set_pq_devid_cdi(&mut self, cdi: PqDevIdCdi) {
+    pub fn set_pq_devid_cdi(&mut self, cdi: PqDevIdCdi) -> CaliptraResult<()> {
+        if self.pqc_mode_enabled() {
+            return Err(CaliptraError::RUNTIME_SET_PQ_SEED_ALREADY_SET);
+        }
         self.pq_devid_cdi = cdi;
         self.pqc_status_flags |= PQC_MODE_ENABLED_FLAG;
+        Ok(())
     }
 
     pub fn assert_matches_layout() {
