@@ -17,6 +17,7 @@ pub mod keyids;
 pub mod verifier;
 pub mod wdt;
 
+use caliptra_image_types::{IMAGE_BYTE_SIZE, IMAGE_MANIFEST_BYTE_SIZE};
 ///merge imports
 pub use hand_off::{
     DataStore, DataVaultRegister, FirmwareHandoffTable, HandOffDataHandle, Vault,
@@ -40,11 +41,12 @@ pub use pcr::{PcrLogEntry, PcrLogEntryId, RT_FW_CURRENT_PCR, RT_FW_JOURNEY_PCR};
 pub const FMC_ORG: u32 = 0x40000000;
 pub const FMC_SIZE: u32 = 21 * 1024;
 pub const RUNTIME_ORG: u32 = FMC_ORG + FMC_SIZE;
-pub const RUNTIME_SIZE: u32 = 99 * 1024;
+pub const RUNTIME_SIZE: u32 = ((IMAGE_BYTE_SIZE - IMAGE_MANIFEST_BYTE_SIZE) as u32) - FMC_SIZE;
 
-// Max size of runtime code should be 120K to allow 8k for the manifest
+// The image is the manifest, FMC, and runtime laid end to end and must fill it exactly.
 #[allow(clippy::assertions_on_constants)]
-const _: () = assert!((FMC_SIZE + RUNTIME_SIZE) <= (120 * 1024));
+const _: () =
+    assert!(IMAGE_MANIFEST_BYTE_SIZE + (FMC_SIZE + RUNTIME_SIZE) as usize == IMAGE_BYTE_SIZE);
 
 pub use memory_layout::{DATA_ORG, PERSISTENT_DATA_ORG};
 pub use wdt::{restart_wdt, start_wdt, stop_wdt, WdtTimeout};
