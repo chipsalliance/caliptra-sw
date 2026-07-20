@@ -25,6 +25,7 @@ use caliptra_common::mailbox_api::{
 };
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{DefaultHwModel, HwModel, ModelError, ShaAccMode};
+use caliptra_runtime::CaliptraDpeProfile;
 use dpe::{
     commands::{
         CertifyKeyCommand, CertifyKeyFlags, CertifyKeyP384Cmd, Command, DeriveContextCmd,
@@ -42,6 +43,8 @@ use openssl::{
     x509::X509,
 };
 use zerocopy::IntoBytes;
+
+const PROFILE: CaliptraDpeProfile = CaliptraDpeProfile::Ecc384;
 
 /// Abstracts how a single command execution is measured.
 ///
@@ -93,7 +96,7 @@ fn measure_dpe(
     cmd: &mut Command,
 ) -> u64 {
     sampler.before(model);
-    let _ = execute_dpe_cmd(model, cmd, DpeResult::Success);
+    let _ = execute_dpe_cmd(PROFILE, model, cmd, DpeResult::Success);
     sampler.after(model)
 }
 
@@ -278,6 +281,7 @@ pub fn run_command_suite(
             svn: 0,
         };
         let exported_cdi = match execute_dpe_cmd(
+            PROFILE,
             model,
             &mut Command::DeriveContext(&export_cdi_cmd),
             DpeResult::Success,

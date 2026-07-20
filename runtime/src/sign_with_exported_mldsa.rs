@@ -7,7 +7,7 @@ use crate::{dpe_crypto::DpeCrypto, Drivers, PauserPrivileges};
 use caliptra_cfi_derive::cfi_impl_fn;
 
 use caliptra_common::mailbox_api::{SignWithExportedMldsaReq, SignWithExportedMldsaResp};
-use caliptra_drivers::{Array4x12, MLDSA87_MU_BYTES};
+use caliptra_drivers::MLDSA87_MU_BYTES;
 use caliptra_error::{CaliptraError, CaliptraResult};
 
 use crypto::{
@@ -55,7 +55,7 @@ impl SignWithExportedMldsaCmd {
         };
 
         let pdata = drivers.persistent_data.get_mut();
-        let root_cdi = Array4x12::from(&pdata.pq_devid_cdi);
+        let root_cdi = pdata.pq_devid_cdi()?;
         let mut crypto = DpeCrypto::new_mldsa87(
             &mut drivers.sha384,
             &mut drivers.trng,

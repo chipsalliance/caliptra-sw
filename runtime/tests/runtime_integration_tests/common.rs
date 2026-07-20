@@ -6,6 +6,8 @@ use caliptra_builder::{
     firmware::{APP_WITH_UART, APP_WITH_UART_FPGA, FMC_WITH_UART},
     FwId, ImageOptions,
 };
+#[cfg(feature = "mldsa_attestation")]
+use caliptra_common::mailbox_api::InvokeDpeMldsa87Req;
 use caliptra_common::{
     mailbox_api::{
         CommandId, GetFmcAliasCertResp, GetRtAliasCertResp, InvokeDpeReq, InvokeDpeResp,
@@ -21,11 +23,11 @@ use caliptra_hw_model::{
     StackInfo, StackRange,
 };
 use caliptra_image_types::ImageBundle;
+use caliptra_runtime::CaliptraDpeProfile;
 use dpe::{
     commands::{Command, CommandHdr},
     error::DpeErrorCode,
     response::{Response, ResponseHdr},
-    DpeProfile,
 };
 use openssl::{
     asn1::{Asn1Integer, Asn1Time},
@@ -44,6 +46,13 @@ pub const TEST_LABEL: [u8; 48] = [
 pub const TEST_DIGEST: [u8; 48] = [
     1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26,
     27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48,
+];
+
+#[cfg(feature = "mldsa_attestation")]
+pub const TEST_DIGEST_MLDSA: [u8; 64] = [
+    1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26,
+    27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50,
+    51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64,
 ];
 
 pub const DEFAULT_FMC_VERSION: u16 = 0xaaaa;
@@ -285,28 +294,40 @@ pub enum DpeResult {
 }
 
 pub fn execute_dpe_cmd(
+    profile: CaliptraDpeProfile,
     model: &mut DefaultHwModel,
     dpe_cmd: &mut Command,
     expected_result: DpeResult,
 ) -> Option<Response> {
     let mut cmd_data: [u8; 512] = [0u8; InvokeDpeReq::DATA_MAX_SIZE];
     let dpe_cmd_id = dpe_cmd.id();
-    let cmd_hdr = CommandHdr::new(DpeProfile::P384Sha384, dpe_cmd_id);
+    let cmd_hdr = CommandHdr::new(profile.into(), dpe_cmd_id);
     let cmd_hdr_buf = cmd_hdr.as_bytes();
     cmd_data[..cmd_hdr_buf.len()].copy_from_slice(cmd_hdr_buf);
     let dpe_cmd_buf = dpe_cmd.as_bytes();
     cmd_data[cmd_hdr_buf.len()..cmd_hdr_buf.len() + dpe_cmd_buf.len()].copy_from_slice(dpe_cmd_buf);
-    let mut mbox_cmd = MailboxReq::InvokeDpeCommand(InvokeDpeReq {
-        hdr: MailboxReqHeader { chksum: 0 },
-        data: cmd_data,
-        data_size: (cmd_hdr_buf.len() + dpe_cmd_buf.len()) as u32,
-    });
+    let data_size = (cmd_hdr_buf.len() + dpe_cmd_buf.len()) as u32;
+    let mut mbox_cmd = match profile {
+        CaliptraDpeProfile::Ecc384 => MailboxReq::InvokeDpeCommand(InvokeDpeReq {
+            hdr: MailboxReqHeader { chksum: 0 },
+            data: cmd_data,
+            data_size,
+        }),
+        #[cfg(feature = "mldsa_attestation")]
+        CaliptraDpeProfile::Mldsa => MailboxReq::InvokeDpeMldsa87Command(InvokeDpeMldsa87Req {
+            hdr: MailboxReqHeader { chksum: 0 },
+            data: cmd_data,
+            data_size,
+        }),
+    };
     mbox_cmd.populate_chksum().unwrap();
 
-    let resp = model.mailbox_execute(
-        u32::from(CommandId::INVOKE_DPE),
-        mbox_cmd.as_bytes().unwrap(),
-    );
+    let cmd_id = match profile {
+        CaliptraDpeProfile::Ecc384 => CommandId::INVOKE_DPE,
+        #[cfg(feature = "mldsa_attestation")]
+        CaliptraDpeProfile::Mldsa => CommandId::INVOKE_DPE_MLDSA87,
+    };
+    let resp = model.mailbox_execute(u32::from(cmd_id), mbox_cmd.as_bytes().unwrap());
     if let DpeResult::MboxCmdFailure(expected_err) = expected_result {
         assert_error(model, expected_err, resp.unwrap_err());
         return None;

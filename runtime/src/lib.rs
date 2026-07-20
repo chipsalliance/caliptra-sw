@@ -32,8 +32,6 @@ pub mod handoff;
 mod hmac;
 pub mod info;
 mod invoke_dpe;
-#[cfg(feature = "mldsa_attestation")]
-mod invoke_dpe_mldsa;
 pub mod mbox_response_writer;
 mod pcr;
 mod populate_idev;
@@ -59,8 +57,6 @@ use authorize_and_stash::AuthorizeAndStashCmd;
 use caliptra_cfi_lib::{
     cfi_assert, cfi_assert_bool, cfi_assert_eq, cfi_assert_ne, cfi_launder, CfiCounter,
 };
-#[cfg(feature = "mldsa_attestation")]
-use caliptra_drivers::Array4x12;
 pub use drivers::{Drivers, PauserPrivileges};
 use mailbox::Mailbox;
 
@@ -73,7 +69,7 @@ pub use crate::get_pq_csr::GetPqCsrCmd;
 pub use crate::hmac::Hmac;
 pub use crate::invoke_dpe::CaliptraDpeProfile;
 #[cfg(feature = "mldsa_attestation")]
-pub use crate::invoke_dpe_mldsa::InvokeDpeMldsa87Cmd;
+pub use crate::invoke_dpe::InvokeDpeMldsa87Cmd;
 use crate::revoke_exported_cdi_handle::RevokeExportedCdiHandleCmd;
 use crate::sign_with_exported_ecdsa::SignWithExportedEcdsaCmd;
 #[cfg(feature = "mldsa_attestation")]
@@ -513,12 +509,13 @@ fn mldsa_dpe_env(
 ) -> CaliptraResult<CaliptraDpeEnv<'_>> {
     let (_, _, digest) = drivers.compute_mldsa_key_material()?;
     let pdata = drivers.persistent_data.get_mut();
+    let pq_devid_cdi = pdata.pq_devid_cdi()?;
     let crypto = DpeCrypto::new_mldsa87(
         &mut drivers.sha384,
         &mut drivers.trng,
         &mut drivers.hmac384,
         &mut drivers.key_vault,
-        Array4x12::from(&pdata.pq_devid_cdi),
+        pq_devid_cdi,
         &mut pdata.exported_cdi_slots,
         &mut pdata.mldsa_exported_cdi_slots,
     )?;
