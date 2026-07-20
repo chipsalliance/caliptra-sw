@@ -1415,25 +1415,28 @@ pub fn mldsa87_sign_mu_from_sk(
 }
 
 /// Compute `mu` (the 64-byte message representative) from a private key seed
-/// and a message supplied via a [`ResponseBuffer`].
+/// and a message supplied via a [`ResponseBuffer`] and then sign it, reusing
+/// the private key from the generation.
 ///
 /// Implements FIPS 204 HashML-DSA with an empty (zero-length) context:
 /// `mu = SHAKE256(tr || 0x00 || 0x00 || M)` where `tr = SHAKE256(pk)` and
 /// `pk` is derived from `seed`.
-pub fn mldsa87_generate_mu(
+pub fn mldsa87_generate_sign_mu_deterministic(
+    out_encoded_signature: &mut [u8; MLDSA87_SIGNATURE_BYTES],
     private_key_seed: &[u8; MLDSA87_PRIVATE_SEED_BYTES],
     msg: &dyn ResponseBuffer,
     msg_range: core::ops::Range<usize>,
-    out_mu: &mut [u8; MLDSA87_MU_BYTES],
 ) -> Result<(), ResponseBufError> {
-    let mut pub_key = [0u8; MLDSA87_PUBLIC_KEY_BYTES];
-    mldsa87_pub_from_seed(&mut pub_key, private_key_seed);
-
+    let mut priv_key = PrivateKey {
+        rho: [0u8; K_RHO_BYTES],
+        k: [0u8; K_K_BYTES],
+        sigma: [0u8; K_SIGMA_BYTES],
+        t0_ntt: Vector8::default(),
+    };
     let mut tr = [0u8; K_TR_BYTES];
-    let mut shake256 = Shake256::new();
-    shake256.absorb(&pub_key);
-    shake256.squeeze(&mut tr);
+    generate_priv_internal(&mut priv_key, private_key_seed, Some(&mut tr));
 
+    let mut mu = [0u8; K_MU_BYTES];
     let mut shake256 = Shake256::new();
     shake256.absorb(&tr);
     shake256.absorb(&[0u8, 0u8]);
@@ -1441,7 +1444,10 @@ pub fn mldsa87_generate_mu(
         shake256.absorb(d);
         Ok(())
     })?;
-    shake256.squeeze(out_mu);
+    shake256.squeeze(&mut mu);
+
+    let randomizer = [0u8; MLDSA87_RANDOMIZER_BYTES];
+    sign_internal_with_mu(out_encoded_signature, &priv_key, &mu, &randomizer, None);
     Ok(())
 }
 

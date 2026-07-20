@@ -129,15 +129,15 @@ impl Mldsa87 {
         Ok(())
     }
 
-    /// Compute `mu` from a seed and a message in a [`ResponseBuffer`].
+    /// Compute `mu` from a seed and a message in a [`ResponseBuffer`] and then sign it.
     #[inline(never)]
-    pub fn generate_mu(
+    pub fn generate_sign_mu_deterministic(
         seed: &Mldsa87Seed,
         msg: &dyn ResponseBuffer,
         msg_range: core::ops::Range<usize>,
-        out_mu: &mut Mldsa87Mu,
+        sig: &mut Mldsa87Signature,
     ) -> Result<(), ResponseBufError> {
-        Mldsa87Sw::generate_mu(seed, msg, msg_range, out_mu)
+        Mldsa87Sw::generate_sign_mu_deterministic(seed, msg, msg_range, sig)
     }
 
     /// Deterministically sign `mu` with the key derived from `seed`.
@@ -151,6 +151,7 @@ impl Mldsa87 {
     /// * `seed` - 32-byte private seed
     /// * `mu` - Message digest to be signed
     /// * `sig` - Buffer that receives the encoded signature
+    #[inline(never)]
     pub fn sign_mu_deterministic(
         seed: &Mldsa87Seed,
         mu: &Mldsa87Mu,
