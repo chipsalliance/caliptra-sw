@@ -27,6 +27,7 @@ use zerocopy::IntoBytes;
 
 mod elf_symbols;
 pub mod firmware;
+pub mod release_artifacts;
 mod sha256;
 pub mod version;
 
@@ -85,6 +86,18 @@ pub fn run_cmd_stdout(cmd: &mut Command, input: Option<&[u8]>) -> io::Result<Str
     }
 }
 
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, Ord, PartialOrd)]
+pub enum FirmwareType<'a> {
+    Source { features: &'a [&'a str] },
+    TaggedReleaseFromNetwork { version_tag: &'a str, url: &'a str },
+}
+
+impl Default for FirmwareType<'_> {
+    fn default() -> Self {
+        FirmwareType::Source { features: &[] }
+    }
+}
+
 // Represent the Cargo identity of a firmware binary.
 #[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq, Ord, PartialOrd)]
 pub struct FwId<'a> {
@@ -95,11 +108,26 @@ pub struct FwId<'a> {
     // for a binary crate.
     pub bin_name: &'a str,
 
-    // The features to use the build the binary
-    pub features: &'a [&'a str],
+    // The type of firmware target
+    pub fw_type: FirmwareType<'a>,
 }
 
-impl FwId<'_> {
+type PrebuiltCacheMap = Lazy<Mutex<HashMap<FwId<'static>, &'static [u8]>>>;
+
+impl From<&'static FwId<'static>> for &'static [u8] {
+    fn from(id: &'static FwId<'static>) -> &'static [u8] {
+        get_prebuilt_firmware_static(id).expect("Failed to fetch prebuilt firmware artifact")
+    }
+}
+
+impl<'a> FwId<'a> {
+    pub fn features(&self) -> &'a [&'a str] {
+        match self.fw_type {
+            FirmwareType::Source { features } => features,
+            _ => &[],
+        }
+    }
+
     /// A reasonably unique filename to be used for saving elf files containing
     /// this firmware.
     pub fn elf_filename(&self) -> String {
@@ -110,8 +138,8 @@ impl FwId<'_> {
         if self.bin_name != self.crate_name {
             write!(&mut result, "--{}", self.bin_name).unwrap();
         }
-        if !self.features.is_empty() {
-            write!(&mut result, "--{}", self.features.join("-")).unwrap();
+        if !self.features().is_empty() {
+            write!(&mut result, "--{}", self.features().join("-")).unwrap();
         }
         write!(&mut result, ".elf").unwrap();
         result
@@ -260,8 +288,8 @@ fn cargo_invocations_from_fwids<'a>(
 
         remaining_fwids.retain(|&fwid| {
             let invocation = invocation_map
-                .entry((fwid.crate_name, fwid.features))
-                .or_insert_with(|| CargoInvocation::new(fwid.crate_name, fwid.features));
+                .entry((fwid.crate_name, fwid.features()))
+                .or_insert_with(|| CargoInvocation::new(fwid.crate_name, fwid.features()));
             if invocation
                 .fwids
                 .iter()
@@ -484,9 +512,49 @@ pub fn rom_for_fw_integration_tests_fpga(fpga: bool) -> io::Result<Cow<'static, 
     }
 }
 
+pub fn get_prebuilt_firmware(id: &FwId<'static>) -> io::Result<Vec<u8>> {
+    if !crate::firmware::PREBUILT_FW.contains(&id) {
+        return Err(io::Error::new(
+            io::ErrorKind::NotFound,
+            format!("FwId {id:?} is not a registered prebuilt firmware target"),
+        ));
+    }
+
+    match id.fw_type {
+        FirmwareType::TaggedReleaseFromNetwork { version_tag, url } => {
+            let artifacts = release_artifacts::download_and_extract_release(version_tag, url)
+                .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+            artifacts.get_file(id.bin_name)
+        }
+        _ => Err(io::Error::new(
+            io::ErrorKind::NotFound,
+            format!("FwId {id:?} is not a supported prebuilt firmware ID"),
+        )),
+    }
+}
+
+pub fn get_prebuilt_firmware_static(id: &FwId<'static>) -> io::Result<&'static [u8]> {
+    static CACHE: PrebuiltCacheMap = Lazy::new(|| Mutex::new(HashMap::new()));
+
+    let mut cache = CACHE.lock().unwrap();
+    if let Some(&bytes) = cache.get(id) {
+        return Ok(bytes);
+    }
+
+    let bytes = build_firmware_rom(id)?;
+    let leaked: &'static [u8] = Box::leak(bytes.into_boxed_slice());
+    cache.insert(*id, leaked);
+    Ok(leaked)
+}
+
 pub fn build_firmware_rom(id: &FwId<'static>) -> io::Result<Vec<u8>> {
-    let elf_bytes = build_firmware_elf(id)?;
-    elf2rom(&elf_bytes)
+    match id.fw_type {
+        FirmwareType::TaggedReleaseFromNetwork { .. } => get_prebuilt_firmware(id),
+        FirmwareType::Source { .. } => {
+            let elf_bytes = build_firmware_elf(id)?;
+            elf2rom(&elf_bytes)
+        }
+    }
 }
 
 pub fn elf2rom(elf_bytes: &[u8]) -> io::Result<Vec<u8>> {
@@ -651,7 +719,7 @@ mod test {
         static FWID: FwId = FwId {
             crate_name: "caliptra-drivers-test-bin",
             bin_name: "test_success2",
-            features: &[],
+            fw_type: FirmwareType::Source { features: &[] },
         };
         // Ensure that we can build the ELF and elf2rom can parse it
         let err = build_firmware_rom(&FWID).unwrap_err();
@@ -712,42 +780,58 @@ mod test {
                 &FwId {
                     crate_name: "initech-firmware",
                     bin_name: "initech-firmware",
-                    features: &["pc-load-letter"],
+                    fw_type: FirmwareType::Source {
+                        features: &["pc-load-letter"],
+                    },
                 },
                 &FwId {
                     crate_name: "initech-firmware",
                     bin_name: "initech-firmware",
-                    features: &["pc-load-letter", "uart"],
+                    fw_type: FirmwareType::Source {
+                        features: &["pc-load-letter", "uart"],
+                    },
                 },
                 &FwId {
                     crate_name: "test-fw",
                     bin_name: "test1",
-                    features: &["pc-load-letter"],
+                    fw_type: FirmwareType::Source {
+                        features: &["pc-load-letter"],
+                    },
                 },
                 &FwId {
                     crate_name: "test-fw",
                     bin_name: "test2",
-                    features: &["pc-load-letter"],
+                    fw_type: FirmwareType::Source {
+                        features: &["pc-load-letter"],
+                    },
                 },
                 &FwId {
                     crate_name: "test-fw",
                     bin_name: "test2",
-                    features: &["pc-load-letter", "uart"],
+                    fw_type: FirmwareType::Source {
+                        features: &["pc-load-letter", "uart"],
+                    },
                 },
                 &FwId {
                     crate_name: "test-fw",
                     bin_name: "test3",
-                    features: &["pc-load-letter"],
+                    fw_type: FirmwareType::Source {
+                        features: &["pc-load-letter"],
+                    },
                 },
                 &FwId {
                     crate_name: "test-fw2",
                     bin_name: "test1",
-                    features: &["pc-load-letter"],
+                    fw_type: FirmwareType::Source {
+                        features: &["pc-load-letter"],
+                    },
                 },
                 &FwId {
                     crate_name: "test-fw2",
                     bin_name: "test4",
-                    features: &["pc-load-letter"],
+                    fw_type: FirmwareType::Source {
+                        features: &["pc-load-letter"],
+                    },
                 },
             ];
 
@@ -760,17 +844,23 @@ mod test {
                             &FwId {
                                 crate_name: "test-fw",
                                 bin_name: "test1",
-                                features: &["pc-load-letter",],
+                                fw_type: FirmwareType::Source {
+                                    features: &["pc-load-letter",]
+                                },
                             },
                             &FwId {
                                 crate_name: "test-fw",
                                 bin_name: "test2",
-                                features: &["pc-load-letter",],
+                                fw_type: FirmwareType::Source {
+                                    features: &["pc-load-letter",]
+                                },
                             },
                             &FwId {
                                 crate_name: "test-fw",
                                 bin_name: "test3",
-                                features: &["pc-load-letter",],
+                                fw_type: FirmwareType::Source {
+                                    features: &["pc-load-letter",]
+                                },
                             },
                         ]
                     },
@@ -781,12 +871,16 @@ mod test {
                             &FwId {
                                 crate_name: "test-fw2",
                                 bin_name: "test1",
-                                features: &["pc-load-letter",],
+                                fw_type: FirmwareType::Source {
+                                    features: &["pc-load-letter",]
+                                },
                             },
                             &FwId {
                                 crate_name: "test-fw2",
                                 bin_name: "test4",
-                                features: &["pc-load-letter",],
+                                fw_type: FirmwareType::Source {
+                                    features: &["pc-load-letter",]
+                                },
                             },
                         ],
                     },
@@ -796,7 +890,9 @@ mod test {
                         fwids: vec![&FwId {
                             crate_name: "initech-firmware",
                             bin_name: "initech-firmware",
-                            features: &["pc-load-letter"],
+                            fw_type: FirmwareType::Source {
+                                features: &["pc-load-letter"]
+                            },
                         },],
                     },
                     CargoInvocation {
@@ -805,7 +901,9 @@ mod test {
                         fwids: vec![&FwId {
                             crate_name: "initech-firmware",
                             bin_name: "initech-firmware",
-                            features: &["pc-load-letter", "uart",],
+                            fw_type: FirmwareType::Source {
+                                features: &["pc-load-letter", "uart",]
+                            },
                         },]
                     },
                     CargoInvocation {
@@ -814,7 +912,9 @@ mod test {
                         fwids: vec![&FwId {
                             crate_name: "test-fw",
                             bin_name: "test2",
-                            features: &["pc-load-letter", "uart",],
+                            fw_type: FirmwareType::Source {
+                                features: &["pc-load-letter", "uart",]
+                            },
                         },],
                     },
                 ],
@@ -828,12 +928,16 @@ mod test {
                 &FwId {
                     crate_name: "initech-firmware",
                     bin_name: "initech-firmware",
-                    features: &["pc-load-letter"],
+                    fw_type: FirmwareType::Source {
+                        features: &["pc-load-letter"],
+                    },
                 },
                 &FwId {
                     crate_name: "initech-firmware",
                     bin_name: "initech-firmware",
-                    features: &["pc-load-letter"],
+                    fw_type: FirmwareType::Source {
+                        features: &["pc-load-letter"],
+                    },
                 },
             ];
             assert!(cargo_invocations_from_fwids(&fwids)
@@ -849,7 +953,7 @@ mod test {
             FwId {
                 crate_name: "caliptra-rom",
                 bin_name: "caliptra-rom",
-                features: &[]
+                fw_type: FirmwareType::Source { features: &[] },
             }
             .elf_filename(),
             "caliptra-rom.elf"
@@ -858,7 +962,9 @@ mod test {
             FwId {
                 crate_name: "caliptra-rom",
                 bin_name: "caliptra-rom",
-                features: &["uart", "debug"]
+                fw_type: FirmwareType::Source {
+                    features: &["uart", "debug"]
+                },
             }
             .elf_filename(),
             "caliptra-rom--uart-debug.elf"
@@ -867,7 +973,7 @@ mod test {
             &FwId {
                 crate_name: "caliptra-test",
                 bin_name: "smoke_test",
-                features: &[]
+                fw_type: FirmwareType::Source { features: &[] },
             }
             .elf_filename(),
             "caliptra-test--smoke_test.elf"
@@ -876,7 +982,9 @@ mod test {
             &FwId {
                 crate_name: "caliptra-test",
                 bin_name: "smoke_test",
-                features: &["uart", "debug"]
+                fw_type: FirmwareType::Source {
+                    features: &["uart", "debug"]
+                },
             }
             .elf_filename(),
             "caliptra-test--smoke_test--uart-debug.elf"
