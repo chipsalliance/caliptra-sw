@@ -98,12 +98,48 @@ pub type AuthManifestImageMetadataList =
     [AuthManifestImageMetadata; AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT];
 
 #[cfg(feature = "runtime")]
-#[derive(Clone, Copy, FromBytes, Immutable, IntoBytes, KnownLayout, Zeroize, Default)]
+#[derive(Clone, Copy, FromBytes, Immutable, IntoBytes, KnownLayout, Zeroize)]
 #[repr(C)]
 pub struct CaliptraManagedDpeContextIndices {
+    pub initialized: U8Bool,
     pub cciv: u8,
     pub mcu_rt: u8,
-    pub reserved: [u8; 2],
+    pub reserved: [u8; 1],
+}
+
+#[cfg(feature = "runtime")]
+impl CaliptraManagedDpeContextIndices {
+    pub const INVALID_INDEX: u8 = 0xff;
+
+    pub fn invalidate(&mut self) {
+        *self = Self::default();
+    }
+
+    pub fn is_initialized(&self) -> bool {
+        self.initialized.get()
+    }
+
+    pub fn set_cciv(&mut self, idx: u8) {
+        self.initialized = U8Bool::new(true);
+        self.cciv = idx;
+    }
+
+    pub fn set_mcu_rt(&mut self, idx: u8) {
+        self.initialized = U8Bool::new(true);
+        self.mcu_rt = idx;
+    }
+}
+
+#[cfg(feature = "runtime")]
+impl Default for CaliptraManagedDpeContextIndices {
+    fn default() -> Self {
+        Self {
+            initialized: U8Bool::new(false),
+            cciv: Self::INVALID_INDEX,
+            mcu_rt: Self::INVALID_INDEX,
+            reserved: [Self::INVALID_INDEX; 1],
+        }
+    }
 }
 
 #[derive(Clone, Immutable, IntoBytes, KnownLayout, TryFromBytes, Zeroize)]

@@ -105,12 +105,13 @@ impl StashMeasurementCmd {
                     .state
                     .get_active_context_pos(&ContextHandle::default(), locality)
                     .map_err(|_| CaliptraError::RUNTIME_DPE_CONTEXT_NOT_FOUND)?;
+                let mcu_rt_dpe_context_idx = u8::try_from(mcu_rt_dpe_context_idx)
+                    .map_err(|_| CaliptraError::RUNTIME_DPE_CONTEXT_NOT_FOUND)?;
                 drivers
                     .persistent_data
                     .get_mut()
                     .caliptra_managed_dpe_context_indices
-                    .mcu_rt = u8::try_from(mcu_rt_dpe_context_idx)
-                    .map_err(|_| CaliptraError::RUNTIME_DPE_CONTEXT_NOT_FOUND)?;
+                    .set_mcu_rt(mcu_rt_dpe_context_idx);
             }
 
             // Extend the measurement into PCR31

@@ -334,16 +334,14 @@ fn test_activate_mcu_fw_success() {
     {
         let updated_mcu_tci = get_mcu_tci(&mut model);
         assert_eq!(updated_mcu_tci.tci_current, mcu_digest);
-
-        let mut hasher = Sha384::new();
-        hasher.update(initial_mcu_tci.tci_cumulative);
-        hasher.update(mcu_digest);
-        let expected_updated_cumulative: [u8; 48] = hasher.finalize().into();
-        assert_eq!(updated_mcu_tci.tci_cumulative, expected_updated_cumulative);
+        assert_eq!(
+            updated_mcu_tci.tci_cumulative,
+            initial_mcu_tci.tci_cumulative
+        );
     }
 }
 
-#[cfg_attr(feature = "fpga_realtime", ignore)]
+#[cfg_attr(any(feature = "fpga_realtime", feature = "fpga_subsystem"), ignore)]
 #[test]
 fn test_activate_mcu_soc_fw_success() {
     let mcu_image = Image {

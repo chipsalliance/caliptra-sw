@@ -57,9 +57,9 @@ use caliptra_drivers::{
     hand_off::DataStore,
     pcr_log::{PCR_ID_STASH_MEASUREMENT, RT_FW_CURRENT_PCR, RT_FW_JOURNEY_PCR},
     sha2_512_384::Sha2DigestOpTrait,
-    Aes, Array4x12, CaliptraError, CaliptraResult, Ecc384, Hmac, KeyId, KeyVault, Lms, Mldsa87,
-    Mldsa87PubKey, PcrBank, PersistentDataAccessor, Pic, ResetReason, Sha1, Sha256, Sha256Alg,
-    Sha2_512_384, Sha2_512_384Acc, SocIfc, Trng,
+    Aes, Array4x12, CaliptraError, CaliptraManagedDpeContextIndices, CaliptraResult, Ecc384, Hmac,
+    KeyId, KeyVault, Lms, Mldsa87, Mldsa87PubKey, PcrBank, PersistentDataAccessor, Pic,
+    ResetReason, Sha1, Sha256, Sha256Alg, Sha2_512_384, Sha2_512_384Acc, SocIfc, Trng,
 };
 use caliptra_drivers::{Dma, DmaMmio};
 use caliptra_image_types::ImageManifest;
@@ -95,6 +95,21 @@ pub enum McuResetReason {
 impl From<McuResetReason> for u32 {
     fn from(reason: McuResetReason) -> Self {
         reason as u32
+    }
+}
+
+#[derive(Clone, Copy)]
+pub(crate) enum CaliptraManagedDpeContext {
+    Cciv,
+    McuRt,
+}
+
+impl CaliptraManagedDpeContext {
+    fn tci_type(self) -> u32 {
+        match self {
+            Self::Cciv => Drivers::CCIV_TCI_TYPE,
+            Self::McuRt => Drivers::MCU_RT_TCI_TYPE,
+        }
     }
 }
 
@@ -229,21 +244,22 @@ impl Drivers {
         match reset_reason {
             ResetReason::ColdReset => {
                 cfi_assert_eq(self.soc_ifc.reset_reason(), ResetReason::ColdReset);
+                self.persistent_data
+                    .get_mut()
+                    .caliptra_managed_dpe_context_indices
+                    .invalidate();
                 Self::initialize_dpe(self)?;
                 if self.soc_ifc.subsystem_mode() {
                     RecoveryFlow::recovery_flow(self)?;
                 }
-                self.cache_caliptra_managed_dpe_context_indices()?;
             }
             ResetReason::UpdateReset => {
                 cfi_assert_eq(self.soc_ifc.reset_reason(), ResetReason::UpdateReset);
                 Self::validate_dpe_structure(self)?;
                 Self::validate_context_tags(self)?;
+                self.init_dpe_index_cache()?;
                 Self::update_dpe_rt_tci(self)?;
                 Self::update_dpe_cciv(self)?;
-                // Repopulate appended context-index cache for hitless updates
-                // from older runtimes that did not have these persistent fields.
-                self.cache_caliptra_managed_dpe_context_indices()?;
             }
             ResetReason::WarmReset => {
                 cfi_assert_eq(self.soc_ifc.reset_reason(), ResetReason::WarmReset);
@@ -321,22 +337,39 @@ impl Drivers {
     }
 
     #[inline(always)]
-    fn get_caliptra_managed_dpe_context_index(&self, tci_type: u32) -> CaliptraResult<usize> {
+    fn get_caliptra_managed_dpe_context_index(
+        &self,
+        context: CaliptraManagedDpeContext,
+    ) -> Option<usize> {
         let indices = self
             .persistent_data
             .get()
             .caliptra_managed_dpe_context_indices;
-        let idx = match tci_type {
-            Self::CCIV_TCI_TYPE => indices.cciv,
-            Self::MCU_RT_TCI_TYPE => indices.mcu_rt,
-            _ => return Err(CaliptraError::RUNTIME_DPE_CONTEXT_NOT_FOUND),
+
+        if !indices.is_initialized() {
+            return None;
+        }
+
+        let idx = match context {
+            CaliptraManagedDpeContext::Cciv => indices.cciv,
+            CaliptraManagedDpeContext::McuRt => indices.mcu_rt,
         };
 
-        Ok(idx as usize)
+        if idx == CaliptraManagedDpeContextIndices::INVALID_INDEX {
+            None
+        } else {
+            Some(idx as usize)
+        }
     }
 
-    fn cache_caliptra_managed_dpe_context_indices(&mut self) -> CaliptraResult<()> {
-        if self.persistent_data.get().attestation_disabled.get() {
+    fn init_dpe_index_cache(&mut self) -> CaliptraResult<()> {
+        if self.persistent_data.get().attestation_disabled.get()
+            || self
+                .persistent_data
+                .get()
+                .caliptra_managed_dpe_context_indices
+                .is_initialized()
+        {
             return Ok(());
         }
 
@@ -364,11 +397,14 @@ impl Drivers {
             .persistent_data
             .get_mut()
             .caliptra_managed_dpe_context_indices;
-        indices.cciv =
-            u8::try_from(cciv_idx).map_err(|_| CaliptraError::RUNTIME_DPE_CONTEXT_NOT_FOUND)?;
+        indices.set_cciv(
+            u8::try_from(cciv_idx).map_err(|_| CaliptraError::RUNTIME_DPE_CONTEXT_NOT_FOUND)?,
+        );
         if let Some(mcu_rt_idx) = mcu_rt_idx {
-            indices.mcu_rt = u8::try_from(mcu_rt_idx)
-                .map_err(|_| CaliptraError::RUNTIME_DPE_CONTEXT_NOT_FOUND)?;
+            indices.set_mcu_rt(
+                u8::try_from(mcu_rt_idx)
+                    .map_err(|_| CaliptraError::RUNTIME_DPE_CONTEXT_NOT_FOUND)?,
+            );
         }
 
         Ok(())
@@ -378,32 +414,34 @@ impl Drivers {
     #[inline(never)]
     pub(crate) fn update_caliptra_managed_measurement(
         &mut self,
-        tci_type: u32,
+        caliptra_managed_context: CaliptraManagedDpeContext,
         measurement: &[u8; 48],
         locality: Option<u32>,
     ) -> CaliptraResult<()> {
-        let persistent_data = self.persistent_data.get();
-        let idx = self.get_caliptra_managed_dpe_context_index(tci_type)?;
-        let ctx = persistent_data
-            .state
-            .contexts
-            .get(idx)
-            .ok_or(CaliptraError::RUNTIME_DPE_CONTEXT_NOT_FOUND)?;
-        if ctx.state == ContextState::Inactive
-            || ctx.context_type != ContextType::Normal
-            || ctx.tci.tci_type != tci_type
-            || locality.is_some_and(|locality| ctx.locality != locality)
-        {
-            return Err(CaliptraError::RUNTIME_DPE_CONTEXT_NOT_FOUND);
-        }
-        let prev_journey = persistent_data
-            .state
-            .contexts
-            .get(idx)
-            .ok_or(CaliptraError::RUNTIME_DPE_CONTEXT_NOT_FOUND)?
-            .tci
-            .tci_cumulative
-            .0;
+        let tci_type = caliptra_managed_context.tci_type();
+        let (idx, prev_journey) = {
+            let persistent_data = self.persistent_data.get();
+            let Some(idx) = self.get_caliptra_managed_dpe_context_index(caliptra_managed_context)
+            else {
+                return Ok(());
+            };
+            let ctx = persistent_data
+                .state
+                .contexts
+                .get(idx)
+                .ok_or(CaliptraError::RUNTIME_DPE_CONTEXT_NOT_FOUND)?;
+            if ctx.state == ContextState::Inactive
+                || ctx.context_type != ContextType::Normal
+                || ctx.tci.tci_type != tci_type
+                || locality.is_some_and(|locality| ctx.locality != locality)
+            {
+                return Err(CaliptraError::RUNTIME_DPE_CONTEXT_NOT_FOUND);
+            }
+            if ctx.tci.tci_current.0 == *measurement {
+                return Ok(());
+            }
+            (idx, ctx.tci.tci_cumulative.0)
+        };
 
         let mut digest_op = self.sha2_512_384.sha384_digest_init()?;
         digest_op.update(&prev_journey)?;
@@ -509,31 +547,8 @@ impl Drivers {
         }
         let initialization_values_hash: [u8; 48] =
             <[u8; 48]>::from(Self::compute_initialization_values_hash(drivers)?);
-        // Only update if changed
-        let dpe = &drivers.persistent_data.get().state;
-        let root_idx = Self::get_dpe_root_context_idx(dpe)? as u8;
-        let cciv_idx =
-            Self::get_dpe_context_idx_by_tci_type(dpe, Self::CCIV_TCI_TYPE, None, Some(root_idx))?;
-        let cciv_ctx = drivers
-            .persistent_data
-            .get()
-            .state
-            .contexts
-            .get(cciv_idx)
-            .ok_or(CaliptraError::RUNTIME_DPE_CONTEXT_NOT_FOUND)?;
-        if cciv_ctx.state == ContextState::Inactive
-            || cciv_ctx.context_type != ContextType::Normal
-            || cciv_ctx.tci.tci_type != Self::CCIV_TCI_TYPE
-        {
-            return Err(CaliptraError::RUNTIME_DPE_CONTEXT_NOT_FOUND);
-        }
-        let prev_current: [u8; 48] = cciv_ctx.tci.tci_current.0;
-        if prev_current == initialization_values_hash {
-            return Ok(());
-        }
-
         drivers.update_caliptra_managed_measurement(
-            Self::CCIV_TCI_TYPE,
+            CaliptraManagedDpeContext::Cciv,
             &initialization_values_hash,
             None,
         )
@@ -759,12 +774,15 @@ impl Drivers {
             }
             Err(CaliptraError::RUNTIME_ADD_CCIV_MEASUREMENT_TO_DPE_FAILED)?
         }
-        pdata.caliptra_managed_dpe_context_indices.cciv = u8::try_from(
+        let cciv_idx = u8::try_from(
             env.state
                 .get_active_context_pos(&ContextHandle::default(), pl0_pauser_locality)
                 .map_err(|_| CaliptraError::RUNTIME_DPE_CONTEXT_NOT_FOUND)?,
         )
         .map_err(|_| CaliptraError::RUNTIME_DPE_CONTEXT_NOT_FOUND)?;
+        pdata
+            .caliptra_managed_dpe_context_indices
+            .set_cciv(cciv_idx);
 
         // Call DeriveContext to create TCIs for each measurement added in ROM
         let num_measurements = pdata.fht.meas_log_index as usize;
