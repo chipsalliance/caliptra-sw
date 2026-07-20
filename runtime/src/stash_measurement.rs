@@ -14,7 +14,7 @@ Abstract:
 
 use caliptra_dpe_response_buffer::SliceResponseBuffer;
 
-use crate::{invoke_dpe::invoke_dpe_cmd, Drivers, PauserPrivileges};
+use crate::{invoke_dpe::invoke_dpe_cmd, CaliptraDpeProfile, Drivers, PauserPrivileges};
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_common::mailbox_api::{MailboxRespHeader, StashMeasurementReq, StashMeasurementResp};
 use caliptra_drivers::{pcr_log::PCR_ID_STASH_MEASUREMENT, CaliptraError, CaliptraResult};
@@ -69,7 +69,7 @@ impl StashMeasurementCmd {
             let mut buf = [0u8; size_of::<DeriveContextExportedCdiResp>()];
             let mut out = SliceResponseBuffer::new(&mut buf);
             let derive_context_resp = invoke_dpe_cmd(
-                crate::CaliptraDpeProfile::Ecc384,
+                CaliptraDpeProfile::Ecc384,
                 drivers,
                 &command,
                 None,

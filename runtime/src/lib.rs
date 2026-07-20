@@ -32,8 +32,6 @@ pub mod handoff;
 mod hmac;
 pub mod info;
 mod invoke_dpe;
-#[cfg(feature = "mldsa_attestation")]
-mod invoke_dpe_mldsa;
 pub mod mbox_response_writer;
 mod pcr;
 mod populate_idev;
@@ -71,7 +69,7 @@ pub use crate::get_pq_csr::GetPqCsrCmd;
 pub use crate::hmac::Hmac;
 pub use crate::invoke_dpe::CaliptraDpeProfile;
 #[cfg(feature = "mldsa_attestation")]
-pub use crate::invoke_dpe_mldsa::InvokeDpeMldsa87Cmd;
+pub use crate::invoke_dpe::InvokeDpeMldsa87Cmd;
 use crate::revoke_exported_cdi_handle::RevokeExportedCdiHandleCmd;
 use crate::sign_with_exported_ecdsa::SignWithExportedEcdsaCmd;
 #[cfg(feature = "mldsa_attestation")]
