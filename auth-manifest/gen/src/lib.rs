@@ -49,8 +49,8 @@ pub struct AuthManifestGeneratorConfig {
 
     pub image_metadata_list: Vec<AuthManifestImageMetadata>,
 
-    /// Vendor-command-auth PK-hash = SHA-384(cmd_ecc_pub ‖ cmd_mldsa_pub), 48 bytes in
-    /// hardware-format word order (to_hw_format). Emitted as the 0x0001 Vendor Ext record;
-    /// None leaves the Vendor Ext empty.
+    /// Vendor-command-auth PK-hash = raw 48-byte SHA-384(cmd_ecc_pub_hw ‖ cmd_mldsa_pub_hw)
+    /// digest (no per-word reversal; VENDOR_AUTH_CHALLENGE compares it word-level). Emitted as
+    /// the 0x0001 Vendor Ext record; None leaves the Vendor Ext empty.
     pub vendor_cmd_auth_pk_hash: Option<[u8; VENDOR_EXT_AUTH_PK_HASH_LEN]>,
 }

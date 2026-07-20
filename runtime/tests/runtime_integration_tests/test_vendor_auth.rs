@@ -8,8 +8,15 @@ use caliptra_api::mailbox::{
     CommandId, MailboxReqHeader, VendorAuthChallengeReq, VendorAuthChallengeResp,
     VendorAuthHelloReq, VendorAuthHelloResp,
 };
-use caliptra_auth_man_gen::default_test_manifest::create_test_auth_manifest_with_vendor_cmd_hash;
-use caliptra_auth_man_types::AuthManifestImageMetadata;
+use caliptra_auth_man_gen::default_test_manifest::{
+    create_test_auth_manifest_with_vendor_cmd_hash, default_test_owner_fw_key_info,
+    default_test_owner_man_key_info, default_test_vendor_fw_key_info,
+    default_test_vendor_man_key_info,
+};
+use caliptra_auth_man_gen::{AuthManifestGenerator, AuthManifestGeneratorConfig};
+use caliptra_auth_man_types::{
+    AuthManifestFlags, AuthManifestImageMetadata, AuthorizationManifest, AUTH_MANIFEST_VERSION_V2,
+};
 use caliptra_common::mailbox_api::SetAuthManifestReq;
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{HwModel, ModelError};
@@ -292,6 +299,226 @@ fn test_vendor_auth_challenge_bad_mldsa_only_rejected() {
         &req.as_bytes()[4..],
     );
     req.hdr.chksum = chksum;
+
+    let err = exec_challenge(&mut model, &req).unwrap_err();
+    assert!(matches!(
+        err,
+        ModelError::MailboxCmdFailed(c)
+            if c == u32::from(CaliptraError::RUNTIME_VENDOR_AUTH_INVALID_SIGNATURE)
+    ));
+}
+
+// ---- Coverage-hardening tests (mirror the debug-unlock negative suite) ----
+
+/// Recompute the mailbox checksum after mutating a request in place.
+fn refresh_checksum(req: &mut VendorAuthChallengeReq) {
+    req.hdr.chksum = caliptra_common::checksum::calc_checksum(
+        u32::from(CommandId::VENDOR_AUTH_CHALLENGE),
+        &req.as_bytes()[4..],
+    );
+}
+
+/// Boot runtime WITHOUT enrolling any vendor-command anchor (no SET_AUTH_MANIFEST),
+/// so FwPersistentData::vendor_cmd_pk_hash stays all-zero.
+fn boot_no_anchor() -> impl HwModel {
+    let mut model = run_rt_test_pqc(RuntimeTestArgs::default(), FwVerificationPqcKeyType::MLDSA);
+    model.step_until_ready_for_runtime();
+    model
+}
+
+/// Build a v2 manifest with NO vendor-command 0x0001 record (the enrollment gate must reject it).
+fn v2_manifest_missing_vendor_hash() -> AuthorizationManifest {
+    let mcu_fw = [1u8, 2, 3, 4];
+    let crypto = Crypto::default();
+    let digest = caliptra_image_gen::from_hw_format(&crypto.sha384_digest(&mcu_fw).unwrap());
+    let metadata = vec![AuthManifestImageMetadata {
+        fw_id: 2,
+        flags: 1,
+        digest,
+        ..Default::default()
+    }];
+    let cfg = AuthManifestGeneratorConfig {
+        vendor_fw_key_info: Some(default_test_vendor_fw_key_info()),
+        vendor_man_key_info: Some(default_test_vendor_man_key_info()),
+        owner_fw_key_info: Some(default_test_owner_fw_key_info()),
+        owner_man_key_info: Some(default_test_owner_man_key_info()),
+        image_metadata_list: metadata,
+        version: AUTH_MANIFEST_VERSION_V2,
+        flags: AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED,
+        pqc_key_type: FwVerificationPqcKeyType::MLDSA,
+        svn: 1,
+        vendor_cmd_auth_pk_hash: None,
+    };
+    AuthManifestGenerator::new(Crypto::default())
+        .generate(&cfg)
+        .unwrap()
+}
+
+// Tier 1 -------------------------------------------------------------------
+
+// A live nonce exists (HELLO ran) but the submitted challenge value is wrong. Exercises the
+// CFI-hardened nonce VALUE-compare (vendor_auth.rs:97-104) — distinct from the replay test,
+// which hits the take()==None branch. Analog: test_dbg_unlock_prod_invalid_token_challenge.
+#[test]
+#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
+fn test_vendor_auth_challenge_nonce_value_mismatch() {
+    let keys = gen_vendor_auth_keys();
+    let mut model = boot_with_enrolled_anchor(&keys);
+
+    // Mint a live nonce, then sign/submit a DIFFERENT nonce value.
+    let _live = hello(&mut model);
+    let wrong_nonce = [0xA5u8; 48];
+    let req = build_challenge(&keys, 0x4D43_4D53, [0x11u8; 48], wrong_nonce);
+
+    let err = exec_challenge(&mut model, &req).unwrap_err();
+    assert!(matches!(
+        err,
+        ModelError::MailboxCmdFailed(c)
+            if c == u32::from(CaliptraError::RUNTIME_VENDOR_AUTH_NONCE_MISMATCH)
+    ));
+}
+
+// A truncated request must be rejected by the zerocopy size gate (vendor_auth.rs:83-84) before
+// any crypto runs. Checksum is recomputed over the truncated body so it clears the checksum gate.
+// Analog: test_dbg_unlock_prod_invalid_length.
+#[test]
+#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
+fn test_vendor_auth_challenge_invalid_length() {
+    let keys = gen_vendor_auth_keys();
+    let mut model = boot_with_enrolled_anchor(&keys);
+
+    let nonce = hello(&mut model);
+    let mut req = build_challenge(&keys, 0x4D43_4D53, [0x11u8; 48], nonce);
+
+    // Drop the last dword, then recompute the checksum over the truncated body.
+    let full = req.as_bytes().to_vec();
+    let truncated = &full[..full.len() - 4];
+    req.hdr.chksum = caliptra_common::checksum::calc_checksum(
+        u32::from(CommandId::VENDOR_AUTH_CHALLENGE),
+        &truncated[4..],
+    );
+    // Re-serialize the header with the fixed checksum, then truncate again.
+    let mut buf = req.as_bytes().to_vec();
+    buf.truncate(buf.len() - 4);
+
+    let err = model
+        .mailbox_execute(u32::from(CommandId::VENDOR_AUTH_CHALLENGE), &buf)
+        .unwrap_err();
+    assert!(matches!(
+        err,
+        ModelError::MailboxCmdFailed(c)
+            if c == u32::from(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE)
+    ));
+}
+
+// A fully-valid CHALLENGE body submitted under the WRONG command id must fail the dispatch
+// checksum gate (lib.rs:739-745), proving the checksum binds body to command id.
+// Analog: test_dbg_unlock_prod_wrong_cmd.
+#[test]
+#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
+fn test_vendor_auth_challenge_wrong_cmd() {
+    let keys = gen_vendor_auth_keys();
+    let mut model = boot_with_enrolled_anchor(&keys);
+
+    let nonce = hello(&mut model);
+    let req = build_challenge(&keys, 0x4D43_4D53, [0x11u8; 48], nonce);
+
+    // Same bytes, wrong command id → checksum (computed for VENDOR_AUTH_CHALLENGE) won't verify.
+    let err = model.mailbox_execute(0, req.as_bytes()).unwrap_err();
+    assert!(matches!(
+        err,
+        ModelError::MailboxCmdFailed(c)
+            if c == u32::from(CaliptraError::RUNTIME_INVALID_CHECKSUM)
+    ));
+}
+
+// No anchor enrolled (no SET_AUTH_MANIFEST): a valid, fresh, correctly-signed challenge must pass
+// the nonce gate and fail the anchor gate (vendor_auth.rs:117) against the all-zero
+// vendor_cmd_pk_hash. Analog: test_dbg_unlock_prod_disabled_all_zeros_pk_hash.
+#[test]
+#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
+fn test_vendor_auth_challenge_anchor_not_enrolled() {
+    let keys = gen_vendor_auth_keys();
+    let mut model = boot_no_anchor();
+
+    let nonce = hello(&mut model);
+    let req = build_challenge(&keys, 0x4D43_4D53, [0x11u8; 48], nonce);
+
+    let err = exec_challenge(&mut model, &req).unwrap_err();
+    assert!(matches!(
+        err,
+        ModelError::MailboxCmdFailed(c)
+            if c == u32::from(CaliptraError::RUNTIME_VENDOR_AUTH_WRONG_PUBLIC_KEYS)
+    ));
+}
+
+// Tier 2 -------------------------------------------------------------------
+
+// Prove cmd_id is covered by the signed transcript (not just body_hash): tamper cmd_id after
+// signing, recompute checksum → the ECC message preimage no longer matches → signature fails.
+#[test]
+#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
+fn test_vendor_auth_challenge_tampered_cmd_id() {
+    let keys = gen_vendor_auth_keys();
+    let mut model = boot_with_enrolled_anchor(&keys);
+
+    let nonce = hello(&mut model);
+    let mut req = build_challenge(&keys, 0x4D43_4D53, [0x11u8; 48], nonce);
+    req.cmd_id ^= 1; // signed transcript used the original cmd_id
+    refresh_checksum(&mut req);
+
+    let err = exec_challenge(&mut model, &req).unwrap_err();
+    assert!(matches!(
+        err,
+        ModelError::MailboxCmdFailed(c)
+            if c == u32::from(CaliptraError::RUNTIME_VENDOR_AUTH_INVALID_SIGNATURE)
+    ));
+}
+
+// A v2 manifest missing the 0x0001 vendor-command record must be rejected at SET_AUTH_MANIFEST
+// by the extract-before-commit enrollment gate (set_auth_manifest.rs:808-816).
+#[test]
+#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
+fn test_set_auth_manifest_v2_missing_vendor_pk_hash_rejected() {
+    let mut model = run_rt_test_pqc(RuntimeTestArgs::default(), FwVerificationPqcKeyType::MLDSA);
+    model.step_until_ready_for_runtime();
+
+    let manifest = v2_manifest_missing_vendor_hash();
+    let buf = manifest.as_bytes();
+    let mut slice = [0u8; SetAuthManifestReq::MAX_MAN_SIZE];
+    slice[..buf.len()].copy_from_slice(buf);
+    let mut cmd = caliptra_common::mailbox_api::MailboxReq::SetAuthManifest(SetAuthManifestReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        manifest_size: buf.len() as u32,
+        manifest: slice,
+    });
+    cmd.populate_chksum().unwrap();
+
+    let err = model
+        .mailbox_execute(
+            u32::from(CommandId::SET_AUTH_MANIFEST),
+            cmd.as_bytes().unwrap(),
+        )
+        .unwrap_err();
+    assert!(matches!(
+        err,
+        ModelError::MailboxCmdFailed(c)
+            if c == u32::from(CaliptraError::RUNTIME_AUTH_MANIFEST_MISSING_VENDOR_AUTH_PK_HASH)
+    ));
+}
+
+// Symmetric partner to bad_mldsa_only: corrupt ONLY the ECC signature (ML-DSA sig, pubkeys, and
+// nonce stay valid) and prove the ECC gate is a real verify that rejects independently.
+#[test]
+#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
+fn test_vendor_auth_challenge_bad_ecc_only_rejected() {
+    let keys = gen_vendor_auth_keys();
+    let mut model = boot_with_enrolled_anchor(&keys);
+
+    let nonce = hello(&mut model);
+    let mut req = build_challenge(&keys, 0x4D43_4D53, [0x11u8; 48], nonce);
+    req.ecc_signature[0] ^= 0x01;
+    refresh_checksum(&mut req);
 
     let err = exec_challenge(&mut model, &req).unwrap_err();
     assert!(matches!(

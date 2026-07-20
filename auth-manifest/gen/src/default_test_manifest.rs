@@ -173,7 +173,8 @@ pub fn create_test_auth_manifest_with_config<C: ImageGeneratorCrypto>(
 
 /// Like `create_test_auth_manifest_with_config` but with a caller-supplied vendor-command-auth
 /// PK-hash (0x0001 record). Used by end-to-end VENDOR_AUTH_CHALLENGE tests that sign with real
-/// keys. `pk_hash` must be the hardware-format (to_hw_format) SHA-384(ecc_pub ‖ mldsa_pub).
+/// keys. `pk_hash` is the raw 48-byte SHA-384(ecc_pub_hw ‖ mldsa_pub_hw) digest (no per-word
+/// reversal): VENDOR_AUTH_CHALLENGE reconstructs the same digest and compares it word-level.
 pub fn create_test_auth_manifest_with_vendor_cmd_hash<C: ImageGeneratorCrypto>(
     image_metadata_list: Vec<AuthManifestImageMetadata>,
     pqc_key_type: FwVerificationPqcKeyType,
