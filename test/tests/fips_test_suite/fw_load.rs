@@ -364,6 +364,29 @@ fn fw_load_error_flow_base(
 }
 
 #[test]
+fn fw_load_error_debug_image_not_allowed() {
+    for pqc_key_type in PQC_KEY_TYPE.iter() {
+        let vendor_config = ImageGeneratorVendorConfig {
+            debug_image: true,
+            ..VENDOR_CONFIG_KEY_0
+        };
+        let image_options = ImageOptions {
+            pqc_key_type: *pqc_key_type,
+            vendor_config,
+            ..Default::default()
+        };
+        let fw_image = build_fw_image(image_options);
+
+        fw_load_error_flow(
+            Some(fw_image),
+            None,
+            CaliptraError::IMAGE_VERIFIER_ERR_DEBUG_IMAGE_NOT_ALLOWED.into(),
+            *pqc_key_type,
+        );
+    }
+}
+
+#[test]
 fn fw_load_error_manifest_marker_mismatch() {
     for pqc_key_type in PQC_KEY_TYPE.iter() {
         // Generate image

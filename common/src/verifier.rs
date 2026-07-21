@@ -456,4 +456,8 @@ impl ImageVerificationEnv for &mut FirmwareImageVerificationEnv<'_, '_, '_> {
             None
         }
     }
+
+    fn ss_debug_intent(&self) -> bool {
+        self.soc_ifc.ss_debug_intent()
+    }
 }

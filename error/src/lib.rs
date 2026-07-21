@@ -943,6 +943,11 @@ impl CaliptraError {
             "OCP LOCK Encryption Engine Invalid MEK size"
         ),
         (
+            IMAGE_VERIFIER_ERR_DEBUG_IMAGE_NOT_ALLOWED,
+            0x000b0063,
+            "Image Verifier Error: Debug image not allowed without Debug Intent"
+        ),
+        (
             DRIVER_LMS_INVALID_LMS_ALGO_TYPE,
             0x000c0001,
             "Driver Error: LMS invalid LMS algorithm type"

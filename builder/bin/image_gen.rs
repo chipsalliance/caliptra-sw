@@ -245,6 +245,7 @@ fn test_image_options_imports_correctly() {
             assert_eq!(t_v.not_before, d_v.not_before);
             assert_eq!(t_v.not_after, d_v.not_after);
             assert_eq!(t_v.pl0_pauser, d_v.pl0_pauser);
+            assert_eq!(t_v.debug_image, d_v.debug_image);
 
             // Check vendor public keys
             assert_eq!(t_v.pub_keys.ecc_pub_keys[0], d_v.pub_keys.ecc_pub_keys[0]);
