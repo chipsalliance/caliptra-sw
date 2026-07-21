@@ -772,6 +772,16 @@ impl Drivers {
         self.privilege_level_from_locality(locality)
     }
 
+    /// Reject the command unless the caller is PL0. Used by the several commands
+    /// that are restricted to PL0, so the check is compiled once.
+    #[inline(never)]
+    pub fn ensure_pl0(&self) -> CaliptraResult<()> {
+        match self.caller_privilege_level() {
+            PauserPrivileges::PL0 => Ok(()),
+            PauserPrivileges::PL1 => Err(CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL),
+        }
+    }
+
     pub fn privilege_level_from_locality(&self, locality: u32) -> PauserPrivileges {
         let manifest_header = self.persistent_data.get().manifest1.header;
         let flags = manifest_header.flags;

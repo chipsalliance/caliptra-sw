@@ -12,7 +12,7 @@ Abstract:
 
 --*/
 
-use crate::{Drivers, PauserPrivileges};
+use crate::Drivers;
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_common::mailbox_api::{MailboxRespHeader, SetPqSeedReq, SET_PQ_SEED_SEED_SIZE};
 use caliptra_drivers::{hmac384_kdf, Array4x12, CaliptraError, CaliptraResult};
@@ -24,9 +24,8 @@ impl SetPqSeedCmd {
     #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn execute(drivers: &mut Drivers) -> CaliptraResult<()> {
-        if drivers.caller_privilege_level() != PauserPrivileges::PL0 {
-            return Err(CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL);
-        }
+        // SET_PQ_SEED MUST only be called from PL0
+        drivers.ensure_pl0()?;
 
         let mut cmd = SetPqSeedReq::new_zeroed();
         crate::packet::copy_from_mbox(drivers, cmd.as_mut_bytes())?;

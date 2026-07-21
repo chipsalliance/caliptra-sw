@@ -2,7 +2,7 @@
 
 use crate::{
     dpe_crypto::{CryptoEngines, DpeCrypto},
-    Drivers, PauserPrivileges,
+    Drivers,
 };
 use caliptra_drivers::sha384::DpeHasher;
 
@@ -32,13 +32,8 @@ impl SignWithExportedEcdsaCmd {
         let mut cmd = SignWithExportedEcdsaReq::new_zeroed();
         crate::packet::copy_from_mbox(drivers, cmd.as_mut_bytes())?;
 
-        match drivers.caller_privilege_level() {
-            // SIGN_WITH_EXPORTED_ECDSA MUST only be called from PL0
-            PauserPrivileges::PL0 => (),
-            PauserPrivileges::PL1 => {
-                return Err(CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL);
-            }
-        }
+        // SIGN_WITH_EXPORTED_ECDSA MUST only be called from PL0
+        drivers.ensure_pl0()?;
 
         let key_id_rt_cdi = Drivers::get_key_id_rt_cdi(drivers)?;
         let key_id_rt_priv_key = Drivers::get_key_id_rt_priv_key(drivers)?;

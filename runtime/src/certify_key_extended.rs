@@ -12,9 +12,7 @@ Abstract:
 
 --*/
 
-use crate::{
-    invoke_dpe::invoke_dpe_cmd, CaliptraDpeProfile, Drivers, MboxResponseWriter, PauserPrivileges,
-};
+use crate::{invoke_dpe::invoke_dpe_cmd, CaliptraDpeProfile, Drivers, MboxResponseWriter};
 use arrayvec::ArrayVec;
 use caliptra_common::mailbox_api::{
     CertifyKeyExtendedFlags, CertifyKeyExtendedReq, MailboxRespHeader, MailboxRespHeaderVarSize,
@@ -47,13 +45,8 @@ impl CertifyKeyExtendedCmd {
         certify_key_req: &[u8],
         profile: CaliptraDpeProfile,
     ) -> CaliptraResult<()> {
-        match drivers.caller_privilege_level() {
-            // CERTIFY_KEY_EXTENDED MUST only be called from PL0
-            PauserPrivileges::PL0 => (),
-            PauserPrivileges::PL1 => {
-                return Err(CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL);
-            }
-        }
+        // CERTIFY_KEY_EXTENDED MUST only be called from PL0
+        drivers.ensure_pl0()?;
 
         // Populate the otherName only if requested and provided by ADD_SUBJECT_ALT_NAME
         let dmtf_device_info = if flags.contains(CertifyKeyExtendedFlags::DMTF_OTHER_NAME) {

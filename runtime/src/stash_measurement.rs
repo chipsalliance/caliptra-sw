@@ -14,10 +14,10 @@ Abstract:
 
 use caliptra_dpe_response_buffer::SliceResponseBuffer;
 
-use crate::{invoke_dpe::invoke_dpe_cmd, CaliptraDpeProfile, Drivers, PauserPrivileges};
+use crate::{invoke_dpe::invoke_dpe_cmd, CaliptraDpeProfile, Drivers};
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_common::mailbox_api::{MailboxRespHeader, StashMeasurementReq, StashMeasurementResp};
-use caliptra_drivers::{pcr_log::PCR_ID_STASH_MEASUREMENT, CaliptraError, CaliptraResult};
+use caliptra_drivers::{pcr_log::PCR_ID_STASH_MEASUREMENT, CaliptraResult};
 use dpe::{
     commands::{Command, DeriveContextCmd, DeriveContextFlags},
     context::ContextHandle,
@@ -38,18 +38,12 @@ impl StashMeasurementCmd {
         svn: u32,
     ) -> CaliptraResult<DpeErrorCode> {
         let dpe_result = {
-            let caller_privilege_level = drivers.caller_privilege_level();
-            match caller_privilege_level {
-                // Only PL0 can call STASH_MEASUREMENT
-                PauserPrivileges::PL0 => (),
-                PauserPrivileges::PL1 => {
-                    return Err(CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL);
-                }
-            }
+            // Only PL0 can call STASH_MEASUREMENT
+            drivers.ensure_pl0()?;
 
             // Check that adding this measurement to DPE doesn't cause
             // the PL0 context threshold to be exceeded.
-            drivers.is_dpe_context_threshold_exceeded(caller_privilege_level)?;
+            drivers.is_dpe_context_threshold_exceeded(drivers.caller_privilege_level())?;
 
             let locality = drivers.mbox.user();
             let cmd = DeriveContextCmd {
