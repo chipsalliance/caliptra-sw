@@ -3,7 +3,7 @@
 // Centralized list of all firmware targets. This allows us to compile them all
 // ahead of time for executing tests on hosts that can't compile rust code.
 
-use crate::FwId;
+use crate::{FirmwareType, FwId};
 
 pub fn rom_from_env() -> &'static FwId<'static> {
     match std::env::var("CPTRA_ROM_TYPE").as_ref().map(|s| s.as_str()) {
@@ -42,105 +42,151 @@ pub fn fake_rom(fpga: bool) -> &'static FwId<'static> {
 pub const ROM: FwId = FwId {
     crate_name: "caliptra-rom",
     bin_name: "caliptra-rom",
-    features: &[],
+    fw_type: FirmwareType::Source { features: &[] },
 };
 
 pub const ROM_FPGA: FwId = FwId {
     crate_name: "caliptra-rom",
     bin_name: "caliptra-rom",
-    features: &["fpga_realtime"],
+    fw_type: FirmwareType::Source {
+        features: &["fpga_realtime"],
+    },
 };
 
 pub const ROM_WITH_UART: FwId = FwId {
     crate_name: "caliptra-rom",
     bin_name: "caliptra-rom",
-    features: &["emu"],
+    fw_type: FirmwareType::Source { features: &["emu"] },
 };
 
 pub const ROM_FAKE_WITH_UART: FwId = FwId {
     crate_name: "caliptra-rom",
     bin_name: "caliptra-rom",
-    features: &["emu", "fake-rom"],
+    fw_type: FirmwareType::Source {
+        features: &["emu", "fake-rom"],
+    },
 };
 
 pub const ROM_FAKE_WITH_UART_FPGA: FwId = FwId {
     crate_name: "caliptra-rom",
     bin_name: "caliptra-rom",
-    features: &["emu", "fake-rom", "fpga_realtime"],
+    fw_type: FirmwareType::Source {
+        features: &["emu", "fake-rom", "fpga_realtime"],
+    },
 };
 
 pub const ROM_WITH_FIPS_TEST_HOOKS: FwId = FwId {
     crate_name: "caliptra-rom",
     bin_name: "caliptra-rom",
-    features: &["fips-test-hooks"],
+    fw_type: FirmwareType::Source {
+        features: &["fips-test-hooks"],
+    },
+};
+
+/// Pre-built 2.0.1 ROM release binary target identifier.
+pub const ROM_2_0_1_RELEASE: FwId = FwId {
+    crate_name: "caliptra-rom-2_0_1-release",
+    bin_name: "caliptra-rom-with-log.bin",
+    fw_type: FirmwareType::TaggedReleaseFromNetwork {
+        version_tag: "rom-2.0.1",
+        url: "https://github.com/chipsalliance/caliptra-sw/releases/download/rom-2.0.2/caliptra_release_v20260327_0-2.0.zip",
+    },
+};
+
+/// Pre-built 2.0.1 FMC and Runtime firmware bundle target identifier.
+pub const FW_2_0_1_RELEASE: FwId = FwId {
+    crate_name: "caliptra-fw-2_0_1-release",
+    bin_name: "image-bundle-mldsa.bin",
+    fw_type: FirmwareType::TaggedReleaseFromNetwork {
+        version_tag: "fw-2.0.1",
+        url: "https://github.com/chipsalliance/caliptra-sw/releases/download/fw-2.0.1/caliptra_release_v20260210_0-2.0.zip",
+    },
 };
 
 pub const ROM_WITH_FIPS_TEST_HOOKS_FPGA: FwId = FwId {
     crate_name: "caliptra-rom",
     bin_name: "caliptra-rom",
-    features: &["fips-test-hooks", "fpga_realtime"],
+    fw_type: FirmwareType::Source {
+        features: &["fips-test-hooks", "fpga_realtime"],
+    },
 };
 
 // TODO: delete this when AXI DMA is fixed in the FPGA
 pub const ROM_FPGA_WITH_UART: FwId = FwId {
     crate_name: "caliptra-rom",
     bin_name: "caliptra-rom",
-    features: &["emu", "fpga_realtime"],
+    fw_type: FirmwareType::Source {
+        features: &["emu", "fpga_realtime"],
+    },
 };
 
 pub const FMC_WITH_UART: FwId = FwId {
     crate_name: "caliptra-fmc",
     bin_name: "caliptra-fmc",
-    features: &["emu", "cfi"],
+    fw_type: FirmwareType::Source {
+        features: &["emu", "cfi"],
+    },
 };
 
 pub const FMC_FAKE_WITH_UART: FwId = FwId {
     crate_name: "caliptra-fmc",
     bin_name: "caliptra-fmc",
-    features: &["emu", "fake-fmc", "cfi"],
+    fw_type: FirmwareType::Source {
+        features: &["emu", "fake-fmc", "cfi"],
+    },
 };
 
 // TODO: delete this when AXI DMA is fixed in the FPGA
 pub const FMC_FPGA_WITH_UART: FwId = FwId {
     crate_name: "caliptra-fmc",
     bin_name: "caliptra-fmc",
-    features: &["emu", "fpga_realtime", "cfi"],
+    fw_type: FirmwareType::Source {
+        features: &["emu", "fpga_realtime", "cfi"],
+    },
 };
 
 pub const APP: FwId = FwId {
     crate_name: "caliptra-runtime",
     bin_name: "caliptra-runtime",
-    features: &["fips_self_test", "cfi"],
+    fw_type: FirmwareType::Source {
+        features: &["fips_self_test", "cfi"],
+    },
 };
 
 pub const APP_WITH_UART: FwId = FwId {
     crate_name: "caliptra-runtime",
     bin_name: "caliptra-runtime",
-    features: &["emu", "fips_self_test", "cfi"],
+    fw_type: FirmwareType::Source {
+        features: &["emu", "fips_self_test", "cfi"],
+    },
 };
 
 pub const APP_WITH_UART_FIPS_TEST_HOOKS: FwId = FwId {
     crate_name: "caliptra-runtime",
     bin_name: "caliptra-runtime",
-    features: &["emu", "fips_self_test", "fips-test-hooks", "cfi"],
+    fw_type: FirmwareType::Source {
+        features: &["emu", "fips_self_test", "fips-test-hooks", "cfi"],
+    },
 };
 
 pub const APP_WITH_UART_FPGA: FwId = FwId {
     crate_name: "caliptra-runtime",
     bin_name: "caliptra-runtime",
-    features: &["emu", "fips_self_test", "fpga_realtime", "cfi"],
+    fw_type: FirmwareType::Source {
+        features: &["emu", "fips_self_test", "fpga_realtime", "cfi"],
+    },
 };
 
 pub const APP_ZEROS: FwId = FwId {
     crate_name: "caliptra-zeros",
     bin_name: "caliptra-zeros",
-    features: &[],
+    fw_type: FirmwareType::Source { features: &[] },
 };
 
 pub const FMC_ZEROS: FwId = FwId {
     crate_name: "caliptra-zeros",
     bin_name: "caliptra-zeros",
-    features: &["fmc"],
+    fw_type: FirmwareType::Source { features: &["fmc"] },
 };
 
 pub mod caliptra_builder_tests {
@@ -149,7 +195,7 @@ pub mod caliptra_builder_tests {
     pub const FWID: FwId = FwId {
         crate_name: "caliptra-drivers-test-bin",
         bin_name: "test_success",
-        features: &[],
+        fw_type: FirmwareType::Source { features: &[] },
     };
 }
 
@@ -159,7 +205,7 @@ pub mod hw_model_tests {
     const BASE_FWID: FwId = FwId {
         crate_name: "caliptra-hw-model-test-fw",
         bin_name: "",
-        features: &["emu"],
+        fw_type: FirmwareType::Source { features: &["emu"] },
     };
 
     pub const MAILBOX_RESPONDER: FwId = FwId {
@@ -229,7 +275,7 @@ pub mod driver_tests {
     const BASE_FWID: FwId = FwId {
         crate_name: "caliptra-drivers-test-bin",
         bin_name: "",
-        features: &["emu"],
+        fw_type: FirmwareType::Source { features: &["emu"] },
     };
 
     pub const DOE: FwId = FwId {
@@ -269,7 +315,9 @@ pub mod driver_tests {
 
     pub const KEYVAULT_FPGA: FwId = FwId {
         bin_name: "keyvault",
-        features: &["emu", "fpga_realtime"],
+        fw_type: FirmwareType::Source {
+            features: &["emu", "fpga_realtime"],
+        },
         ..BASE_FWID
     };
 
@@ -421,7 +469,9 @@ pub mod driver_tests {
     pub const CSRNG_RESEED_HEALTH_FAIL_TESTS: FwId = FwId {
         bin_name: "csrng_reseed_health_fail_tests",
         // Enables the CSRNG_RESEED_FAILURE hook to simulate a reseed failure.
-        features: &["emu", "fips-test-hooks"],
+        fw_type: FirmwareType::Source {
+            features: &["emu", "fips-test-hooks"],
+        },
         ..BASE_FWID
     };
     pub const TRNG_DRIVER_RESPONDER: FwId = FwId {
@@ -442,7 +492,9 @@ pub mod driver_tests {
     // TODO: delete this when AXI DMA is fixed in the FPGA
     pub const DMA_SHA384_FPGA: FwId = FwId {
         bin_name: "dma_sha384",
-        features: &["emu", "fpga_subsystem"],
+        fw_type: FirmwareType::Source {
+            features: &["emu", "fpga_subsystem"],
+        },
         ..BASE_FWID
     };
 }
@@ -453,7 +505,7 @@ pub mod rom_tests {
     const BASE_FWID: FwId = FwId {
         crate_name: "caliptra-rom",
         bin_name: "",
-        features: &["emu"],
+        fw_type: FirmwareType::Source { features: &["emu"] },
     };
 
     pub const ASM_TESTS: FwId = FwId {
@@ -464,31 +516,41 @@ pub mod rom_tests {
     pub const TEST_FMC_WITH_UART: FwId = FwId {
         crate_name: "caliptra-rom-test-fmc",
         bin_name: "caliptra-rom-test-fmc",
-        features: &["emu", "cfi"],
+        fw_type: FirmwareType::Source {
+            features: &["emu", "cfi"],
+        },
     };
 
     pub const TEST_RT_WITH_UART: FwId = FwId {
         crate_name: "caliptra-rom-test-rt",
         bin_name: "caliptra-rom-test-rt",
-        features: &["emu", "cfi"],
+        fw_type: FirmwareType::Source {
+            features: &["emu", "cfi"],
+        },
     };
 
     pub const FAKE_TEST_FMC_WITH_UART: FwId = FwId {
         crate_name: "caliptra-rom-test-fmc",
         bin_name: "caliptra-rom-test-fmc",
-        features: &["emu", "fake-fmc", "cfi"],
+        fw_type: FirmwareType::Source {
+            features: &["emu", "fake-fmc", "cfi"],
+        },
     };
 
     pub const TEST_FMC_INTERACTIVE: FwId = FwId {
         crate_name: "caliptra-rom-test-fmc",
         bin_name: "caliptra-rom-test-fmc",
-        features: &["emu", "interactive_test_fmc", "cfi"],
+        fw_type: FirmwareType::Source {
+            features: &["emu", "interactive_test_fmc", "cfi"],
+        },
     };
 
     pub const FAKE_TEST_FMC_INTERACTIVE: FwId = FwId {
         crate_name: "caliptra-rom-test-fmc",
         bin_name: "caliptra-rom-test-fmc",
-        features: &["emu", "interactive_test_fmc", "fake-fmc", "cfi"],
+        fw_type: FirmwareType::Source {
+            features: &["emu", "interactive_test_fmc", "fake-fmc", "cfi"],
+        },
     };
 
     pub const TEST_PMP_TESTS: FwId = FwId {
@@ -503,7 +565,9 @@ pub mod runtime_tests {
     const RUNTIME_TEST_FWID_BASE: FwId = FwId {
         crate_name: "caliptra-runtime-test-bin",
         bin_name: "",
-        features: &["emu", "riscv", "runtime", "cfi"],
+        fw_type: FirmwareType::Source {
+            features: &["emu", "riscv", "runtime", "cfi"],
+        },
     };
 
     pub const BOOT: FwId = FwId {
@@ -518,20 +582,26 @@ pub mod runtime_tests {
 
     pub const MBOX_FPGA: FwId = FwId {
         bin_name: "mbox",
-        features: &["emu", "riscv", "runtime", "fpga_realtime", "cfi"],
+        fw_type: FirmwareType::Source {
+            features: &["emu", "riscv", "runtime", "fpga_realtime", "cfi"],
+        },
         ..RUNTIME_TEST_FWID_BASE
     };
 
     // Used to test updates between RT FW images.
     pub const MBOX_WITHOUT_UART: FwId = FwId {
         bin_name: "mbox",
-        features: &["riscv", "runtime", "cfi"],
+        fw_type: FirmwareType::Source {
+            features: &["riscv", "runtime", "cfi"],
+        },
         ..RUNTIME_TEST_FWID_BASE
     };
 
     pub const MBOX_WITHOUT_UART_FPGA: FwId = FwId {
         bin_name: "mbox",
-        features: &["riscv", "runtime", "fpga_realtime", "cfi"],
+        fw_type: FirmwareType::Source {
+            features: &["riscv", "runtime", "fpga_realtime", "cfi"],
+        },
         ..RUNTIME_TEST_FWID_BASE
     };
 
@@ -552,7 +622,7 @@ pub mod api_tests {
     const BASE_FWID: FwId = FwId {
         crate_name: "caliptra-api-test-bin",
         bin_name: "",
-        features: &["emu"],
+        fw_type: FirmwareType::Source { features: &["emu"] },
     };
 
     pub const MAILBOX: FwId = FwId {
@@ -560,6 +630,8 @@ pub mod api_tests {
         ..BASE_FWID
     };
 }
+
+pub const PREBUILT_FW: &[&FwId] = &[&ROM_2_0_1_RELEASE, &FW_2_0_1_RELEASE];
 
 pub const REGISTERED_FW: &[&FwId] = &[
     &ROM,
