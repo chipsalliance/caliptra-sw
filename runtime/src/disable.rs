@@ -27,7 +27,7 @@ impl DisableAttestationCmd {
     #[inline(never)]
     pub(crate) fn execute(drivers: &mut Drivers) -> CaliptraResult<()> {
         Self::erase_keys(drivers)?;
-        let key_id_rt_cdi = Drivers::get_key_id_rt_cdi(drivers)?;
+        let key_id_rt_cdi = Drivers::get_key_id_rt_cdi(&drivers.persistent_data.get().fht)?;
         Self::zero_ecc384_cdi(drivers, key_id_rt_cdi)?;
         Self::zero_ecc384_cdi(drivers, KEY_ID_EXPORTED_DPE_CDI)?;
         Self::generate_dice_key(drivers)?;
@@ -44,8 +44,9 @@ impl DisableAttestationCmd {
     /// * `drivers` - Drivers
     #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     fn erase_keys(drivers: &mut Drivers) -> CaliptraResult<()> {
-        let key_id_rt_cdi = Drivers::get_key_id_rt_cdi(drivers)?;
-        let key_id_rt_priv_key = Drivers::get_key_id_rt_priv_key(drivers)?;
+        let key_id_rt_cdi = Drivers::get_key_id_rt_cdi(&drivers.persistent_data.get().fht)?;
+        let key_id_rt_priv_key =
+            Drivers::get_key_id_rt_priv_key(&drivers.persistent_data.get().fht)?;
         drivers.key_vault.erase_key(key_id_rt_cdi)?;
         drivers.key_vault.erase_key(key_id_rt_priv_key)
     }
@@ -96,8 +97,9 @@ impl DisableAttestationCmd {
     /// * `drivers` - Drivers
     #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     fn generate_dice_key(drivers: &mut Drivers) -> CaliptraResult<()> {
-        let key_id_rt_cdi = Drivers::get_key_id_rt_cdi(drivers)?;
-        let key_id_rt_priv_key = Drivers::get_key_id_rt_priv_key(drivers)?;
+        let key_id_rt_cdi = Drivers::get_key_id_rt_cdi(&drivers.persistent_data.get().fht)?;
+        let key_id_rt_priv_key =
+            Drivers::get_key_id_rt_priv_key(&drivers.persistent_data.get().fht)?;
         let pub_key = drivers.ecc384.key_pair(
             &Ecc384Seed::Key(KeyReadArgs::new(key_id_rt_cdi)),
             &Array4x12::default(),

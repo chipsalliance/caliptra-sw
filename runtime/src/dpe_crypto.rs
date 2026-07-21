@@ -80,6 +80,40 @@ pub struct DpeCrypto<'a> {
     exported_cdi_slots: &'a mut ExportedCdiHandles,
 }
 
+/// Build the EC `DpeCrypto` from the RT DICE identity: wrap the RT alias public
+/// key, bundle the engines, and call `new_ec`. Shared by the DPE-env builders and
+/// SIGN_WITH_EXPORTED_ECDSA so this (identical) construction is compiled once. The
+/// engine borrows are taken as individual fields (rather than `&mut Drivers`) so
+/// callers keep disjoint access to the rest of `Drivers`/persistent data.
+pub(crate) fn new_ec_dpe_crypto<'a>(
+    sha384: &'a mut Sha384,
+    trng: &'a mut Trng,
+    ecc384: &'a mut Ecc384,
+    hmac384: &'a mut Hmac384,
+    key_vault: &'a mut KeyVault,
+    fht: &caliptra_drivers::FirmwareHandoffTable,
+    exported_cdi_slots: &'a mut ExportedCdiHandles,
+) -> CaliptraResult<DpeCrypto<'a>> {
+    // The RT alias public key and both KeyIds all come from the FHT.
+    let rt_pub_key = PubKey::Ecdsa(EcdsaPubKey::Ecdsa384(EcdsaPub384::from_slice(
+        &fht.rt_dice_pub_key.x.into(),
+        &fht.rt_dice_pub_key.y.into(),
+    )));
+    DpeCrypto::new_ec(
+        CryptoEngines {
+            hasher: DpeHasher::new(sha384)?,
+            trng,
+            ecc384,
+            hmac384,
+            key_vault,
+        },
+        rt_pub_key,
+        crate::Drivers::get_key_id_rt_cdi(fht)?,
+        crate::Drivers::get_key_id_rt_priv_key(fht)?,
+        exported_cdi_slots,
+    )
+}
+
 impl<'a> DpeCrypto<'a> {
     pub fn new_ec(
         engines: CryptoEngines<'a>,
