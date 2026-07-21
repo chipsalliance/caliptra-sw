@@ -3,8 +3,8 @@
 use crate::{AuthManifestGenerator, AuthManifestGeneratorConfig, AuthManifestGeneratorKeyConfig};
 use caliptra_auth_man_types::{
     AuthManifestFlags, AuthManifestImageMetadata, AuthManifestPrivKeysConfig,
-    AuthManifestPubKeysConfig, AuthorizationManifest, ImageMetadataFlags,
-    AUTH_MANIFEST_VERSION_V2, VENDOR_EXT_AUTH_PK_HASH_LEN,
+    AuthManifestPubKeysConfig, AuthorizationManifest, ImageMetadataFlags, AUTH_MANIFEST_VERSION_V2,
+    VENDOR_EXT_AUTH_PK_HASH_LEN,
 };
 
 /// Fixed vendor-command-auth PK-hash used by the default test manifest (v2 Vendor Ext 0x0001).
@@ -194,7 +194,9 @@ pub fn create_test_auth_manifest_with_vendor_cmd_hash<C: ImageGeneratorCrypto>(
         svn,
         vendor_cmd_auth_pk_hash: Some(vendor_cmd_auth_pk_hash),
     };
-    AuthManifestGenerator::new(crypto).generate(&gen_config).unwrap()
+    AuthManifestGenerator::new(crypto)
+        .generate(&gen_config)
+        .unwrap()
 }
 
 /// Create a test authorization manifest with custom metadata.

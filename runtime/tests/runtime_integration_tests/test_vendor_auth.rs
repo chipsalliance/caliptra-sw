@@ -113,7 +113,10 @@ fn boot_with_enrolled_anchor(keys: &VendorAuthKeys) -> impl HwModel {
     });
     cmd.populate_chksum().unwrap();
     model
-        .mailbox_execute(u32::from(CommandId::SET_AUTH_MANIFEST), cmd.as_bytes().unwrap())
+        .mailbox_execute(
+            u32::from(CommandId::SET_AUTH_MANIFEST),
+            cmd.as_bytes().unwrap(),
+        )
         .unwrap()
         .expect("SET_AUTH_MANIFEST should succeed");
     model
@@ -127,7 +130,10 @@ fn hello(model: &mut impl HwModel) -> [u8; 48] {
     let mut cmd = caliptra_common::mailbox_api::MailboxReq::VendorAuthHello(req);
     cmd.populate_chksum().unwrap();
     let resp = model
-        .mailbox_execute(u32::from(CommandId::VENDOR_AUTH_HELLO), cmd.as_bytes().unwrap())
+        .mailbox_execute(
+            u32::from(CommandId::VENDOR_AUTH_HELLO),
+            cmd.as_bytes().unwrap(),
+        )
         .unwrap()
         .expect("HELLO should return a nonce");
     VendorAuthHelloResp::read_from_bytes(resp.as_slice())

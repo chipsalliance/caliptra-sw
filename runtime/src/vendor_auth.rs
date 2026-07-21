@@ -42,11 +42,7 @@ impl VendorAuth {
     }
 
     /// Handle VENDOR_AUTH_HELLO: mint a fresh one-time nonce, store it, and return it.
-    pub fn handle_hello(
-        &mut self,
-        trng: &mut Trng,
-        resp: &mut [u8],
-    ) -> CaliptraResult<usize> {
+    pub fn handle_hello(&mut self, trng: &mut Trng, resp: &mut [u8]) -> CaliptraResult<usize> {
         // TRNG generate() yields an Array4x12 (48 bytes).
         let nonce: [u8; VENDOR_AUTH_NONCE_SIZE] = trng
             .generate()?
@@ -97,10 +93,7 @@ impl VendorAuth {
         if cfi_launder(req.challenge) != nonce {
             return Err(CaliptraError::RUNTIME_VENDOR_AUTH_NONCE_MISMATCH);
         } else {
-            cfi_assert_eq_12_words(
-                &Array4x12::from(req.challenge).0,
-                &Array4x12::from(nonce).0,
-            );
+            cfi_assert_eq_12_words(&Array4x12::from(req.challenge).0, &Array4x12::from(nonce).0);
         }
 
         // (B) SHA-384(pubkeys) must match the enrolled anchor. Word-level Array4x12 compare
