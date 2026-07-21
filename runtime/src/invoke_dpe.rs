@@ -54,18 +54,14 @@ impl InvokeDpeCmd {
     #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn execute(drivers: &mut Drivers) -> CaliptraResult<()> {
-        let profile = CaliptraDpeProfile::Ecc384;
         let mut cmd = InvokeDpeReq::new_zeroed();
         crate::packet::copy_from_mbox(drivers, cmd.as_mut_bytes())?;
-
-        // Validate data length
-        if cmd.data_size as usize > cmd.data.len() {
-            return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
-        }
-        let command = Command::deserialize(profile.into(), &cmd.data[..cmd.data_size as usize])
-            .map_err(|_| CaliptraError::RUNTIME_DPE_COMMAND_DESERIALIZATION_FAILED)?;
-
-        execute(drivers, profile, command)
+        execute(
+            drivers,
+            CaliptraDpeProfile::Ecc384,
+            &cmd.data,
+            cmd.data_size as usize,
+        )
     }
 }
 
@@ -110,27 +106,32 @@ impl InvokeDpeMldsa87Cmd {
             return Err(CaliptraError::RUNTIME_PQC_NOT_INITIALIZED);
         }
 
-        let profile = CaliptraDpeProfile::Mldsa;
         let mut cmd = InvokeDpeMldsa87Req::new_zeroed();
         crate::packet::copy_from_mbox(drivers, cmd.as_mut_bytes())?;
-
-        // Validate data length
-        if cmd.data_size as usize > cmd.data.len() {
-            return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
-        }
-
-        let command = Command::deserialize(profile.into(), &cmd.data[..cmd.data_size as usize])
-            .map_err(|_| CaliptraError::RUNTIME_DPE_COMMAND_DESERIALIZATION_FAILED)?;
-
-        execute(drivers, profile, command)
+        execute(
+            drivers,
+            CaliptraDpeProfile::Mldsa,
+            &cmd.data,
+            cmd.data_size as usize,
+        )
     }
 }
 
+/// Bounds-check the request payload, deserialize the DPE command for `profile`,
+/// and execute it. Non-generic over the request type so both entry points share
+/// one copy, and takes the raw payload (rather than a deserialized `Command`) so
+/// the large `Command` enum never crosses a call boundary by value.
 fn execute(
     drivers: &mut Drivers,
     profile: CaliptraDpeProfile,
-    command: Command<'_>,
+    data: &[u8],
+    data_size: usize,
 ) -> CaliptraResult<()> {
+    if data_size > data.len() {
+        return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
+    }
+    let command = Command::deserialize(profile.into(), &data[..data_size])
+        .map_err(|_| CaliptraError::RUNTIME_DPE_COMMAND_DESERIALIZATION_FAILED)?;
     let caller_privilege_level = drivers.caller_privilege_level();
     // Determine the target privilege level of a new context then check if we exceed thresholds
     let new_context_privilege_level = match command {
