@@ -162,12 +162,6 @@ fn mod_sub(a: u32, b: u32) -> u32 {
     reduce_once(K_PRIME.wrapping_add(a).wrapping_sub(b))
 }
 
-fn scalar_add(out: &mut Scalar, lhs: &Scalar, rhs: &Scalar) {
-    for i in 0..K_DEGREE {
-        out.c[i] = reduce_once(lhs.c[i].wrapping_add(rhs.c[i]));
-    }
-}
-
 fn scalar_add_assign(out: &mut Scalar, rhs: &Scalar) {
     for i in 0..K_DEGREE {
         out.c[i] = reduce_once(out.c[i].wrapping_add(rhs.c[i]));
@@ -190,6 +184,12 @@ fn reduce_montgomery(x: u64) -> u32 {
 fn scalar_mul(out: &mut Scalar, lhs: &Scalar, rhs: &Scalar) {
     for i in 0..K_DEGREE {
         out.c[i] = reduce_montgomery((lhs.c[i] as u64).wrapping_mul(rhs.c[i] as u64));
+    }
+}
+
+fn scalar_mul_assign(out: &mut Scalar, rhs: &Scalar) {
+    for i in 0..K_DEGREE {
+        out.c[i] = reduce_montgomery((out.c[i] as u64).wrapping_mul(rhs.c[i] as u64));
     }
 }
 
@@ -304,10 +304,6 @@ fn power2_round(r1: &mut u32, r0: &mut u32, r: u32) {
     *r1 = ct_if(cond, r1_adjusted, *r1);
 }
 
-fn scale_power2_round(out: &mut u32, r1: u32) {
-    *out = r1 << K_DROPPED_BITS;
-}
-
 fn high_bits(x: u32) -> u32 {
     let mut r1 = (x.wrapping_add(127)) >> 7;
     r1 = (r1.wrapping_mul(1025).wrapping_add(1 << 21)) >> 22;
@@ -336,9 +332,9 @@ fn make_hint(ct0: u32, cs2: u32, w: u32) -> i32 {
     (high_bits(r) != high_bits(r_plus_z)) as i32
 }
 
-fn scalar_low_bits(out: &mut Scalar, in_val: &Scalar) {
-    for (out_c, in_c) in out.c.iter_mut().zip(in_val.c.iter()) {
-        *out_c = low_bits(*in_c) as u32;
+fn scalar_low_bits(out: &mut Scalar) {
+    for out_c in out.c.iter_mut() {
+        *out_c = low_bits(*out_c) as u32;
     }
 }
 
@@ -361,9 +357,9 @@ fn use_hint(h: u32, r: u32) -> u32 {
     r1
 }
 
-fn scalar_scale_power2_round(out: &mut Scalar, in_val: &Scalar) {
+fn scalar_scale_power2_round_assign(out: &mut Scalar) {
     for i in 0..K_DEGREE {
-        scale_power2_round(&mut out.c[i], in_val.c[i]);
+        out.c[i] <<= K_DROPPED_BITS;
     }
 }
 
@@ -412,9 +408,9 @@ fn vector8_power2_round_in_place(t1: &mut Vector8, t0: &mut Vector8) {
     }
 }
 
-fn vector8_scale_power2_round(out: &mut Vector8, in_val: &Vector8) {
+fn vector8_scale_power2_round_assign(out: &mut Vector8) {
     for i in 0..8 {
-        scalar_scale_power2_round(&mut out.v[i], &in_val.v[i]);
+        scalar_scale_power2_round_assign(&mut out.v[i]);
     }
 }
 
@@ -655,8 +651,7 @@ fn expand_s1_ntt_mul_scalar(
         scalar_uniform_2(out, &derived_seed);
     }
     scalar_ntt(out);
-    let out_copy = *out;
-    scalar_mul(out, &out_copy, rhs);
+    scalar_mul_assign(out, rhs);
 }
 
 fn expand_s2_ntt_mul_scalar(
@@ -677,8 +672,7 @@ fn expand_s2_ntt_mul_scalar(
         scalar_uniform_2(out, &derived_seed);
     }
     scalar_ntt(out);
-    let out_copy = *out;
-    scalar_mul(out, &out_copy, rhs);
+    scalar_mul_assign(out, rhs);
 }
 
 fn matrix87_expand_mul_mask(
@@ -1028,8 +1022,7 @@ fn sign_internal_with_mu(
             mask_seed[K_RHO_PRIME_BYTES] = (index & 0xFF) as u8;
             mask_seed[K_RHO_PRIME_BYTES + 1] = ((index >> 8) & 0xFF) as u8;
             scalar_sample_mask(&mut z_i, &mask_seed);
-            let z_copy = z_i;
-            scalar_add(&mut z_i, &z_copy, &cs_i);
+            scalar_add_assign(&mut z_i, &cs_i);
 
             scalar_max(&mut z_max, &z_i);
 
@@ -1049,8 +1042,7 @@ fn sign_internal_with_mu(
 
             let mut r0_i = Scalar::default();
             scalar_sub(&mut r0_i, &tmp.v[i], &cs_i);
-            let r0_copy = r0_i;
-            scalar_low_bits(&mut r0_i, &r0_copy);
+            scalar_low_bits(&mut r0_i);
 
             scalar_max_signed(&mut r0_max, &r0_i);
 
@@ -1128,8 +1120,7 @@ fn verify_internal_with_mu(
         _ => unreachable!(),
     };
     vector8_decode_10(ct1_ntt, &encoded_public_key[K_RHO_BYTES..]);
-    let ct1_copy = *ct1_ntt;
-    vector8_scale_power2_round(ct1_ntt, &ct1_copy);
+    vector8_scale_power2_round_assign(ct1_ntt);
     vector8_ntt(ct1_ntt);
     // Multiply each Scalar by c_ntt in place. Avoids the 8 KiB Vector8 copy
     // that vector8_mul_scalar would require: on stack-constrained targets pushes verify over budget
