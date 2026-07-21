@@ -33,7 +33,7 @@ use zerocopy::{FromZeros, IntoBytes};
 #[cfg(feature = "mldsa_attestation")]
 use {
     caliptra_drivers::{
-        hmac384_kdf, Array4x12, Hmac384, Mldsa87Seed, PqDevIdCdi, Trng, MLDSA87_PRIVATE_SEED_BYTES,
+        hmac384_kdf, Array4x12, Hmac384, Mldsa87Seed, Trng, MLDSA87_PRIVATE_SEED_BYTES,
     },
     zeroize::Zeroizing,
 };
@@ -413,16 +413,15 @@ fn cert_from_tbs_and_sig(
 /// in persistent data.
 #[cfg(feature = "mldsa_attestation")]
 pub fn derive_devid_seed(
-    cdi: &PqDevIdCdi,
+    cdi: &Array4x12,
     seed: &mut Mldsa87Seed,
     hmac384: &mut Hmac384,
     trng: &mut Trng,
 ) -> CaliptraResult<()> {
-    let cdi = Zeroizing::new(Array4x12::from(cdi));
     let mut output = Zeroizing::new(Array4x12::default());
     hmac384_kdf(
         hmac384,
-        (&*cdi).into(),
+        cdi.into(),
         b"pq_devid_keygen",
         None,
         trng,

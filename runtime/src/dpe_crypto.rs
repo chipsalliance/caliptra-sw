@@ -559,13 +559,8 @@ impl Crypto for DpeCrypto<'_> {
                     _ => return Err(CryptoError::MismatchedAlgorithm),
                 };
                 let mut seed = Mldsa87Seed::default();
-                dice::derive_devid_seed(
-                    &((*cdi).into()),
-                    &mut seed,
-                    self.engines.hmac384,
-                    self.engines.trng,
-                )
-                .map_err(|e| CryptoError::CryptoLibError(u32::from(e)))?;
+                dice::derive_devid_seed(&cdi, &mut seed, self.engines.hmac384, self.engines.trng)
+                    .map_err(|e| CryptoError::CryptoLibError(u32::from(e)))?;
                 Self::sign_helper_mldsa(data, &seed)
             }
         }

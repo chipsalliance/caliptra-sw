@@ -923,7 +923,10 @@ impl Drivers {
     #[inline(never)]
     pub(crate) fn derive_devid_seed(&mut self, seed: &mut Mldsa87Seed) -> CaliptraResult<()> {
         let pq_devid_cdi = self.persistent_data.get().pq_devid_cdi()?;
-        dice::derive_devid_seed(&pq_devid_cdi, seed, &mut self.hmac384, &mut self.trng)
+        // Wrap the word-packed CDI in Zeroizing so this transient copy of the
+        // sensitive key material is scrubbed on drop.
+        let cdi = zeroize::Zeroizing::new(Array4x12::from(&*pq_devid_cdi));
+        dice::derive_devid_seed(&cdi, seed, &mut self.hmac384, &mut self.trng)
     }
 
     #[cfg(feature = "mldsa_attestation")]
