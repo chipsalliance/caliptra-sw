@@ -17,7 +17,9 @@ use caliptra_hw_model::{BootParams, Fuses, HwModel, InitParams};
 use caliptra_image_fake_keys::VENDOR_CONFIG_KEY_0;
 use caliptra_image_gen::ImageGeneratorVendorConfig;
 
-fn debug_image_options(pqc_key_type: caliptra_image_types::FwVerificationPqcKeyType) -> ImageOptions {
+fn debug_image_options(
+    pqc_key_type: caliptra_image_types::FwVerificationPqcKeyType,
+) -> ImageOptions {
     let vendor_config = ImageGeneratorVendorConfig {
         debug_image: true,
         ..VENDOR_CONFIG_KEY_0
@@ -169,13 +171,13 @@ fn test_debug_image_update_reset_rejected_without_debug_intent() {
             };
             let rom = caliptra_builder::build_firmware_rom(crate::helpers::rom_from_env()).unwrap();
             let cold_image = caliptra_builder::build_and_sign_image(
-                &TEST_FMC_WITH_UART,
+                &TEST_FMC_INTERACTIVE,
                 &APP_WITH_UART_FPGA,
                 cold_boot_options,
             )
             .unwrap();
             let debug_image = caliptra_builder::build_and_sign_image(
-                &TEST_FMC_WITH_UART,
+                &TEST_FMC_INTERACTIVE,
                 &APP_WITH_UART_FPGA,
                 update_options,
             )
@@ -204,16 +206,16 @@ fn test_debug_image_update_reset_rejected_without_debug_intent() {
             )
             .unwrap();
 
+            // Match test_update_reset_success: on FPGA, do not poll intermediate
+            // boot statuses (UpdateResetStarted can appear after the mailbox completes).
             if cfg!(not(any(
                 feature = "fpga_realtime",
                 feature = "fpga_subsystem"
             ))) {
                 hw.step_until_boot_status(KatStarted.into(), true);
                 hw.step_until_boot_status(KatComplete.into(), true);
+                hw.step_until_boot_status(UpdateResetStarted.into(), false);
             }
-            hw.step_until(|model| {
-                model.soc_ifc().cptra_boot_status().read() >= u32::from(UpdateResetStarted)
-            });
 
             assert_eq!(
                 hw.finish_mailbox_execute(),
@@ -273,6 +275,8 @@ fn test_debug_image_update_reset_accepted_with_debug_intent() {
             )
             .unwrap();
 
+            // Match test_update_reset_success: on FPGA realtime, do not poll
+            // intermediate boot statuses before finish_mailbox_execute.
             if cfg!(not(feature = "fpga_realtime")) {
                 hw.step_until_boot_status(KatStarted.into(), true);
                 hw.step_until_boot_status(KatComplete.into(), true);
