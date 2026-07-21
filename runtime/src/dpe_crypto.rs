@@ -333,11 +333,8 @@ impl<'a> DpeCrypto<'a> {
         let mut sig = Mldsa87Signature::default();
         match data {
             SignData::ResponseBuffer(buf, range) => {
-                let mut mu = Mldsa87Mu::default();
-                Mldsa87::generate_mu(seed, *buf, range.clone(), &mut mu)
-                    .map_err(|_| CryptoError::HashError(0))?;
-                Mldsa87::sign_mu_deterministic(seed, &mu, &mut sig)
-                    .map_err(|e| CryptoError::CryptoLibError(u32::from(e)))
+                Mldsa87::generate_sign_mu_deterministic(seed, *buf, range.clone(), &mut sig)
+                    .map_err(|_| CryptoError::HashError(0))
             }
             SignData::Raw(msg) => Mldsa87::sign_deterministic(seed, msg, &mut sig)
                 .map_err(|e| CryptoError::CryptoLibError(u32::from(e))),

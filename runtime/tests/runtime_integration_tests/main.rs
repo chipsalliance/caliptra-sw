@@ -17,6 +17,8 @@ mod test_get_idev_csr;
 mod test_get_pq_cert;
 #[cfg(feature = "mldsa_attestation")]
 mod test_get_pq_csr;
+#[cfg(feature = "mldsa_attestation")]
+mod test_get_pq_info;
 mod test_info;
 mod test_invoke_dpe;
 #[cfg(feature = "mldsa_attestation")]
