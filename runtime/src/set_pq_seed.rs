@@ -39,6 +39,20 @@ impl SetPqSeedCmd {
             .get_mut()
             .set_pq_devid_cdi(out.into())?;
 
+        // Calculate the digest of the PQ.DevID public key and cache it
+        // in the persistent data to avoid repeated key generation passes
+        // involved in DPE invocation.
+        let (_, _, digest) = drivers.compute_mldsa_key_material()?;
+        drivers
+            .persistent_data
+            .get_mut()
+            .set_pq_devid_pub_key_digest(
+                digest
+                    .as_slice()
+                    .try_into()
+                    .map_err(|_| CaliptraError::RUNTIME_PQ_INVALID_PUBKEY_DIGEST)?,
+            )?;
+
         crate::packet::copy_to_mbox(drivers, MailboxRespHeader::default().as_mut_bytes())
     }
 
