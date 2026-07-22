@@ -1,3 +1,8 @@
+# Licensed under the Apache-2.0 license
+
+[alias]
+xtask = "run --package xtask --"
+
 [env]
 ARBITRARY_MAX_HANDLES = "32"
 
