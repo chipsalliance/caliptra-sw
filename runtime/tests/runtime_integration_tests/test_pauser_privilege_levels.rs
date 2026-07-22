@@ -68,12 +68,10 @@ fn test_pl0_derive_context_dpe_context_thresholds() {
     let mut handle = rotate_ctx_resp.handle;
 
     // Call DeriveContext with PL0 enough times to breach the threshold on the last iteration.
-    // 2 PL0 contexts are used by default by Caliptra. When we initialize DPE, we measure mailbox valid pausers in pl0_pauser's locality.
-    // The RT Journey measurement also is counted against PL0's limit. Thus, we can call derive child
-    // from PL0 exactly 14 times, and the last iteration of this loop, is expected to throw a threshold reached error.
+    // Caliptra-owned PL0 contexts consume part of the PL0 threshold before mailbox commands run.
     let num_iterations = if model.subsystem_mode() {
-        // Subsystem uses a context for the MCU FW
-        PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD - 2
+        // Subsystem uses contexts for SOMV, SOMO, and MCU FW.
+        PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD - 4
     } else {
         PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD - 1
     };
@@ -189,9 +187,9 @@ fn test_pl0_init_ctx_dpe_context_thresholds() {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
     });
 
-    // 2 PL0 contexts are used by Caliptra
+    // Caliptra-owned PL0 contexts consume part of the PL0 threshold before mailbox commands run.
     let num_iterations = if model.subsystem_mode() {
-        PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD - 2
+        PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD - 4
     } else {
         PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD - 1
     };
@@ -671,10 +669,10 @@ fn test_stash_measurement_pl_context_thresholds() {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
     });
 
-    // Root node and RT journey (which is technically the Caliptra locality) count as PL0
-    // In subsystem mode, the MCU FW is also measured into a PL0 context.
+    // Root node and RT journey (which is technically the Caliptra locality) count as PL0.
+    // In subsystem mode, SOMV, SOMO, and MCU FW are also measured into PL0 contexts.
     let num_iterations = if model.subsystem_mode() {
-        PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD - 3
+        PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD - 5
     } else {
         PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD - 2
     };
@@ -719,12 +717,11 @@ fn test_measurement_log_pl_context_threshold() {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
     });
 
-    // Upload (PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD - 1) measurements to measurement log
-    // Since 2 measurements taken by Caliptra upon startup, this will cause
-    // the PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD to be breached.
+    // Upload enough measurements to the measurement log to breach the PL0 DPE context threshold
+    // after accounting for Caliptra-owned startup contexts.
     let invocations = if model.subsystem_mode() {
-        // MCU uses an extra DPE context
-        PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD - 2
+        // SOMV, SOMO, and MCU FW use extra DPE contexts.
+        PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD - 4
     } else {
         PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD - 1
     };

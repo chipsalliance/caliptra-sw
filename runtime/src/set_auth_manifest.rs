@@ -15,7 +15,7 @@ Abstract:
 use core::cmp::min;
 use core::mem::size_of;
 
-use crate::Drivers;
+use crate::{drivers::CaliptraManagedDpeContext, Drivers};
 use caliptra_auth_man_types::{
     AuthManifestFlags, AuthManifestImageMetadata, AuthManifestImageMetadataCollection,
     AuthManifestPreamble, AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT, AUTH_MANIFEST_MARKER,
@@ -44,6 +44,12 @@ pub(crate) enum AuthManifestSource<'a> {
     Slice(&'a [u8]),
 }
 
+#[derive(Clone, Copy)]
+pub(crate) enum AuthManifestUpdateMode {
+    UpdateExisting,
+    CreateMissingDpeContexts,
+}
+
 pub struct SetAuthManifestCmd;
 impl SetAuthManifestCmd {
     fn sha384_digest(
@@ -67,6 +73,60 @@ impl SetAuthManifestCmd {
             .ok_or(err)?
             .get(..len as usize)
             .ok_or(err)
+    }
+
+    fn digest_to_measurement(digest: &ImageDigest384) -> [u8; SHA384_DIGEST_BYTE_SIZE] {
+        let mut measurement = [0u8; SHA384_DIGEST_BYTE_SIZE];
+        for (idx, word) in digest.iter().enumerate() {
+            measurement[idx * 4..][..4].copy_from_slice(&word.to_be_bytes());
+        }
+        measurement
+    }
+
+    fn update_soc_manifest_dpe_contexts(
+        drivers: &mut Drivers,
+        auth_manifest_preamble: &AuthManifestPreamble,
+        update_mode: AuthManifestUpdateMode,
+    ) -> CaliptraResult<()> {
+        if drivers.persistent_data.get().attestation_disabled.get() {
+            return Ok(());
+        }
+
+        let create_if_missing = matches!(
+            update_mode,
+            AuthManifestUpdateMode::CreateMissingDpeContexts
+        );
+        let manifest_bytes = auth_manifest_preamble.as_bytes();
+        let vendor_range = AuthManifestPreamble::vendor_signed_data_range();
+        let vendor_measurement = Self::digest_to_measurement(&Self::sha384_digest(
+            &mut drivers.sha2_512_384,
+            manifest_bytes,
+            vendor_range.start,
+            vendor_range.len() as u32,
+        )?);
+        let owner_range = AuthManifestPreamble::owner_pub_keys_range();
+        let owner_measurement = Self::digest_to_measurement(&Self::sha384_digest(
+            &mut drivers.sha2_512_384,
+            manifest_bytes,
+            owner_range.start,
+            owner_range.len() as u32,
+        )?);
+        let pl0_pauser_locality = drivers.persistent_data.get().manifest1.header.pl0_pauser;
+
+        drivers.create_or_update_caliptra_managed_measurement(
+            CaliptraManagedDpeContext::Somv,
+            &vendor_measurement,
+            auth_manifest_preamble.svn,
+            pl0_pauser_locality,
+            create_if_missing,
+        )?;
+        drivers.create_or_update_caliptra_managed_measurement(
+            CaliptraManagedDpeContext::Somo,
+            &owner_measurement,
+            0,
+            pl0_pauser_locality,
+            create_if_missing,
+        )
     }
 
     fn ecc384_verify(
@@ -707,6 +767,7 @@ impl SetAuthManifestCmd {
             drivers,
             AuthManifestSource::Slice(manifest_buf),
             verify_only,
+            AuthManifestUpdateMode::UpdateExisting,
         )?;
         Ok(0)
     }
@@ -715,6 +776,7 @@ impl SetAuthManifestCmd {
         drivers: &mut Drivers,
         manifest_src: AuthManifestSource,
         verify_only: bool,
+        update_mode: AuthManifestUpdateMode,
     ) -> CaliptraResult<()> {
         let manifest_buf = match manifest_src {
             AuthManifestSource::Mailbox => drivers.mbox.raw_mailbox_contents(),
@@ -724,7 +786,7 @@ impl SetAuthManifestCmd {
         let auth_manifest_preamble = {
             let err = CaliptraError::RUNTIME_AUTH_MANIFEST_PREAMBLE_SIZE_LT_MIN;
             let bytes = manifest_buf.get(..preamble_size).ok_or(err)?;
-            AuthManifestPreamble::ref_from_bytes(bytes).map_err(|_| err)?
+            *AuthManifestPreamble::ref_from_bytes(bytes).map_err(|_| err)?
         };
 
         // Check if the preamble has the required marker.
@@ -747,7 +809,7 @@ impl SetAuthManifestCmd {
         let persistent_data = drivers.persistent_data.get_mut();
         // Verify the vendor signed data (vendor public keys + flags).
         Self::verify_vendor_signed_data(
-            auth_manifest_preamble,
+            &auth_manifest_preamble,
             &persistent_data.manifest1.preamble,
             &mut drivers.sha2_512_384,
             &mut drivers.ecc384,
@@ -758,7 +820,7 @@ impl SetAuthManifestCmd {
 
         // Verify the owner public keys.
         Self::verify_owner_pub_keys(
-            auth_manifest_preamble,
+            &auth_manifest_preamble,
             &persistent_data.manifest1.preamble,
             &mut drivers.sha2_512_384,
             &mut drivers.ecc384,
@@ -771,7 +833,7 @@ impl SetAuthManifestCmd {
             manifest_buf
                 .get(preamble_size..)
                 .ok_or(CaliptraError::RUNTIME_AUTH_MANIFEST_IMAGE_METADATA_LIST_INVALID_SIZE)?,
-            auth_manifest_preamble,
+            &auth_manifest_preamble,
             &mut persistent_data.auth_manifest_image_metadata_col,
             &mut drivers.sha2_512_384,
             &mut drivers.ecc384,
@@ -782,12 +844,13 @@ impl SetAuthManifestCmd {
         )?;
 
         if !verify_only {
-            persistent_data.auth_manifest_digest =
-                drivers.sha2_512_384.sha384_digest(manifest_buf)?.0;
+            let auth_manifest_digest = drivers.sha2_512_384.sha384_digest(manifest_buf)?.0;
+            drivers.persistent_data.get_mut().auth_manifest_digest = auth_manifest_digest;
             // Store the SoC manifest SVN for use as the MCU RT current_svn
             // when creating the MCU RT DPE context during recovery boot or
             // hitless update.
-            persistent_data.soc_manifest_svn = auth_manifest_preamble.svn;
+            drivers.persistent_data.get_mut().soc_manifest_svn = auth_manifest_preamble.svn;
+            Self::update_soc_manifest_dpe_contexts(drivers, &auth_manifest_preamble, update_mode)?;
         }
         Ok(())
     }

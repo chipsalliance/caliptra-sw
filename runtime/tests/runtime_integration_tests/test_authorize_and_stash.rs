@@ -1,6 +1,9 @@
 // Licensed under the Apache-2.0 license
 
-use crate::common::{calculate_cptra_config_init_vals_hash, run_rt_test, RuntimeTestArgs};
+use crate::common::{
+    calculate_cptra_config_init_vals_hash, default_soc_manifest_measurements, run_rt_test,
+    soc_manifest_measurements, RuntimeTestArgs,
+};
 use crate::test_set_auth_manifest::{
     create_auth_manifest, create_auth_manifest_with_metadata, AuthManifestBuilderCfg,
 };
@@ -219,6 +222,10 @@ fn test_authorize_and_stash_cmd_deny_authorization() {
     hasher.update(rt_current_pcr);
     hasher.update(cptra_config_init_vals_hash);
     if model.subsystem_mode() {
+        let (somv_measurement, somo_measurement) =
+            default_soc_manifest_measurements(FwVerificationPqcKeyType::LMS, 0);
+        hasher.update(somv_measurement);
+        hasher.update(somo_measurement);
         let mut mcu_hasher = Sha384::new();
         mcu_hasher.update(crate::common::DEFAULT_MCU_FW);
         hasher.update(mcu_hasher.finalize());
@@ -285,6 +292,14 @@ fn test_authorize_and_stash_cmd_success() {
     hasher.update(rt_current_pcr);
     hasher.update(cptra_config_init_vals_hash);
     if model.subsystem_mode() {
+        let auth_manifest = create_auth_manifest(&AuthManifestBuilderCfg {
+            manifest_flags: AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED,
+            pqc_key_type: FwVerificationPqcKeyType::LMS,
+            svn: 1,
+        });
+        let (somv_measurement, somo_measurement) = soc_manifest_measurements(&auth_manifest);
+        hasher.update(somv_measurement);
+        hasher.update(somo_measurement);
         let mut mcu_hasher = Sha384::new();
         mcu_hasher.update(crate::common::DEFAULT_MCU_FW);
         hasher.update(mcu_hasher.finalize());

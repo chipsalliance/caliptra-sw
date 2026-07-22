@@ -1,7 +1,8 @@
 // Licensed under the Apache-2.0 license
 
 use crate::common::{
-    calculate_cptra_config_init_vals_hash, run_rt_test, RuntimeTestArgs, DEFAULT_MCU_FW,
+    calculate_cptra_config_init_vals_hash, default_soc_manifest_measurements, run_rt_test,
+    RuntimeTestArgs, DEFAULT_MCU_FW,
 };
 use caliptra_api::SocManager;
 use caliptra_builder::{
@@ -84,6 +85,10 @@ fn test_stash_measurement() {
     hasher.update(rt_current_pcr);
     hasher.update(cptra_config_init_vals_hash);
     if model.subsystem_mode() {
+        let (somv_measurement, somo_measurement) =
+            default_soc_manifest_measurements(FwVerificationPqcKeyType::LMS, 0);
+        hasher.update(somv_measurement);
+        hasher.update(somo_measurement);
         let mut mcu_hasher = Sha384::new();
         mcu_hasher.update(DEFAULT_MCU_FW);
         hasher.update(mcu_hasher.finalize());
