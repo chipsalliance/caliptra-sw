@@ -1,6 +1,10 @@
 // Licensed under the Apache-2.0 license
 
-use crate::{dpe_crypto::DpeCrypto, Drivers, PauserPrivileges};
+use crate::{
+    dpe_crypto::{CryptoEngines, DpeCrypto},
+    Drivers, PauserPrivileges,
+};
+use caliptra_drivers::sha384::DpeHasher;
 
 use caliptra_cfi_derive::cfi_impl_fn;
 #[cfg(feature = "cfi")]
@@ -46,11 +50,13 @@ impl SignWithExportedEcdsaCmd {
         )));
 
         let mut crypto = DpeCrypto::new_ec(
-            &mut drivers.sha384,
-            &mut drivers.trng,
-            &mut drivers.ecc384,
-            &mut drivers.hmac384,
-            &mut drivers.key_vault,
+            CryptoEngines {
+                hasher: DpeHasher::new(&mut drivers.sha384)?,
+                trng: &mut drivers.trng,
+                ecc384: &mut drivers.ecc384,
+                hmac384: &mut drivers.hmac384,
+                key_vault: &mut drivers.key_vault,
+            },
             rt_pub_key,
             key_id_rt_cdi,
             key_id_rt_priv_key,
