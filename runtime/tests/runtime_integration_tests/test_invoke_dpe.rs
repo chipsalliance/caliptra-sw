@@ -24,8 +24,8 @@ use cms::{
 use dpe::{
     commands::{
         CertifyKeyCommand, CertifyKeyFlags, CertifyKeyP384Cmd, Command, CommandHdr,
-        DeriveContextCmd, DeriveContextCmdV1, DeriveContextFlags, GetCertificateChainCmd,
-        GetProfileCmd, InitCtxCmd, RotateCtxCmd, RotateCtxFlags, SignFlags, SignP384Cmd,
+        DeriveContextCmd, DeriveContextFlags, GetCertificateChainCmd, GetProfileCmd, InitCtxCmd,
+        RotateCtxCmd, RotateCtxFlags, SignFlags, SignP384Cmd,
     },
     context::ContextHandle,
     error::DpeErrorCode,
@@ -33,6 +33,10 @@ use dpe::{
     tci::TciMeasurement,
     TCI_SIZE,
 };
+use dpe_runtime_1_2::commands::{
+    DeriveContextCmd as DeriveContextCmdV1, DeriveContextFlags as DeriveContextFlagsV1,
+};
+use dpe_runtime_1_2::context::ContextHandle as ContextHandleV1;
 use openssl::{
     bn::BigNum,
     ec::{EcGroup, EcKey},
@@ -559,8 +563,11 @@ fn test_invoke_dpe_derive_context_without_svn() {
     });
 
     let derive_ctx_cmd = DeriveContextCmdV1 {
-        flags: DeriveContextFlags::EXPORT_CDI | DeriveContextFlags::CREATE_CERTIFICATE,
-        ..Default::default()
+        flags: DeriveContextFlagsV1::EXPORT_CDI | DeriveContextFlagsV1::CREATE_CERTIFICATE,
+        handle: ContextHandleV1::default(),
+        data: [0; TCI_SIZE],
+        tci_type: 0,
+        target_locality: 0,
     };
 
     let mut cmd_data = [0u8; InvokeDpeReq::DATA_MAX_SIZE];
@@ -596,9 +603,16 @@ fn test_invoke_dpe_derive_context_without_svn() {
     ));
 
     let resp_bytes = &resp_hdr.data[..resp_hdr.data_size as usize];
+    let v2_cmd = DeriveContextCmd {
+        handle: ContextHandle(derive_ctx_cmd.handle.0),
+        data: TciMeasurement(derive_ctx_cmd.data),
+        flags: DeriveContextFlags(derive_ctx_cmd.flags.bits()),
+        tci_type: derive_ctx_cmd.tci_type,
+        target_locality: derive_ctx_cmd.target_locality,
+        svn: 0,
+    };
     let parsed_resp =
-        Response::try_read_from_bytes(&Command::DeriveContext(&derive_ctx_cmd.into()), resp_bytes)
-            .unwrap();
+        Response::try_read_from_bytes(&Command::DeriveContext(&v2_cmd), resp_bytes).unwrap();
 
     let Response::DeriveContextExportedCdi(_) = parsed_resp else {
         panic!("expected derive context exported cdi resp!");

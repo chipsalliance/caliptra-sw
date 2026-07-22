@@ -22,13 +22,15 @@ use caliptra_drivers::{CaliptraError, CaliptraResult};
 use dpe::{
     commands::{
         CertifyKeyCommand, Command, CommandExecution, CommandHdr, DeriveContextCmd,
-        DeriveContextCmdV1, InitCtxCmd,
+        DeriveContextFlags, InitCtxCmd,
     },
-    context::ContextState,
+    context::{ContextHandle, ContextState},
     error::DpeErrorCode,
     response::ResponseHdr,
+    tci::TciMeasurement,
     DpeInstance, DpeProfile, State, U8Bool, MAX_HANDLES,
 };
+use dpe_runtime_1_2::commands::DeriveContextCmd as DeriveContextCmdV1;
 use platform::MAX_OTHER_NAME_SIZE;
 use ufmt::derive::uDebug;
 use zerocopy::{FromBytes, FromZeros, IntoBytes};
@@ -156,7 +158,7 @@ fn execute(
             data_size = size_of::<CommandHdr>() + size_of::<DeriveContextCmd>();
             let (cmd, _) = DeriveContextCmd::mut_from_prefix(&mut data[cmd_start..data_size])
                 .map_err(|_| CaliptraError::RUNTIME_DPE_COMMAND_DESERIALIZATION_FAILED)?;
-            *cmd = derive_context_v1.into();
+            *cmd = derive_context_cmd_v1_to_v2(&derive_context_v1);
         }
     }
 
@@ -274,6 +276,17 @@ fn clear_tags_for_inactive_contexts(
             context_tags[i] = 0;
         }
     });
+}
+
+fn derive_context_cmd_v1_to_v2(cmd: &DeriveContextCmdV1) -> DeriveContextCmd {
+    DeriveContextCmd {
+        handle: ContextHandle(cmd.handle.0),
+        data: TciMeasurement(cmd.data),
+        flags: DeriveContextFlags(cmd.flags.bits()),
+        tci_type: cmd.tci_type,
+        target_locality: cmd.target_locality,
+        svn: 0,
+    }
 }
 
 const _: () = assert!(
