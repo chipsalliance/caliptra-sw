@@ -169,6 +169,19 @@ impl TrngMode {
 
 const EXPECTED_CALIPTRA_BOOT_TIME_IN_CYCLES: u64 = 40_000_000; // 40 million cycles
 
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Default)]
+pub enum ProvisioningStage {
+    /// Blank OTP memory.
+    Raw = 0,
+    /// Provision lifecycle-transition and manufacturing-debug-unlock tokens.
+    TestUnlocked = 1,
+    /// Provision through the manufacturing partitions.
+    Manuf = 2,
+    /// Provision all partitions (the default for runtime and production tests).
+    #[default]
+    Prod = 3,
+}
+
 pub struct SubsystemInitParams<'a> {
     // Optionally, provide MCU ROM; otherwise use the pre-built ROM image, if needed
     pub mcu_rom: Option<&'a [u8]>,
@@ -201,6 +214,9 @@ pub struct SubsystemInitParams<'a> {
     // from strap registers instead of OTP. This gives deterministic
     // IDevID on FPGA, required for attestation tests.
     pub use_strap_secrets: bool,
+
+    // Target stage through which the harness provisions OTP.
+    pub target_provisioning_stage: ProvisioningStage,
 }
 
 impl Default for SubsystemInitParams<'_> {
@@ -215,6 +231,7 @@ impl Default for SubsystemInitParams<'_> {
             primary_flash_initial_contents: None,
             lc_state: None,
             use_strap_secrets: false,
+            target_provisioning_stage: Default::default(),
         }
     }
 }
