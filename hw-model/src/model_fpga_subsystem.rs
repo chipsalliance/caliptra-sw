@@ -18,8 +18,8 @@ use crate::otp_provision::{
     LifecycleControllerState, OtpSwManufPartition,
 };
 use crate::xi3c::XI3cError;
-use crate::SecurityState;
 use crate::{xi3c, BootParams, Error, HwModel, InitParams, ModelError, Output, TrngMode};
+use crate::{ProvisioningStage, SecurityState};
 use anyhow::Result;
 use caliptra_api::SocManager;
 use caliptra_emu_bus::{Bus, BusError, BusMmio, Device, Event, EventData, RecoveryCommandCode};
@@ -440,6 +440,7 @@ pub struct ModelFpgaSubsystem {
     pub secondary_flash: Vec<u8>,
     // whether or not to attempt flash boot instead of streaming boot
     pub flash_boot: bool,
+    pub target_provisioning_stage: ProvisioningStage,
 
     // Init params saved at construction time so that `cold_reset()` can
     // re-program every FPGA wrapper register that AXI reset clears. Adapted
@@ -1528,98 +1529,106 @@ impl ModelFpgaSubsystem {
             otp_data[offset..offset + mem.len()].copy_from_slice(&mem);
         }
 
-        // Provision default LC tokens.
-        println!("Provisioning SECRET_LC_TRANSITION partition.");
-        let tokens = &DEFAULT_LIFECYCLE_RAW_TOKENS;
-        let mem = otp_generate_lifecycle_tokens_mem(tokens)?;
-        let offset = OTP_SECRET_LC_TRANSITION_PARTITION_OFFSET;
-        otp_data[offset..offset + mem.len()].copy_from_slice(&mem);
+        let stage = self.target_provisioning_stage;
 
-        // Provision default SW_TEST_UNLOCK partition (manuf debug unlock token).
-        println!("Provisioning SW_TEST_UNLOCK partition.");
-        let mem = otp_generate_manuf_debug_unlock_token_mem(&DEFAULT_MANUF_DEBUG_UNLOCK_RAW_TOKEN)?;
-        let offset = OTP_SW_TEST_UNLOCK_PARTITION_OFFSET;
-        otp_data[offset..offset + mem.len()].copy_from_slice(&mem);
+        if stage > ProvisioningStage::Raw {
+            println!("Provisioning SECRET_LC_TRANSITION partition.");
+            let tokens = &DEFAULT_LIFECYCLE_RAW_TOKENS;
+            let mem = otp_generate_lifecycle_tokens_mem(tokens)?;
+            let offset = OTP_SECRET_LC_TRANSITION_PARTITION_OFFSET;
+            otp_data[offset..offset + mem.len()].copy_from_slice(&mem);
 
-        // Provision default SW_MANUF partition.
-        // TODO(timothytrippel): enable provisioning prod debug unlock public key hashes for public
-        // keys passed in `prod_dbg_unlock_keypairs` field in InitParams.
-        println!("Provisioning SW_MANUF partition.");
-        let mem = otp_generate_sw_manuf_partition_mem(&OtpSwManufPartition {
-            anti_rollback_disable: u32::from(self.fuses.anti_rollback_disable),
-            ..Default::default()
-        })?;
-        let offset = OTP_SW_MANUF_PARTITION_OFFSET;
-        otp_data[offset..offset + mem.len()].copy_from_slice(&mem);
+            // Provision default SW_TEST_UNLOCK partition (manuf debug unlock token).
+            println!("Provisioning SW_TEST_UNLOCK partition.");
+            let mem =
+                otp_generate_manuf_debug_unlock_token_mem(&DEFAULT_MANUF_DEBUG_UNLOCK_RAW_TOKEN)?;
+            let offset = OTP_SW_TEST_UNLOCK_PARTITION_OFFSET;
+            otp_data[offset..offset + mem.len()].copy_from_slice(&mem);
+        }
 
-        let vendor_pk_hash = self.fuses.vendor_pk_hash.as_bytes();
-        println!(
-            "Setting vendor public key hash to {:x?}",
-            HexSlice(vendor_pk_hash)
-        );
-        otp_data[FUSE_VENDOR_PKHASH_OFFSET..FUSE_VENDOR_PKHASH_OFFSET + vendor_pk_hash.len()]
-            .copy_from_slice(vendor_pk_hash);
+        if stage > ProvisioningStage::TestUnlocked {
+            // Provision default SW_MANUF partition.
+            // TODO(timothytrippel): enable provisioning prod debug unlock public key hashes for public
+            // keys passed in `prod_dbg_unlock_keypairs` field in InitParams.
+            println!("Provisioning SW_MANUF partition.");
+            let mem = otp_generate_sw_manuf_partition_mem(&OtpSwManufPartition {
+                anti_rollback_disable: u32::from(self.fuses.anti_rollback_disable),
+                ..Default::default()
+            })?;
+            let offset = OTP_SW_MANUF_PARTITION_OFFSET;
+            otp_data[offset..offset + mem.len()].copy_from_slice(&mem);
 
-        let vendor_pqc_type = FwVerificationPqcKeyType::from_u8(self.fuses.fuse_pqc_key_type as u8)
-            .unwrap_or(FwVerificationPqcKeyType::LMS);
-        println!(
-            "Setting vendor public key pqc type to {:x?}",
-            vendor_pqc_type
-        );
-        let encoded_pqc = otp_generate_linear_majority_vote(2, 3, vendor_pqc_type as u32)?;
-        otp_data[FUSE_PQC_OFFSET..FUSE_PQC_OFFSET + 4].copy_from_slice(&encoded_pqc.to_le_bytes());
+            let vendor_pk_hash = self.fuses.vendor_pk_hash.as_bytes();
+            println!(
+                "Setting vendor public key hash to {:x?}",
+                HexSlice(vendor_pk_hash)
+            );
+            otp_data[FUSE_VENDOR_PKHASH_OFFSET..FUSE_VENDOR_PKHASH_OFFSET + vendor_pk_hash.len()]
+                .copy_from_slice(vendor_pk_hash);
 
-        // Owner public key hash (48 bytes) lives in VENDOR_HASHES_PROD partition
-        let owner_pk_hash = self.fuses.owner_pk_hash.as_bytes();
-        println!(
-            "Setting owner public key hash to {:x?}",
-            HexSlice(owner_pk_hash)
-        );
-        otp_data[FUSE_OWNER_PKHASH_OFFSET..FUSE_OWNER_PKHASH_OFFSET + owner_pk_hash.len()]
-            .copy_from_slice(owner_pk_hash);
+            let vendor_pqc_type =
+                FwVerificationPqcKeyType::from_u8(self.fuses.fuse_pqc_key_type as u8)
+                    .unwrap_or(FwVerificationPqcKeyType::LMS);
+            println!(
+                "Setting vendor public key pqc type to {:x?}",
+                vendor_pqc_type
+            );
+            let encoded_pqc = otp_generate_linear_majority_vote(2, 3, vendor_pqc_type as u32)?;
+            otp_data[FUSE_PQC_OFFSET..FUSE_PQC_OFFSET + 4]
+                .copy_from_slice(&encoded_pqc.to_le_bytes());
 
-        // Owner revocation fields (ECC, LMS, MLDSA) in VENDOR_REVOCATIONS_PROD partition
-        // Note: ECC revocation in API is a 4-bit value; store in low bits of u32 here.
-        let vendor_ecc_revocation: u32 = (u32::from(self.fuses.fuse_ecc_revocation)) & 0xF;
-        let vendor_lms_revocation: u32 = self.fuses.fuse_lms_revocation;
-        let vendor_mldsa_revocation: u32 = self.fuses.fuse_mldsa_revocation;
-        println!(
-            "Setting owner revocations ecc={:#x} lms={:#x} mldsa={:#x}",
-            vendor_ecc_revocation, vendor_lms_revocation, vendor_mldsa_revocation
-        );
-        let encoded_ecc = otp_generate_linear_majority_vote(4, 3, vendor_ecc_revocation)?;
-        otp_data[FUSE_VENDOR_ECC_REVOCATION_OFFSET..FUSE_VENDOR_ECC_REVOCATION_OFFSET + 4]
-            .copy_from_slice(&encoded_ecc.to_le_bytes());
-        let encoded_lms = otp_generate_linear_majority_vote(16, 2, vendor_lms_revocation)?;
-        otp_data[FUSE_VENDOR_LMS_REVOCATION_OFFSET..FUSE_VENDOR_LMS_REVOCATION_OFFSET + 4]
-            .copy_from_slice(&encoded_lms.to_le_bytes());
-        let encoded_mldsa = otp_generate_linear_majority_vote(4, 3, vendor_mldsa_revocation)?;
-        otp_data[FUSE_VENDOR_REVOCATION_OFFSET..FUSE_VENDOR_REVOCATION_OFFSET + 4]
-            .copy_from_slice(&encoded_mldsa.to_le_bytes());
+            // Owner public key hash (48 bytes) lives in VENDOR_HASHES_PROD partition
+            let owner_pk_hash = self.fuses.owner_pk_hash.as_bytes();
+            println!(
+                "Setting owner public key hash to {:x?}",
+                HexSlice(owner_pk_hash)
+            );
+            otp_data[FUSE_OWNER_PKHASH_OFFSET..FUSE_OWNER_PKHASH_OFFSET + owner_pk_hash.len()]
+                .copy_from_slice(owner_pk_hash);
 
-        // Firmware/runtime SVN (16 bytes -> 4 words)
-        let fw_svn = self.fuses.fw_svn.as_bytes();
-        println!("Setting runtime FW SVN to {:x?}", HexSlice(fw_svn));
-        otp_data[OTP_SVN_PARTITION_RUNTIME_SVN_FIELD_OFFSET
-            ..OTP_SVN_PARTITION_RUNTIME_SVN_FIELD_OFFSET + fw_svn.len()]
-            .copy_from_slice(fw_svn);
+            // Owner revocation fields (ECC, LMS, MLDSA) in VENDOR_REVOCATIONS_PROD partition
+            // Note: ECC revocation in API is a 4-bit value; store in low bits of u32 here.
+            let vendor_ecc_revocation: u32 = (u32::from(self.fuses.fuse_ecc_revocation)) & 0xF;
+            let vendor_lms_revocation: u32 = self.fuses.fuse_lms_revocation;
+            let vendor_mldsa_revocation: u32 = self.fuses.fuse_mldsa_revocation;
+            println!(
+                "Setting owner revocations ecc={:#x} lms={:#x} mldsa={:#x}",
+                vendor_ecc_revocation, vendor_lms_revocation, vendor_mldsa_revocation
+            );
+            let encoded_ecc = otp_generate_linear_majority_vote(4, 3, vendor_ecc_revocation)?;
+            otp_data[FUSE_VENDOR_ECC_REVOCATION_OFFSET..FUSE_VENDOR_ECC_REVOCATION_OFFSET + 4]
+                .copy_from_slice(&encoded_ecc.to_le_bytes());
+            let encoded_lms = otp_generate_linear_majority_vote(16, 2, vendor_lms_revocation)?;
+            otp_data[FUSE_VENDOR_LMS_REVOCATION_OFFSET..FUSE_VENDOR_LMS_REVOCATION_OFFSET + 4]
+                .copy_from_slice(&encoded_lms.to_le_bytes());
+            let encoded_mldsa = otp_generate_linear_majority_vote(4, 3, vendor_mldsa_revocation)?;
+            otp_data[FUSE_VENDOR_REVOCATION_OFFSET..FUSE_VENDOR_REVOCATION_OFFSET + 4]
+                .copy_from_slice(&encoded_mldsa.to_le_bytes());
 
-        // SoC manifest SVN (16 bytes -> 4 words)
-        let soc_manifest_svn = self.fuses.soc_manifest_svn.as_bytes();
-        println!(
-            "Setting SoC manifest SVN to {:x?}",
-            HexSlice(soc_manifest_svn)
-        );
-        otp_data[OTP_SVN_PARTITION_SOC_MANIFEST_SVN_FIELD_OFFSET
-            ..OTP_SVN_PARTITION_SOC_MANIFEST_SVN_FIELD_OFFSET + soc_manifest_svn.len()]
-            .copy_from_slice(soc_manifest_svn);
+            // Firmware/runtime SVN (16 bytes -> 4 words)
+            let fw_svn = self.fuses.fw_svn.as_bytes();
+            println!("Setting runtime FW SVN to {:x?}", HexSlice(fw_svn));
+            otp_data[OTP_SVN_PARTITION_RUNTIME_SVN_FIELD_OFFSET
+                ..OTP_SVN_PARTITION_RUNTIME_SVN_FIELD_OFFSET + fw_svn.len()]
+                .copy_from_slice(fw_svn);
 
-        // Max SOC Manifest SVN (1 byte used)
-        println!(
-            "Burning fuse for SOC MAX SVN {}",
-            self.fuses.soc_manifest_max_svn
-        );
-        otp_data[OTP_SVN_PARTITION_SOC_MAX_SVN_FIELD_OFFSET] = self.fuses.soc_manifest_max_svn;
+            // SoC manifest SVN (16 bytes -> 4 words)
+            let soc_manifest_svn = self.fuses.soc_manifest_svn.as_bytes();
+            println!(
+                "Setting SoC manifest SVN to {:x?}",
+                HexSlice(soc_manifest_svn)
+            );
+            otp_data[OTP_SVN_PARTITION_SOC_MANIFEST_SVN_FIELD_OFFSET
+                ..OTP_SVN_PARTITION_SOC_MANIFEST_SVN_FIELD_OFFSET + soc_manifest_svn.len()]
+                .copy_from_slice(soc_manifest_svn);
+
+            // Max SOC Manifest SVN (1 byte used)
+            println!(
+                "Burning fuse for SOC MAX SVN {}",
+                self.fuses.soc_manifest_max_svn
+            );
+            otp_data[OTP_SVN_PARTITION_SOC_MAX_SVN_FIELD_OFFSET] = self.fuses.soc_manifest_max_svn;
+        }
 
         self.otp_slice().copy_from_slice(&otp_data);
 
@@ -1882,6 +1891,7 @@ impl HwModel for ModelFpgaSubsystem {
                 .ss_init_params
                 .primary_flash_initial_contents
                 .is_some(),
+            target_provisioning_stage: params.ss_init_params.target_provisioning_stage,
 
             saved_input_wires: [(!params.uds_granularity_64 as u32) << 31, 0],
             saved_cptra_obf_key: params.cptra_obf_key,
