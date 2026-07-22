@@ -52,6 +52,8 @@ impl CommandId {
     #[cfg(feature = "mldsa_attestation")]
     pub const GET_PQ_CSR: Self = Self(0x50514353); // "PQCS"
     #[cfg(feature = "mldsa_attestation")]
+    pub const GET_PQ_INFO: Self = Self(0x5051_494E); // "PQIN"
+    #[cfg(feature = "mldsa_attestation")]
     pub const CERTIFY_KEY_EXTENDED_MLDSA87: Self = Self(0x434B454D); // "CKEM"
 
     /// FIPS module commands.
@@ -196,6 +198,8 @@ pub enum MailboxResp {
     #[cfg(feature = "mldsa_attestation")]
     GetPqCsr(GetPqCsrResp),
     #[cfg(feature = "mldsa_attestation")]
+    GetPqInfo(GetPqInfoResp),
+    #[cfg(feature = "mldsa_attestation")]
     CertifyKeyExtendedMldsa87(CertifyKeyExtendedMldsa87Resp),
     AuthorizeAndStash(AuthorizeAndStashResp),
     GetIdevCsr(GetIdevCsrResp),
@@ -230,6 +234,8 @@ impl MailboxResp {
             #[cfg(feature = "mldsa_attestation")]
             MailboxResp::GetPqCsr(resp) => Ok(resp.as_bytes()),
             #[cfg(feature = "mldsa_attestation")]
+            MailboxResp::GetPqInfo(resp) => Ok(resp.as_bytes()),
+            #[cfg(feature = "mldsa_attestation")]
             MailboxResp::CertifyKeyExtendedMldsa87(resp) => Ok(resp.as_bytes()),
             MailboxResp::AuthorizeAndStash(resp) => Ok(resp.as_bytes()),
             MailboxResp::GetIdevCsr(resp) => Ok(resp.as_bytes()),
@@ -263,6 +269,8 @@ impl MailboxResp {
             MailboxResp::InvokeDpeMldsa87Command(resp) => resp.as_bytes_partial_mut(),
             #[cfg(feature = "mldsa_attestation")]
             MailboxResp::GetPqCsr(resp) => Ok(resp.as_mut_bytes()),
+            #[cfg(feature = "mldsa_attestation")]
+            MailboxResp::GetPqInfo(resp) => Ok(resp.as_mut_bytes()),
             #[cfg(feature = "mldsa_attestation")]
             MailboxResp::CertifyKeyExtendedMldsa87(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::AuthorizeAndStash(resp) => Ok(resp.as_mut_bytes()),
@@ -1376,6 +1384,41 @@ impl Default for GetPqCsrResp {
             hdr: MailboxRespHeader::default(),
             data_size: 0,
             data: [0u8; Self::DATA_MAX_SIZE],
+        }
+    }
+}
+
+// GET_PQ_INFO
+// No command-specific input args
+#[cfg(feature = "mldsa_attestation")]
+#[repr(C)]
+#[derive(Default, Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+pub struct GetPqInfoReq {
+    pub hdr: MailboxReqHeader,
+}
+
+#[cfg(feature = "mldsa_attestation")]
+impl Request for GetPqInfoReq {
+    const ID: CommandId = CommandId::GET_PQ_INFO;
+    type Resp = GetPqInfoResp;
+}
+
+#[cfg(feature = "mldsa_attestation")]
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+pub struct GetPqInfoResp {
+    pub hdr: MailboxRespHeader,
+    pub pq_pub_key: [u8; MLDSA87_PUBLIC_KEY_BYTES],
+}
+#[cfg(feature = "mldsa_attestation")]
+impl Response for GetPqInfoResp {}
+
+#[cfg(feature = "mldsa_attestation")]
+impl Default for GetPqInfoResp {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxRespHeader::default(),
+            pq_pub_key: [0u8; MLDSA87_PUBLIC_KEY_BYTES],
         }
     }
 }

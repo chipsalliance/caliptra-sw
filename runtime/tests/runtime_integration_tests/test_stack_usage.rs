@@ -15,11 +15,13 @@
 //! last.
 //!
 //! When built with `mldsa_attestation`, the test runs against the PQC-enabled
-//! firmware and additionally measures `SET_PQ_SEED` followed by `GET_PQ_CSR`.
-//! The order matters: `SET_PQ_SEED` provisions the PQ.DevID CDI and enables PQC
-//! mode, so running `GET_PQ_CSR` afterwards exercises its full ML-DSA-87
-//! keygen+sign+CSR-assembly path (the maximal stack consumer) rather than
-//! early-returning.
+//! firmware and additionally measures the ML-DSA-87 commands via
+//! `run_pqc_command_suite` (`SET_PQ_SEED`, `GET_PQ_CSR`,
+//! `CERTIFY_KEY_EXTENDED_MLDSA87`, `MLDSA87_SIGNATURE_VERIFY`, `GET_PQ_CERT`,
+//! `POPULATE_PQ_CERT`). The order matters: `SET_PQ_SEED` provisions the PQ.DevID
+//! CDI and enables PQC mode, so running `GET_PQ_CSR` / `CERTIFY_KEY_EXTENDED_MLDSA87`
+//! afterwards exercises their full ML-DSA-87 keygen+sign paths (the maximal stack
+//! consumers) rather than early-returning.
 //!
 //! The mechanism relies on the emulator's stack-pointer tracking, so this test
 //! only runs against the software emulator (not verilator/FPGA).
@@ -33,13 +35,9 @@ use caliptra_hw_model::{DefaultHwModel, HwModel};
 use caliptra_runtime::RtBootStatus;
 
 #[cfg(feature = "mldsa_attestation")]
+use crate::test_measurements_common::run_pqc_command_suite;
+#[cfg(feature = "mldsa_attestation")]
 use caliptra_builder::firmware::APP_MLDSA_ATTESTATION;
-#[cfg(feature = "mldsa_attestation")]
-use caliptra_common::mailbox_api::{
-    CommandId, MailboxReq, MailboxReqHeader, SetPqSeedReq, SET_PQ_SEED_SEED_SIZE,
-};
-#[cfg(feature = "mldsa_attestation")]
-use zerocopy::IntoBytes;
 
 /// Top of the runtime stack. The stack grows downward from here, so peak usage
 /// is `STACK_TOP - min_sp`.
@@ -63,35 +61,6 @@ impl CommandSampler for StackSampler {
     }
 }
 
-/// Measure the PQC command pair. `SET_PQ_SEED` must precede `GET_PQ_CSR` so that
-/// PQC mode is enabled and the CSR path runs its full (maximal stack) flow.
-#[cfg(feature = "mldsa_attestation")]
-fn measure_pqc_commands(model: &mut DefaultHwModel) -> Vec<(&'static str, u32)> {
-    let mut sampler = StackSampler;
-    let mut results = Vec::new();
-
-    let mut set_seed = MailboxReq::SetPqSeed(SetPqSeedReq {
-        hdr: MailboxReqHeader { chksum: 0 },
-        seed: [0x5a; SET_PQ_SEED_SEED_SIZE],
-    });
-    set_seed.populate_chksum().unwrap();
-    sampler.before(model);
-    let _ = model.mailbox_execute(
-        u32::from(CommandId::SET_PQ_SEED),
-        set_seed.as_bytes().unwrap(),
-    );
-    results.push(("SET_PQ_SEED", sampler.after(model) as u32));
-
-    let payload = MailboxReqHeader {
-        chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::GET_PQ_CSR), &[]),
-    };
-    sampler.before(model);
-    let _ = model.mailbox_execute(u32::from(CommandId::GET_PQ_CSR), payload.as_bytes());
-    results.push(("GET_PQ_CSR", sampler.after(model) as u32));
-
-    results
-}
-
 #[test]
 fn measure_runtime_command_stack_usage() {
     #[cfg(feature = "mldsa_attestation")]
@@ -108,9 +77,14 @@ fn measure_runtime_command_stack_usage() {
 
     let mut results: Vec<(&'static str, u32)> = Vec::new();
 
-    // Measure the PQC commands first so GET_PQ_CSR runs with PQC mode enabled.
+    // Measure the PQC commands first so GET_PQ_CSR / CERTIFY_KEY_EXTENDED_MLDSA87
+    // run with PQC mode enabled and before the side-effecting suite tail.
     #[cfg(feature = "mldsa_attestation")]
-    results.extend(measure_pqc_commands(&mut model));
+    results.extend(
+        run_pqc_command_suite(&mut model, &mut StackSampler)
+            .into_iter()
+            .map(|(name, v)| (name, v as u32)),
+    );
 
     results.extend(
         run_command_suite(&mut model, &mut StackSampler)
