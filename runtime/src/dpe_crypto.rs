@@ -24,6 +24,7 @@ use caliptra_drivers::{
 };
 use caliptra_error::CaliptraResult;
 use constant_time_eq::constant_time_eq;
+use core::marker::PhantomData;
 use crypto::{
     ecdsa::{
         curve_384::{EcdsaPub384, EcdsaSignature384},
@@ -56,12 +57,23 @@ enum Cdi {
     Mldsa(Zeroizing<Array4x12>),
 }
 
+/// The crypto engines a [`DpeCrypto`] borrows from `Drivers`, bundled so it can be
+/// stored as a single field. Each member is still a distinct borrow, split from
+/// `Drivers` at the call site — this preserves the disjoint borrows that let the
+/// DPE env hold crypto, platform, and state at once. `sha384` is held as its
+/// running `DpeHasher` (the DPE `hasher()` op). (ML-DSA signs in software, so its
+/// constructor ignores `ecc384`.)
+pub struct CryptoEngines<'a> {
+    pub hasher: DpeHasher<'a>,
+    pub trng: &'a mut Trng,
+    pub ecc384: &'a mut Ecc384,
+    pub hmac384: &'a mut Hmac384,
+    pub key_vault: &'a mut KeyVault,
+}
+
 pub struct DpeCrypto<'a> {
-    trng: &'a mut Trng,
-    hmac384: &'a mut Hmac384,
-    key_vault: &'a mut KeyVault,
+    engines: CryptoEngines<'a>,
     signer: Signer<'a>,
-    hasher: DpeHasher<'a>,
     cdi: Option<Cdi>,
     derived_key: Option<DerivedKey>,
     rt_cdi: Cdi,
@@ -69,28 +81,20 @@ pub struct DpeCrypto<'a> {
 }
 
 impl<'a> DpeCrypto<'a> {
-    #[allow(clippy::too_many_arguments)]
     pub fn new_ec(
-        sha384: &'a mut Sha384,
-        trng: &'a mut Trng,
-        ecc384: &'a mut Ecc384,
-        hmac384: &'a mut Hmac384,
-        key_vault: &'a mut KeyVault,
+        engines: CryptoEngines<'a>,
         rt_pub_key: PubKey,
         key_id_rt_cdi: KeyId,
         key_id_rt_priv_key: KeyId,
         exported_cdi_slots: &'a mut ExportedCdiHandles,
     ) -> CaliptraResult<Self> {
         Ok(Self {
-            trng,
-            hmac384,
-            key_vault,
+            engines,
             signer: Signer::Ec {
-                ecc384,
                 rt_pub_key,
                 rt_priv_key: key_id_rt_priv_key,
+                _marker: PhantomData,
             },
-            hasher: DpeHasher::new(sha384)?,
             cdi: None,
             derived_key: None,
             rt_cdi: Cdi::Ec(key_id_rt_cdi),
@@ -98,23 +102,16 @@ impl<'a> DpeCrypto<'a> {
         })
     }
 
-    #[allow(clippy::too_many_arguments)]
     #[cfg(feature = "mldsa_attestation")]
     pub fn new_mldsa87(
-        sha384: &'a mut Sha384,
-        trng: &'a mut Trng,
-        hmac384: &'a mut Hmac384,
-        key_vault: &'a mut KeyVault,
+        engines: CryptoEngines<'a>,
         root_cdi: Zeroizing<PqDevIdCdi>,
         exported_cdi_slots: &'a mut ExportedCdiHandles,
         exported_cdi_slot: &'a mut MldsaExportedCdiEntry,
     ) -> CaliptraResult<Self> {
         Ok(Self {
-            trng,
-            hmac384,
-            key_vault,
+            engines,
             signer: Signer::Mldsa { exported_cdi_slot },
-            hasher: DpeHasher::new(sha384)?,
             cdi: None,
             derived_key: None,
             rt_cdi: Cdi::Mldsa(Zeroizing::new(Array4x12::from(&*root_cdi))),
@@ -135,11 +132,11 @@ impl<'a> DpeCrypto<'a> {
     ) -> Result<(), CryptoError> {
         let context = self.hash_all(&[&measurement.as_slice(), &info])?;
         hmac384_kdf(
-            self.hmac384,
+            self.engines.hmac384,
             key,
             b"derive_cdi",
             Some(context.as_slice()),
-            self.trng,
+            self.engines.trng,
             output,
         )
         .map_err(|e| CryptoError::CryptoLibError(u32::from(e)))
@@ -206,11 +203,11 @@ impl<'a> DpeCrypto<'a> {
     ) -> Result<(), CryptoError> {
         let mut output = Zeroizing::new(Array4x12::default());
         hmac384_kdf(
-            self.hmac384,
+            self.engines.hmac384,
             cdi_key,
             label,
             Some(info),
-            self.trng,
+            self.engines.trng,
             (&mut *output).into(),
         )
         .map_err(|e| CryptoError::CryptoLibError(u32::from(e)))?;
@@ -231,23 +228,25 @@ impl<'a> DpeCrypto<'a> {
         let mut usage: KeyUsage = KeyUsage::default();
         let usage = usage.set_ecc_key_gen_seed_en();
 
-        match &mut self.signer {
-            Signer::Ec { ecc384, .. } => {
+        match &self.signer {
+            Signer::Ec { .. } => {
                 hmac384_kdf(
-                    self.hmac384,
+                    self.engines.hmac384,
                     KeyReadArgs::new(*cdi).into(),
                     label,
                     Some(info),
-                    self.trng,
+                    self.engines.trng,
                     KeyWriteArgs::new(KEY_ID_TMP, usage).into(),
                 )
                 .map_err(|e| CryptoError::CryptoLibError(u32::from(e)))?;
 
-                let pub_key = ecc384
+                let pub_key = self
+                    .engines
+                    .ecc384
                     .key_pair(
                         &Ecc384Seed::Key(KeyReadArgs::new(KEY_ID_TMP)),
                         &Array4x12::default(),
-                        self.trng,
+                        self.engines.trng,
                         KeyWriteArgs::new(key_id, KeyUsage::default().set_ecc_private_key_en())
                             .into(),
                     )
@@ -314,28 +313,19 @@ impl<'a> DpeCrypto<'a> {
     }
 
     fn sign_helper_ec(
-        signer: &mut Signer,
-        hasher: &mut DpeHasher,
-        trng: &mut Trng,
+        engines: &mut CryptoEngines,
         data: &SignData,
-        key_pair: Option<(&PubKey, &KeyId)>,
+        pub_key: &PubKey,
+        priv_key: &KeyId,
     ) -> Result<Signature, CryptoError> {
-        match (signer, key_pair) {
-            (Signer::Ec { ecc384, .. }, Some((pub_key, priv_key))) => {
-                Self::sign_ec(ecc384, hasher.driver(), trng, data, priv_key, pub_key)
-            }
-            (
-                Signer::Ec {
-                    ecc384,
-                    rt_pub_key,
-                    rt_priv_key,
-                    ..
-                },
-                None,
-            ) => Self::sign_ec(ecc384, hasher.driver(), trng, data, rt_priv_key, rt_pub_key),
-            #[cfg(feature = "mldsa_attestation")]
-            _ => Err(CryptoError::MismatchedAlgorithm),
-        }
+        Self::sign_ec(
+            engines.ecc384,
+            engines.hasher.driver(),
+            engines.trng,
+            data,
+            priv_key,
+            pub_key,
+        )
     }
 
     #[cfg(feature = "mldsa_attestation")]
@@ -380,9 +370,9 @@ impl DigestType for DpeCrypto<'_> {
 
 impl Drop for DpeCrypto<'_> {
     fn drop(&mut self) {
-        let _ = self.key_vault.erase_key(KEY_ID_DPE_CDI);
-        let _ = self.key_vault.erase_key(KEY_ID_DPE_PRIV_KEY);
-        let _ = self.key_vault.erase_key(KEY_ID_TMP);
+        let _ = self.engines.key_vault.erase_key(KEY_ID_DPE_CDI);
+        let _ = self.engines.key_vault.erase_key(KEY_ID_DPE_PRIV_KEY);
+        let _ = self.engines.key_vault.erase_key(KEY_ID_TMP);
     }
 }
 
@@ -390,7 +380,8 @@ impl Crypto for DpeCrypto<'_> {
     fn rand_bytes(&mut self, dst: &mut [u8]) -> Result<(), CryptoError> {
         for chunk in dst.chunks_mut(48) {
             let trng_bytes = <[u8; 48]>::from(
-                self.trng
+                self.engines
+                    .trng
                     .generate()
                     .map_err(|e| CryptoError::CryptoLibError(u32::from(e)))?,
             );
@@ -400,7 +391,7 @@ impl Crypto for DpeCrypto<'_> {
     }
 
     fn hasher(&mut self) -> Result<&mut dyn Hasher, CryptoError> {
-        Ok(&mut self.hasher)
+        Ok(&mut self.engines.hasher)
     }
 
     #[cfg_attr(feature = "cfi", cfi_impl_fn)]
@@ -554,10 +545,12 @@ impl Crypto for DpeCrypto<'_> {
     }
 
     fn sign_with_alias(&mut self, data: &SignData) -> Result<Signature, CryptoError> {
-        match self.signer {
-            Signer::Ec { .. } => {
-                Self::sign_helper_ec(&mut self.signer, &mut self.hasher, self.trng, data, None)
-            }
+        match &self.signer {
+            Signer::Ec {
+                rt_pub_key,
+                rt_priv_key,
+                ..
+            } => Self::sign_helper_ec(&mut self.engines, data, rt_pub_key, rt_priv_key),
 
             #[cfg(feature = "mldsa_attestation")]
             Signer::Mldsa { .. } => {
@@ -566,8 +559,13 @@ impl Crypto for DpeCrypto<'_> {
                     _ => return Err(CryptoError::MismatchedAlgorithm),
                 };
                 let mut seed = Mldsa87Seed::default();
-                dice::derive_devid_seed(&((*cdi).into()), &mut seed, self.hmac384, self.trng)
-                    .map_err(|e| CryptoError::CryptoLibError(u32::from(e)))?;
+                dice::derive_devid_seed(
+                    &((*cdi).into()),
+                    &mut seed,
+                    self.engines.hmac384,
+                    self.engines.trng,
+                )
+                .map_err(|e| CryptoError::CryptoLibError(u32::from(e)))?;
                 Self::sign_helper_mldsa(data, &seed)
             }
         }
@@ -624,13 +622,7 @@ impl crypto::Signer for DpeCrypto<'_> {
                 let Some(DerivedKey::Ec((priv_key, pub_key))) = &self.derived_key else {
                     return Err(CryptoError::CryptoLibError(3));
                 };
-                Self::sign_helper_ec(
-                    &mut self.signer,
-                    &mut self.hasher,
-                    self.trng,
-                    data,
-                    Some((pub_key, priv_key)),
-                )
+                Self::sign_helper_ec(&mut self.engines, data, pub_key, priv_key)
             }
 
             #[cfg(feature = "mldsa_attestation")]
@@ -662,9 +654,11 @@ impl crypto::Signer for DpeCrypto<'_> {
 #[allow(clippy::large_enum_variant)]
 enum Signer<'a> {
     Ec {
-        ecc384: &'a mut Ecc384,
         rt_pub_key: PubKey,
         rt_priv_key: KeyId,
+        // The ECC engine lives in `DpeCrypto::engines`; this keeps `'a` used when
+        // the ML-DSA variant (the only other `'a` borrow) is compiled out.
+        _marker: PhantomData<&'a ()>,
     },
     #[cfg(feature = "mldsa_attestation")]
     Mldsa {
