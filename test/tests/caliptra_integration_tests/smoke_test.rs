@@ -421,6 +421,8 @@ fn smoke_test() {
                 String::from_utf8_lossy(&fmc_alias_cert.to_text().unwrap())
             );
 
+            let owner_pk_in_fuses = (fuses.owner_pk_hash != [0u32; 12]) && !hw.subsystem_mode();
+
             let mut hasher = Sha384::new();
             hasher.update(&[security_state.device_lifecycle() as u8]);
             hasher.update(&[security_state.debug_locked() as u8]);
@@ -428,7 +430,7 @@ fn smoke_test() {
             hasher.update(/*vendor_ecc_pk_index=*/ &[0u8]); // No keys are revoked
             hasher.update(&[image.manifest.header.vendor_pqc_pub_key_idx as u8]);
             hasher.update(&[image.manifest.pqc_key_type]);
-            hasher.update(&[true as u8]);
+            hasher.update(&[owner_pk_in_fuses as u8]);
             hasher.update(vendor_pk_desc_hash.as_bytes());
             hasher.update(&owner_pk_hash);
             let device_info_hash = hasher.finish();
@@ -476,7 +478,7 @@ fn smoke_test() {
                     fuse_anti_rollback_disable: false,
                     vendor_pub_key_hash: vendor_pk_desc_hash_words,
                     owner_pub_key_hash: owner_pk_hash_words,
-                    owner_pub_key_hash_from_fuses: true,
+                    owner_pub_key_hash_from_fuses: owner_pk_in_fuses,
                     ecc_vendor_pub_key_index: image.manifest.preamble.vendor_ecc_pub_key_idx,
                     fmc_digest: image.manifest.fmc.digest,
                     cold_boot_fw_svn: image.manifest.header.svn,
