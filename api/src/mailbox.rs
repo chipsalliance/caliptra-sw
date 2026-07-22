@@ -208,6 +208,10 @@ impl CommandId {
     pub const PRODUCTION_AUTH_DEBUG_UNLOCK_REQ: Self = Self(0x50445552); // "PDUR"
     pub const PRODUCTION_AUTH_DEBUG_UNLOCK_TOKEN: Self = Self(0x50445554); // "PDUT"
 
+    // Vendor-unique command authentication (per-command challenge/response).
+    pub const VENDOR_AUTH_HELLO: Self = Self(0x5641484C); // "VAHL" - request a one-time nonce
+    pub const VENDOR_AUTH_CHALLENGE: Self = Self(0x56414348); // "VACH" - submit signed challenge
+
     // Image metadata commands
     pub const GET_IMAGE_INFO: Self = Self(0x494D_4530); // "IME0"
 
@@ -425,6 +429,8 @@ pub enum MailboxResp {
     CmAesGcmDecryptDma(CmAesGcmDecryptDmaResp),
     GetMcuFwSize(GetMcuFwSizeResp),
     ProductionAuthDebugUnlockChallenge(ProductionAuthDebugUnlockChallenge),
+    VendorAuthHello(VendorAuthHelloResp),
+    VendorAuthChallenge(VendorAuthChallengeResp),
     GetPcrLog(GetPcrLogResp),
     ReallocateDpeContextLimits(ReallocateDpeContextLimitsResp),
     OcpLockReportHekMetadata(OcpLockReportHekMetadataResp),
@@ -514,6 +520,8 @@ impl MailboxResp {
             MailboxResp::CmAesGcmDecryptDma(resp) => Ok(resp.as_bytes()),
             MailboxResp::GetMcuFwSize(resp) => Ok(resp.as_bytes()),
             MailboxResp::ProductionAuthDebugUnlockChallenge(resp) => Ok(resp.as_bytes()),
+            MailboxResp::VendorAuthHello(resp) => Ok(resp.as_bytes()),
+            MailboxResp::VendorAuthChallenge(resp) => Ok(resp.as_bytes()),
             MailboxResp::GetPcrLog(resp) => Ok(resp.as_bytes()),
             MailboxResp::ReallocateDpeContextLimits(resp) => Ok(resp.as_bytes()),
             MailboxResp::OcpLockReportHekMetadata(resp) => Ok(resp.as_bytes()),
@@ -601,6 +609,8 @@ impl MailboxResp {
             MailboxResp::CmAesGcmDecryptDma(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::GetMcuFwSize(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::ProductionAuthDebugUnlockChallenge(resp) => Ok(resp.as_mut_bytes()),
+            MailboxResp::VendorAuthHello(resp) => Ok(resp.as_mut_bytes()),
+            MailboxResp::VendorAuthChallenge(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::GetPcrLog(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::ReallocateDpeContextLimits(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::OcpLockReportHekMetadata(resp) => Ok(resp.as_mut_bytes()),
@@ -771,6 +781,8 @@ pub enum MailboxReq {
     OcpLockTestAccessKey(OcpLockTestAccessKeyReq),
     ProductionAuthDebugUnlockReq(ProductionAuthDebugUnlockReq),
     ProductionAuthDebugUnlockToken(ProductionAuthDebugUnlockToken),
+    VendorAuthHello(VendorAuthHelloReq),
+    VendorAuthChallenge(VendorAuthChallengeReq),
     GetPcrLog(MailboxReqHeader),
     ExternalMailboxCmd(ExternalMailboxCmdReq),
     FeProg(FeProgReq),
@@ -880,6 +892,8 @@ impl MailboxReq {
             MailboxReq::OcpLockTestAccessKey(req) => Ok(req.as_bytes()),
             MailboxReq::ProductionAuthDebugUnlockReq(req) => Ok(req.as_bytes()),
             MailboxReq::ProductionAuthDebugUnlockToken(req) => Ok(req.as_bytes()),
+            MailboxReq::VendorAuthHello(req) => Ok(req.as_bytes()),
+            MailboxReq::VendorAuthChallenge(req) => Ok(req.as_bytes()),
             MailboxReq::GetPcrLog(req) => Ok(req.as_bytes()),
             MailboxReq::ExternalMailboxCmd(req) => Ok(req.as_bytes()),
             MailboxReq::FeProg(req) => Ok(req.as_bytes()),
@@ -987,6 +1001,8 @@ impl MailboxReq {
             MailboxReq::OcpLockTestAccessKey(req) => Ok(req.as_mut_bytes()),
             MailboxReq::ProductionAuthDebugUnlockReq(req) => Ok(req.as_mut_bytes()),
             MailboxReq::ProductionAuthDebugUnlockToken(req) => Ok(req.as_mut_bytes()),
+            MailboxReq::VendorAuthHello(req) => Ok(req.as_mut_bytes()),
+            MailboxReq::VendorAuthChallenge(req) => Ok(req.as_mut_bytes()),
             MailboxReq::GetPcrLog(req) => Ok(req.as_mut_bytes()),
             MailboxReq::ExternalMailboxCmd(req) => Ok(req.as_mut_bytes()),
             MailboxReq::FeProg(req) => Ok(req.as_mut_bytes()),
@@ -1087,6 +1103,8 @@ impl MailboxReq {
             MailboxReq::ProductionAuthDebugUnlockToken(_) => {
                 CommandId::PRODUCTION_AUTH_DEBUG_UNLOCK_TOKEN
             }
+            MailboxReq::VendorAuthHello(_) => CommandId::VENDOR_AUTH_HELLO,
+            MailboxReq::VendorAuthChallenge(_) => CommandId::VENDOR_AUTH_CHALLENGE,
             MailboxReq::ExternalMailboxCmd(_) => CommandId::EXTERNAL_MAILBOX_CMD,
             MailboxReq::ReallocateDpeContextLimits(_) => CommandId::REALLOCATE_DPE_CONTEXT_LIMITS,
             MailboxReq::OcpLockReportHekMetadata(_) => CommandId::OCP_LOCK_REPORT_HEK_METADATA,
@@ -2748,6 +2766,97 @@ impl Request for ProductionAuthDebugUnlockToken {
     const ID: CommandId = CommandId::PRODUCTION_AUTH_DEBUG_UNLOCK_TOKEN; // TODO
     type Resp = MailboxRespHeader; // TODO Check
 }
+
+/// Size (bytes) of the vendor-command-auth one-time nonce (TRNG Array4x12 = 48 bytes).
+pub const VENDOR_AUTH_NONCE_SIZE: usize = 48;
+
+// VENDOR_AUTH_HELLO — request a fresh one-time nonce for vendor-command auth.
+#[repr(C)]
+#[derive(Debug, FromBytes, Immutable, IntoBytes, KnownLayout, PartialEq, Eq, Default)]
+pub struct VendorAuthHelloReq {
+    pub hdr: MailboxReqHeader,
+}
+impl Request for VendorAuthHelloReq {
+    const ID: CommandId = CommandId::VENDOR_AUTH_HELLO;
+    type Resp = VendorAuthHelloResp;
+}
+
+// VENDOR_AUTH_HELLO response — carries the 48-byte one-time nonce (Caliptra-minted).
+#[repr(C)]
+#[derive(Debug, FromBytes, Immutable, IntoBytes, KnownLayout, PartialEq, Eq, Clone)]
+pub struct VendorAuthHelloResp {
+    pub hdr: MailboxRespHeader,
+    pub challenge: [u8; 48],
+}
+impl Default for VendorAuthHelloResp {
+    fn default() -> Self {
+        Self {
+            hdr: Default::default(),
+            challenge: [0; 48],
+        }
+    }
+}
+impl Response for VendorAuthHelloResp {}
+
+// VENDOR_AUTH_CHALLENGE — submit vendor command-auth pubkeys + hybrid signatures over
+// `cmd_id ‖ body_hash ‖ nonce`. Field order/sizes mirror ProductionAuthDebugUnlockToken.
+#[repr(C)]
+#[derive(Debug, FromBytes, Immutable, IntoBytes, KnownLayout, PartialEq, Eq)]
+pub struct VendorAuthChallengeReq {
+    pub hdr: MailboxReqHeader,
+    /// Command being authorized (the vendor-unique command id).
+    pub cmd_id: u32,
+    /// SHA-384 of the command body being authorized (bound to prevent substitution).
+    pub body_hash: [u8; 48],
+    /// The one-time nonce returned by VENDOR_AUTH_HELLO.
+    pub challenge: [u8; 48],
+    /// Vendor command-auth ECC P-384 public key — see runtime/README.md#byte-order-of-cryptographic-fields
+    pub ecc_public_key: [u32; 24],
+    /// Vendor command-auth ML-DSA-87 public key — see runtime/README.md#byte-order-of-cryptographic-fields
+    pub mldsa_public_key: [u32; 648],
+    /// ECC P-384 signature (R ‖ S) over SHA-384(cmd_id ‖ body_hash ‖ nonce).
+    pub ecc_signature: [u32; 24],
+    /// ML-DSA-87 signature over SHA-512(cmd_id ‖ body_hash ‖ nonce).
+    pub mldsa_signature: [u32; 1157],
+}
+impl Default for VendorAuthChallengeReq {
+    fn default() -> Self {
+        Self {
+            hdr: Default::default(),
+            cmd_id: 0,
+            body_hash: [0; 48],
+            challenge: [0; 48],
+            ecc_public_key: [0; 24],
+            mldsa_public_key: [0; 648],
+            ecc_signature: [0; 24],
+            mldsa_signature: [0; 1157],
+        }
+    }
+}
+impl Request for VendorAuthChallengeReq {
+    const ID: CommandId = CommandId::VENDOR_AUTH_CHALLENGE;
+    type Resp = VendorAuthChallengeResp;
+}
+
+// VENDOR_AUTH_CHALLENGE response — echoes (cmd_id, body_hash) so the relaying agent can bind
+// the authorization to the exact command it will execute (verify/execute TOCTOU binding).
+#[repr(C)]
+#[derive(Debug, FromBytes, Immutable, IntoBytes, KnownLayout, PartialEq, Eq, Clone)]
+pub struct VendorAuthChallengeResp {
+    pub hdr: MailboxRespHeader,
+    pub cmd_id: u32,
+    pub body_hash: [u8; 48],
+}
+impl Default for VendorAuthChallengeResp {
+    fn default() -> Self {
+        Self {
+            hdr: Default::default(),
+            cmd_id: 0,
+            body_hash: [0; 48],
+        }
+    }
+}
+impl Response for VendorAuthChallengeResp {}
 
 // EXTERNAL_MAILBOX_CMD
 #[repr(C)]

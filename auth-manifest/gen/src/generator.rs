@@ -56,6 +56,25 @@ impl<Crypto: ImageGeneratorCrypto> AuthManifestGenerator<Crypto> {
         auth_manifest.preamble.svn = config.svn;
         auth_manifest.preamble.flags = config.flags.bits();
 
+        // Populate Vendor Ext BEFORE signing so the vendor signature covers it. Emit the
+        // 0x0001 command-auth PK-hash record when provided.
+        if let Some(pk_hash) = config.vendor_cmd_auth_pk_hash {
+            let mut off = 0usize;
+            // id (u16 LE)
+            auth_manifest.preamble.vendor_ext.0[off..off + 2]
+                .copy_from_slice(&VENDOR_EXT_ID_AUTH_PK_HASH.to_le_bytes());
+            off += 2;
+            // len (u16 LE)
+            auth_manifest.preamble.vendor_ext.0[off..off + 2]
+                .copy_from_slice(&(VENDOR_EXT_AUTH_PK_HASH_LEN as u16).to_le_bytes());
+            off += 2;
+            // value (48 B)
+            auth_manifest.preamble.vendor_ext.0[off..off + VENDOR_EXT_AUTH_PK_HASH_LEN]
+                .copy_from_slice(&pk_hash);
+            off += VENDOR_EXT_AUTH_PK_HASH_LEN;
+            auth_manifest.preamble.vendor_ext_size = off as u32;
+        }
+
         // Sign the vendor manifest public keys.
         if let Some(vendor_man_config) = &config.vendor_man_key_info {
             auth_manifest.preamble.vendor_pub_keys.ecc_pub_key =
@@ -265,5 +284,32 @@ impl<Crypto: ImageGeneratorCrypto> AuthManifestGenerator<Crypto> {
         }
 
         Ok(auth_manifest)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::default_test_manifest::{
+        default_test_soc_manifest, DEFAULT_MCU_FW, DEFAULT_TEST_VENDOR_CMD_AUTH_PK_HASH,
+    };
+    use caliptra_auth_man_types::AUTH_MANIFEST_VERSION_V2;
+    use caliptra_image_crypto::RustCrypto;
+    use caliptra_image_types::FwVerificationPqcKeyType;
+
+    #[test]
+    fn test_default_manifest_emits_v2_vendor_ext() {
+        let manifest = default_test_soc_manifest(
+            &DEFAULT_MCU_FW,
+            FwVerificationPqcKeyType::MLDSA,
+            1,
+            RustCrypto::default(),
+        );
+        // Generator emitted a v2 manifest.
+        assert_eq!(manifest.preamble.version, AUTH_MANIFEST_VERSION_V2);
+        // The 0x0001 command-auth PK-hash round-trips out of the signed Vendor Ext.
+        assert_eq!(
+            manifest.preamble.vendor_ext_auth_pk_hash(),
+            Some(DEFAULT_TEST_VENDOR_CMD_AUTH_PK_HASH)
+        );
     }
 }

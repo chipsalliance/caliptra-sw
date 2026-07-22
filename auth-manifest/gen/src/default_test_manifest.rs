@@ -3,8 +3,13 @@
 use crate::{AuthManifestGenerator, AuthManifestGeneratorConfig, AuthManifestGeneratorKeyConfig};
 use caliptra_auth_man_types::{
     AuthManifestFlags, AuthManifestImageMetadata, AuthManifestPrivKeysConfig,
-    AuthManifestPubKeysConfig, AuthorizationManifest, ImageMetadataFlags,
+    AuthManifestPubKeysConfig, AuthorizationManifest, ImageMetadataFlags, AUTH_MANIFEST_VERSION_V2,
+    VENDOR_EXT_AUTH_PK_HASH_LEN,
 };
+
+/// Fixed vendor-command-auth PK-hash used by the default test manifest (v2 Vendor Ext 0x0001).
+pub const DEFAULT_TEST_VENDOR_CMD_AUTH_PK_HASH: [u8; VENDOR_EXT_AUTH_PK_HASH_LEN] =
+    [0xA5; VENDOR_EXT_AUTH_PK_HASH_LEN];
 use caliptra_image_fake_keys::*;
 use caliptra_image_gen::{from_hw_format, ImageGeneratorCrypto};
 use caliptra_image_types::FwVerificationPqcKeyType;
@@ -155,14 +160,43 @@ pub fn create_test_auth_manifest_with_config<C: ImageGeneratorCrypto>(
         owner_fw_key_info: Some(default_test_owner_fw_key_info()),
         owner_man_key_info: Some(default_test_owner_man_key_info()),
         image_metadata_list,
-        version: 1,
+        version: AUTH_MANIFEST_VERSION_V2,
         flags,
         pqc_key_type,
         svn,
+        vendor_cmd_auth_pk_hash: Some(DEFAULT_TEST_VENDOR_CMD_AUTH_PK_HASH),
     };
 
     let gen = AuthManifestGenerator::new(crypto);
     gen.generate(&gen_config).unwrap()
+}
+
+/// Like `create_test_auth_manifest_with_config` but with a caller-supplied vendor-command-auth
+/// PK-hash (0x0001 record). Used by end-to-end VENDOR_AUTH_CHALLENGE tests that sign with real
+/// keys. `pk_hash` is the raw 48-byte SHA-384(ecc_pub_hw ‖ mldsa_pub_hw) digest (no per-word
+/// reversal): VENDOR_AUTH_CHALLENGE reconstructs the same digest and compares it word-level.
+pub fn create_test_auth_manifest_with_vendor_cmd_hash<C: ImageGeneratorCrypto>(
+    image_metadata_list: Vec<AuthManifestImageMetadata>,
+    pqc_key_type: FwVerificationPqcKeyType,
+    svn: u32,
+    vendor_cmd_auth_pk_hash: [u8; VENDOR_EXT_AUTH_PK_HASH_LEN],
+    crypto: C,
+) -> AuthorizationManifest {
+    let gen_config = AuthManifestGeneratorConfig {
+        vendor_fw_key_info: Some(default_test_vendor_fw_key_info()),
+        vendor_man_key_info: Some(default_test_vendor_man_key_info()),
+        owner_fw_key_info: Some(default_test_owner_fw_key_info()),
+        owner_man_key_info: Some(default_test_owner_man_key_info()),
+        image_metadata_list,
+        version: AUTH_MANIFEST_VERSION_V2,
+        flags: AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED,
+        pqc_key_type,
+        svn,
+        vendor_cmd_auth_pk_hash: Some(vendor_cmd_auth_pk_hash),
+    };
+    AuthManifestGenerator::new(crypto)
+        .generate(&gen_config)
+        .unwrap()
 }
 
 /// Create a test authorization manifest with custom metadata.

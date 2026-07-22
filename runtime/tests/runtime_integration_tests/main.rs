@@ -41,4 +41,5 @@ mod test_sign_with_export_mldsa;
 mod test_stash_measurement;
 mod test_tagging;
 mod test_update_reset;
+mod test_vendor_auth;
 mod test_warm_reset;
