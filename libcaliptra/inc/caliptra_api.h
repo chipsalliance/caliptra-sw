@@ -233,6 +233,32 @@ int caliptra_sign_with_exported_ecdsa(struct caliptra_sign_with_exported_ecdsa_r
 // Revoke Exported CDI Handle
 int caliptra_revoke_exported_cdi_handle(struct caliptra_revoke_exported_cdi_handle_req *req, bool async);
 
+// PQC / ML-DSA-87 commands
+
+// Set PQ Seed (provision the PQ.DevID ML-DSA seed)
+int caliptra_set_pq_seed(struct caliptra_set_pq_seed_req *req, bool async);
+
+// Get PQ CSR (ML-DSA IDevID CSR)
+int caliptra_get_pq_csr(struct caliptra_get_pq_csr_resp *resp, bool async);
+
+// Get PQ Info (ML-DSA IDevID public key)
+int caliptra_get_pq_info(struct caliptra_get_pq_info_resp *resp, bool async);
+
+// Get PQ Cert (build ML-DSA IDevID cert from caller TBS + signature)
+int caliptra_get_pq_cert(struct caliptra_get_pq_cert_req *req, struct caliptra_get_pq_cert_resp *resp, bool async);
+
+// Populate PQ Cert (store externally-signed PQ IDevID cert)
+int caliptra_populate_pq_cert(struct caliptra_populate_pq_cert_req *req, bool async);
+
+// Certify Key Extended ML-DSA-87
+int caliptra_certify_key_extended_mldsa87(struct caliptra_certify_key_extended_mldsa87_req *req, struct caliptra_certify_key_extended_mldsa87_resp *resp, bool async);
+
+// Invoke DPE command (ML-DSA-87)
+int caliptra_invoke_dpe_mldsa87(struct caliptra_invoke_dpe_mldsa87_req *req, struct caliptra_invoke_dpe_mldsa87_resp *resp, bool async);
+
+// Sign with Exported ML-DSA
+int caliptra_sign_with_exported_mldsa(struct caliptra_sign_with_exported_mldsa_req *req, struct caliptra_sign_with_exported_mldsa_resp *resp, bool async);
+
 // Self test start
 int caliptra_self_test_start(bool async);
 
