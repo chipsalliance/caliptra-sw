@@ -486,6 +486,13 @@ impl<TBus: Bus> Cpu<TBus> {
         self.csrs.write(csr, val)
     }
 
+    /// Returns true when the core is halted via the VeeR MPMC low-power CSR
+    /// (not the RISC-V `wfi` instruction, which this emulator treats as a
+    /// no-op).
+    pub fn read_halted(&self) -> bool {
+        self.halted
+    }
+
     /// Read from bus
     ///
     /// # Arguments
