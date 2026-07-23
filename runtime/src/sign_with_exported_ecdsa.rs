@@ -1,10 +1,6 @@
 // Licensed under the Apache-2.0 license
 
-use crate::{
-    dpe_crypto::{CryptoEngines, DpeCrypto},
-    Drivers, PauserPrivileges,
-};
-use caliptra_drivers::sha384::DpeHasher;
+use crate::{dpe_crypto::DpeCrypto, Drivers};
 
 use caliptra_cfi_derive::cfi_impl_fn;
 #[cfg(feature = "cfi")]
@@ -32,34 +28,17 @@ impl SignWithExportedEcdsaCmd {
         let mut cmd = SignWithExportedEcdsaReq::new_zeroed();
         crate::packet::copy_from_mbox(drivers, cmd.as_mut_bytes())?;
 
-        match drivers.caller_privilege_level() {
-            // SIGN_WITH_EXPORTED_ECDSA MUST only be called from PL0
-            PauserPrivileges::PL0 => (),
-            PauserPrivileges::PL1 => {
-                return Err(CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL);
-            }
-        }
+        // SIGN_WITH_EXPORTED_ECDSA MUST only be called from PL0
+        drivers.ensure_pl0()?;
 
-        let key_id_rt_cdi = Drivers::get_key_id_rt_cdi(drivers)?;
-        let key_id_rt_priv_key = Drivers::get_key_id_rt_priv_key(drivers)?;
         let pdata = drivers.persistent_data.get_mut();
-        let rt_pub_key = &mut pdata.fht.rt_dice_pub_key;
-        let rt_pub_key = PubKey::Ecdsa(EcdsaPubKey::Ecdsa384(EcdsaPub384::from_slice(
-            &rt_pub_key.x.into(),
-            &rt_pub_key.y.into(),
-        )));
-
-        let mut crypto = DpeCrypto::new_ec(
-            CryptoEngines {
-                hasher: DpeHasher::new(&mut drivers.sha384)?,
-                trng: &mut drivers.trng,
-                ecc384: &mut drivers.ecc384,
-                hmac384: &mut drivers.hmac384,
-                key_vault: &mut drivers.key_vault,
-            },
-            rt_pub_key,
-            key_id_rt_cdi,
-            key_id_rt_priv_key,
+        let mut crypto = crate::dpe_crypto::new_ec_dpe_crypto(
+            &mut drivers.sha384,
+            &mut drivers.trng,
+            &mut drivers.ecc384,
+            &mut drivers.hmac384,
+            &mut drivers.key_vault,
+            &pdata.fht,
             &mut pdata.exported_cdi_slots,
         )?;
 

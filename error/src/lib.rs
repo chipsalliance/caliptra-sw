@@ -1333,6 +1333,11 @@ impl CaliptraError {
             0x000E0070,
             "Runtime Error: SET_PQ_SEED rejected because attestation is disabled"
         ),
+        (
+            RUNTIME_PQ_INVALID_PUBKEY_DIGEST,
+            0x000E0071,
+            "Runtime Error: Invalid PQ.DevID Public Key Hash"
+        ),
         // FMC Errors
         (FMC_GLOBAL_NMI, 0x000F0001, "FMC Error: Global NMI"),
         (

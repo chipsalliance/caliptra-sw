@@ -1,6 +1,6 @@
 // Licensed under the Apache-2.0 license
 
-use crate::{Drivers, PauserPrivileges};
+use crate::Drivers;
 
 #[cfg(feature = "cfi")]
 use caliptra_cfi_derive::cfi_impl_fn;
@@ -24,13 +24,8 @@ impl RevokeExportedCdiHandleCmd {
         let mut cmd = RevokeExportedCdiHandleReq::new_zeroed();
         crate::packet::copy_from_mbox(drivers, cmd.as_mut_bytes())?;
 
-        match drivers.caller_privilege_level() {
-            // REVOKE_EXPORTED_CDI_HANDLE MUST only be called from PL0
-            PauserPrivileges::PL0 => (),
-            PauserPrivileges::PL1 => {
-                return Err(CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL);
-            }
-        }
+        // REVOKE_EXPORTED_CDI_HANDLE MUST only be called from PL0
+        drivers.ensure_pl0()?;
 
         for slot in drivers
             .persistent_data

@@ -12,7 +12,6 @@ Abstract:
 
 --*/
 
-use crate::PauserPrivileges;
 use arrayvec::ArrayVec;
 use caliptra_common::mailbox_api::{MailboxRespHeader, PopulateIdevCertReq};
 use caliptra_error::{CaliptraError, CaliptraResult};
@@ -33,9 +32,7 @@ impl PopulateIDevIdCertCmd {
         }
 
         // PL1 cannot call this mailbox command
-        if drivers.caller_privilege_level() != PauserPrivileges::PL0 {
-            Err(CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL)?
-        }
+        drivers.ensure_pl0()?;
 
         let mut tmp_chain = ArrayVec::<u8, MAX_CERT_CHAIN_SIZE>::new();
         tmp_chain
