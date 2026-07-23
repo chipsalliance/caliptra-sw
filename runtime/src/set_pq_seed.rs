@@ -16,6 +16,7 @@ use crate::{Drivers, PauserPrivileges};
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_common::mailbox_api::{MailboxRespHeader, SetPqSeedReq, SET_PQ_SEED_SEED_SIZE};
 use caliptra_drivers::{hmac384_kdf, Array4x12, CaliptraError, CaliptraResult};
+use crypto::{Digest, Sha256};
 use zerocopy::{FromZeros, IntoBytes};
 
 pub struct SetPqSeedCmd;
@@ -38,6 +39,17 @@ impl SetPqSeedCmd {
             .persistent_data
             .get_mut()
             .set_pq_devid_cdi(out.into())?;
+
+        // Calculate the digest of the PQ.DevID public key and cache it
+        // in the persistent data to avoid repeated key generation passes
+        // involved in DPE invocation.
+        let (_, _, Digest::Sha256(Sha256(digest))) = drivers.compute_mldsa_key_material()? else {
+            return Err(CaliptraError::RUNTIME_PQ_INVALID_PUBKEY_DIGEST);
+        };
+        drivers
+            .persistent_data
+            .get_mut()
+            .set_pq_devid_pub_key_digest(digest)?;
 
         crate::packet::copy_to_mbox(drivers, MailboxRespHeader::default().as_mut_bytes())
     }
