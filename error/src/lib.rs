@@ -1328,6 +1328,11 @@ impl CaliptraError {
             0x000E006F,
             "Runtime Error: Sign with Exported MLDSA Invalid Parameters"
         ),
+        (
+            RUNTIME_SET_PQ_SEED_ATTESTATION_DISABLED,
+            0x000E0070,
+            "Runtime Error: SET_PQ_SEED rejected because attestation is disabled"
+        ),
         // FMC Errors
         (FMC_GLOBAL_NMI, 0x000F0001, "FMC Error: Global NMI"),
         (
