@@ -492,16 +492,18 @@ impl Bus for SocRegistersInternal {
                 .modify(NotifGlobalIntr::AGG_STS.val(1));
         }
 
-        if regs.global_intr_en_r.reg.is_set(GlobalIntrEn::ERROR_EN)
-            && regs.error_intr_en_r.reg.get() & regs.error_internal_intr_r.reg.get() != 0
-        {
-            regs.err_irq.set_level(true);
-        }
-        if regs.global_intr_en_r.reg.is_set(GlobalIntrEn::NOTIF_EN)
-            && regs.notif_intr_en_r.reg.get() & regs.notif_internal_intr_r.reg.get() != 0
-        {
-            regs.notif_irq.set_level(true);
-        }
+        // Level interrupts: raise when an enabled status bit is pending, and
+        // (fix) LOWER when none remain. Without the else-branch the irq line
+        // latches high forever after the first event, so a core that halts
+        // (WFI/MPMC) waiting on this interrupt is immediately and perpetually
+        // re-woken -- breaking interrupt-driven idle / external descheduling.
+        let err_pending = regs.global_intr_en_r.reg.is_set(GlobalIntrEn::ERROR_EN)
+            && regs.error_intr_en_r.reg.get() & regs.error_internal_intr_r.reg.get() != 0;
+        regs.err_irq.set_level(err_pending);
+
+        let notif_pending = regs.global_intr_en_r.reg.is_set(GlobalIntrEn::NOTIF_EN)
+            && regs.notif_intr_en_r.reg.get() & regs.notif_internal_intr_r.reg.get() != 0;
+        regs.notif_irq.set_level(notif_pending);
     }
 
     fn warm_reset(&mut self) {
