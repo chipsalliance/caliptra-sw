@@ -20,6 +20,7 @@ use anyhow::Context;
 use caliptra_image_types::*;
 use serde_derive::Deserialize;
 use std::path::Path;
+use zerocopy::FromBytes;
 
 /// Image Generator Executable
 pub trait ImageGeneratorExecutable {
@@ -98,22 +99,107 @@ pub trait ImageGeneratorCrypto {
     /// Read ECC-384 Private Key from PEM file
     fn ecc_priv_key_from_pem(path: &Path) -> anyhow::Result<ImageEccPrivKey>;
 
-    /// Read MLDSA Public Key from file. Library format is same as hardware format.
+    /// Read MLDSA Public Key from file.
     fn mldsa_pub_key_from_file(path: &Path) -> anyhow::Result<ImageMldsaPubKey> {
         let key_bytes = std::fs::read(path)
             .with_context(|| format!("Failed to read public key file {}", path.display()))?;
+        if let Ok(pem_str) = core::str::from_utf8(&key_bytes) {
+            if pem_str.contains("-----BEGIN") {
+                let (_label, der) = p384::pkcs8::der::pem::decode_vec(pem_str.as_bytes())
+                    .map_err(|e| anyhow::anyhow!("PEM decode error: {:?}", e))?;
+                let spki = p384::pkcs8::SubjectPublicKeyInfoRef::try_from(der.as_slice()).map_err(
+                    |e| {
+                        anyhow::anyhow!("Failed to parse SPKI PEM file {}: {:?}", path.display(), e)
+                    },
+                )?;
+                return Ok(ImageMldsaPubKey(
+                    u8_to_u32_le(spki.subject_public_key.raw_bytes())
+                        .try_into()
+                        .unwrap(),
+                ));
+            }
+        }
         Ok(ImageMldsaPubKey(
             u8_to_u32_le(&key_bytes).try_into().unwrap(),
         ))
     }
 
-    /// Read MLDSA Private Key from file. Library format is same as hardware format.
+    /// Read MLDSA Private Key from file.
     fn mldsa_priv_key_from_file(path: &Path) -> anyhow::Result<ImageMldsaPrivKey> {
         let key_bytes = std::fs::read(path)
             .with_context(|| format!("Failed to read private key file {}", path.display()))?;
+        if let Ok(pem_str) = core::str::from_utf8(&key_bytes) {
+            if pem_str.contains("-----BEGIN") {
+                let (_label, der) = p384::pkcs8::der::pem::decode_vec(pem_str.as_bytes())
+                    .map_err(|e| anyhow::anyhow!("PEM decode error: {:?}", e))?;
+                let pki = p384::pkcs8::PrivateKeyInfo::try_from(der.as_slice()).map_err(|e| {
+                    anyhow::anyhow!("Failed to parse PKCS8 PEM file {}: {:?}", path.display(), e)
+                })?;
+                return Ok(ImageMldsaPrivKey(
+                    u8_to_u32_le(pki.private_key).try_into().unwrap(),
+                ));
+            }
+        }
         Ok(ImageMldsaPrivKey(
             u8_to_u32_le(&key_bytes).try_into().unwrap(),
         ))
+    }
+
+    /// Read LMS Public Key from file.
+    fn lms_pub_key_from_file(path: &Path) -> anyhow::Result<ImageLmsPublicKey> {
+        let key_bytes = std::fs::read(path)
+            .with_context(|| format!("Failed to read public key file {}", path.display()))?;
+        if let Ok(pem_str) = core::str::from_utf8(&key_bytes) {
+            if pem_str.contains("-----BEGIN") {
+                let (_label, der) = p384::pkcs8::der::pem::decode_vec(pem_str.as_bytes())
+                    .map_err(|e| anyhow::anyhow!("PEM decode error: {:?}", e))?;
+                let spki = p384::pkcs8::SubjectPublicKeyInfoRef::try_from(der.as_slice()).map_err(
+                    |e| {
+                        anyhow::anyhow!("Failed to parse SPKI PEM file {}: {:?}", path.display(), e)
+                    },
+                )?;
+                return ImageLmsPublicKey::read_from_bytes(spki.subject_public_key.raw_bytes())
+                    .map_err(|_| {
+                        anyhow::anyhow!(
+                            "Failed to parse LMS public key struct from {}",
+                            path.display()
+                        )
+                    });
+            }
+        }
+        ImageLmsPublicKey::read_from_bytes(&key_bytes).map_err(|_| {
+            anyhow::anyhow!(
+                "Failed to parse LMS public key struct from {}",
+                path.display()
+            )
+        })
+    }
+
+    /// Read LMS Private Key from file.
+    fn lms_priv_key_from_file(path: &Path) -> anyhow::Result<ImageLmsPrivKey> {
+        let key_bytes = std::fs::read(path)
+            .with_context(|| format!("Failed to read private key file {}", path.display()))?;
+        if let Ok(pem_str) = core::str::from_utf8(&key_bytes) {
+            if pem_str.contains("-----BEGIN") {
+                let (_label, der) = p384::pkcs8::der::pem::decode_vec(pem_str.as_bytes())
+                    .map_err(|e| anyhow::anyhow!("PEM decode error: {:?}", e))?;
+                let pki = p384::pkcs8::PrivateKeyInfo::try_from(der.as_slice()).map_err(|e| {
+                    anyhow::anyhow!("Failed to parse PKCS8 PEM file {}: {:?}", path.display(), e)
+                })?;
+                return ImageLmsPrivKey::read_from_bytes(pki.private_key).map_err(|_| {
+                    anyhow::anyhow!(
+                        "Failed to parse LMS private key struct from {}",
+                        path.display()
+                    )
+                });
+            }
+        }
+        ImageLmsPrivKey::read_from_bytes(&key_bytes).map_err(|_| {
+            anyhow::anyhow!(
+                "Failed to parse LMS private key struct from {}",
+                path.display()
+            )
+        })
     }
 }
 
@@ -140,7 +226,7 @@ pub fn u8_to_u32_le(input: &[u8]) -> Vec<u32> {
         .chunks(4)
         .map(|chunk| {
             let mut array = [0u8; 4];
-            array.copy_from_slice(chunk);
+            array[..chunk.len()].copy_from_slice(chunk);
             u32::from_le_bytes(array)
         })
         .collect()

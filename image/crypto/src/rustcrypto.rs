@@ -23,16 +23,14 @@ use caliptra_image_gen::{
 use caliptra_image_types::*;
 use caliptra_lms_types::{LmotsAlgorithmType, LmsAlgorithmType};
 
+use ecdsa::{elliptic_curve::sec1::ToEncodedPoint, signature::hazmat::PrehashSigner};
 use fips204::ml_dsa_87::{PrivateKey, PublicKey, SIG_LEN};
 use fips204::traits::{SerDes, Signer, Verifier};
+use p384::pkcs8::DecodePublicKey;
+use rand::{rngs::OsRng, RngCore};
+use sec1::DecodeEcPrivateKey;
+use sha2::{Digest, Sha256, Sha384, Sha512};
 use zerocopy::IntoBytes;
-use {
-    ecdsa::{elliptic_curve::sec1::ToEncodedPoint, signature::hazmat::PrehashSigner},
-    p384::pkcs8::DecodePublicKey,
-    rand::{rngs::OsRng, RngCore},
-    sec1::DecodeEcPrivateKey,
-    sha2::{Digest, Sha256, Sha384, Sha512},
-};
 
 use crate::{sign_with_lms_key, LmsKeyGen, Sha256Hasher, SUPPORTED_LMS_Q_VALUE};
 
