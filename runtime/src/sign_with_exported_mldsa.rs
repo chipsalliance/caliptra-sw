@@ -3,7 +3,7 @@
 use crate::sign_with_exported_ecdsa::{sign_exported, ExportedSignError};
 use crate::{
     dpe_crypto::{CryptoEngines, DpeCrypto},
-    Drivers, PauserPrivileges,
+    Drivers,
 };
 
 #[cfg(feature = "cfi")]
@@ -28,13 +28,8 @@ impl SignWithExportedMldsaCmd {
         let mut cmd = SignWithExportedMldsaReq::new_zeroed();
         crate::packet::copy_from_mbox(drivers, cmd.as_mut_bytes())?;
 
-        match drivers.caller_privilege_level() {
-            // SIGN_WITH_EXPORTED_MLDSA MUST only be called from PL0
-            PauserPrivileges::PL0 => (),
-            PauserPrivileges::PL1 => {
-                return Err(CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL);
-            }
-        }
+        // SIGN_WITH_EXPORTED_MLDSA MUST only be called from PL0
+        drivers.ensure_pl0()?;
 
         if cmd.message_size as usize > SignWithExportedMldsaReq::MAX_DATA_SIZE {
             return Err(CaliptraError::RUNTIME_SIGN_WITH_EXPORTED_MLDSA_INVALID_PARAMS);

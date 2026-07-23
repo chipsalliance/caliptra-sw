@@ -59,6 +59,7 @@ use authorize_and_stash::AuthorizeAndStashCmd;
 use caliptra_cfi_lib::{
     cfi_assert, cfi_assert_bool, cfi_assert_eq, cfi_assert_ne, cfi_launder, CfiCounter,
 };
+#[cfg(feature = "mldsa_attestation")]
 use caliptra_drivers::sha384::DpeHasher;
 pub use drivers::{Drivers, PauserPrivileges};
 use mailbox::Mailbox;
@@ -82,16 +83,13 @@ use crate::sign_with_exported_mldsa::SignWithExportedMldsaCmd;
 pub use crate::subject_alt_name::AddSubjectAltNameCmd;
 pub use authorize_and_stash::{IMAGE_AUTHORIZED, IMAGE_HASH_MISMATCH, IMAGE_NOT_AUTHORIZED};
 pub use caliptra_common::fips::FipsVersionCmd;
-use crypto::{
-    ecdsa::{curve_384::EcdsaPub384, EcdsaPubKey},
-    CryptoSuite, PubKey,
-};
+use crypto::CryptoSuite;
 #[cfg(feature = "mldsa_attestation")]
 use dice::PqCertCmd;
 pub use dice::{GetFmcAliasCertCmd, GetLdevCertCmd, IDevIdCertCmd};
 pub use disable::DisableAttestationCmd;
 pub use dpe::State;
-use dpe_crypto::{CryptoEngines, DpeCrypto};
+use dpe_crypto::DpeCrypto;
 pub use dpe_platform::{DpePlatform, VENDOR_ID, VENDOR_SKU};
 pub use fips::FipsShutdownCmd;
 #[cfg(feature = "fips_self_test")]
@@ -470,25 +468,14 @@ fn ec_dpe_env(
     ueid: Option<[u8; 17]>,
 ) -> CaliptraResult<CaliptraDpeEnv<'_>> {
     let hashed_rt_pub_key = drivers.compute_rt_alias_sn()?;
-    let key_id_rt_cdi = Drivers::get_key_id_rt_cdi(drivers)?;
-    let key_id_rt_priv_key = Drivers::get_key_id_rt_priv_key(drivers)?;
     let pdata = drivers.persistent_data.get_mut();
-    let rt_pub_key = pdata.fht.rt_dice_pub_key;
-    let rt_pub_key = PubKey::Ecdsa(EcdsaPubKey::Ecdsa384(EcdsaPub384::from_slice(
-        &rt_pub_key.x.into(),
-        &rt_pub_key.y.into(),
-    )));
-    let crypto = DpeCrypto::new_ec(
-        CryptoEngines {
-            hasher: DpeHasher::new(&mut drivers.sha384)?,
-            trng: &mut drivers.trng,
-            ecc384: &mut drivers.ecc384,
-            hmac384: &mut drivers.hmac384,
-            key_vault: &mut drivers.key_vault,
-        },
-        rt_pub_key,
-        key_id_rt_cdi,
-        key_id_rt_priv_key,
+    let crypto = crate::dpe_crypto::new_ec_dpe_crypto(
+        &mut drivers.sha384,
+        &mut drivers.trng,
+        &mut drivers.ecc384,
+        &mut drivers.hmac384,
+        &mut drivers.key_vault,
+        &pdata.fht,
         &mut pdata.exported_cdi_slots,
     )?;
     let pl0_pauser = pdata.manifest1.header.pl0_pauser;
@@ -520,7 +507,7 @@ fn mldsa_dpe_env(
     let pdata = drivers.persistent_data.get_mut();
     let pq_devid_cdi = pdata.pq_devid_cdi()?;
     let crypto = DpeCrypto::new_mldsa87(
-        CryptoEngines {
+        crate::dpe_crypto::CryptoEngines {
             hasher: DpeHasher::new(&mut drivers.sha384)?,
             trng: &mut drivers.trng,
             ecc384: &mut drivers.ecc384,
