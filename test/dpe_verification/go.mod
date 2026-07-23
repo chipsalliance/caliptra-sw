@@ -3,8 +3,8 @@ module dpe
 go 1.24.0
 
 require (
-	github.com/chipsalliance/caliptra-dpe/verification/client v0.0.0-20260706162234-e5809995fc7f
-	github.com/chipsalliance/caliptra-dpe/verification/testing v0.0.0-20260706162234-e5809995fc7f
+	github.com/chipsalliance/caliptra-dpe/verification/client v0.0.0-20260722175934-e84f4b9d2597
+	github.com/chipsalliance/caliptra-dpe/verification/testing v0.0.0-20260722175934-e84f4b9d2597
 )
 
 require (
