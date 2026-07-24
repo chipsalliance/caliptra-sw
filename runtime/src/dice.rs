@@ -153,20 +153,13 @@ impl GetRtAliasCertCmd {
 ///
 /// # Returns
 ///
-/// * `Ecc384Scalar` - The s portion of the LDevId cert signature
-fn get_dice_sign_portion(
-    handle: HandOffDataHandle,
-    dv: &DataVault,
-) -> CaliptraResult<Ecc384Scalar> {
-    let ds: DataStore = handle
-        .try_into()
-        .map_err(|_| CaliptraError::RUNTIME_FMC_CERT_HANDOFF_FAILED)?;
-
+/// * `Ecc384Scalar` - The r or s portion of the cert signature
+fn get_dice_sign_portion(handle: HandOffDataHandle, dv: &DataVault) -> Option<Ecc384Scalar> {
     // The data store is either a warm reset entry or a cold reset entry.
-    match ds {
-        DataStore::DataVaultNonSticky48(dv_entry) => Ok(dv.read_warm_reset_entry48(dv_entry)),
-        DataStore::DataVaultSticky48(dv_entry) => Ok(dv.read_cold_reset_entry48(dv_entry)),
-        _ => Err(CaliptraError::RUNTIME_FMC_CERT_HANDOFF_FAILED),
+    match handle.try_into() {
+        Ok(DataStore::DataVaultNonSticky48(dv_entry)) => Some(dv.read_warm_reset_entry48(dv_entry)),
+        Ok(DataStore::DataVaultSticky48(dv_entry)) => Some(dv.read_cold_reset_entry48(dv_entry)),
+        _ => None,
     }
 }
 
@@ -185,8 +178,10 @@ pub fn ldevid_dice_sign(
     dv: &DataVault,
 ) -> CaliptraResult<Ecc384Signature> {
     Ok(Ecc384Signature {
-        r: get_dice_sign_portion(persistent_data.fht.ldevid_cert_sig_r_dv_hdl, dv)?,
-        s: get_dice_sign_portion(persistent_data.fht.ldevid_cert_sig_s_dv_hdl, dv)?,
+        r: get_dice_sign_portion(persistent_data.fht.ldevid_cert_sig_r_dv_hdl, dv)
+            .ok_or(CaliptraError::RUNTIME_LDEVID_CERT_HANDOFF_FAILED)?,
+        s: get_dice_sign_portion(persistent_data.fht.ldevid_cert_sig_s_dv_hdl, dv)
+            .ok_or(CaliptraError::RUNTIME_LDEVID_CERT_HANDOFF_FAILED)?,
     })
 }
 
@@ -230,8 +225,10 @@ pub fn fmc_dice_sign(
     dv: &DataVault,
 ) -> CaliptraResult<Ecc384Signature> {
     Ok(Ecc384Signature {
-        r: get_dice_sign_portion(persistent_data.fht.fmc_cert_sig_r_dv_hdl, dv)?,
-        s: get_dice_sign_portion(persistent_data.fht.fmc_cert_sig_s_dv_hdl, dv)?,
+        r: get_dice_sign_portion(persistent_data.fht.fmc_cert_sig_r_dv_hdl, dv)
+            .ok_or(CaliptraError::RUNTIME_FMC_CERT_HANDOFF_FAILED)?,
+        s: get_dice_sign_portion(persistent_data.fht.fmc_cert_sig_s_dv_hdl, dv)
+            .ok_or(CaliptraError::RUNTIME_FMC_CERT_HANDOFF_FAILED)?,
     })
 }
 
