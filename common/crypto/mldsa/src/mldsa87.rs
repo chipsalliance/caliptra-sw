@@ -633,41 +633,22 @@ fn expand_s2_short(s2: &mut Vector8, sigma: &[u8; K_SIGMA_BYTES]) {
     }
 }
 
-fn expand_s1_ntt_mul_scalar(
+fn expand_s1_or_s2_ntt_mul_scalar(
     out: &mut Scalar,
     i: usize,
     sigma: &[u8; K_SIGMA_BYTES],
     sk_opt: Option<&[u8; MLDSA87_PRIVATE_KEY_BYTES]>,
+    sk_off: usize,
+    seed_idx: usize,
     rhs: &Scalar,
 ) {
     if let Some(sk) = sk_opt {
-        let off = SK_S1_OFF + i * SK_S_PACK_BYTES;
+        let off = sk_off + i * SK_S_PACK_BYTES;
         unpack_scalar_bits(out, &sk[off..off + SK_S_PACK_BYTES], 3, 2);
     } else {
         let mut derived_seed = [0u8; K_SIGMA_BYTES + 2];
         derived_seed[..K_SIGMA_BYTES].copy_from_slice(sigma);
-        derived_seed[K_SIGMA_BYTES] = i as u8;
-        derived_seed[K_SIGMA_BYTES + 1] = 0;
-        scalar_uniform_2(out, &derived_seed);
-    }
-    scalar_ntt(out);
-    scalar_mul_assign(out, rhs);
-}
-
-fn expand_s2_ntt_mul_scalar(
-    out: &mut Scalar,
-    i: usize,
-    sigma: &[u8; K_SIGMA_BYTES],
-    sk_opt: Option<&[u8; MLDSA87_PRIVATE_KEY_BYTES]>,
-    rhs: &Scalar,
-) {
-    if let Some(sk) = sk_opt {
-        let off = SK_S2_OFF + i * SK_S_PACK_BYTES;
-        unpack_scalar_bits(out, &sk[off..off + SK_S_PACK_BYTES], 3, 2);
-    } else {
-        let mut derived_seed = [0u8; K_SIGMA_BYTES + 2];
-        derived_seed[..K_SIGMA_BYTES].copy_from_slice(sigma);
-        derived_seed[K_SIGMA_BYTES] = (i + 7) as u8;
+        derived_seed[K_SIGMA_BYTES] = seed_idx as u8;
         derived_seed[K_SIGMA_BYTES + 1] = 0;
         scalar_uniform_2(out, &derived_seed);
     }
@@ -1014,7 +995,15 @@ fn sign_internal_with_mu(
 
         for i in 0..7 {
             let mut cs_i = Scalar::default();
-            expand_s1_ntt_mul_scalar(&mut cs_i, i, &priv_key.sigma, sk_opt, &c_ntt);
+            expand_s1_or_s2_ntt_mul_scalar(
+                &mut cs_i,
+                i,
+                &priv_key.sigma,
+                sk_opt,
+                SK_S1_OFF,
+                i,
+                &c_ntt,
+            );
             scalar_inverse_ntt(&mut cs_i);
 
             let mut z_i = Scalar::default();
@@ -1037,7 +1026,15 @@ fn sign_internal_with_mu(
 
         for i in 0..8 {
             let mut cs_i = Scalar::default();
-            expand_s2_ntt_mul_scalar(&mut cs_i, i, &priv_key.sigma, sk_opt, &c_ntt);
+            expand_s1_or_s2_ntt_mul_scalar(
+                &mut cs_i,
+                i,
+                &priv_key.sigma,
+                sk_opt,
+                SK_S2_OFF,
+                i + 7,
+                &c_ntt,
+            );
             scalar_inverse_ntt(&mut cs_i);
 
             let mut r0_i = Scalar::default();
