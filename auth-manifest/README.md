@@ -14,7 +14,7 @@ The Caliptra SOC manifest has two main components: [Preamble](#preamble) and [Im
 | Field                              | Size (bytes) | Description |
 | ---------------------------------- | ------------ | ----------- |
 | **Manifest Marker**                | 4            | Magic number marking the start of the manifest. The value must be `0x324D5441` (`'ATM2'` in ASCII). |
-| **Manifest Size**                  | 4            | Size of the full manifest structure in bytes. |
+| **Preamble Size**                  | 4            | Size of the Preamble in bytes. |
 | **Version**                        | 4            | Manifest version. The current version is `0x00000002`. |
 | **SVN**                            | 4            | Security Version Number used for anti-rollback. The maximum value is vendor-defined and is limited by the maximum size of the Caliptra fuse allocated for anti-rollback. |
 | **Flags**                          | 4            | Manifest feature flags.<br/>**Bit 0** – Vendor Signature Required. If set, the vendor public keys (ECC and PQC) will be used to verify signatures signed with the vendor private keys. If clear, vendor signatures are not used for verification.<br/>**Bits 1–31** – Reserved. |
@@ -52,7 +52,7 @@ The serialized IME layout follows `AuthManifestImageMetadata` in
 
 | Field                   | Size (bytes) | Description |
 | ----------------------- | ------------ | ----------- |
-| **Firmware ID (`fw_id`)** | 4           | Unique value selected by the vendor to distinguish between firmware images. |
+| **Firmware ID (`fw_id`)** | 4           | Platform-wide identifier for a firmware image. It must be unique across the active vendor + owner and owner-only Image Metadata Collections. |
 | **Component ID (`component_id`)** | 4   | Identifies the image component to be loaded. This corresponds to the `ComponentIdentifier` field defined in the DMTF PLDM Firmware Update Specification (DSP0267). |
 | **Classification (`classification`)** | 4 | Component classification value associated with the image. |
 | **Flags (`flags`)**     | 4            | Image-specific flags.<br/>**Bits 1:0:** Image source.<br/>**Bit 2:** If set, the image digest will **not** be verified; otherwise, the metadata image digest will be compared against the calculated digest of the image.<br/>**Bits 8–14:** Firmware execution control bit mapped to this image.<br/>Other bits: reserved. |
@@ -61,3 +61,99 @@ The serialized IME layout follows `AuthManifestImageMetadata` in
 | **Image Staging Address Low (`image_staging_address.lo`)** | 4 | Low 4 bytes of the 64-bit AXI address where the image will be temporarily written during firmware update download and verification. |
 | **Image Staging Address High (`image_staging_address.hi`)** | 4 | High 4 bytes of the 64-bit AXI address where the image will be temporarily written during firmware update download and verification. |
 | **Image Digest (`digest`)** | 48       | SHA2-384 digest of the SOC image. |
+
+## Owner Authorization Manifest
+
+The Owner Authorization Manifest is a smaller, owner-only manifest loaded with
+[`SET_OWNER_AUTH_MANIFEST`](../runtime/README.md#set_owner_auth_manifest). It
+carries owner public keys, owner signatures, and an owner-only Image Metadata
+Collection. Runtime stores these entries separately from the vendor + owner
+collection loaded by `SET_AUTH_MANIFEST` and searches the owner-only collection
+only if the vendor + owner collection has no matching firmware ID. Runtime
+rejects either manifest if one of its active firmware IDs is already present in
+the other active collection.
+
+The `OwnerAuthorizationManifest` uses the same encoding rules described for the
+SOC Manifest: scalar `u32` fields are little-endian, ECC key and signature
+scalars are stored as big-endian `u32` words, and PQC fields contain their
+algorithm-defined byte encoding.
+
+### **Owner Preamble**
+
+| Offset | Field | Size (bytes) | Description |
+| ------ | ----- | ------------ | ----------- |
+| `0x0000` | **Manifest Marker (`marker`)** | 4 | Magic number identifying an Owner Authorization Manifest. It must be `0x4D4F574F`, which serializes as `OWOM`. |
+| `0x0004` | **Preamble Size (`size`)** | 4 | Size of the Owner Authorization Manifest Preamble. It must be 12,156 bytes (`0x2F7C`). |
+| `0x0008` | **Version (`version`)** | 4 | Owner manifest format version. This field is covered by the owner public-key endorsement signatures. |
+| `0x000C` | **SVN (`svn`)** | 4 | Security Version Number used for anti-rollback. The generator accepts values from 0 through 255. When the check is enabled, Runtime requires this value to be at least `SS_STRAP_GENERIC[3][7:0]`. |
+| `0x0010` | **Reserved (`flags`)** | 4 | Reserved. Must be zero. |
+| `0x0014` | **Owner ECC Public Key (`owner_pub_keys.ecc_pub_key`)** | 96 | Owner ECDSA P-384 public key carried by this manifest.<br/>**X-Coordinate:** 48 bytes.<br/>**Y-Coordinate:** 48 bytes. |
+| `0x0074` | **Owner PQC Public Key (`owner_pub_keys.pqc_pub_key`)** | 2592 | Owner MLDSA87 or LMS-SHA192-H15 public key. MLDSA87 uses all 2,592 bytes. An LMS key occupies the first 48 bytes and the remaining bytes are zero. |
+| `0x0A94` | **Owner Public-Keys ECC Signature (`owner_pub_keys_signatures.ecc_sig`)** | 96 | ECDSA P-384 signature made by the firmware-image owner key over the owner signed-data range.<br/>**R-Coordinate:** 48 bytes.<br/>**S-Coordinate:** 48 bytes. |
+| `0x0AF4` | **Owner Public-Keys PQC Signature (`owner_pub_keys_signatures.pqc_sig`)** | 4628 | MLDSA87 or LMS signature made by the firmware-image owner key over the owner signed-data range. MLDSA87 uses all 4,628 bytes. An LMS signature occupies the first 1,620 bytes and the remaining bytes are zero. |
+| `0x1D08` | **IMC Owner ECC Signature (`owner_image_metdata_signatures.ecc_sig`)** | 96 | ECDSA P-384 signature made by this manifest's owner key over the Image Metadata Collection.<br/>**R-Coordinate:** 48 bytes.<br/>**S-Coordinate:** 48 bytes. |
+| `0x1D68` | **IMC Owner PQC Signature (`owner_image_metdata_signatures.pqc_sig`)** | 4628 | MLDSA87 or LMS signature made by this manifest's owner key over the Image Metadata Collection. It uses the same fixed-field encoding as the Owner Public-Keys PQC Signature. |
+
+The Owner Authorization Manifest does not contain a PQC algorithm selector.
+Runtime obtains the algorithm from the loaded Caliptra firmware image and, in a
+provisioned lifecycle, requires it to match the fused PQC key type. Runtime
+verifies both ECC and the selected PQC algorithm for each signature pair.
+
+Signature coverage and trust chaining are as follows:
+
+1. `owner_pub_keys_signatures` covers the serialized bytes from `version`
+  through the end of `owner_pub_keys`, inclusive. The marker and Preamble size
+  are excluded from this signed range and are instead checked against their
+  required values. Runtime verifies these signatures with the owner keys from
+  the loaded Caliptra firmware image.
+2. `owner_image_metdata_signatures` covers the serialized owner-only Image
+  Metadata Collection. Runtime verifies these signatures with the
+  `owner_pub_keys` carried in this manifest, after those keys have been chained
+  to the firmware-image owner keys in step 1.
+
+For ECDSA and LMS, the signature input is the SHA2-384 digest of the covered
+bytes. MLDSA87 signs the covered bytes directly.
+
+### **Owner Image Metadata Collection**
+
+| Offset | Field | Size (bytes) | Description |
+| ------ | ----- | ------------ | ----------- |
+| `0x2F7C` | **Image Metadata Entry Count (`entry_count`)** | 4 | Number of active entries. It must be from 1 through 32. |
+| `0x2F80` | **Image Metadata Entries (`image_metadata_list`)** | 2560 | Fixed-capacity array of 32 80-byte entries. Each entry uses the [Image Metadata Entry](#image-metadata-entry) layout described above. |
+
+The canonical encoding generated by the authorization manifest app serializes
+all 32 entry slots, including unused slots, and signs the complete 2,564-byte
+collection. Unused slots retain the default encoding: `fw_id` and
+`component_id` are `0xFFFFFFFF`, and all other fields are zero. The app output
+contains exactly the serialized `OwnerAuthorizationManifest` with no trailing
+padding.
+
+Incoming active entries must have unique `fw_id` values, both within this
+manifest and across the installed vendor + owner manifest. A collision rejects
+the command without modifying either active collection. After verification,
+Runtime replaces the existing owner-only collection with the incoming
+collection.
+
+### **Generating an Owner Authorization Manifest**
+
+Generate one with the authorization manifest app:
+
+```bash
+cargo run -p caliptra-auth-manifest-app -- create-owner-auth-man \
+  --version 1 \
+  --svn 0 \
+  --pqc-key-type 3 \
+  --key-dir path/to/key-files \
+  --config auth-manifest/app/src/auth-man.toml \
+  --out owner-auth-man.bin
+```
+
+The command uses `owner_fw_key_config`, `owner_man_key_config`, and
+`image_metadata_list` from the TOML configuration. `owner_fw_key_config` supplies
+the firmware-image owner private keys that endorse the manifest's owner public
+keys. `owner_man_key_config` supplies the owner public keys carried in the
+manifest and the corresponding private keys used to sign the Image Metadata
+Collection. Vendor key sections are ignored for owner-only manifest generation.
+
+`--pqc-key-type 1` selects MLDSA87 and `--pqc-key-type 3` selects
+LMS-SHA192-H15.

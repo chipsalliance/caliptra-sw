@@ -602,7 +602,7 @@ impl SocIfc {
     pub fn uds_fuse_row_granularity_64(&self) -> bool {
         let config_val = self.soc_ifc.regs().cptra_hw_config().read();
         // 0: 64-bits, 1: 32-bits
-        !config_val.fuse_granularity()
+        u32::from(config_val.fuse_granularity()) == 0
     }
 
     pub fn fuse_controller_base_addr(&self) -> u64 {
@@ -695,6 +695,16 @@ impl SocIfc {
 
     pub fn otp_direct_access_cmd_reg_offset(&self) -> u32 {
         self.soc_ifc.regs().ss_strap_generic().at(1).read() & 0xFFFF
+    }
+
+    /// Returns the Owner Authorization Manifest minimum-SVN floor as
+    /// populated by the MCU into `SS_STRAP_GENERIC[3][7:0]` during
+    /// boot. Subsystem mode only; Caliptra latches the strap at reset
+    /// and the field is hardware write-once-locked for the boot
+    /// lifetime. Encoded as an unsigned binary integer (not one-hot);
+    /// monotonicity across cold resets is the MCU's responsibility.
+    pub fn ss_owner_manifest_min_svn(&self) -> u32 {
+        self.soc_ifc.regs().ss_strap_generic().at(3).read() & 0xFF
     }
 
     pub fn get_timestamp(&self) -> u64 {
