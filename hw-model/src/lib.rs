@@ -70,6 +70,7 @@ pub use api::mailbox::{mbox_write_fifo, mbox_write_fifo_with_limit};
 pub use api_types::{DbgManufServiceRegReq, DeviceLifecycle, Fuses, SecurityState, U4};
 pub use caliptra_emu_bus::BusMmio;
 pub use caliptra_emu_cpu::{CodeRange, ImageInfo, StackInfo, StackRange};
+pub use caliptra_hw_model_types::CaliptraHwVersion;
 pub use output::ExitStatus;
 pub use output::Output;
 
@@ -247,6 +248,8 @@ impl Default for SubsystemInitParams<'_> {
 }
 
 pub struct InitParams<'a> {
+    pub hw_version: CaliptraHwVersion,
+
     // Fuse settings
     pub fuses: Fuses,
 
@@ -355,6 +358,7 @@ impl Default for InitParams<'_> {
                 Box::new(RandomEtrngResponses::new_from_stdrng())
             };
         Self {
+            hw_version: Default::default(),
             fuses: Default::default(),
             rom: Default::default(),
             dccm: Default::default(),

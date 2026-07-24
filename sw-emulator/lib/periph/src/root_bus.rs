@@ -19,6 +19,7 @@ use crate::{
     helpers::words_from_bytes_be,
     iccm::Iccm,
     mci::Mci,
+    ml_dsa87::Mldsa87,
     soc_reg::{DebugManufService, SocRegistersExternal},
     Aes, AsymEcc384, Csrng, Doe, EmuCtrl, HashSha256, HashSha3, HashSha512, HmacSha, KeyVault,
     MailboxExternal, MailboxInternal, MailboxRam, Sha512Accelerator, SocRegistersInternal, Uart,
@@ -28,7 +29,9 @@ use caliptra_api_types::{DbgManufServiceRegReq, SecurityState};
 use caliptra_emu_bus::{Bus, Clock, Event, Ram, Rom};
 use caliptra_emu_cpu::{Pic, PicMmioRegisters};
 use caliptra_emu_derive::Bus;
-use caliptra_hw_model_types::{EtrngResponse, RandomEtrngResponses, RandomNibbles};
+use caliptra_hw_model_types::{
+    CaliptraHwVersion, EtrngResponse, RandomEtrngResponses, RandomNibbles,
+};
 use std::{cell::RefCell, path::PathBuf, rc::Rc, sync::mpsc};
 use tock_registers::registers::InMemoryRegister;
 
@@ -209,8 +212,111 @@ impl From<Box<dyn FnMut() + 'static>> for ActionCb {
     }
 }
 
+pub struct CryptoEngineSlot(Box<dyn Bus>);
+
+impl CryptoEngineSlot {
+    pub fn new<T: Bus + 'static>(engine: T) -> Self {
+        Self(Box::new(engine))
+    }
+}
+
+impl Bus for CryptoEngineSlot {
+    fn read(
+        &mut self,
+        size: caliptra_emu_types::RvSize,
+        addr: caliptra_emu_types::RvAddr,
+    ) -> Result<caliptra_emu_types::RvData, caliptra_emu_bus::BusError> {
+        self.0.read(size, addr)
+    }
+    fn write(
+        &mut self,
+        size: caliptra_emu_types::RvSize,
+        addr: caliptra_emu_types::RvAddr,
+        val: caliptra_emu_types::RvData,
+    ) -> Result<(), caliptra_emu_bus::BusError> {
+        self.0.write(size, addr, val)
+    }
+    fn poll(&mut self) {
+        self.0.poll();
+    }
+    fn warm_reset(&mut self) {
+        self.0.warm_reset();
+    }
+    fn update_reset(&mut self) {
+        self.0.update_reset();
+    }
+    fn incoming_event(&mut self, event: Rc<Event>) {
+        self.0.incoming_event(event);
+    }
+    fn register_outgoing_events(&mut self, sender: mpsc::Sender<Event>) {
+        self.0.register_outgoing_events(sender);
+    }
+}
+
+pub struct Sha3Slot(Option<Box<dyn Bus>>);
+
+impl Sha3Slot {
+    pub fn active<T: Bus + 'static>(sha3: T) -> Self {
+        Self(Some(Box::new(sha3)))
+    }
+
+    pub fn disabled() -> Self {
+        Self(None)
+    }
+}
+
+impl Bus for Sha3Slot {
+    fn read(
+        &mut self,
+        size: caliptra_emu_types::RvSize,
+        addr: caliptra_emu_types::RvAddr,
+    ) -> Result<caliptra_emu_types::RvData, caliptra_emu_bus::BusError> {
+        match &mut self.0 {
+            Some(s) => s.read(size, addr),
+            None => Err(caliptra_emu_bus::BusError::LoadAccessFault),
+        }
+    }
+    fn write(
+        &mut self,
+        size: caliptra_emu_types::RvSize,
+        addr: caliptra_emu_types::RvAddr,
+        val: caliptra_emu_types::RvData,
+    ) -> Result<(), caliptra_emu_bus::BusError> {
+        match &mut self.0 {
+            Some(s) => s.write(size, addr, val),
+            None => Err(caliptra_emu_bus::BusError::StoreAccessFault),
+        }
+    }
+    fn poll(&mut self) {
+        if let Some(s) = &mut self.0 {
+            s.poll();
+        }
+    }
+    fn warm_reset(&mut self) {
+        if let Some(s) = &mut self.0 {
+            s.warm_reset();
+        }
+    }
+    fn update_reset(&mut self) {
+        if let Some(s) = &mut self.0 {
+            s.update_reset();
+        }
+    }
+    fn incoming_event(&mut self, event: Rc<Event>) {
+        if let Some(s) = &mut self.0 {
+            s.incoming_event(event);
+        }
+    }
+    fn register_outgoing_events(&mut self, sender: mpsc::Sender<Event>) {
+        if let Some(s) = &mut self.0 {
+            s.register_outgoing_events(sender);
+        }
+    }
+}
+
 /// Caliptra Root Bus Arguments
 pub struct CaliptraRootBusArgs<'a> {
+    pub hw_version: CaliptraHwVersion,
     pub pic: Rc<Pic>,
     pub clock: Rc<Clock>,
     pub rom: Vec<u8>,
@@ -247,6 +353,7 @@ pub struct CaliptraRootBusArgs<'a> {
 impl Default for CaliptraRootBusArgs<'_> {
     fn default() -> Self {
         Self {
+            hw_version: CaliptraHwVersion::V2_1,
             clock: Default::default(),
             pic: Default::default(),
             rom: Default::default(),
@@ -303,10 +410,10 @@ pub struct CaliptraRootBus {
     pub sha256: HashSha256,
 
     #[peripheral(offset = 0x1003_0000, len = 0x10000)]
-    pub abr: Abr,
+    pub abr: CryptoEngineSlot,
 
     #[peripheral(offset = 0x1004_0000, len = 0xa14)]
-    pub sha3: HashSha3,
+    pub sha3: Sha3Slot,
 
     #[peripheral(offset = 0x4000_0000, len = 0x40000)]
     pub iccm: Iccm,
@@ -350,6 +457,7 @@ impl CaliptraRootBus {
     pub const DCCM_SIZE: usize = 256 * 1024;
 
     pub fn new(mut args: CaliptraRootBusArgs<'_>) -> Self {
+        let hw_version = args.hw_version;
         let clock = &args.clock.clone();
         let pic = &args.pic.clone();
         let mut key_vault = KeyVault::new();
@@ -386,8 +494,16 @@ impl CaliptraRootBus {
         );
 
         let sha512 = HashSha512::new(clock, key_vault.clone());
-        let ml_dsa87 = Abr::new(clock, key_vault.clone(), sha512.clone());
-        let sha3 = HashSha3::new();
+        let crypto_engine = match hw_version {
+            CaliptraHwVersion::V2_0 => {
+                CryptoEngineSlot::new(Mldsa87::new(clock, key_vault.clone(), sha512.clone()))
+            }
+            _ => CryptoEngineSlot::new(Abr::new(clock, key_vault.clone(), sha512.clone())),
+        };
+        let sha3 = match hw_version {
+            CaliptraHwVersion::V2_0 => Sha3Slot::disabled(),
+            _ => Sha3Slot::active(HashSha3::new()),
+        };
 
         Self {
             rom,
@@ -399,7 +515,7 @@ impl CaliptraRootBus {
             key_vault: key_vault.clone(),
             sha512,
             sha256: HashSha256::new(clock),
-            abr: ml_dsa87,
+            abr: crypto_engine,
             sha3,
             iccm,
             dccm: Ram::new(vec![0; Self::DCCM_SIZE]),
