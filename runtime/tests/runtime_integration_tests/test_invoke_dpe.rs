@@ -12,7 +12,7 @@ use caliptra_builder::{
     firmware::{APP_WITH_UART, FMC_WITH_UART},
     ImageOptions,
 };
-use caliptra_common::mailbox_api::{InvokeDpeReq, MailboxReq, MailboxReqHeader};
+use caliptra_common::mailbox_api::{InvokeDpeReq, InvokeDpeResp, MailboxReq, MailboxReqHeader};
 use caliptra_drivers::CaliptraError;
 use caliptra_hw_model::{HwModel, ModelError};
 use caliptra_runtime::{CaliptraDpeProfile, RtBootStatus, DPE_SUPPORT, VENDOR_ID, VENDOR_SKU};
@@ -23,9 +23,9 @@ use cms::{
 };
 use dpe::{
     commands::{
-        CertifyKeyCommand, CertifyKeyFlags, CertifyKeyP384Cmd, Command, DeriveContextCmd,
-        DeriveContextFlags, GetCertificateChainCmd, GetProfileCmd, InitCtxCmd, RotateCtxCmd,
-        RotateCtxFlags, SignFlags, SignP384Cmd,
+        CertifyKeyCommand, CertifyKeyFlags, CertifyKeyP384Cmd, Command, CommandHdr,
+        DeriveContextCmd, DeriveContextFlags, GetCertificateChainCmd, GetProfileCmd, InitCtxCmd,
+        RotateCtxCmd, RotateCtxFlags, SignFlags, SignP384Cmd,
     },
     context::ContextHandle,
     error::DpeErrorCode,
@@ -548,4 +548,63 @@ fn test_certify_key_with_max_contexts() {
             DpeResult::Success,
         );
     }
+}
+
+#[test]
+fn test_invoke_dpe_derive_context_without_svn() {
+    let mut model = run_rt_test(RuntimeTestArgs::default());
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    let derive_ctx_cmd = DeriveContextCmd {
+        handle: ContextHandle::default(),
+        data: TciMeasurement([0; TCI_SIZE]),
+        flags: DeriveContextFlags::EXPORT_CDI | DeriveContextFlags::CREATE_CERTIFICATE,
+        tci_type: 0,
+        target_locality: 0,
+        svn: 0,
+    };
+
+    let mut cmd_data = [0u8; InvokeDpeReq::DATA_MAX_SIZE];
+    let cmd_hdr = CommandHdr::new(PROFILE.into(), Command::DERIVE_CONTEXT);
+    let cmd_hdr_buf = cmd_hdr.as_bytes();
+    cmd_data[..cmd_hdr_buf.len()].copy_from_slice(cmd_hdr_buf);
+    let dpe_cmd_buf = derive_ctx_cmd.as_bytes();
+    // Strip the last 4 bytes (svn u32 field) to simulate caller without SVN
+    let dpe_cmd_buf_no_svn = &dpe_cmd_buf[..dpe_cmd_buf.len() - 4];
+    cmd_data[cmd_hdr_buf.len()..cmd_hdr_buf.len() + dpe_cmd_buf_no_svn.len()]
+        .copy_from_slice(dpe_cmd_buf_no_svn);
+    let mut mbox_cmd = MailboxReq::InvokeDpeCommand(InvokeDpeReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        data: cmd_data,
+        data_size: (cmd_hdr_buf.len() + dpe_cmd_buf_no_svn.len()) as u32,
+    });
+    mbox_cmd.populate_chksum().unwrap();
+
+    let resp = model.mailbox_execute(
+        u32::from(CommandId::INVOKE_DPE),
+        mbox_cmd.as_bytes().unwrap(),
+    );
+    let resp = resp.unwrap().expect("We should have received a response");
+
+    assert!(resp.len() <= std::mem::size_of::<InvokeDpeResp>());
+    let mut resp_hdr = InvokeDpeResp::default();
+    resp_hdr.as_mut_bytes()[..resp.len()].copy_from_slice(&resp);
+
+    assert!(caliptra_common::checksum::verify_checksum(
+        resp_hdr.hdr.chksum,
+        0x0,
+        &resp[core::mem::size_of_val(&resp_hdr.hdr.chksum)..],
+    ));
+
+    let resp_bytes = &resp_hdr.data[..resp_hdr.data_size as usize];
+    let parsed_resp =
+        Response::try_read_from_bytes(&Command::DeriveContext(&derive_ctx_cmd), resp_bytes)
+            .unwrap();
+
+    let Response::DeriveContextExportedCdi(_) = parsed_resp else {
+        panic!("expected derive context exported cdi resp!");
+    };
 }

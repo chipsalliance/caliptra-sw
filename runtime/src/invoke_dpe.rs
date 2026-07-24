@@ -20,15 +20,19 @@ use caliptra_cfi_derive::{cfi_impl_fn, cfi_mod_fn};
 use caliptra_common::mailbox_api::{InvokeDpeReq, MailboxRespHeader, MailboxRespHeaderVarSize};
 use caliptra_drivers::{CaliptraError, CaliptraResult};
 use dpe::{
-    commands::{CertifyKeyCommand, Command, CommandExecution, InitCtxCmd},
-    context::ContextState,
+    commands::{
+        CertifyKeyCommand, Command, CommandExecution, CommandHdr, DeriveContextCmd,
+        DeriveContextFlags, InitCtxCmd,
+    },
+    context::{ContextHandle, ContextState},
     error::DpeErrorCode,
     response::ResponseHdr,
+    tci::TciMeasurement,
     DpeInstance, DpeProfile, State, U8Bool, MAX_HANDLES,
 };
 use platform::MAX_OTHER_NAME_SIZE;
 use ufmt::derive::uDebug;
-use zerocopy::{FromZeros, IntoBytes};
+use zerocopy::{FromBytes, FromZeros, Immutable, IntoBytes, KnownLayout};
 #[cfg(feature = "mldsa_attestation")]
 use {crate::mldsa_dpe_env, caliptra_common::mailbox_api::InvokeDpeMldsa87Req};
 
@@ -59,7 +63,7 @@ impl InvokeDpeCmd {
         execute(
             drivers,
             CaliptraDpeProfile::Ecc384,
-            &cmd.data,
+            &mut cmd.data,
             cmd.data_size as usize,
         )
     }
@@ -111,7 +115,7 @@ impl InvokeDpeMldsa87Cmd {
         execute(
             drivers,
             CaliptraDpeProfile::Mldsa,
-            &cmd.data,
+            &mut cmd.data,
             cmd.data_size as usize,
         )
     }
@@ -121,15 +125,42 @@ impl InvokeDpeMldsa87Cmd {
 /// and execute it. Non-generic over the request type so both entry points share
 /// one copy, and takes the raw payload (rather than a deserialized `Command`) so
 /// the large `Command` enum never crosses a call boundary by value.
+///
+/// Note: This function will also append a zeroed SVN to the command if it is a
+/// DeriveContext command and the SVN is missing. This is to support older
+/// versions of DPE that do not include the SVN in the DeriveContext command.
 fn execute(
     drivers: &mut Drivers,
     profile: CaliptraDpeProfile,
-    data: &[u8],
-    data_size: usize,
+    data: &mut [u8; InvokeDpeReq::DATA_MAX_SIZE],
+    mut data_size: usize,
 ) -> CaliptraResult<()> {
     if data_size > data.len() {
         return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
     }
+
+    // Append a zeroed SVN to the command if it is a DeriveContext command and the SVN is
+    // missing. This is to support older versions of DPE that do not include the SVN in the
+    // DeriveContext command.
+    if let Ok((hdr, _)) = CommandHdr::read_from_prefix(&data[..data_size]) {
+        let expected_no_svn_len = size_of::<CommandHdr>() + size_of::<DeriveContextCmdV1>();
+
+        let is_derive_context_cmd = hdr.cmd_id == Command::DERIVE_CONTEXT;
+        let is_missing_svn = data_size == expected_no_svn_len;
+
+        if is_derive_context_cmd && is_missing_svn {
+            let cmd_start = size_of::<CommandHdr>();
+            let (derive_context_v1, _) =
+                DeriveContextCmdV1::read_from_prefix(&data[cmd_start..data_size])
+                    .map_err(|_| CaliptraError::RUNTIME_DPE_COMMAND_DESERIALIZATION_FAILED)?;
+
+            data_size = size_of::<CommandHdr>() + size_of::<DeriveContextCmd>();
+            let (cmd, _) = DeriveContextCmd::mut_from_prefix(&mut data[cmd_start..data_size])
+                .map_err(|_| CaliptraError::RUNTIME_DPE_COMMAND_DESERIALIZATION_FAILED)?;
+            *cmd = derive_context_v1.into();
+        }
+    }
+
     let command = Command::deserialize(profile.into(), &data[..data_size])
         .map_err(|_| CaliptraError::RUNTIME_DPE_COMMAND_DESERIALIZATION_FAILED)?;
     let caller_privilege_level = drivers.caller_privilege_level();
@@ -245,3 +276,31 @@ fn clear_tags_for_inactive_contexts(
         }
     });
 }
+
+#[repr(C, align(4))]
+#[derive(Debug, PartialEq, Eq, FromBytes, IntoBytes, Immutable, KnownLayout)]
+struct DeriveContextCmdV1 {
+    handle: ContextHandle,
+    data: TciMeasurement,
+    flags: DeriveContextFlags,
+    tci_type: u32,
+    target_locality: u32,
+}
+
+impl From<DeriveContextCmdV1> for DeriveContextCmd {
+    fn from(cmd: DeriveContextCmdV1) -> Self {
+        Self {
+            handle: cmd.handle,
+            data: cmd.data,
+            flags: cmd.flags,
+            tci_type: cmd.tci_type,
+            target_locality: cmd.target_locality,
+            svn: 0,
+        }
+    }
+}
+
+const _: () = assert!(
+    size_of::<DeriveContextCmdV1>() == size_of::<DeriveContextCmd>() - size_of::<u32>(),
+    "DeriveContextCmd size changed, check if SVN compatibility logic needs updating"
+);
