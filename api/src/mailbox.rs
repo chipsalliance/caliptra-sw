@@ -1,5 +1,7 @@
 // Licensed under the Apache-2.0 license
 
+#![allow(clippy::upper_case_acronyms)]
+
 use bitflags::bitflags;
 use caliptra_error::{CaliptraError, CaliptraResult};
 #[cfg(feature = "mldsa_attestation")]
@@ -19,83 +21,128 @@ pub const SET_PQ_SEED_SEED_SIZE: usize = MLDSA87_PRIVATE_SEED_BYTES;
 
 #[derive(PartialEq, Eq)]
 pub struct CommandId(pub u32);
+/// Sentinel id for a command whose `CommandId` is compiled out under the current
+/// feature set. `u32::MAX` is not a valid FourCC command id, so it never matches
+/// a real request; the reserved opcode slot keeps every later index fixed.
+/// Also rejected explicitly by [`CommandId::to_opcode`], so it is referenced in
+/// every feature configuration.
+const NO_CMD: u32 = u32::MAX;
+
+/// Defines the dispatchable mailbox commands from a single list, keeping the
+/// `CommandId` constants, the dense [`op`] opcodes, the `OPCODE_CMDS` lookup
+/// table, and [`CommandId::to_opcode`] in lockstep so they cannot drift.
+///
+/// Each entry `NAME = id` becomes `CommandId::NAME` and opcode `op::NAME` (its
+/// index in the list). A `#[cfg(..)]` entry reserves its opcode slot with
+/// [`struct@NO_CMD`] when compiled out, so indices stay fixed across feature
+/// configurations. `FIRMWARE_LOAD` is intentionally excluded: it is handled
+/// before opcode dispatch, so it has no opcode.
+macro_rules! mailbox_commands {
+    ( $( $(#[cfg($cfg:meta)])? $name:ident = $id:literal ),* $(,)? ) => {
+        impl CommandId {
+            $( $(#[cfg($cfg)])? pub const $name: Self = Self($id); )*
+
+            /// Resolve this command id to its dense opcode (its index in the
+            /// `OPCODE_CMDS` table), or `None` if it is not a dispatchable
+            /// command.
+            pub fn to_opcode(&self) -> Option<u8> {
+                // NO_CMD reserves the opcode slots of feature-gated-out commands.
+                // Guard it so a request literally carrying that value resolves to
+                // `None` (not a spurious hit on a reserved slot) in every config.
+                if self.0 == NO_CMD {
+                    return None;
+                }
+                OPCODE_CMDS
+                    .iter()
+                    .position(|&id| id == self.0)
+                    .map(|i| i as u8)
+            }
+        }
+
+        /// Compile-time numbering source for [`op`]; carries no runtime cost
+        /// (only used in `const` casts, never materialized).
+        #[allow(dead_code, non_camel_case_types)]
+        #[repr(u8)]
+        enum Opcode { $($name),* }
+
+        /// Dense `u8` opcode for each dispatchable command, equal to the
+        /// command's index in `OPCODE_CMDS`. Matching on these compiles to a
+        /// jump table rather than a ladder of 32-bit `CommandId` compares.
+        pub mod op {
+            #![allow(dead_code)]
+            use super::Opcode;
+            $( pub const $name: u8 = Opcode::$name as u8; )*
+        }
+
+        /// Wire command ids indexed by opcode. Slots for commands compiled out
+        /// under the current feature set hold [`struct@NO_CMD`] to keep every
+        /// index fixed.
+        const OPCODE_CMDS: &[u32] = &[
+            $(
+                $(#[cfg($cfg)])? $id,
+                $( #[cfg(not($cfg))] NO_CMD, )?
+            )*
+        ];
+    };
+}
+
 impl CommandId {
     pub const FIRMWARE_LOAD: Self = Self(0x46574C44); // "FWLD"
-    pub const GET_IDEV_CERT: Self = Self(0x49444543); // "IDEC"
+}
+
+// Note: These are inadvertently recognized as acronyms due to being within a macro statement.  As
+// such disable the lint.
+mailbox_commands! {
+    GET_IDEV_CERT = 0x49444543, // "IDEC"
     #[cfg(feature = "mldsa_attestation")]
-    pub const GET_PQ_CERT: Self = Self(0x47505143); // "GPQC"
-    pub const GET_IDEV_INFO: Self = Self(0x49444549); // "IDEI"
-    pub const POPULATE_IDEV_CERT: Self = Self(0x49444550); // "IDEP"
+    GET_PQ_CERT = 0x47505143, // "GPQC"
+    GET_IDEV_INFO = 0x49444549, // "IDEI"
+    POPULATE_IDEV_CERT = 0x49444550, // "IDEP"
     #[cfg(feature = "mldsa_attestation")]
-    pub const POPULATE_PQ_CERT: Self = Self(0x50505143); // "PPQC"
-    pub const GET_LDEV_CERT: Self = Self(0x4C444556); // "LDEV"
-    pub const GET_FMC_ALIAS_CERT: Self = Self(0x43455246); // "CERF"
-    pub const GET_RT_ALIAS_CERT: Self = Self(0x43455252); // "CERR"
-    pub const ECDSA384_VERIFY: Self = Self(0x53494756); // "SIGV"
-    pub const LMS_VERIFY: Self = Self(0x4C4D5356); // "LMSV"
-    pub const MLDSA87_SIGNATURE_VERIFY: Self = Self(0x4D445356); // "MDSV"
-    pub const STASH_MEASUREMENT: Self = Self(0x4D454153); // "MEAS"
-    pub const INVOKE_DPE: Self = Self(0x44504543); // "DPEC"
-    pub const DISABLE_ATTESTATION: Self = Self(0x4453424C); // "DSBL"
+    POPULATE_PQ_CERT = 0x50505143, // "PPQC"
+    GET_LDEV_CERT = 0x4C444556, // "LDEV"
+    GET_FMC_ALIAS_CERT = 0x43455246, // "CERF"
+    GET_RT_ALIAS_CERT = 0x43455252, // "CERR"
+    ECDSA384_VERIFY = 0x53494756, // "SIGV"
+    LMS_VERIFY = 0x4C4D5356, // "LMSV"
+    MLDSA87_SIGNATURE_VERIFY = 0x4D445356, // "MDSV"
+    STASH_MEASUREMENT = 0x4D454153, // "MEAS"
+    INVOKE_DPE = 0x44504543, // "DPEC"
+    DISABLE_ATTESTATION = 0x4453424C, // "DSBL"
     #[cfg(feature = "mldsa_attestation")]
-    pub const SET_PQ_SEED: Self = Self(0x5051_5344); // "PQSD"
-    pub const FW_INFO: Self = Self(0x494E464F); // "INFO"
-    pub const DPE_TAG_TCI: Self = Self(0x54514754); // "TAGT"
-    pub const DPE_GET_TAGGED_TCI: Self = Self(0x47544744); // "GTGD"
-    pub const INCREMENT_PCR_RESET_COUNTER: Self = Self(0x50435252); // "PCRR"
-    pub const QUOTE_PCRS: Self = Self(0x50435251); // "PCRQ"
-    pub const EXTEND_PCR: Self = Self(0x50435245); // "PCRE"
-    pub const ADD_SUBJECT_ALT_NAME: Self = Self(0x414C544E); // "ALTN"
-    pub const CERTIFY_KEY_EXTENDED: Self = Self(0x434B4558); // "CKEX"
+    SET_PQ_SEED = 0x5051_5344, // "PQSD"
+    FW_INFO = 0x494E464F, // "INFO"
+    DPE_TAG_TCI = 0x54514754, // "TAGT"
+    DPE_GET_TAGGED_TCI = 0x47544744, // "GTGD"
+    INCREMENT_PCR_RESET_COUNTER = 0x50435252, // "PCRR"
+    QUOTE_PCRS = 0x50435251, // "PCRQ"
+    EXTEND_PCR = 0x50435245, // "PCRE"
+    ADD_SUBJECT_ALT_NAME = 0x414C544E, // "ALTN"
+    CERTIFY_KEY_EXTENDED = 0x434B4558, // "CKEX"
     #[cfg(feature = "mldsa_attestation")]
-    pub const INVOKE_DPE_MLDSA87: Self = Self(0x4D4C4450); // "MLDP"
+    INVOKE_DPE_MLDSA87 = 0x4D4C4450, // "MLDP"
     #[cfg(feature = "mldsa_attestation")]
-    pub const GET_PQ_CSR: Self = Self(0x50514353); // "PQCS"
+    GET_PQ_CSR = 0x50514353, // "PQCS"
     #[cfg(feature = "mldsa_attestation")]
-    pub const GET_PQ_INFO: Self = Self(0x5051_494E); // "PQIN"
+    GET_PQ_INFO = 0x5051_494E, // "PQIN"
     #[cfg(feature = "mldsa_attestation")]
-    pub const CERTIFY_KEY_EXTENDED_MLDSA87: Self = Self(0x434B454D); // "CKEM"
-
-    /// FIPS module commands.
-    /// The status command.
-    pub const VERSION: Self = Self(0x4650_5652); // "FPVR"
-    /// The self-test command.
-    pub const SELF_TEST_START: Self = Self(0x4650_4C54); // "FPST"
-    /// The self-test get results.
-    pub const SELF_TEST_GET_RESULTS: Self = Self(0x4650_4C67); // "FPGR"
-    /// The shutdown command.
-    pub const SHUTDOWN: Self = Self(0x4650_5344); // "FPSD"
-
-    // The capabilities command.
-    pub const CAPABILITIES: Self = Self(0x4341_5053); // "CAPS"
-
-    // The authorization manifest set command.
-    pub const SET_AUTH_MANIFEST: Self = Self(0x4154_4D4E); // "ATMN"
-
-    // The authorize and stash command.
-    pub const AUTHORIZE_AND_STASH: Self = Self(0x4154_5348); // "ATSH"
-
-    // The get IDevID CSR command.
-    pub const GET_IDEV_CSR: Self = Self(0x4944_4352); // "IDCR"
-
-    // The get FMC Alias CSR command.
-    pub const GET_FMC_ALIAS_CSR: Self = Self(0x464D_4352); // "FMCR"
-
-    // The sign with exported ecdsa command.
-    pub const SIGN_WITH_EXPORTED_ECDSA: Self = Self(0x5357_4545); // "SWEE"
-
-    // The revoke exported CDI handle command.
-    pub const REVOKE_EXPORTED_CDI_HANDLE: Self = Self(0x5256_4348); // "RVCH"
-
-    // The sign with exported MLDSA command.
+    CERTIFY_KEY_EXTENDED_MLDSA87 = 0x434B454D, // "CKEM"
+    // FIPS module commands.
+    VERSION = 0x4650_5652, // "FPVR" (status)
+    SELF_TEST_START = 0x4650_4C54, // "FPST"
+    SELF_TEST_GET_RESULTS = 0x4650_4C67, // "FPGR"
+    SHUTDOWN = 0x4650_5344, // "FPSD"
+    CAPABILITIES = 0x4341_5053, // "CAPS"
+    SET_AUTH_MANIFEST = 0x4154_4D4E, // "ATMN"
+    AUTHORIZE_AND_STASH = 0x4154_5348, // "ATSH"
+    GET_IDEV_CSR = 0x4944_4352, // "IDCR"
+    GET_FMC_ALIAS_CSR = 0x464D_4352, // "FMCR"
+    SIGN_WITH_EXPORTED_ECDSA = 0x5357_4545, // "SWEE"
+    REVOKE_EXPORTED_CDI_HANDLE = 0x5256_4348, // "RVCH"
     #[cfg(feature = "mldsa_attestation")]
-    pub const SIGN_WITH_EXPORTED_MLDSA: Self = Self(0x5357_4D4C); // "SWML"
-
-    // Get PCR log command.
-    pub const GET_PCR_LOG: Self = Self(0x504C_4F47); // "PLOG"
-
-    // The reallocate DPE context limits command.
-    pub const REALLOCATE_DPE_CONTEXT_LIMITS: Self = Self(0x5243_5458); // "RCTX"
+    SIGN_WITH_EXPORTED_MLDSA = 0x5357_4D4C, // "SWML"
+    GET_PCR_LOG = 0x504C_4F47, // "PLOG"
+    REALLOCATE_DPE_CONTEXT_LIMITS = 0x5243_5458, // "RCTX"
 }
 
 impl From<u32> for CommandId {
@@ -2009,5 +2056,65 @@ mod tests {
                 ],
             }
         );
+    }
+
+    #[test]
+    fn test_opcode_round_trips_index() {
+        // Each active slot round-trips: its opcode equals its position in
+        // OPCODE_CMDS, and to_opcode() recovers that position. NO_CMD slots
+        // (feature-gated commands compiled out) are reserved and skipped.
+        for (i, &id) in OPCODE_CMDS.iter().enumerate() {
+            if id == NO_CMD {
+                continue;
+            }
+            assert_eq!(
+                CommandId(id).to_opcode(),
+                Some(i as u8),
+                "command id {id:#010x} at index {i} did not round-trip"
+            );
+        }
+    }
+
+    #[test]
+    fn test_opcode_ids_unique() {
+        // No two active commands share a wire id.
+        for (i, op_a) in OPCODE_CMDS.iter().enumerate() {
+            if OPCODE_CMDS[i] == NO_CMD {
+                continue;
+            }
+            for op_b in OPCODE_CMDS.iter().skip(i + 1) {
+                assert_ne!(op_a, op_b);
+            }
+        }
+    }
+
+    #[test]
+    fn test_opcode_named_constants_align() {
+        // The op::* constants index OPCODE_CMDS to the matching command id
+        // (spot-check first, a FIPS command, and last), and to_opcode() agrees.
+        assert_eq!(
+            OPCODE_CMDS[op::GET_IDEV_CERT as usize],
+            CommandId::GET_IDEV_CERT.0
+        );
+        assert_eq!(OPCODE_CMDS[op::VERSION as usize], CommandId::VERSION.0);
+        assert_eq!(
+            OPCODE_CMDS[op::REALLOCATE_DPE_CONTEXT_LIMITS as usize],
+            CommandId::REALLOCATE_DPE_CONTEXT_LIMITS.0
+        );
+        assert_eq!(
+            CommandId::GET_IDEV_CERT.to_opcode(),
+            Some(op::GET_IDEV_CERT)
+        );
+    }
+
+    #[test]
+    fn test_unknown_and_firmware_load_have_no_opcode() {
+        // Unknown ids and FIRMWARE_LOAD (handled before opcode dispatch) are not
+        // in the table.
+        assert_eq!(CommandId(0xDEAD_BEEF).to_opcode(), None);
+        assert_eq!(CommandId::FIRMWARE_LOAD.to_opcode(), None);
+        // The NO_CMD sentinel value must never resolve to an opcode, even in
+        // feature-reduced builds where it fills reserved slots in OPCODE_CMDS.
+        assert_eq!(CommandId(NO_CMD).to_opcode(), None);
     }
 }
