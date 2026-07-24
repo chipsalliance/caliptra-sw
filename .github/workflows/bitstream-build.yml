@@ -28,18 +28,12 @@ jobs:
           cd hw/fpga/
           /vck190-tools/Vivado/2024.2/bin/vivado -mode batch -source fpga_configuration.tcl -tclargs BUILD=TRUE
 
-      - name: Rename outputs for downloader compatibility
-        run: |
-          mv hw/fpga/caliptra_build/caliptra_fpga.bin hw/fpga/caliptra_build/caliptra_fpga.pdi
-          mv hw/fpga/caliptra_build/caliptra_fpga.bit hw/fpga/caliptra_build/caliptra_fpga.xsa
-
       - name: 'Upload bitstream artifact'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a #v7.0.1
         with:
           name: caliptra-fpga-bitstream
           path: |
-            hw/fpga/caliptra_build/*.pdi
-            hw/fpga/caliptra_build/*.xsa
+            hw/fpga/caliptra_build/caliptra_fpga.bin
           retention-days: 7
 
       - name: Bundle bitstream
@@ -55,8 +49,7 @@ jobs:
             --commit-hash "${{ github.sha }}" \
             --job-id "${{ github.run_id }}-${{ github.job }}" \
             ${{ github.event.pull_request.number && format('--github-pr {0}', github.event.pull_request.number) || '' }} \
-            --pdi-file hw/fpga/caliptra_build/caliptra_fpga.pdi \
-            --xsa-file hw/fpga/caliptra_build/caliptra_fpga.xsa \
+            --bin-file hw/fpga/caliptra_build/caliptra_fpga.bin \
             --output-dir manifest-bundle
 
           cp manifest-bundle/caliptra-bitstream.tar.gz /tmp
