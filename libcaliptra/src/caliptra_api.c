@@ -1322,6 +1322,183 @@ int caliptra_revoke_exported_cdi_handle(struct caliptra_revoke_exported_cdi_hand
     return pack_and_execute_command(&p, async);
 }
 
+// ===================================================================
+// PQC / ML-DSA-87 commands
+// ===================================================================
+
+// Set PQ Seed (provision the PQ.DevID ML-DSA seed). No response body.
+int caliptra_set_pq_seed(struct caliptra_set_pq_seed_req *req, bool async)
+{
+    if (!req)
+    {
+        return INVALID_PARAMS;
+    }
+
+    struct caliptra_resp_header resp_hdr = {};
+
+    CREATE_PARCEL(p, OP_SET_PQ_SEED, req, &resp_hdr);
+
+    return pack_and_execute_command(&p, async);
+}
+
+// Get PQ CSR (ML-DSA IDevID CSR). No command-specific request args.
+int caliptra_get_pq_csr(struct caliptra_get_pq_csr_resp *resp, bool async)
+{
+    if (!resp)
+    {
+        return INVALID_PARAMS;
+    }
+
+    caliptra_checksum checksum = 0;
+
+    CREATE_PARCEL(p, OP_GET_PQ_CSR, &checksum, resp);
+
+    return pack_and_execute_command(&p, async);
+}
+
+// Get PQ Info (ML-DSA IDevID public key). No request args.
+int caliptra_get_pq_info(struct caliptra_get_pq_info_resp *resp, bool async)
+{
+    if (!resp)
+    {
+        return INVALID_PARAMS;
+    }
+
+    caliptra_checksum checksum = 0;
+
+    CREATE_PARCEL(p, OP_GET_PQ_INFO, &checksum, resp);
+
+    return pack_and_execute_command(&p, async);
+}
+
+// Get PQ Cert. Variable-length request: only the populated prefix of `tbs`
+// (trimmed to `tbs_size`) is sent, mirroring caliptra_invoke_dpe_command.
+int caliptra_get_pq_cert(struct caliptra_get_pq_cert_req *req, struct caliptra_get_pq_cert_resp *resp, bool async)
+{
+    if (!req || !resp)
+    {
+        return INVALID_PARAMS;
+    }
+
+    if (req->tbs_size > GET_PQ_CERT_TBS_MAX_SIZE)
+    {
+        return INVALID_PARAMS;
+    }
+
+    uint32_t actual_bytes = sizeof(caliptra_checksum) + sizeof(uint32_t) +
+                            MLDSA87_SIGNATURE_SIZE + req->tbs_size;
+
+    struct parcel p = {
+        .command   = OP_GET_PQ_CERT,
+        .tx_buffer = (uint8_t*)req,
+        .tx_bytes  = actual_bytes,
+        .rx_buffer = (uint8_t*)resp,
+        .rx_bytes  = sizeof(*resp),
+    };
+
+    return pack_and_execute_command(&p, async);
+}
+
+// Populate PQ Cert. No response body. Variable-length request: only the
+// populated prefix of `cert` (trimmed to `cert_size`) is sent.
+int caliptra_populate_pq_cert(struct caliptra_populate_pq_cert_req *req, bool async)
+{
+    if (!req)
+    {
+        return INVALID_PARAMS;
+    }
+
+    if (req->cert_size > POPULATE_PQ_CERT_MAX_SIZE)
+    {
+        return INVALID_PARAMS;
+    }
+
+    struct caliptra_resp_header resp_hdr = {};
+
+    uint32_t actual_bytes = sizeof(caliptra_checksum) + sizeof(uint32_t) + req->cert_size;
+
+    struct parcel p = {
+        .command   = OP_POPULATE_PQ_CERT,
+        .tx_buffer = (uint8_t*)req,
+        .tx_bytes  = actual_bytes,
+        .rx_buffer = (uint8_t*)&resp_hdr,
+        .rx_bytes  = sizeof(resp_hdr),
+    };
+
+    return pack_and_execute_command(&p, async);
+}
+
+// Certify Key Extended ML-DSA-87 (fixed-size request).
+int caliptra_certify_key_extended_mldsa87(struct caliptra_certify_key_extended_mldsa87_req *req, struct caliptra_certify_key_extended_mldsa87_resp *resp, bool async)
+{
+    if (!req || !resp)
+    {
+        return INVALID_PARAMS;
+    }
+
+    CREATE_PARCEL(p, OP_CERTIFY_KEY_EXTENDED_MLDSA87, req, resp);
+
+    return pack_and_execute_command(&p, async);
+}
+
+// Invoke DPE command (ML-DSA-87). Variable-length request: only the populated
+// prefix of `data` (trimmed to `data_size`) is sent.
+int caliptra_invoke_dpe_mldsa87(struct caliptra_invoke_dpe_mldsa87_req *req, struct caliptra_invoke_dpe_mldsa87_resp *resp, bool async)
+{
+    if (!req || !resp)
+    {
+        return INVALID_PARAMS;
+    }
+
+    if (req->data_size > INVOKE_DPE_MLDSA87_DATA_MAX_SIZE)
+    {
+        return INVALID_PARAMS;
+    }
+
+    uint32_t actual_bytes = sizeof(caliptra_checksum) + sizeof(uint32_t) + req->data_size;
+
+    struct parcel p = {
+        .command   = OP_INVOKE_DPE_MLDSA87,
+        .tx_buffer = (uint8_t*)req,
+        .tx_bytes  = actual_bytes,
+        .rx_buffer = (uint8_t*)resp,
+        .rx_bytes  = sizeof(*resp),
+    };
+
+    return pack_and_execute_command(&p, async);
+}
+
+// Sign with Exported ML-DSA. Variable-length request: only the populated prefix
+// of `message` (trimmed to `message_size`) is sent.
+int caliptra_sign_with_exported_mldsa(struct caliptra_sign_with_exported_mldsa_req *req, struct caliptra_sign_with_exported_mldsa_resp *resp, bool async)
+{
+    if (!req || !resp)
+    {
+        return INVALID_PARAMS;
+    }
+
+    if (req->message_size > SIGN_WITH_EXPORTED_MLDSA_MSG_MAX_SIZE)
+    {
+        return INVALID_PARAMS;
+    }
+
+    uint32_t actual_bytes = sizeof(caliptra_checksum) +
+                            SIGN_WITH_EXPORTED_MLDSA_CDI_MAX_SIZE +
+                            sizeof(uint32_t) /* sign_mode */ +
+                            sizeof(uint32_t) /* message_size */ +
+                            req->message_size;
+
+    struct parcel p = {
+        .command   = OP_SIGN_WITH_EXPORTED_MLDSA,
+        .tx_buffer = (uint8_t*)req,
+        .tx_bytes  = actual_bytes,
+        .rx_buffer = (uint8_t*)resp,
+        .rx_bytes  = sizeof(*resp),
+    };
+
+    return pack_and_execute_command(&p, async);
+}
+
 // Self test start
 int caliptra_self_test_start(bool async)
 {

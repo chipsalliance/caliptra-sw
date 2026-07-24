@@ -344,6 +344,108 @@ struct caliptra_revoke_exported_cdi_handle_req
     uint8_t exported_cdi_handle[32];
 };
 
+#define MLDSA87_PUB_KEY_SIZE   2592
+#define MLDSA87_SIGNATURE_SIZE 4627
+#define MLDSA87_SEED_SIZE      32
+#define MLDSA87_MU_SIZE        64
+
+// SET_PQ_SEED: provision the PQ.DevID (ML-DSA) seed. No response body.
+struct caliptra_set_pq_seed_req
+{
+    struct caliptra_req_header hdr;
+    uint8_t seed[MLDSA87_SEED_SIZE];
+};
+
+// GET_PQ_CSR: return the ML-DSA IDevID CSR. No command-specific request args.
+#define GET_PQ_CSR_DATA_MAX_SIZE 12800
+struct caliptra_get_pq_csr_resp
+{
+    struct caliptra_resp_header hdr;
+    uint32_t data_size;
+    uint8_t data[GET_PQ_CSR_DATA_MAX_SIZE]; // variable length
+};
+
+// GET_PQ_INFO: return the ML-DSA IDevID public key. No request args.
+struct caliptra_get_pq_info_resp
+{
+    struct caliptra_resp_header hdr;
+    uint8_t pq_pub_key[MLDSA87_PUB_KEY_SIZE];
+};
+
+// GET_PQ_CERT: build/return the ML-DSA IDevID cert from a caller-supplied
+// TBS + signature. Variable-length request (trailing `tbs` trimmed to
+// `tbs_size`) and response.
+#define GET_PQ_CERT_TBS_MAX_SIZE  3553
+#define GET_PQ_CERT_CERT_MAX_SIZE 8192
+struct caliptra_get_pq_cert_req
+{
+    struct caliptra_req_header hdr;
+    uint32_t tbs_size;
+    uint8_t signature[MLDSA87_SIGNATURE_SIZE];
+    uint8_t tbs[GET_PQ_CERT_TBS_MAX_SIZE]; // variable length
+};
+struct caliptra_get_pq_cert_resp
+{
+    struct caliptra_resp_header hdr;
+    uint32_t cert_size;
+    uint8_t cert[GET_PQ_CERT_CERT_MAX_SIZE]; // variable length
+};
+
+// POPULATE_PQ_CERT: store an externally-signed PQ IDevID cert into the cert
+// chain. No response body. Variable-length request (`cert` trimmed to
+// `cert_size`).
+#define POPULATE_PQ_CERT_MAX_SIZE 8192
+struct caliptra_populate_pq_cert_req
+{
+    struct caliptra_req_header hdr;
+    uint32_t cert_size;
+    uint8_t cert[POPULATE_PQ_CERT_MAX_SIZE]; // variable length
+};
+
+// CERTIFY_KEY_EXTENDED_MLDSA87: ML-DSA variant of certify-key-extended.
+#define CERTIFY_KEY_EXTENDED_MLDSA87_REQ_SIZE  72
+#define CERTIFY_KEY_EXTENDED_MLDSA87_RESP_SIZE 25152
+struct caliptra_certify_key_extended_mldsa87_req
+{
+    struct caliptra_req_header hdr;
+    uint32_t flags;
+    uint8_t certify_key_req[CERTIFY_KEY_EXTENDED_MLDSA87_REQ_SIZE];
+};
+struct caliptra_certify_key_extended_mldsa87_resp
+{
+    struct caliptra_resp_header hdr;
+    uint32_t size;
+    uint8_t certify_key_resp[CERTIFY_KEY_EXTENDED_MLDSA87_RESP_SIZE]; // variable length
+};
+
+// INVOKE_DPE_MLDSA87 request/response structs are defined after the DPE
+// command/response struct definitions below, since the request reuses the DPE
+// command union.
+
+// SIGN_WITH_EXPORTED_MLDSA: sign with an exported-CDI-derived ML-DSA key.
+// Variable-length request (`message` trimmed to `message_size`).
+#define SIGN_WITH_EXPORTED_MLDSA_CDI_MAX_SIZE 32
+#define SIGN_WITH_EXPORTED_MLDSA_MSG_MAX_SIZE 1024
+// sign_mode values (mirror SignWithExportedMldsaReq)
+#define SIGN_WITH_EXPORTED_MLDSA_MODE_DATA        0
+#define SIGN_WITH_EXPORTED_MLDSA_MODE_EXTERNAL_MU 1
+struct caliptra_sign_with_exported_mldsa_req
+{
+    struct caliptra_req_header hdr;
+    uint8_t exported_cdi_handle[SIGN_WITH_EXPORTED_MLDSA_CDI_MAX_SIZE];
+    uint32_t sign_mode;
+    uint32_t message_size;
+    uint8_t message[SIGN_WITH_EXPORTED_MLDSA_MSG_MAX_SIZE]; // variable length
+};
+struct caliptra_sign_with_exported_mldsa_resp
+{
+    struct caliptra_resp_header hdr;
+    uint8_t derived_pubkey[MLDSA87_PUB_KEY_SIZE];
+    uint8_t signature[MLDSA87_SIGNATURE_SIZE];
+    // Pads the struct to a 4-byte multiple (SIG_SIZE is odd). Always zero.
+    uint8_t reserved[1];
+};
+
 struct caliptra_reallocate_dpe_context_limits_req
 {
     struct caliptra_req_header hdr;
@@ -570,4 +672,35 @@ struct caliptra_invoke_dpe_resp
         struct dpe_get_certificate_chain_response get_certificate_chain_resp;
         uint8_t data[0];
     };
+};
+
+// INVOKE_DPE_MLDSA87: invoke a DPE command using ML-DSA signing. The request
+// reuses the ergonomic DPE command union (like `caliptra_invoke_dpe_req`); the
+// response uses a flat buffer sized to the firmware maximum to guarantee enough
+// receive space. Both are variable length (trimmed/read to `data_size`).
+#define INVOKE_DPE_MLDSA87_DATA_MAX_SIZE      512
+#define INVOKE_DPE_MLDSA87_RESP_DATA_MAX_SIZE 25168
+struct caliptra_invoke_dpe_mldsa87_req
+{
+    struct caliptra_req_header hdr;
+    uint32_t data_size;
+    union
+    {
+        struct dpe_cmd_hdr cmd_hdr;
+        struct dpe_get_profile_cmd get_profile_cmd;
+        struct dpe_initialize_context_cmd initialize_context_cmd;
+        struct dpe_derive_context_cmd derive_context_cmd;
+        struct dpe_certify_key_cmd certify_key_cmd;
+        struct dpe_sign_cmd sign_cmd;
+        struct dpe_rotate_context_handle_cmd rotate_context_handle_cmd;
+        struct dpe_destroy_context_cmd destroy_context_cmd;
+        struct dpe_get_certificate_chain_cmd get_certificate_chain_cmd;
+        uint8_t data[INVOKE_DPE_MLDSA87_DATA_MAX_SIZE];
+    };
+};
+struct caliptra_invoke_dpe_mldsa87_resp
+{
+    struct caliptra_resp_header hdr;
+    uint32_t data_size;
+    uint8_t data[INVOKE_DPE_MLDSA87_RESP_DATA_MAX_SIZE]; // variable length
 };

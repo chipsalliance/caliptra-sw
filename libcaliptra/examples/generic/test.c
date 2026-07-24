@@ -1218,6 +1218,59 @@ int sign_with_exported_ecdsa_cdi_hitless(const test_info* info)
     return 0;
 }
 
+// Provision the PQ.DevID (ML-DSA) seed, then read back the ML-DSA IDevID public
+// key. Exercises SET_PQ_SEED and GET_PQ_INFO.
+int pqc_set_seed_and_get_identity(const test_info* info)
+{
+    int status = boot_to_ready_for_fw(info, false);
+    if (status) {
+        dump_caliptra_error_codes();
+        return 1;
+    }
+
+    status = caliptra_upload_fw(&info->image_bundle, false);
+    if (status) {
+        printf("FW Load Failed: 0x%x\n", status);
+        dump_caliptra_error_codes();
+        return 1;
+    }
+
+    // Provision the PQ.DevID seed (write-once).
+    struct caliptra_set_pq_seed_req seed_req = { 0 };
+    memset(seed_req.seed, 0x5a, sizeof(seed_req.seed));
+    status = caliptra_set_pq_seed(&seed_req, false);
+    if (status) {
+        printf("SET_PQ_SEED failed: 0x%x\n", status);
+        dump_caliptra_error_codes();
+        return 1;
+    }
+
+    // Read the ML-DSA IDevID public key; it must be non-zero once provisioned.
+    struct caliptra_get_pq_info_resp info_resp = { 0 };
+    status = caliptra_get_pq_info(&info_resp, false);
+    if (status) {
+        printf("GET_PQ_INFO failed: 0x%x\n", status);
+        dump_caliptra_error_codes();
+        return 1;
+    }
+
+    bool pubkey_nonzero = false;
+    for (size_t i = 0; i < sizeof(info_resp.pq_pub_key); i++) {
+        if (info_resp.pq_pub_key[i] != 0) {
+            pubkey_nonzero = true;
+            break;
+        }
+    }
+    if (!pubkey_nonzero) {
+        printf("GET_PQ_INFO returned an all-zero public key\n");
+        return 1;
+    }
+
+    printf("PQC set seed + identity: OK (pubkey %zu bytes)\n",
+           sizeof(info_resp.pq_pub_key));
+    return 0;
+}
+
 // Issue FW load commands repeatedly
 // Coverage for piecewise FW load and runtime FW updates
 int upload_fw_piecewise(const test_info* info)
@@ -1561,6 +1614,7 @@ int run_tests(const test_info* info)
     run_test(upload_fw_piecewise, info, "Test Piecewise FW Load");
     run_test(sign_with_exported_ecdsa_cdi, info, "Test Sign with Exported ECDSA");
     run_test(sign_with_exported_ecdsa_cdi_hitless, info, "Test Exported CDI Hitless Update");
+    run_test(pqc_set_seed_and_get_identity, info, "Test PQC Set Seed + Get Identity");
     run_test(test_sha_acc, info,"Test SHA ACC");
 
     if (global_test_result) {
