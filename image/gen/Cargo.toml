@@ -19,3 +19,4 @@ serde_derive.workspace = true
 zerocopy.workspace = true
 fips204.workspace = true
 rand.workspace = true
+p384.workspace = true

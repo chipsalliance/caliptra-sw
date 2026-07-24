@@ -1774,4 +1774,138 @@ fn test_documented_pk_hash_values() {
         ],
         "MLDSA owner PK hash mismatch",
     );
+
+    let keys_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("keys");
+
+    // Vendor ECC Keys
+    assert_eq!(
+        OsslCrypto::ecc_pub_key_from_pem(&keys_dir.join("vendor_ecc_0_pub.pem")).unwrap(),
+        VENDOR_ECC_KEY_0_PUBLIC
+    );
+    assert_eq!(
+        OsslCrypto::ecc_priv_key_from_pem(&keys_dir.join("vendor_ecc_0_key.pem")).unwrap(),
+        VENDOR_ECC_KEY_0_PRIVATE
+    );
+    assert_eq!(
+        OsslCrypto::ecc_pub_key_from_pem(&keys_dir.join("vendor_ecc_1_pub.pem")).unwrap(),
+        VENDOR_ECC_KEY_1_PUBLIC
+    );
+    assert_eq!(
+        OsslCrypto::ecc_priv_key_from_pem(&keys_dir.join("vendor_ecc_1_key.pem")).unwrap(),
+        VENDOR_ECC_KEY_1_PRIVATE
+    );
+    assert_eq!(
+        OsslCrypto::ecc_pub_key_from_pem(&keys_dir.join("vendor_ecc_2_pub.pem")).unwrap(),
+        VENDOR_ECC_KEY_2_PUBLIC
+    );
+    assert_eq!(
+        OsslCrypto::ecc_priv_key_from_pem(&keys_dir.join("vendor_ecc_2_key.pem")).unwrap(),
+        VENDOR_ECC_KEY_2_PRIVATE
+    );
+    assert_eq!(
+        OsslCrypto::ecc_pub_key_from_pem(&keys_dir.join("vendor_ecc_3_pub.pem")).unwrap(),
+        VENDOR_ECC_KEY_3_PUBLIC
+    );
+    assert_eq!(
+        OsslCrypto::ecc_priv_key_from_pem(&keys_dir.join("vendor_ecc_3_key.pem")).unwrap(),
+        VENDOR_ECC_KEY_3_PRIVATE
+    );
+
+    // Owner ECC Keys
+    assert_eq!(
+        OsslCrypto::ecc_pub_key_from_pem(&keys_dir.join("owner_ecc_pub.pem")).unwrap(),
+        OWNER_ECC_KEY_PUBLIC
+    );
+    assert_eq!(
+        OsslCrypto::ecc_priv_key_from_pem(&keys_dir.join("owner_ecc_key.pem")).unwrap(),
+        OWNER_ECC_KEY_PRIVATE
+    );
+
+    // Vendor LMS Keys
+    assert_eq!(
+        OsslCrypto::lms_pub_key_from_file(&keys_dir.join("vendor_lms_0_pub.pem")).unwrap(),
+        VENDOR_LMS_KEY_0_PUBLIC
+    );
+    assert_eq!(
+        OsslCrypto::lms_priv_key_from_file(&keys_dir.join("vendor_lms_0_key.pem")).unwrap(),
+        VENDOR_LMS_KEY_0_PRIVATE
+    );
+    assert_eq!(
+        OsslCrypto::lms_pub_key_from_file(&keys_dir.join("vendor_lms_1_pub.pem")).unwrap(),
+        VENDOR_LMS_KEY_1_PUBLIC
+    );
+    assert_eq!(
+        OsslCrypto::lms_priv_key_from_file(&keys_dir.join("vendor_lms_1_key.pem")).unwrap(),
+        VENDOR_LMS_KEY_1_PRIVATE
+    );
+    assert_eq!(
+        OsslCrypto::lms_pub_key_from_file(&keys_dir.join("vendor_lms_2_pub.pem")).unwrap(),
+        VENDOR_LMS_KEY_2_PUBLIC
+    );
+    assert_eq!(
+        OsslCrypto::lms_priv_key_from_file(&keys_dir.join("vendor_lms_2_key.pem")).unwrap(),
+        VENDOR_LMS_KEY_2_PRIVATE
+    );
+    assert_eq!(
+        OsslCrypto::lms_pub_key_from_file(&keys_dir.join("vendor_lms_3_pub.pem")).unwrap(),
+        VENDOR_LMS_KEY_3_PUBLIC
+    );
+    assert_eq!(
+        OsslCrypto::lms_priv_key_from_file(&keys_dir.join("vendor_lms_3_key.pem")).unwrap(),
+        VENDOR_LMS_KEY_3_PRIVATE
+    );
+
+    // Owner LMS Keys
+    assert_eq!(
+        OsslCrypto::lms_pub_key_from_file(&keys_dir.join("owner_lms_pub.pem")).unwrap(),
+        OWNER_LMS_KEY_PUBLIC
+    );
+    assert_eq!(
+        OsslCrypto::lms_priv_key_from_file(&keys_dir.join("owner_lms_key.pem")).unwrap(),
+        OWNER_LMS_KEY_PRIVATE
+    );
+
+    // Vendor ML-DSA Keys
+    assert_eq!(
+        OsslCrypto::mldsa_pub_key_from_file(&keys_dir.join("vendor_mldsa_0_pub.pem")).unwrap(),
+        VENDOR_MLDSA_KEY_0_PUBLIC
+    );
+    assert_eq!(
+        OsslCrypto::mldsa_priv_key_from_file(&keys_dir.join("vendor_mldsa_0_key.pem")).unwrap(),
+        VENDOR_MLDSA_KEY_0_PRIVATE
+    );
+    assert_eq!(
+        OsslCrypto::mldsa_pub_key_from_file(&keys_dir.join("vendor_mldsa_1_pub.pem")).unwrap(),
+        VENDOR_MLDSA_KEY_1_PUBLIC
+    );
+    assert_eq!(
+        OsslCrypto::mldsa_priv_key_from_file(&keys_dir.join("vendor_mldsa_1_key.pem")).unwrap(),
+        VENDOR_MLDSA_KEY_1_PRIVATE
+    );
+    assert_eq!(
+        OsslCrypto::mldsa_pub_key_from_file(&keys_dir.join("vendor_mldsa_2_pub.pem")).unwrap(),
+        VENDOR_MLDSA_KEY_2_PUBLIC
+    );
+    assert_eq!(
+        OsslCrypto::mldsa_priv_key_from_file(&keys_dir.join("vendor_mldsa_2_key.pem")).unwrap(),
+        VENDOR_MLDSA_KEY_2_PRIVATE
+    );
+    assert_eq!(
+        OsslCrypto::mldsa_pub_key_from_file(&keys_dir.join("vendor_mldsa_3_pub.pem")).unwrap(),
+        VENDOR_MLDSA_KEY_3_PUBLIC
+    );
+    assert_eq!(
+        OsslCrypto::mldsa_priv_key_from_file(&keys_dir.join("vendor_mldsa_3_key.pem")).unwrap(),
+        VENDOR_MLDSA_KEY_3_PRIVATE
+    );
+
+    // Owner ML-DSA Keys
+    assert_eq!(
+        OsslCrypto::mldsa_pub_key_from_file(&keys_dir.join("owner_mldsa_pub.pem")).unwrap(),
+        OWNER_MLDSA_KEY_PUBLIC
+    );
+    assert_eq!(
+        OsslCrypto::mldsa_priv_key_from_file(&keys_dir.join("owner_mldsa_key.pem")).unwrap(),
+        OWNER_MLDSA_KEY_PRIVATE
+    );
 }
