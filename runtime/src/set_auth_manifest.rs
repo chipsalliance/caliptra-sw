@@ -15,10 +15,11 @@ Abstract:
 use core::cmp::min;
 use core::mem::size_of;
 
-use crate::{Drivers, PauserPrivileges};
+use crate::{manifest::sorted_metadata_lists_overlap, Drivers, PauserPrivileges};
 use caliptra_auth_man_types::{
     AuthManifestFlags, AuthManifestImageMetadata, AuthManifestImageMetadataCollection,
-    AuthManifestPreamble, AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT, AUTH_MANIFEST_MARKER,
+    AuthManifestPreamble, OwnerAuthManifestImageMetadataCollection,
+    AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT, AUTH_MANIFEST_MARKER,
 };
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_cfi_lib::{
@@ -40,7 +41,7 @@ use zeroize::Zeroize;
 
 pub struct SetAuthManifestCmd;
 impl SetAuthManifestCmd {
-    fn sha384_digest(
+    pub(crate) fn sha384_digest(
         sha2: &mut Sha2_512_384,
         buf: &[u8],
         offset: u32,
@@ -55,7 +56,7 @@ impl SetAuthManifestCmd {
         Ok(sha2.sha384_digest(data)?.0)
     }
 
-    fn offset_data(buf: &[u8], offset: u32, len: u32) -> CaliptraResult<&[u8]> {
+    pub(crate) fn offset_data(buf: &[u8], offset: u32, len: u32) -> CaliptraResult<&[u8]> {
         let err = CaliptraError::IMAGE_VERIFIER_ERR_DIGEST_OUT_OF_BOUNDS;
         buf.get(offset as usize..)
             .ok_or(err)?
@@ -63,7 +64,7 @@ impl SetAuthManifestCmd {
             .ok_or(err)
     }
 
-    fn ecc384_verify(
+    pub(crate) fn ecc384_verify(
         ecc384: &mut Ecc384,
         digest: &ImageDigest384,
         pub_key: &ImageEccPubKey,
@@ -84,7 +85,7 @@ impl SetAuthManifestCmd {
         ecc384.verify_r(&pub_key, &digest, &sig)
     }
 
-    fn lms_verify(
+    pub(crate) fn lms_verify(
         sha256: &mut Sha256,
         digest: &ImageDigest384,
         pub_key: &ImageLmsPublicKey,
@@ -556,6 +557,7 @@ impl SetAuthManifestCmd {
         cmd_buf: &[u8],
         auth_manifest_preamble: &AuthManifestPreamble,
         metadata_persistent: &mut AuthManifestImageMetadataCollection,
+        owner_metadata_persistent: &OwnerAuthManifestImageMetadataCollection,
         sha2: &mut Sha2_512_384,
         ecc384: &mut Ecc384,
         sha256: &mut Sha256,
@@ -626,6 +628,14 @@ impl SetAuthManifestCmd {
 
         Self::sort_and_check_duplicate_fwid(slice)?;
 
+        let owner_slice = owner_metadata_persistent
+            .image_metadata_list
+            .get(..owner_metadata_persistent.entry_count as usize)
+            .ok_or(CaliptraError::RUNTIME_INTERNAL)?;
+        if sorted_metadata_lists_overlap(slice, owner_slice) {
+            Err(CaliptraError::RUNTIME_AUTH_MANIFEST_IMAGE_METADATA_LIST_DUPLICATE_FIRMWARE_ID)?;
+        }
+
         if !verify_only {
             // Clear the previous image metadata collection.
             metadata_persistent.zeroize();
@@ -637,7 +647,7 @@ impl SetAuthManifestCmd {
         Ok(())
     }
 
-    fn sort_and_check_duplicate_fwid(
+    pub(crate) fn sort_and_check_duplicate_fwid(
         slice: &mut [AuthManifestImageMetadata],
     ) -> CaliptraResult<()> {
         for i in 1..slice.len() {
@@ -788,6 +798,7 @@ impl SetAuthManifestCmd {
                     .ok_or(CaliptraError::RUNTIME_AUTH_MANIFEST_IMAGE_METADATA_LIST_INVALID_SIZE)?,
                 auth_manifest_preamble,
                 &mut persistent_data.fw.auth_manifest_image_metadata_col,
+                &persistent_data.fw.owner_auth_manifest_image_metadata_col,
                 &mut drivers.sha2_512_384,
                 &mut drivers.ecc384,
                 &mut drivers.sha256,

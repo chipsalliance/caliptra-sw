@@ -5,7 +5,7 @@ use core::{marker::PhantomData, mem::size_of, ptr::addr_of};
 #[cfg(feature = "runtime")]
 use caliptra_auth_man_types::{
     AuthManifestImageMetadata, AuthManifestImageMetadataCollection,
-    AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT,
+    OwnerAuthManifestImageMetadataCollection, AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT,
 };
 #[cfg(feature = "runtime")]
 use caliptra_dpe::{ExportedCdiHandle, U8Bool, MAX_HANDLES};
@@ -97,7 +97,12 @@ mod fw {
     pub const MLDSA_RTALIAS_TBS_SIZE: u32 = 4 * 1024;
     pub const DPE_SIZE: u32 = 10 * 1024;
     pub const PCR_RESET_COUNTER_SIZE: u32 = 1024;
-    pub const AUTH_MAN_IMAGE_METADATA_MAX_SIZE: u32 = 10 * 1024;
+    pub const AUTH_MAN_IMAGE_METADATA_MAX_SIZE: u32 = 6 * 1024 + 512; // 6.5 KiB
+    /// Reserved DCCM region for the owner-only IME collection (loaded
+    /// via `SET_OWNER_AUTH_MANIFEST`). Sized to fit the owner-only
+    /// IMC cap (`OWNER_AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT = 32`)
+    /// plus the owner-manifest digest, with small slack.
+    pub const OWNER_AUTH_MAN_IMAGE_METADATA_MAX_SIZE: u32 = 3 * 1024;
     pub const FMC_ALIAS_CSR_SIZE: u32 = 9 * 1024;
     pub const MLDSA_SIGNATURE_SIZE: u32 = 4628;
     pub const FIRMWARE_OCP_LOCK_METADATA_SIZE: u32 = 4;
@@ -666,6 +671,23 @@ pub struct FwPersistentData {
     #[cfg(not(feature = "runtime"))]
     pub auth_manifest_image_metadata_col: [u8; AUTH_MAN_IMAGE_METADATA_MAX_SIZE as usize],
 
+    // Owner-only IME collection, loaded via `SET_OWNER_AUTH_MANIFEST`.
+    // Stored separately from `auth_manifest_image_metadata_col` (the
+    // vendor + owner collection populated by `SET_AUTH_MANIFEST`); the
+    // two collections are never mixed. Survives warm and update resets,
+    // cleared on cold reset.
+    #[cfg(feature = "runtime")]
+    pub owner_auth_manifest_image_metadata_col: OwnerAuthManifestImageMetadataCollection,
+    #[cfg(feature = "runtime")]
+    pub owner_auth_manifest_digest: [u32; SHA384_HASH_SIZE / 4],
+    #[cfg(feature = "runtime")]
+    reserved10: [u8; OWNER_AUTH_MAN_IMAGE_METADATA_MAX_SIZE as usize
+        - (SHA384_HASH_SIZE + size_of::<OwnerAuthManifestImageMetadataCollection>())],
+
+    #[cfg(not(feature = "runtime"))]
+    pub owner_auth_manifest_image_metadata_col:
+        [u8; OWNER_AUTH_MAN_IMAGE_METADATA_MAX_SIZE as usize],
+
     pub fmc_alias_csr: FmcAliasCsrs,
     reserved4: [u8; FMC_ALIAS_CSR_SIZE as usize - size_of::<FmcAliasCsrs>()],
 
@@ -681,7 +703,7 @@ pub struct FwPersistentData {
 #[cfg(any(feature = "fmc", feature = "runtime"))]
 impl FwPersistentData {
     pub const MAGIC: u32 = u32::from_be_bytes(*b"FWPD");
-    pub const VERSION: u32 = 1;
+    pub const VERSION: u32 = 2;
 
     pub fn assert_matches_layout() {
         const P: *const PersistentData =
@@ -731,6 +753,12 @@ impl FwPersistentData {
             );
 
             persistent_data_offset += AUTH_MAN_IMAGE_METADATA_MAX_SIZE;
+            assert_eq!(
+                addr_of!((*P).fw.owner_auth_manifest_image_metadata_col) as u32,
+                memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
+            );
+
+            persistent_data_offset += OWNER_AUTH_MAN_IMAGE_METADATA_MAX_SIZE;
             assert_eq!(
                 addr_of!((*P).fw.fmc_alias_csr) as u32,
                 memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
@@ -890,7 +918,7 @@ mod tests {
     #[test]
     #[cfg(any(feature = "fmc", feature = "runtime"))]
     fn test_fw_persistent_data_size() {
-        let expected_size = 40488;
+        let expected_size = 39976;
         if size_of::<FwPersistentData>() != expected_size {
             panic!(
                 "FwPersistentData size has changed from {} to {}. If this is intentional, update \
@@ -921,7 +949,7 @@ mod tests {
     fn test_fw_persistent_data_address() {
         let p = memory_layout::PERSISTENT_DATA_ORG as *const PersistentData;
         let fw_persistent_data_addr = unsafe { addr_of!((*p).fw) as u32 };
-        let expected_addr = 1342337332;
+        let expected_addr = 1342337844;
         if fw_persistent_data_addr != expected_addr {
             panic!(
                 "FwPersistentData address has changed from {} to {}. If this is \
@@ -985,11 +1013,12 @@ mod tests {
             (offset_of!(FwPersistentData, rt_dice_mldsa_sign), 15364, "rt_dice_mldsa_sign"),
             (offset_of!(FwPersistentData, pcr_reset), 19992, "pcr_reset"),
             (offset_of!(FwPersistentData, auth_manifest_image_metadata_col), 21016, "auth_manifest_image_metadata_col"),
-            (offset_of!(FwPersistentData, fmc_alias_csr), 31256, "fmc_alias_csr"),
-            (offset_of!(FwPersistentData, mcu_firmware_loaded), 40472, "mcu_firmware_loaded"),
-            (offset_of!(FwPersistentData, ocp_lock_metadata), 40476, "ocp_lock_metadata"),
-            (offset_of!(FwPersistentData, version), 40480, "version"),
-            (offset_of!(FwPersistentData, marker), 40484, "marker"),
+            (offset_of!(FwPersistentData, owner_auth_manifest_image_metadata_col), 27672, "owner_auth_manifest_image_metadata_col"),
+            (offset_of!(FwPersistentData, fmc_alias_csr), 30744, "fmc_alias_csr"),
+            (offset_of!(FwPersistentData, mcu_firmware_loaded), 39960, "mcu_firmware_loaded"),
+            (offset_of!(FwPersistentData, ocp_lock_metadata), 39964, "ocp_lock_metadata"),
+            (offset_of!(FwPersistentData, version), 39968, "version"),
+            (offset_of!(FwPersistentData, marker), 39972, "marker"),
         ];
 
         for (actual, expected, name) in actual_expected {

@@ -12,7 +12,7 @@ Abstract:
 
 --*/
 
-use crate::manifest::find_metadata_entry;
+use crate::manifest::{find_metadata_entry, find_owner_metadata_entry};
 use crate::{mutrefbytes, Drivers, PauserPrivileges, StashMeasurementCmd};
 use caliptra_auth_man_types::ImageMetadataFlags;
 use caliptra_cfi_derive::cfi_impl_fn;
@@ -29,6 +29,22 @@ use zerocopy::FromBytes;
 pub const IMAGE_AUTHORIZED: u32 = 0xDEADC0DE; // Either FW ID and image digest matched or 'ignore_auth_check' is set for the FW ID.
 pub const IMAGE_NOT_AUTHORIZED: u32 = 0x21523F21; // FW ID not found in the image metadata entry collection.
 pub const IMAGE_HASH_MISMATCH: u32 = 0x8BFB95CB; // FW ID matched, but image digest mismatched.
+
+// Provenance-tagged authorization result codes.
+//
+// `IMAGE_AUTHORIZED` is preserved (value `0xDEADC0DE`) for backwards
+// compatibility and is aliased as `IMAGE_AUTHORIZED_VENDOR_OWNER` to
+// indicate that the matching IME came from the vendor + owner
+// collection (loaded via `SET_AUTH_MANIFEST`).
+//
+// `IMAGE_AUTHORIZED_OWNER_ONLY` is a new value returned when the
+// matching IME came from the owner-only collection (loaded via
+// `SET_OWNER_AUTH_MANIFEST`). It allows downstream attestation
+// consumers to distinguish the two trust models without out-of-band
+// context. The `auth_req_result` field of `AuthorizeAndStashResp` is
+// unchanged in width; only the value space is extended.
+pub const IMAGE_AUTHORIZED_VENDOR_OWNER: u32 = IMAGE_AUTHORIZED;
+pub const IMAGE_AUTHORIZED_OWNER_ONLY: u32 = 0xC0DE_DEAD;
 
 pub struct AuthorizeAndStashCmd;
 impl AuthorizeAndStashCmd {
@@ -79,24 +95,36 @@ impl AuthorizeAndStashCmd {
             &drivers.dma,
         );
         let auth_manifest_image_metadata_col = &persistent_data.fw.auth_manifest_image_metadata_col;
+        let owner_auth_manifest_image_metadata_col =
+            &persistent_data.fw.owner_auth_manifest_image_metadata_col;
 
         let cmd_fw_id = u32::from_le_bytes(cmd.fw_id);
         let mut stash_measurement = cmd.measurement;
-        let auth_result = if let Some(metadata_entry) =
-            find_metadata_entry(auth_manifest_image_metadata_col, cmd_fw_id)
-        {
+        let auth_and_stash_flags: AuthAndStashFlags = cmd.flags.into();
+        let (metadata_entry, success_code) =
+            if let Some(entry) = find_metadata_entry(auth_manifest_image_metadata_col, cmd_fw_id) {
+                (Some(entry), IMAGE_AUTHORIZED_VENDOR_OWNER)
+            } else if let Some(entry) =
+                find_owner_metadata_entry(owner_auth_manifest_image_metadata_col, cmd_fw_id)
+            {
+                (Some(entry), IMAGE_AUTHORIZED_OWNER_ONLY)
+            } else {
+                (None, IMAGE_NOT_AUTHORIZED)
+            };
+
+        let auth_result = if let Some(metadata_entry) = metadata_entry {
             // If 'ignore_auth_check' is set, then skip the image digest comparison and authorize the image.
             let flags = ImageMetadataFlags(metadata_entry.flags);
             if flags.ignore_auth_check() {
                 cfi_assert!(cfi_launder(flags.ignore_auth_check()));
-                IMAGE_AUTHORIZED
+                success_code
             } else if source == ImageHashSource::InRequest {
                 if cfi_launder(metadata_entry.digest) == cmd.measurement {
                     caliptra_cfi_lib::cfi_assert_eq_12_words(
                         &Array4x12::from(metadata_entry.digest).0,
                         &Array4x12::from(cmd.measurement).0,
                     );
-                    IMAGE_AUTHORIZED
+                    success_code
                 } else {
                     IMAGE_HASH_MISMATCH
                 }
@@ -127,7 +155,7 @@ impl AuthorizeAndStashCmd {
                         &Array4x12::from(metadata_entry.digest).0,
                         &Array4x12::from(measurement).0,
                     );
-                    IMAGE_AUTHORIZED
+                    success_code
                 } else {
                     IMAGE_HASH_MISMATCH
                 }
@@ -137,25 +165,26 @@ impl AuthorizeAndStashCmd {
         } else {
             IMAGE_NOT_AUTHORIZED
         };
-        // Stash the measurement if the image is authorized.
-        if auth_result == IMAGE_AUTHORIZED {
-            let flags: AuthAndStashFlags = cmd.flags.into();
-            if !flags.contains(AuthAndStashFlags::SKIP_STASH) {
-                let dpe_result = StashMeasurementCmd::stash_measurement(
-                    drivers,
-                    &cmd.fw_id,
-                    &stash_measurement,
-                    cmd.svn,
-                    drivers.caller_privilege_level(),
-                    locality,
-                )?;
-                if dpe_result != DpeErrorCode::NoError {
-                    drivers
-                        .soc_ifc
-                        .set_fw_extended_error(dpe_result.get_error_code());
+        // Stash the measurement if the image is authorized (vendor+owner
+        // or owner-only).
+        if (auth_result == IMAGE_AUTHORIZED_VENDOR_OWNER
+            || auth_result == IMAGE_AUTHORIZED_OWNER_ONLY)
+            && !auth_and_stash_flags.contains(AuthAndStashFlags::SKIP_STASH)
+        {
+            let dpe_result = StashMeasurementCmd::stash_measurement(
+                drivers,
+                &cmd.fw_id,
+                &stash_measurement,
+                cmd.svn,
+                drivers.caller_privilege_level(),
+                locality,
+            )?;
+            if dpe_result != DpeErrorCode::NoError {
+                drivers
+                    .soc_ifc
+                    .set_fw_extended_error(dpe_result.get_error_code());
 
-                    Err(CaliptraError::RUNTIME_AUTH_AND_STASH_MEASUREMENT_DPE_ERROR)?;
-                }
+                Err(CaliptraError::RUNTIME_AUTH_AND_STASH_MEASUREMENT_DPE_ERROR)?;
             }
         }
 

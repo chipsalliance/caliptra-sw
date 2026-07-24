@@ -201,7 +201,7 @@ The Caliptra Measurement manifest feature expands on Caliptra-provided secure ve
 
 Each of these abilities are tied to Caliptra Vendor and Owner FW signing keys and should be independent of any SoC RoT FW signing keys.
 
-Manifest-based image authorization is implemented via two mailbox commands: [`SET_AUTH_MANIFEST`](#set_auth_manifest), and [`AUTHORIZE_AND_STASH`](#authorize_and_stash).
+Manifest-based image authorization is implemented via three mailbox commands: [`SET_AUTH_MANIFEST`](#set_auth_manifest), [`SET_OWNER_AUTH_MANIFEST`](#set_owner_auth_manifest), and [`AUTHORIZE_AND_STASH`](#authorize_and_stash). A firmware ID identifies one platform firmware image and must be unique across the active vendor + owner and owner-only Image Metadata Collections. Both set commands reject a manifest containing an ID in the other active collection. `AUTHORIZE_AND_STASH` searches the vendor + owner collection first and then the owner-only collection; the provenance of the matching entry is reflected in its `auth_req_result` field.
 
 ### Caliptra-Endorsed Aggregated Measured Boot
 
@@ -1397,7 +1397,7 @@ When `USE_MLDSA` is set, the command operates on the ML-DSA-87 DPE profile; othe
 
 ### SET_AUTH_MANIFEST
 
-The SoC uses this command and `SET_IMAGE_METADTA` to program an image manifest for Manifest-Based Image Authorization to Caliptra. In response to these commands, the Caliptra Runtime will verify the manifest by authenticating the public keys and in turn using them to authenticate the IMC. On successful verification, the Runtime will store the IMEs into DCCM for future use.
+The SoC uses this command and `SET_IMAGE_METADTA` to program an image manifest for Manifest-Based Image Authorization to Caliptra. In response to these commands, the Caliptra Runtime will verify the manifest by authenticating the public keys and in turn using them to authenticate the IMC. On successful verification, the Runtime will store the IMEs into DCCM for future use. Every active `fw_id` must be unique within this manifest and must not appear in the installed owner-only manifest. A collision rejects the command without replacing either active collection.
 
 Command Code: `0x4154_4D4E` ("ATMN")
 
@@ -1424,7 +1424,7 @@ Command Code: `0x4154_4D4E` ("ATMN")
 | metadata\_owner\_ecc384\_sig  | u32[24]      | Metadata Owner ECC384 signature. See [Byte order of cryptographic fields](#byte-order-of-cryptographic-fields). |
 | metadata\_owner\_PQC\_sig     | u32[1157]    | Metadata Owner MLDSA-87 or LMOTS-SHA192-W4 signature. See [Byte order of cryptographic fields](#byte-order-of-cryptographic-fields). |
 | metadata\_entry\_entry\_count | u32          | number of metadata entries                                                  |
-| metadata\_entries             | Metadata[127] | The max number of metadata entries is 127 but less can be used             |
+| metadata\_entries             | Metadata[80] | The max number of metadata entries is 80 but less can be used              |
 
 
 *Table: `AUTH_MANIFEST_FLAGS` input flags*
@@ -1451,11 +1451,48 @@ Command Code: `0x4154_4D4E` ("ATMN")
 
 ### VERIFY_AUTH_MANIFEST
 
-This command verifies the integrity and authenticity of the provided image manifest. Unlike `SET_AUTH_MANIFEST`, it performs validation only and does not persist the manifest in DCCM.
+This command verifies the integrity and authenticity of the provided image manifest. Unlike `SET_AUTH_MANIFEST`, it performs validation only and does not persist the manifest in DCCM. It also rejects a `fw_id` collision with the currently installed owner-only manifest.
 
 Command Code: `0x4154_564D` ("ATVM")
 
 The input arguments are the same as the `SET_AUTH_MANIFEST` command.
+
+
+### SET_OWNER_AUTH_MANIFEST
+
+The SoC uses this command to program an Owner Authorization Manifest, an owner-only authorization document stored independently from the manifest loaded by `SET_AUTH_MANIFEST`. The runtime parses the manifest, verifies its policy fields and Image Metadata Collection (IMC) signatures, and stores the IMC into a dedicated DCCM region. The vendor + owner collection populated by `SET_AUTH_MANIFEST` is never modified by this command.
+
+Command Code: `0x4F41_4D4E` ("OAMN")
+
+Verification chain:
+
+1. The manifest's `owner_pub_keys` are signed by the firmware-image owner key (latched from FMC at boot via `manifest1.preamble.owner_pub_keys`). This signature also covers the policy fields `version`, `svn`, `flags`, and `owner_pub_keys`.
+2. The manifest's IMC is signed by the manifest's own `owner_pub_keys`, which were just verified to chain to the firmware-image owner key.
+3. The manifest's `svn` is checked against the floor encoded in `SS_STRAP_GENERIC[3][7:0]` (subsystem mode only). The check is skipped when the lifecycle is `Unprovisioned` or anti-rollback is disabled.
+
+The maximum IMC capacity is 32 entries. Every active `fw_id` must be unique within this manifest and must not appear in the installed vendor + owner manifest. A collision rejects the command without replacing either active collection. Each successful call replaces the existing owner-only collection.
+
+*Table: `SET_OWNER_AUTH_MANIFEST` input arguments*
+
+| **Name**                              | **Type**     | **Description** |
+| ------------------------------------- | ------------ | --------------- |
+| chksum                                | u32          | Checksum over other input arguments, computed by the caller. Little endian. |
+| manifest size                         | u32          | The size of the full Owner Authorization Manifest. |
+| preamble\_marker                      | u32          | Marker needs to be `0x4D4F_574F` ("OWOM" little-endian) for the preamble to be valid. |
+| preamble\_size                        | u32          | Size of the Owner Authorization Manifest Preamble. |
+| preamble\_version                     | u32          | Version of the preamble. |
+| preamble\_svn                         | u32          | Security version, range `[0, 255]`. Checked against `SS_STRAP_GENERIC[3][7:0]`. |
+| preamble\_flags                       | u32          | Reserved. Must be zero. |
+| preamble\_owner\_ecc384\_key          | u32[24]      | Owner ECC384 public key carried in the manifest. |
+| preamble\_owner\_pqc\_key             | u32[648]     | Owner MLDSA-87 or LMS-SHA192-H15 public key carried in the manifest. |
+| preamble\_owner\_pub\_keys\_ecc\_sig  | u32[24]      | ECC384 signature by the firmware-image owner key over `version..=owner_pub_keys`. |
+| preamble\_owner\_pub\_keys\_pqc\_sig  | u32[1157]    | PQC signature by the firmware-image owner key over `version..=owner_pub_keys`. |
+| preamble\_owner\_imc\_ecc\_sig        | u32[24]      | ECC384 signature by the manifest's own owner key over the IMC. |
+| preamble\_owner\_imc\_pqc\_sig        | u32[1157]    | PQC signature by the manifest's own owner key over the IMC. |
+| metadata\_entry\_count                | u32          | Number of metadata entries. Must be `1..=32`. |
+| metadata\_entries                     | Metadata[32] | Image Metadata Entries. Per-entry layout is identical to `SET_AUTH_MANIFEST` (see `AUTH_MANIFEST_METADATA_ENTRY` above). |
+
+The response is a `MailboxRespHeader` (no payload).
 
 
 ### AUTHORIZE_AND_STASH
@@ -1490,7 +1527,7 @@ Command Code: `0x4154_5348` ("ATSH")
 | --------------- | -------- | -------------------------------------------------------------------------- |
 | chksum          | u32      | Checksum over other output arguments, computed by Caliptra. Little endian. |
 | fips_status     | u32      | Indicates if the command is FIPS approved or an error.                     |
-| auth_req_result | u32      |AUTHORIZE_IMAGE (0xDEADC0DE), IMAGE_NOT_AUTHORIZED (0x21523F21) or IMAGE_HASH_MISMATCH (0x8BFB95CB) |
+| auth_req_result | u32      |IMAGE_AUTHORIZED_VENDOR_OWNER (0xDEADC0DE, alias of legacy `AUTHORIZE_IMAGE`/`IMAGE_AUTHORIZED`), IMAGE_AUTHORIZED_OWNER_ONLY (0xC0DEDEAD), IMAGE_NOT_AUTHORIZED (0x21523F21) or IMAGE_HASH_MISMATCH (0x8BFB95CB). Lookup order: vendor + owner collection first, then owner-only collection populated by `SET_OWNER_AUTH_MANIFEST`. Active firmware IDs are unique across the collections, and the success value indicates which collection produced the match. |
 
 ### GET_IMAGE_INFO
 
