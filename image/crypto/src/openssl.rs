@@ -12,12 +12,10 @@ Abstract:
 
 --*/
 
-use std::path::Path;
-
-use anyhow::{bail, Context};
+use anyhow::bail;
 
 use caliptra_image_gen::{
-    from_hw_format, to_hw_format, u8_to_u32_le, ImageGeneratorCrypto, ImageGeneratorHasher,
+    from_hw_format, to_hw_format, ImageGeneratorCrypto, ImageGeneratorHasher,
 };
 use caliptra_image_types::*;
 use caliptra_lms_types::{LmotsAlgorithmType, LmsAlgorithmType};
@@ -158,10 +156,8 @@ impl ImageGeneratorCrypto for OsslCrypto {
         Ok(sig)
     }
 
-    fn ecc_pub_key_from_pem(path: &Path) -> anyhow::Result<ImageEccPubKey> {
-        let key_bytes = std::fs::read(path)
-            .with_context(|| format!("Failed to read public key PEM file {}", path.display()))?;
-        let key = EcKey::public_key_from_pem(&key_bytes)?;
+    fn ecc_pub_key_from_pem_bytes(key_bytes: &[u8]) -> anyhow::Result<ImageEccPubKey> {
+        let key = EcKey::public_key_from_pem(key_bytes)?;
         let group = EcGroup::from_curve_name(Nid::SECP384R1)?;
         let mut ctx = BigNumContext::new()?;
         let mut x = BigNum::new()?;
@@ -180,35 +176,14 @@ impl ImageGeneratorCrypto for OsslCrypto {
         Ok(image_key)
     }
 
-    fn ecc_priv_key_from_pem(path: &Path) -> anyhow::Result<ImageEccPrivKey> {
-        let key_bytes = std::fs::read(path)
-            .with_context(|| format!("Failed to read private key PEM file {}", path.display()))?;
-
-        let key = EcKey::private_key_from_pem(&key_bytes)?;
+    fn ecc_priv_key_from_pem_bytes(key_bytes: &[u8]) -> anyhow::Result<ImageEccPrivKey> {
+        let key = EcKey::private_key_from_pem(key_bytes)?;
 
         let priv_key = key
             .private_key()
             .to_vec_padded(ECC384_SCALAR_BYTE_SIZE as i32)?;
 
         Ok(to_hw_format(&priv_key))
-    }
-
-    /// Read MLDSA Public Key from file. Library format is same as hardware format.
-    fn mldsa_pub_key_from_file(path: &Path) -> anyhow::Result<ImageMldsaPubKey> {
-        let key_bytes = std::fs::read(path)
-            .with_context(|| format!("Failed to read public key file {}", path.display()))?;
-        Ok(ImageMldsaPubKey(
-            u8_to_u32_le(&key_bytes).try_into().unwrap(),
-        ))
-    }
-
-    /// Read MLDSA Private Key from file. Library format is same as hardware format.
-    fn mldsa_priv_key_from_file(path: &Path) -> anyhow::Result<ImageMldsaPrivKey> {
-        let key_bytes = std::fs::read(path)
-            .with_context(|| format!("Failed to read private key file {}", path.display()))?;
-        Ok(ImageMldsaPrivKey(
-            u8_to_u32_le(&key_bytes).try_into().unwrap(),
-        ))
     }
 }
 
