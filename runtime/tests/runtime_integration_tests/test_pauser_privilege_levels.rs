@@ -19,7 +19,7 @@ use caliptra_image_crypto::OsslCrypto as Crypto;
 use caliptra_image_elf::ElfExecutable;
 use caliptra_image_gen::{ImageGenerator, ImageGeneratorConfig};
 use caliptra_runtime::{
-    RtBootStatus, PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD,
+    CaliptraDpeProfile, RtBootStatus, PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD,
     PL1_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD,
 };
 
@@ -40,6 +40,7 @@ use crate::common::{
 };
 
 const DATA: TciMeasurement = TciMeasurement([0u8; TCI_SIZE]);
+const PROFILE: CaliptraDpeProfile = CaliptraDpeProfile::Ecc384;
 
 #[test]
 fn test_pl0_derive_context_dpe_context_thresholds() {
@@ -56,6 +57,7 @@ fn test_pl0_derive_context_dpe_context_thresholds() {
         flags: RotateCtxFlags::empty(),
     };
     let resp = execute_dpe_cmd(
+        PROFILE,
         &mut model,
         &mut Command::RotateCtx(&rotate_ctx_cmd),
         DpeResult::Success,
@@ -83,6 +85,7 @@ fn test_pl0_derive_context_dpe_context_thresholds() {
         // If we are on the last call to DeriveContext, expect that we get a RUNTIME_PL0_USED_DPE_CONTEXT_THRESHOLD_REACHED error.
         if i == num_iterations - 1 {
             let resp = execute_dpe_cmd(
+                PROFILE,
                 &mut model,
                 &mut Command::DeriveContext(&derive_context_cmd),
                 DpeResult::MboxCmdFailure(
@@ -94,6 +97,7 @@ fn test_pl0_derive_context_dpe_context_thresholds() {
         }
 
         let resp = execute_dpe_cmd(
+            PROFILE,
             &mut model,
             &mut Command::DeriveContext(&derive_context_cmd),
             DpeResult::Success,
@@ -126,6 +130,7 @@ fn test_pl1_derive_context_dpe_context_thresholds() {
     // when calling DeriveContext with the RETAIN_PARENT_CONTEXT flag
     let init_ctx_cmd = InitCtxCmd::new_simulation();
     let resp = execute_dpe_cmd(
+        PROFILE,
         &mut model,
         &mut Command::InitCtx(&init_ctx_cmd),
         DpeResult::Success,
@@ -153,6 +158,7 @@ fn test_pl1_derive_context_dpe_context_thresholds() {
         // If we are on the last call to DeriveContext, expect that we get a RUNTIME_PL1_USED_DPE_CONTEXT_THRESHOLD_REACHED error.
         if i == num_iterations - 1 {
             let resp = execute_dpe_cmd(
+                PROFILE,
                 &mut model,
                 &mut Command::DeriveContext(&derive_context_cmd),
                 DpeResult::MboxCmdFailure(
@@ -164,6 +170,7 @@ fn test_pl1_derive_context_dpe_context_thresholds() {
         }
 
         let resp = execute_dpe_cmd(
+            PROFILE,
             &mut model,
             &mut Command::DeriveContext(&derive_context_cmd),
             DpeResult::Success,
@@ -191,6 +198,7 @@ fn test_pl0_init_ctx_dpe_context_thresholds() {
         // If we are on the last call to InitializeContext, expect that we get a PL0_USED_DPE_CONTEXT_THRESHOLD_EXCEEDED error.
         if i == num_iterations - 1 {
             let resp = execute_dpe_cmd(
+                PROFILE,
                 &mut model,
                 &mut Command::InitCtx(&init_ctx_cmd),
                 DpeResult::MboxCmdFailure(
@@ -202,6 +210,7 @@ fn test_pl0_init_ctx_dpe_context_thresholds() {
         }
 
         let resp = execute_dpe_cmd(
+            PROFILE,
             &mut model,
             &mut Command::InitCtx(&init_ctx_cmd),
             DpeResult::Success,
@@ -235,6 +244,7 @@ fn test_pl1_init_ctx_dpe_context_thresholds() {
         // InitCtx should fail on the PL1_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD iteration
         if i == num_iterations {
             let resp = execute_dpe_cmd(
+                PROFILE,
                 &mut model,
                 &mut Command::InitCtx(&init_ctx_cmd),
                 DpeResult::MboxCmdFailure(
@@ -246,6 +256,7 @@ fn test_pl1_init_ctx_dpe_context_thresholds() {
         }
 
         let resp = execute_dpe_cmd(
+            PROFILE,
             &mut model,
             &mut Command::InitCtx(&init_ctx_cmd),
             DpeResult::Success,
@@ -281,6 +292,7 @@ fn test_change_locality() {
     };
 
     let _ = execute_dpe_cmd(
+        PROFILE,
         &mut model,
         &mut Command::DeriveContext(&derive_context_cmd),
         DpeResult::Success,
@@ -299,6 +311,7 @@ fn test_change_locality() {
     };
 
     let _ = execute_dpe_cmd(
+        PROFILE,
         &mut model,
         &mut Command::DeriveContext(&derive_context_cmd),
         DpeResult::Success,
@@ -454,6 +467,7 @@ fn test_export_cdi_cannot_be_called_from_pl1() {
         ..Default::default()
     };
     let _ = execute_dpe_cmd(
+        PROFILE,
         &mut model,
         &mut Command::DeriveContext(&get_cert_chain_cmd),
         DpeResult::MboxCmdFailure(CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL),
@@ -483,6 +497,7 @@ fn test_certify_key_x509_cannot_be_called_from_pl1() {
         format: CertifyKeyCommand::FORMAT_X509,
     };
     let resp = execute_dpe_cmd(
+        PROFILE,
         &mut model,
         &mut Command::from(&certify_key_cmd),
         DpeResult::MboxCmdFailure(CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL),
@@ -545,6 +560,7 @@ fn test_derive_context_cannot_be_called_from_pl1_if_changes_locality_to_pl0() {
     // init ctx since we have currently have no parent handle for pl1
     let init_ctx_cmd = InitCtxCmd::new_simulation();
     let resp = execute_dpe_cmd(
+        PROFILE,
         &mut model,
         &mut Command::InitCtx(&init_ctx_cmd),
         DpeResult::Success,
@@ -562,6 +578,7 @@ fn test_derive_context_cannot_be_called_from_pl1_if_changes_locality_to_pl0() {
         ..Default::default()
     };
     let resp = execute_dpe_cmd(
+        PROFILE,
         &mut model,
         &mut Command::DeriveContext(&derive_context_cmd),
         DpeResult::MboxCmdFailure(
@@ -740,6 +757,7 @@ fn test_pl0_unset_in_header() {
         format: CertifyKeyCommand::FORMAT_X509,
     };
     let resp = execute_dpe_cmd(
+        PROFILE,
         &mut model,
         &mut Command::from(&certify_key_cmd),
         DpeResult::MboxCmdFailure(CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL),
@@ -785,6 +803,7 @@ fn test_user_not_pl0() {
         format: CertifyKeyCommand::FORMAT_X509,
     };
     let resp = execute_dpe_cmd(
+        PROFILE,
         &mut model,
         &mut Command::from(&certify_key_cmd),
         DpeResult::MboxCmdFailure(CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL),

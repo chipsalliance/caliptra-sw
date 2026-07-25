@@ -17,6 +17,8 @@ use x509_parser::{
 };
 use zerocopy::IntoBytes;
 
+use zerocopy::FromZeros;
+
 use crate::common::{assert_error, run_rt_test, RuntimeTestArgs, TEST_LABEL};
 
 #[test]
@@ -226,4 +228,79 @@ fn test_dmtf_other_name_extension_not_present() {
     )
     .unwrap();
     assert!(cert.subject_alternative_name().unwrap().is_none());
+}
+
+#[test]
+fn test_certify_key_extended_different_labels_produce_different_keys() {
+    const OTHER_LABEL: [u8; 48] = [0xab; 48];
+
+    let mut model = run_rt_test(RuntimeTestArgs::default());
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    let cmd_a = CertifyKeyP384Cmd {
+        handle: ContextHandle::default(),
+        flags: CertifyKeyFlags::empty(),
+        format: CertifyKeyCommand::FORMAT_X509,
+        label: TEST_LABEL,
+    };
+    let mut req = MailboxReq::CertifyKeyExtended(CertifyKeyExtendedReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        certify_key_req: cmd_a.as_bytes().try_into().unwrap(),
+        flags: CertifyKeyExtendedFlags::empty(),
+    });
+    req.populate_chksum().unwrap();
+    let resp_a = model
+        .mailbox_execute(
+            u32::from(CommandId::CERTIFY_KEY_EXTENDED),
+            req.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .expect("expected a response for call A");
+    let mut outer_a = CertifyKeyExtendedResp::new_zeroed();
+    outer_a.as_mut_bytes()[..resp_a.len()].copy_from_slice(&resp_a);
+    let dpe_a = Response::try_read_from_bytes(
+        &Command::from(&CertifyKeyCommand::P384(&cmd_a)),
+        &outer_a.certify_key_resp,
+    )
+    .unwrap();
+    let Response::CertifyKey(CertifyKeyResp::P384(inner_a)) = dpe_a else {
+        panic!("wrong response type for call A");
+    };
+
+    let cmd_b = CertifyKeyP384Cmd {
+        handle: ContextHandle::default(),
+        flags: CertifyKeyFlags::empty(),
+        format: CertifyKeyCommand::FORMAT_X509,
+        label: OTHER_LABEL,
+    };
+    let mut req = MailboxReq::CertifyKeyExtended(CertifyKeyExtendedReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        certify_key_req: cmd_b.as_bytes().try_into().unwrap(),
+        flags: CertifyKeyExtendedFlags::empty(),
+    });
+    req.populate_chksum().unwrap();
+    let resp_b = model
+        .mailbox_execute(
+            u32::from(CommandId::CERTIFY_KEY_EXTENDED),
+            req.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .expect("expected a response for call B");
+    let mut outer_b = CertifyKeyExtendedResp::new_zeroed();
+    outer_b.as_mut_bytes()[..resp_b.len()].copy_from_slice(&resp_b);
+    let dpe_b = Response::try_read_from_bytes(
+        &Command::from(&CertifyKeyCommand::P384(&cmd_b)),
+        &outer_b.certify_key_resp,
+    )
+    .unwrap();
+    let Response::CertifyKey(CertifyKeyResp::P384(inner_b)) = dpe_b else {
+        panic!("wrong response type for call B");
+    };
+
+    assert_ne!(
+        inner_a.header.derived_pubkey_x, inner_b.header.derived_pubkey_x,
+        "different labels must produce different derived P-384 public keys"
+    );
 }

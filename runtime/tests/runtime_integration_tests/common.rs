@@ -6,6 +6,8 @@ use caliptra_builder::{
     firmware::{APP_WITH_UART, APP_WITH_UART_FPGA, FMC_WITH_UART},
     FwId, ImageOptions,
 };
+#[cfg(feature = "mldsa_attestation")]
+use caliptra_common::mailbox_api::InvokeDpeMldsa87Req;
 use caliptra_common::{
     mailbox_api::{
         CommandId, GetFmcAliasCertResp, GetRtAliasCertResp, InvokeDpeReq, InvokeDpeResp,
@@ -21,11 +23,11 @@ use caliptra_hw_model::{
     StackInfo, StackRange,
 };
 use caliptra_image_types::ImageBundle;
+use caliptra_runtime::CaliptraDpeProfile;
 use dpe::{
     commands::{Command, CommandHdr},
     error::DpeErrorCode,
     response::{Response, ResponseHdr},
-    DpeProfile,
 };
 use openssl::{
     asn1::{Asn1Integer, Asn1Time},
@@ -44,6 +46,13 @@ pub const TEST_LABEL: [u8; 48] = [
 pub const TEST_DIGEST: [u8; 48] = [
     1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26,
     27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48,
+];
+
+#[cfg(feature = "mldsa_attestation")]
+pub const TEST_DIGEST_MLDSA: [u8; 64] = [
+    1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26,
+    27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50,
+    51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64,
 ];
 
 pub const DEFAULT_FMC_VERSION: u16 = 0xaaaa;
@@ -88,6 +97,137 @@ pub fn run_pqc_rt_test() -> DefaultHwModel {
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
     });
+
+    model
+}
+
+#[cfg(feature = "mldsa_attestation")]
+pub const PQ_SEED: [u8; caliptra_common::mailbox_api::SET_PQ_SEED_SEED_SIZE] =
+    [0x5a; caliptra_common::mailbox_api::SET_PQ_SEED_SEED_SIZE];
+
+#[cfg(feature = "mldsa_attestation")]
+pub fn provision_pq_seed(model: &mut DefaultHwModel) {
+    use caliptra_common::mailbox_api::SetPqSeedReq;
+
+    let mut cmd = MailboxReq::SetPqSeed(SetPqSeedReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        seed: PQ_SEED,
+    });
+    cmd.populate_chksum().unwrap();
+    model
+        .mailbox_execute(u32::from(CommandId::SET_PQ_SEED), cmd.as_bytes().unwrap())
+        .unwrap();
+}
+
+#[cfg(feature = "mldsa_attestation")]
+pub fn get_pq_csr_checksum() -> u32 {
+    caliptra_common::checksum::calc_checksum(u32::from(CommandId::GET_PQ_CSR), &[])
+}
+
+#[cfg(feature = "mldsa_attestation")]
+pub fn get_pq_csr(model: &mut DefaultHwModel) -> Vec<u8> {
+    use caliptra_common::mailbox_api::GetPqCsrResp;
+    use zerocopy::{FromBytes, IntoBytes};
+
+    let payload = MailboxReqHeader {
+        chksum: get_pq_csr_checksum(),
+    };
+    let response = model
+        .mailbox_execute(u32::from(CommandId::GET_PQ_CSR), payload.as_bytes())
+        .unwrap()
+        .unwrap();
+    let csr_resp = GetPqCsrResp::ref_from_bytes(response.as_bytes()).unwrap();
+    csr_resp.data[..csr_resp.data_size as usize].to_vec()
+}
+
+#[cfg(feature = "mldsa_attestation")]
+pub fn mldsa_csr_public_key(csr_bytes: &[u8]) -> Vec<u8> {
+    use openssl::pkey::Public;
+    use openssl::pkey_ml_dsa::PKeyMlDsaParams;
+    use openssl::x509::X509Req;
+
+    let req = X509Req::from_der(csr_bytes).unwrap();
+    let pkey = req.public_key().unwrap();
+    PKeyMlDsaParams::<Public>::from_pkey(&pkey)
+        .unwrap()
+        .public_key()
+        .unwrap()
+        .to_vec()
+}
+
+// Boot the ML-DSA attestation runtime image **debug-locked** (Production
+// lifecycle) so the firmware actually arms the per-command watchdog. The
+// runtime's `start_wdt` (runtime/src/lib.rs) is a no-op unless the device is
+// debug-locked, so the default (unlocked) test boots never enforce the WDT.
+// This helper enables realistic WDT-constrained tests for the PQC commands.
+//
+// WDT budget: `WdtTimeout::default()` = 20M cycles (WDT1), cascading to WDT2
+// (1 cycle) -> NMI -> `RUNTIME_GLOBAL_WDT_EXPIRED` fatal error.
+#[cfg(feature = "mldsa_attestation")]
+pub fn run_pqc_rt_test_wdt() -> DefaultHwModel {
+    use caliptra_builder::firmware::APP_MLDSA_ATTESTATION;
+    use caliptra_hw_model::{DeviceLifecycle, SecurityState};
+    use openssl::sha::sha384;
+
+    let security_state = *SecurityState::default()
+        .set_debug_locked(true)
+        .set_device_lifecycle(DeviceLifecycle::Production);
+
+    let mut image_options = ImageOptions::default();
+    image_options.vendor_config.pl0_pauser = Some(0x1);
+    image_options.fmc_version = DEFAULT_FMC_VERSION;
+    image_options.app_version = DEFAULT_APP_VERSION;
+
+    let image = caliptra_builder::build_and_sign_image(
+        &FMC_WITH_UART,
+        &APP_MLDSA_ATTESTATION,
+        image_options,
+    )
+    .unwrap();
+
+    // Debug-locked (Production) boot verifies the image signature, so the fuses
+    // must carry the vendor/owner public-key hashes of the signed image.
+    let vendor_pk_hash =
+        bytes_to_be_words_48(&sha384(image.manifest.preamble.vendor_pub_keys.as_bytes()));
+    let owner_pk_hash =
+        bytes_to_be_words_48(&sha384(image.manifest.preamble.owner_pub_keys.as_bytes()));
+
+    let image_info = vec![
+        ImageInfo::new(
+            StackRange::new(ROM_STACK_ORG + ROM_STACK_SIZE, ROM_STACK_ORG),
+            CodeRange::new(ROM_ORG, ROM_ORG + ROM_SIZE),
+        ),
+        ImageInfo::new(
+            StackRange::new(STACK_ORG + STACK_SIZE, STACK_ORG),
+            CodeRange::new(FMC_ORG, FMC_ORG + FMC_SIZE),
+        ),
+        ImageInfo::new(
+            StackRange::new(STACK_ORG + STACK_SIZE, STACK_ORG),
+            CodeRange::new(RUNTIME_ORG, RUNTIME_ORG + RUNTIME_SIZE),
+        ),
+    ];
+    let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
+
+    let mut model = caliptra_hw_model::new(
+        InitParams {
+            rom: &rom,
+            security_state,
+            stack_info: Some(StackInfo::new(image_info)),
+            ..Default::default()
+        },
+        BootParams {
+            fw_image: Some(&image.to_bytes().unwrap()),
+            fuses: Fuses {
+                key_manifest_pk_hash: vendor_pk_hash,
+                owner_pk_hash,
+                ..Default::default()
+            },
+            ..Default::default()
+        },
+    )
+    .unwrap();
+
+    model.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_runtime());
 
     model
 }
@@ -208,28 +348,40 @@ pub enum DpeResult {
 }
 
 pub fn execute_dpe_cmd(
+    profile: CaliptraDpeProfile,
     model: &mut DefaultHwModel,
     dpe_cmd: &mut Command,
     expected_result: DpeResult,
 ) -> Option<Response> {
     let mut cmd_data: [u8; 512] = [0u8; InvokeDpeReq::DATA_MAX_SIZE];
     let dpe_cmd_id = dpe_cmd.id();
-    let cmd_hdr = CommandHdr::new(DpeProfile::P384Sha384, dpe_cmd_id);
+    let cmd_hdr = CommandHdr::new(profile.into(), dpe_cmd_id);
     let cmd_hdr_buf = cmd_hdr.as_bytes();
     cmd_data[..cmd_hdr_buf.len()].copy_from_slice(cmd_hdr_buf);
     let dpe_cmd_buf = dpe_cmd.as_bytes();
     cmd_data[cmd_hdr_buf.len()..cmd_hdr_buf.len() + dpe_cmd_buf.len()].copy_from_slice(dpe_cmd_buf);
-    let mut mbox_cmd = MailboxReq::InvokeDpeCommand(InvokeDpeReq {
-        hdr: MailboxReqHeader { chksum: 0 },
-        data: cmd_data,
-        data_size: (cmd_hdr_buf.len() + dpe_cmd_buf.len()) as u32,
-    });
+    let data_size = (cmd_hdr_buf.len() + dpe_cmd_buf.len()) as u32;
+    let mut mbox_cmd = match profile {
+        CaliptraDpeProfile::Ecc384 => MailboxReq::InvokeDpeCommand(InvokeDpeReq {
+            hdr: MailboxReqHeader { chksum: 0 },
+            data: cmd_data,
+            data_size,
+        }),
+        #[cfg(feature = "mldsa_attestation")]
+        CaliptraDpeProfile::Mldsa => MailboxReq::InvokeDpeMldsa87Command(InvokeDpeMldsa87Req {
+            hdr: MailboxReqHeader { chksum: 0 },
+            data: cmd_data,
+            data_size,
+        }),
+    };
     mbox_cmd.populate_chksum().unwrap();
 
-    let resp = model.mailbox_execute(
-        u32::from(CommandId::INVOKE_DPE),
-        mbox_cmd.as_bytes().unwrap(),
-    );
+    let cmd_id = match profile {
+        CaliptraDpeProfile::Ecc384 => CommandId::INVOKE_DPE,
+        #[cfg(feature = "mldsa_attestation")]
+        CaliptraDpeProfile::Mldsa => CommandId::INVOKE_DPE_MLDSA87,
+    };
+    let resp = model.mailbox_execute(u32::from(cmd_id), mbox_cmd.as_bytes().unwrap());
     if let DpeResult::MboxCmdFailure(expected_err) = expected_result {
         assert_error(model, expected_err, resp.unwrap_err());
         return None;

@@ -14,8 +14,8 @@ Abstract:
 
 use crate::Drivers;
 use crate::{
-    PauserPrivileges, PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD,
-    PL0_DPE_ACTIVE_CONTEXT_THRESHOLD_MIN, PL1_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD,
+    PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD, PL0_DPE_ACTIVE_CONTEXT_THRESHOLD_MIN,
+    PL1_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD,
 };
 use caliptra_common::mailbox_api::{
     MailboxRespHeader, ReallocateDpeContextLimitsReq, ReallocateDpeContextLimitsResp,
@@ -36,9 +36,7 @@ impl ReallocateDpeContextLimitsCmd {
         let pl1_context_limit = TOTAL_DPE_CONTEXT_LIMIT as u32 - cmd.pl0_context_limit;
 
         // Only allowed by PL0
-        if drivers.caller_privilege_level() != PauserPrivileges::PL0 {
-            Err(CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL)?
-        }
+        drivers.ensure_pl0()?;
 
         // Error checking for distribution limits
         if cmd.pl0_context_limit < PL0_DPE_ACTIVE_CONTEXT_THRESHOLD_MIN as u32 {

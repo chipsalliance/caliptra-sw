@@ -1289,9 +1289,54 @@ impl CaliptraError {
             "Runtime Error: PQ.DevID CSR builder build failed"
         ),
         (
-            RUNTIME_PQ_CSR_SUBJECT_SN_FAILED,
+            RUNTIME_PQ_SUBJECT_SN_FAILED,
             0x000E0068,
-            "Runtime Error: PQ.DevID CSR subject serial number generation failed"
+            "Runtime Error: PQ.DevID subject serial number generation failed"
+        ),
+        (
+            RUNTIME_PQ_CERT_POPULATION_FAILED,
+            0x000E0069,
+            "Runtime Error: PQ Cert Population Failed"
+        ),
+        (
+            RUNTIME_GET_PQ_CERT_FAILED,
+            0x000E006A,
+            "Runtime Error: Get PQ Cert Failed"
+        ),
+        (
+            RUNTIME_SIGN_WITH_EXPORTED_MLDSA_NOT_SUPPORTED,
+            0x000E006B,
+            "Runtime Error: Sign with Exported MLDSA Not Supported"
+        ),
+        (
+            RUNTIME_SIGN_WITH_EXPORTED_MLDSA_NOT_FOUND,
+            0x000E006C,
+            "Runtime Error: Sign with Exported MLDSA Handle Not Found"
+        ),
+        (
+            RUNTIME_SIGN_WITH_EXPORTED_MLDSA_KEY_DERIVATION_FAILED,
+            0x000E006D,
+            "Runtime Error: Sign with Exported MLDSA Key Derivation Failed"
+        ),
+        (
+            RUNTIME_SIGN_WITH_EXPORTED_MLDSA_SIGNATURE_FAILED,
+            0x000E006E,
+            "Runtime Error: Sign with Exported MLDSA Signature Failed"
+        ),
+        (
+            RUNTIME_SIGN_WITH_EXPORTED_MLDSA_INVALID_PARAMS,
+            0x000E006F,
+            "Runtime Error: Sign with Exported MLDSA Invalid Parameters"
+        ),
+        (
+            RUNTIME_SET_PQ_SEED_ATTESTATION_DISABLED,
+            0x000E0070,
+            "Runtime Error: SET_PQ_SEED rejected because attestation is disabled"
+        ),
+        (
+            RUNTIME_PQ_INVALID_PUBKEY_DIGEST,
+            0x000E0071,
+            "Runtime Error: Invalid PQ.DevID Public Key Hash"
         ),
         // FMC Errors
         (FMC_GLOBAL_NMI, 0x000F0001, "FMC Error: Global NMI"),

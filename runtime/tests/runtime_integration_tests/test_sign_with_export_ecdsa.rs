@@ -13,7 +13,7 @@ use caliptra_common::mailbox_api::{
 };
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{HwModel, ModelError};
-use caliptra_runtime::RtBootStatus;
+use caliptra_runtime::{CaliptraDpeProfile, RtBootStatus};
 use crypto::{CryptoError, MAX_EXPORTED_CDI_SIZE};
 use dpe::{
     commands::{Command, DeriveContextCmd, DeriveContextFlags, RotateCtxCmd, RotateCtxFlags},
@@ -35,6 +35,8 @@ use zerocopy::{FromBytes, IntoBytes};
 use crate::common::{
     assert_error, execute_dpe_cmd, run_rt_test, DpeResult, RuntimeTestArgs, TEST_DIGEST,
 };
+
+const PROFILE: CaliptraDpeProfile = CaliptraDpeProfile::Ecc384;
 
 fn check_certificate_signature(
     sign_resp: &SignWithExportedEcdsaResp,
@@ -91,6 +93,7 @@ fn test_sign_with_exported_cdi() {
         ..Default::default()
     };
     let resp = execute_dpe_cmd(
+        PROFILE,
         &mut model,
         &mut Command::DeriveContext(&derive_ctx_cmd),
         DpeResult::Success,
@@ -135,6 +138,7 @@ fn test_sign_with_exported_incorrect_cdi_handle() {
         ..Default::default()
     };
     let resp = execute_dpe_cmd(
+        PROFILE,
         &mut model,
         &mut Command::DeriveContext(&get_cert_chain_cmd),
         DpeResult::Success,
@@ -216,6 +220,7 @@ fn test_sign_with_exported_cdi_measurement_update_duplicate_cdi() {
     };
 
     let Some(Response::DeriveContextExportedCdi(original_cdi_resp)) = execute_dpe_cmd(
+        PROFILE,
         &mut model,
         &mut Command::DeriveContext(&export_cdi_cmd),
         DpeResult::Success,
@@ -247,12 +252,14 @@ fn test_sign_with_exported_cdi_measurement_update_duplicate_cdi() {
     };
 
     let _ = execute_dpe_cmd(
+        PROFILE,
         &mut model,
         &mut Command::DeriveContext(&measurement_cmd),
         DpeResult::Success,
     );
 
     let Some(Response::Error(e)) = execute_dpe_cmd(
+        PROFILE,
         &mut model,
         &mut Command::DeriveContext(&export_cdi_cmd),
         DpeResult::DpeCmdFailure,
@@ -309,6 +316,7 @@ fn test_sign_with_exported_cdi_measurement_update() {
     };
 
     let Some(Response::DeriveContextExportedCdi(original_cdi_resp)) = execute_dpe_cmd(
+        PROFILE,
         &mut model,
         &mut Command::DeriveContext(&export_cdi_cmd),
         DpeResult::Success,
@@ -324,6 +332,7 @@ fn test_sign_with_exported_cdi_measurement_update() {
     };
 
     let _ = execute_dpe_cmd(
+        PROFILE,
         &mut model,
         &mut Command::DeriveContext(&measurement_cmd),
         DpeResult::Success,
@@ -344,6 +353,7 @@ fn test_sign_with_exported_cdi_measurement_update() {
     }
 
     let Some(Response::DeriveContextExportedCdi(updated_cdi_resp)) = execute_dpe_cmd(
+        PROFILE,
         &mut model,
         &mut Command::DeriveContext(&export_cdi_cmd),
         DpeResult::Success,
@@ -403,6 +413,7 @@ fn test_sign_with_revoked_exported_cdi() {
     };
 
     let Some(Response::DeriveContextExportedCdi(cdi_resp)) = execute_dpe_cmd(
+        PROFILE,
         &mut model,
         &mut Command::DeriveContext(&export_cdi_cmd),
         DpeResult::Success,
@@ -477,6 +488,7 @@ fn test_sign_with_disabled_attestation() {
     };
 
     let Some(Response::DeriveContextExportedCdi(cdi_resp)) = execute_dpe_cmd(
+        PROFILE,
         &mut model,
         &mut Command::DeriveContext(&export_cdi_cmd),
         DpeResult::Success,
@@ -555,6 +567,7 @@ fn test_sign_with_exported_cdi_warm_reset() {
         ..Default::default()
     };
     let resp = execute_dpe_cmd(
+        PROFILE,
         &mut model,
         &mut Command::DeriveContext(&derive_ctx_cmd),
         DpeResult::Success,
@@ -638,6 +651,7 @@ fn test_sign_with_exported_cdi_warm_reset_parent() {
     };
 
     let Some(Response::RotateCtx(NewHandleResp { handle, .. })) = execute_dpe_cmd(
+        PROFILE,
         &mut model,
         &mut Command::RotateCtx(&rotate_ctx_cmd),
         DpeResult::Success,
@@ -656,6 +670,7 @@ fn test_sign_with_exported_cdi_warm_reset_parent() {
         ..Default::default()
     };
     let resp = execute_dpe_cmd(
+        PROFILE,
         &mut model,
         &mut Command::DeriveContext(&derive_ctx_cmd),
         DpeResult::Success,
@@ -675,6 +690,7 @@ fn test_sign_with_exported_cdi_warm_reset_parent() {
         ..Default::default()
     };
     let resp = execute_dpe_cmd(
+        PROFILE,
         &mut model,
         &mut Command::DeriveContext(&derive_ctx_cmd),
         DpeResult::Success,

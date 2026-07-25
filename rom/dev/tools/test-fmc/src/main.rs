@@ -45,11 +45,11 @@ pub fn main() {}
 // Dummy RO data to max out FMC image size to 16K.
 // Note: Adjust this value to account for new changes in this FMC image.
 #[cfg(all(feature = "interactive_test_fmc", not(feature = "fake-fmc")))]
-const PAD_LEN: usize = 9624; // TEST_FMC_INTERACTIVE
+const PAD_LEN: usize = 9564; // TEST_FMC_INTERACTIVE
 #[cfg(all(feature = "fake-fmc", not(feature = "interactive_test_fmc")))]
-const PAD_LEN: usize = 9904; // FAKE_TEST_FMC_WITH_UART
+const PAD_LEN: usize = 9832; // FAKE_TEST_FMC_WITH_UART
 #[cfg(all(feature = "interactive_test_fmc", feature = "fake-fmc"))]
-const PAD_LEN: usize = 9976; // FAKE_TEST_FMC_INTERACTIVE
+const PAD_LEN: usize = 9920; // FAKE_TEST_FMC_INTERACTIVE
 #[cfg(not(any(feature = "interactive_test_fmc", feature = "fake-fmc")))]
 const PAD_LEN: usize = 0;
 

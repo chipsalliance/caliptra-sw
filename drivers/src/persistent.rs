@@ -14,6 +14,8 @@ use caliptra_image_types::ZeroizeWithByteScrub;
 use dpe::{ExportedCdiHandle, State, U8Bool, MAX_HANDLES};
 use zerocopy::{FromZeros, IntoBytes, KnownLayout, TryFromBytes};
 use zeroize::Zeroize;
+#[cfg(feature = "mldsa_attestation")]
+use zeroize::Zeroizing;
 
 #[cfg(feature = "runtime")]
 use crate::sha384::SHA384_HASH_SIZE;
@@ -47,10 +49,16 @@ pub const IDEVID_CSR_SIZE: u32 = 1024;
 pub const FMC_ALIAS_CSR_SIZE: u32 = 1024;
 pub const DPE_PL_CONTEXT_LIMITS_SIZE: u32 = 2;
 pub const PQ_DEVID_CDI_SIZE: u32 = 48;
+pub const PQ_DEVID_PUB_KEY_DIGEST_SIZE: u32 = 32;
 pub const PQC_STATUS_FLAGS_SIZE: u32 = 1;
 #[cfg(feature = "mldsa_attestation")]
 pub const PQC_MODE_ENABLED_FLAG: u8 = 1;
-pub const RESERVED_MEMORY_SIZE: u32 = (3 * 1024) - 2 - PQ_DEVID_CDI_SIZE - PQC_STATUS_FLAGS_SIZE;
+pub const RESERVED_MEMORY_SIZE: u32 = (3 * 1024)
+    - 2
+    - PQ_DEVID_CDI_SIZE
+    - PQ_DEVID_PUB_KEY_DIGEST_SIZE
+    - PQC_STATUS_FLAGS_SIZE
+    - MLDSA_EXPORTED_CDI_HANDLES_SIZE;
 
 pub const PCR_LOG_MAX_COUNT: usize = 17;
 pub const FUSE_LOG_MAX_COUNT: usize = 62;
@@ -92,6 +100,35 @@ impl Zeroize for ExportedCdiHandles {
     }
 }
 
+#[cfg(all(feature = "mldsa_attestation", feature = "runtime"))]
+#[derive(Clone, FromZeros, IntoBytes, KnownLayout)]
+pub struct MldsaExportedCdiEntry {
+    pub cdi: [u8; PQ_DEVID_CDI_SIZE as usize],
+    pub handle: ExportedCdiHandle,
+    pub active: U8Bool,
+}
+
+#[cfg(all(feature = "mldsa_attestation", feature = "runtime"))]
+impl ZeroizeWithByteScrub for MldsaExportedCdiEntry {}
+#[cfg(all(feature = "mldsa_attestation", feature = "runtime"))]
+impl Zeroize for MldsaExportedCdiEntry {
+    fn zeroize(&mut self) {
+        self.zeroize_scrub();
+    }
+}
+
+// When the struct is compiled, derive the size from it; otherwise use the hardcoded value.
+#[cfg(all(feature = "mldsa_attestation", feature = "runtime"))]
+pub const MLDSA_EXPORTED_CDI_HANDLES_SIZE: u32 = size_of::<MldsaExportedCdiEntry>() as u32;
+pub const MLDSA_EXPORTED_CDI_HANDLES_SIZE_RAW: u32 = PQ_DEVID_CDI_SIZE + 32 + 1; // cdi + handle + active
+#[cfg(not(all(feature = "mldsa_attestation", feature = "runtime")))]
+pub const MLDSA_EXPORTED_CDI_HANDLES_SIZE: u32 = MLDSA_EXPORTED_CDI_HANDLES_SIZE_RAW; // cdi + handle + active
+
+// Verify the hardcoded formula used above matches the actual struct layout.
+#[cfg(all(feature = "mldsa_attestation", feature = "runtime"))]
+const _: () =
+    assert!(size_of::<MldsaExportedCdiEntry>() == MLDSA_EXPORTED_CDI_HANDLES_SIZE_RAW as usize);
+
 #[cfg(feature = "runtime")]
 const DPE_DCCM_STORAGE: usize = size_of::<State>()
     + size_of::<u32>() * MAX_HANDLES
@@ -112,6 +149,8 @@ pub type AuthManifestImageMetadataList =
 
 const _: () = assert!(MAX_IDEVID_CSR_SIZE < IDEVID_CSR_SIZE as usize);
 const _: () = assert!(MAX_FMC_ALIAS_CSR_SIZE < FMC_ALIAS_CSR_SIZE as usize);
+
+pub type PqDevIdCdi = [u8; PQ_DEVID_CDI_SIZE as usize];
 
 #[derive(Clone, FromZeros, IntoBytes, Zeroize)]
 #[repr(C)]
@@ -320,15 +359,17 @@ pub struct PersistentData {
     pub dpe_pl0_context_limit: u8,
     pub dpe_pl1_context_limit: u8,
 
-    #[cfg(feature = "mldsa_attestation")]
-    pub pq_devid_cdi: [u8; PQ_DEVID_CDI_SIZE as usize],
-    #[cfg(not(feature = "mldsa_attestation"))]
-    pq_devid_cdi: [u8; PQ_DEVID_CDI_SIZE as usize],
-
-    #[cfg(feature = "mldsa_attestation")]
-    pub pqc_status_flags: u8,
-    #[cfg(not(feature = "mldsa_attestation"))]
+    // Always private: the PQ.DevID CDI must only be reached through
+    // `pq_devid_cdi()`, which hands out a reference exclusively once the seed
+    // has been provisioned (see `pqc_mode_enabled`).
+    pq_devid_cdi: PqDevIdCdi,
+    pq_devid_pub_key_digest: [u8; PQ_DEVID_PUB_KEY_DIGEST_SIZE as usize],
     pqc_status_flags: u8,
+
+    #[cfg(all(feature = "mldsa_attestation", feature = "runtime"))]
+    pub mldsa_exported_cdi_slots: MldsaExportedCdiEntry,
+    #[cfg(not(all(feature = "mldsa_attestation", feature = "runtime")))]
+    mldsa_exported_cdi_slots: [u8; MLDSA_EXPORTED_CDI_HANDLES_SIZE as usize],
 
     // Reserved memory for future objects.
     // New objects should always source memory from this range.
@@ -349,9 +390,69 @@ impl PersistentData {
         self.pqc_status_flags & PQC_MODE_ENABLED_FLAG != 0
     }
 
+    /// Returns a copy of the provisioned PQ.DevID CDI, but only once a seed has
+    /// been set via `set_pq_devid_cdi` (i.e. the PQC-mode-enabled flag is set).
+    /// Returns `RUNTIME_PQC_NOT_INITIALIZED` otherwise, ensuring uninitialized
+    /// CDI bytes can never be read.
+    ///
+    /// The copy is returned in a [`Zeroizing`] wrapper so the caller's transient
+    /// copy of this secret is scrubbed when it goes out of scope.
     #[cfg(feature = "mldsa_attestation")]
-    pub fn set_pqc_mode_enabled(&mut self) {
+    pub fn pq_devid_cdi(&self) -> CaliptraResult<Zeroizing<PqDevIdCdi>> {
+        self.pqc_mode_enabled()
+            .then(|| Zeroizing::new(self.pq_devid_cdi))
+            .ok_or(CaliptraError::RUNTIME_PQC_NOT_INITIALIZED)
+    }
+
+    /// Returns a copy of the SHA-256 hash of the PQ.DevID public key, if PQC mode
+    /// has been enabled.
+    #[cfg(feature = "mldsa_attestation")]
+    pub fn pq_devid_pub_key_digest(
+        &self,
+    ) -> CaliptraResult<[u8; PQ_DEVID_PUB_KEY_DIGEST_SIZE as usize]> {
+        self.pqc_mode_enabled()
+            .then_some(self.pq_devid_pub_key_digest)
+            .ok_or(CaliptraError::RUNTIME_PQC_NOT_INITIALIZED)
+    }
+
+    /// Stores the PQ.DevID CDI and atomically marks PQC mode enabled, upholding
+    /// the invariant that a readable CDI always has its status flag set. The CDI
+    /// is write-once: attempting to overwrite an already-provisioned CDI returns
+    /// `RUNTIME_SET_PQ_SEED_ALREADY_SET` and leaves the existing value intact.
+    #[cfg(feature = "mldsa_attestation")]
+    pub fn set_pq_devid_cdi(&mut self, cdi: PqDevIdCdi) -> CaliptraResult<()> {
+        #[cfg(feature = "runtime")]
+        if self.attestation_disabled.get() {
+            return Err(CaliptraError::RUNTIME_SET_PQ_SEED_ATTESTATION_DISABLED);
+        }
+        if self.pqc_mode_enabled() {
+            return Err(CaliptraError::RUNTIME_SET_PQ_SEED_ALREADY_SET);
+        }
+        self.pq_devid_cdi = cdi;
         self.pqc_status_flags |= PQC_MODE_ENABLED_FLAG;
+        Ok(())
+    }
+
+    /// When PQC mode is enabled, overwrites the PQ.DevID CDI with dummy bytes
+    /// and zeroizes the exported ML-DSA CDI slots; otherwise, does nothing.
+    #[cfg(feature = "mldsa_attestation")]
+    pub fn erase_pq_devid_cdi(&mut self, dummy_cdi: PqDevIdCdi) {
+        if self.pqc_mode_enabled() {
+            self.pq_devid_cdi = dummy_cdi;
+            self.mldsa_exported_cdi_slots.zeroize();
+        }
+    }
+
+    #[cfg(feature = "mldsa_attestation")]
+    pub fn set_pq_devid_pub_key_digest(
+        &mut self,
+        digest: [u8; PQ_DEVID_PUB_KEY_DIGEST_SIZE as usize],
+    ) -> CaliptraResult<()> {
+        if !self.pqc_mode_enabled() {
+            return Err(CaliptraError::RUNTIME_PQC_NOT_INITIALIZED);
+        }
+        self.pq_devid_pub_key_digest = digest;
+        Ok(())
     }
 
     pub fn assert_matches_layout() {
@@ -455,11 +556,22 @@ impl PersistentData {
 
             persistent_data_offset += PQ_DEVID_CDI_SIZE;
             assert_eq!(
+                addr_of!((*P).pq_devid_pub_key_digest) as u32,
+                memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
+            );
+
+            persistent_data_offset += PQ_DEVID_PUB_KEY_DIGEST_SIZE;
+            assert_eq!(
                 addr_of!((*P).pqc_status_flags) as u32,
                 memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
             );
 
             persistent_data_offset += PQC_STATUS_FLAGS_SIZE;
+            assert_eq!(
+                addr_of!((*P).mldsa_exported_cdi_slots) as u32,
+                memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
+            );
+            persistent_data_offset += MLDSA_EXPORTED_CDI_HANDLES_SIZE;
             assert_eq!(
                 addr_of!((*P).reserved_memory) as u32,
                 memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset

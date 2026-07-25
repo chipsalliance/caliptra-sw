@@ -145,45 +145,18 @@ impl<'a, S: Signature<MAX_DER_SIZE>, const MAX_DER_SIZE: usize> CertBuilder<'a, 
     ///
     /// * `buf` - Buffer to construct the certificate in
     pub fn build(&self, buf: &mut [u8]) -> Option<usize> {
-        if buf.len() < self.len {
-            return None;
-        }
-
-        let mut pos = 0;
-
-        // Copy Tag
-        *buf.get_mut(pos)? = DER_SEQ_TAG;
-        pos += 1;
-
-        // Copy Length
+        // Re-encode the signature (the only signature-type-specific work); the DER
+        // framing is delegated to the non-generic `build_der` so it is compiled
+        // once rather than monomorphized per signature type.
         let mut sig_buf = [0u8; MAX_DER_SIZE];
         let sig_len = self.sig.to_der(&mut sig_buf)?;
-        let len = self.tbs.len() + S::oid_der().len() + sig_len;
-
-        if buf.len() < len + 4 {
-            return None;
-        }
-
-        pos += der_encode_len(len, buf.get_mut(pos..)?)?;
-
-        // Copy Value
-
-        // Copy TBS DER
-        buf.get_mut(pos..pos + self.tbs.len())?
-            .copy_from_slice(self.tbs);
-        pos += self.tbs.len();
-
-        // Copy OID DER
-        buf.get_mut(pos..pos + S::oid_der().len())?
-            .copy_from_slice(S::oid_der());
-        pos += S::oid_der().len();
-
-        // Copy Signature DER
-        buf.get_mut(pos..pos + sig_len)?
-            .copy_from_slice(sig_buf.get(..sig_len)?);
-        pos += sig_len;
-
-        Some(pos)
+        build_der(
+            buf,
+            self.tbs,
+            S::oid_der(),
+            sig_buf.get(..sig_len)?,
+            self.len,
+        )
     }
 
     /// Return the length of Certificate or Certificate Signing Request
@@ -211,6 +184,54 @@ impl<'a, S: Signature<MAX_DER_SIZE>, const MAX_DER_SIZE: usize> CertBuilder<'a, 
         // TAG (1 byte) + LEN (len_bytes bytes) + len (Length of the sequence contents)
         Some(1 + len_bytes + len)
     }
+}
+
+/// DER-frame a signed Cert/CSR: `SEQUENCE { tbs, sig_alg_oid, signature }`.
+/// Non-generic (all inputs are slices) so it is compiled once and shared across
+/// every `CertBuilder` signature-type instantiation. `expected_len` is the
+/// precomputed total length (`CertBuilder::len`) used for the up-front bounds check.
+fn build_der(
+    buf: &mut [u8],
+    tbs: &[u8],
+    oid: &[u8],
+    sig_der: &[u8],
+    expected_len: usize,
+) -> Option<usize> {
+    if buf.len() < expected_len {
+        return None;
+    }
+
+    let mut pos = 0;
+
+    // Copy Tag
+    *buf.get_mut(pos)? = DER_SEQ_TAG;
+    pos += 1;
+
+    // Copy Length
+    let len = tbs.len() + oid.len() + sig_der.len();
+
+    if buf.len() < len + 4 {
+        return None;
+    }
+
+    pos += der_encode_len(len, buf.get_mut(pos..)?)?;
+
+    // Copy Value
+
+    // Copy TBS DER
+    buf.get_mut(pos..pos + tbs.len())?.copy_from_slice(tbs);
+    pos += tbs.len();
+
+    // Copy OID DER
+    buf.get_mut(pos..pos + oid.len())?.copy_from_slice(oid);
+    pos += oid.len();
+
+    // Copy Signature DER
+    buf.get_mut(pos..pos + sig_der.len())?
+        .copy_from_slice(sig_der);
+    pos += sig_der.len();
+
+    Some(pos)
 }
 
 // Type alias for ECDSA-384 Certificate Builder

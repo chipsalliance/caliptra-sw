@@ -18,10 +18,14 @@ Abstract:
 pub use crate::fips::fips_self_test_cmd::SelfTestStatus;
 
 use crate::{
-    dice, CaliptraDpeEnv, CaliptraDpeProfile, DisableAttestationCmd, DpeCrypto, DpePlatform,
-    Mailbox, CALIPTRA_LOCALITY, DPE_SUPPORT, MAX_CERT_CHAIN_SIZE,
-    PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD, PL0_PAUSER_FLAG,
-    PL1_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD,
+    dice, CaliptraDpeEnv, CaliptraDpeProfile, DisableAttestationCmd, DpePlatform, Mailbox,
+    CALIPTRA_LOCALITY, DPE_SUPPORT, MAX_CERT_CHAIN_SIZE, PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD,
+    PL0_PAUSER_FLAG, PL1_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD,
+};
+#[cfg(feature = "mldsa_attestation")]
+use {
+    crate::MAX_MLDSA_CERT_CHAIN_SIZE,
+    caliptra_drivers::{Mldsa87, Mldsa87PubKey, Mldsa87Seed},
 };
 
 use arrayvec::ArrayVec;
@@ -39,7 +43,8 @@ use caliptra_drivers::{
     PersistentDataAccessor, Pic, ResetReason, Sha1, SocIfc,
 };
 use caliptra_drivers::{
-    hand_off::DataStore, Hmac384, PcrBank, Sha256, Sha256Alg, Sha2_512_384Acc, Sha384, Trng,
+    hand_off::DataStore, FirmwareHandoffTable, Hmac384, PcrBank, Sha256, Sha256Alg,
+    Sha2_512_384Acc, Sha384, Trng,
 };
 use caliptra_image_types::ImageManifest;
 use caliptra_registers::el2_pic_ctrl::El2PicCtrl;
@@ -62,10 +67,7 @@ use dpe::{
 use dpe::{DpeFlags, DpeProfile, State};
 
 use core::cmp::Ordering::{Equal, Greater};
-use crypto::{
-    ecdsa::{curve_384::EcdsaPub384, EcdsaPubKey},
-    Digest, PubKey,
-};
+use crypto::Digest;
 use zerocopy::IntoBytes;
 
 #[derive(PartialEq, Clone, Copy)]
@@ -109,6 +111,9 @@ pub struct Drivers {
 
     pub cert_chain: ArrayVec<u8, MAX_CERT_CHAIN_SIZE>,
 
+    #[cfg(feature = "mldsa_attestation")]
+    pub mldsa_cert_chain: ArrayVec<u8, MAX_MLDSA_CERT_CHAIN_SIZE>,
+
     #[cfg(feature = "fips_self_test")]
     pub self_test_status: SelfTestStatus,
 
@@ -151,6 +156,8 @@ impl Drivers {
             #[cfg(feature = "fips_self_test")]
             self_test_status: SelfTestStatus::Idle,
             cert_chain: ArrayVec::new(),
+            #[cfg(feature = "mldsa_attestation")]
+            mldsa_cert_chain: ArrayVec::new(),
             is_shutdown: false,
             dmtf_device_info: None,
         })
@@ -276,6 +283,7 @@ impl Drivers {
     }
 
     /// Validate DPE and disable attestation if validation fails
+    #[inline(never)]
     fn validate_dpe_structure(drivers: &mut Drivers) -> CaliptraResult<()> {
         let dpe = &mut drivers.persistent_data.get_mut().dpe;
         let dpe_validator = DpeValidator { dpe };
@@ -440,6 +448,7 @@ impl Drivers {
     }
 
     /// Check that inactive DPE contexts do not have context tags set
+    #[inline(never)]
     fn validate_context_tags(drivers: &mut Drivers) -> CaliptraResult<()> {
         let pdata = drivers.persistent_data.get();
         let context_has_tag = &pdata.context_has_tag;
@@ -488,23 +497,14 @@ impl Drivers {
         // Create a hash of critical initialization values
         let initialization_values_hash = Self::compute_initialization_values_hash(drivers)?;
 
-        let key_id_rt_cdi = Drivers::get_key_id_rt_cdi(drivers)?;
-        let key_id_rt_priv_key = Drivers::get_key_id_rt_priv_key(drivers)?;
         let pdata = drivers.persistent_data.get_mut();
-        let rt_pub_key = &mut pdata.fht.rt_dice_pub_key;
-        let rt_pub_key = PubKey::Ecdsa(EcdsaPubKey::Ecdsa384(EcdsaPub384::from_slice(
-            &rt_pub_key.x.into(),
-            &rt_pub_key.y.into(),
-        )));
-        let crypto = DpeCrypto::new_ec(
+        let crypto = crate::dpe_crypto::new_ec_dpe_crypto(
             &mut drivers.sha384,
             &mut drivers.trng,
             &mut drivers.ecc384,
             &mut drivers.hmac384,
             &mut drivers.key_vault,
-            rt_pub_key,
-            key_id_rt_cdi,
-            key_id_rt_priv_key,
+            &pdata.fht,
             &mut pdata.exported_cdi_slots,
         )?;
 
@@ -757,6 +757,16 @@ impl Drivers {
         self.privilege_level_from_locality(locality)
     }
 
+    /// Reject the command unless the caller is PL0. Used by the several commands
+    /// that are restricted to PL0, so the check is compiled once.
+    #[inline(never)]
+    pub fn ensure_pl0(&self) -> CaliptraResult<()> {
+        match self.caller_privilege_level() {
+            PauserPrivileges::PL0 => Ok(()),
+            PauserPrivileges::PL1 => Err(CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL),
+        }
+    }
+
     pub fn privilege_level_from_locality(&self, locality: u32) -> PauserPrivileges {
         let manifest_header = self.persistent_data.get().manifest1.header;
         let flags = manifest_header.flags;
@@ -783,11 +793,8 @@ impl Drivers {
     /// # Returns
     ///
     /// * `KeyId` - RT Alias CDI
-    pub fn get_key_id_rt_cdi(drivers: &Drivers) -> CaliptraResult<KeyId> {
-        let ds: DataStore = drivers
-            .persistent_data
-            .get()
-            .fht
+    pub fn get_key_id_rt_cdi(fht: &FirmwareHandoffTable) -> CaliptraResult<KeyId> {
+        let ds: DataStore = fht
             .rt_cdi_kv_hdl
             .try_into()
             .map_err(|_| CaliptraError::RUNTIME_CDI_KV_HDL_HANDOFF_FAILED)?;
@@ -807,11 +814,8 @@ impl Drivers {
     /// # Returns
     ///
     /// * `KeyId` - RT Alias private key
-    pub fn get_key_id_rt_priv_key(drivers: &Drivers) -> CaliptraResult<KeyId> {
-        let ds: DataStore = drivers
-            .persistent_data
-            .get()
-            .fht
+    pub fn get_key_id_rt_priv_key(fht: &FirmwareHandoffTable) -> CaliptraResult<KeyId> {
+        let ds: DataStore = fht
             .rt_priv_key_kv_hdl
             .try_into()
             .map_err(|_| CaliptraError::RUNTIME_PRIV_KEY_KV_HDL_HANDOFF_FAILED)?;
@@ -892,5 +896,42 @@ impl Drivers {
         let mut initialization_values_hash = Array4x12::default();
         digest_op.finalize(&mut initialization_values_hash)?;
         Ok(initialization_values_hash)
+    }
+
+    #[cfg(feature = "mldsa_attestation")]
+    #[inline(never)]
+    pub(crate) fn derive_devid_seed(&mut self, seed: &mut Mldsa87Seed) -> CaliptraResult<()> {
+        let pq_devid_cdi = self.persistent_data.get().pq_devid_cdi()?;
+        // Wrap the word-packed CDI in Zeroizing so this transient copy of the
+        // sensitive key material is scrubbed on drop.
+        let cdi = zeroize::Zeroizing::new(Array4x12::from(&*pq_devid_cdi));
+        dice::derive_devid_seed(&cdi, seed, &mut self.hmac384, &mut self.trng)
+    }
+
+    #[cfg(feature = "mldsa_attestation")]
+    #[inline(never)]
+    pub fn compute_mldsa_key_material(
+        &mut self,
+    ) -> CaliptraResult<(Mldsa87Seed, Mldsa87PubKey, Digest)> {
+        let mut seed = Mldsa87Seed::default();
+        self.derive_devid_seed(&mut seed)?;
+
+        let mut pub_key = Mldsa87PubKey::default();
+        Mldsa87::pub_from_seed(&seed, &mut pub_key, None)?;
+
+        let digest = Digest::Sha256(crypto::Sha256(
+            self.sha256.digest(pub_key.as_slice())?.into(),
+        ));
+
+        Ok((seed, pub_key, digest))
+    }
+
+    #[cfg(feature = "mldsa_attestation")]
+    #[inline(never)]
+    pub fn compute_subject_sn(&mut self, digest: &Digest, sn: &mut [u8]) -> CaliptraResult<()> {
+        digest
+            .write_hex_str(sn)
+            .map_err(|_| CaliptraError::RUNTIME_PQ_SUBJECT_SN_FAILED)?;
+        Ok(())
     }
 }
