@@ -804,6 +804,7 @@ dependencies = [
  "caliptra-lms-types",
  "fips204",
  "memoffset 0.8.0",
+ "p384",
  "rand",
  "serde",
  "serde_derive",
