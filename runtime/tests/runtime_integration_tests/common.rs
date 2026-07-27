@@ -115,6 +115,7 @@ pub struct RuntimeTestArgs<'a> {
     pub successful_reach_rt: bool,
     pub ocp_lock_en: bool,
     pub stable_owner_key_en: bool,
+    pub initial_ss_strap_generic_3: Option<u32>,
     pub key_type: Option<FwVerificationPqcKeyType>,
     pub rom_callback: Option<ModelCallback>,
     /// Use encrypted firmware boot (RI_DOWNLOAD_ENCRYPTED_FIRMWARE instead of RI_DOWNLOAD_FIRMWARE)
@@ -163,6 +164,7 @@ impl Default for RuntimeTestArgs<'_> {
             successful_reach_rt: true,
             ocp_lock_en: cfg!(feature = "ocp-lock"),
             stable_owner_key_en: false,
+            initial_ss_strap_generic_3: None,
             key_type: None,
             rom_callback: None,
             encrypted_boot: false,
@@ -339,6 +341,7 @@ pub fn start_rt_test_pqc_model(
         BootParams {
             fw_image: if args.stop_at_rom { None } else { Some(&image) },
             initial_dbg_manuf_service_reg: boot_flags,
+            initial_ss_strap_generic_3: args.initial_ss_strap_generic_3,
             soc_manifest,
             mcu_fw_image,
             encrypted_boot: args.encrypted_boot,

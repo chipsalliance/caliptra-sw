@@ -14,13 +14,12 @@ use caliptra_auth_man_types::{
     AuthManifestImageMetadata, AuthManifestPrivKeysConfig, AuthManifestPubKeysConfig,
     AuthorizationManifest, ImageMetadataFlags, OwnerAuthorizationManifest,
 };
-use caliptra_builder::ImageOptions;
 use caliptra_common::mailbox_api::{
     AuthorizeAndStashReq, AuthorizeAndStashResp, CommandId, ImageHashSource, MailboxReq,
     MailboxReqHeader, SetAuthManifestReq, SetOwnerAuthManifestReq,
 };
 use caliptra_error::CaliptraError;
-use caliptra_hw_model::{DefaultHwModel, HwModel, ModelError};
+use caliptra_hw_model::{DefaultHwModel, DeviceLifecycle, HwModel, ModelError, SecurityState};
 use caliptra_image_crypto::OsslCrypto as Crypto;
 use caliptra_image_fake_keys::{
     OWNER_ECC_KEY_PRIVATE, OWNER_ECC_KEY_PUBLIC, OWNER_LMS_KEY_PRIVATE, OWNER_LMS_KEY_PUBLIC,
@@ -223,6 +222,40 @@ fn test_set_owner_auth_manifest_then_authorize_returns_owner_only() {
 }
 
 #[test]
+fn test_set_owner_auth_manifest_svn_floor_uses_strap_bits_15_8() {
+    const MIN_SVN: u32 = 5;
+    const EXISTING_STRAP_FLAGS: u32 = 0x3;
+
+    let mut model = run_rt_test(RuntimeTestArgs {
+        security_state: Some(
+            *SecurityState::default().set_device_lifecycle(DeviceLifecycle::Manufacturing),
+        ),
+        subsystem_mode: true,
+        initial_ss_strap_generic_3: Some((MIN_SVN << 8) | EXISTING_STRAP_FLAGS),
+        ..Default::default()
+    });
+    model.step_until_ready_for_runtime();
+
+    let below_floor = build_owner_manifest(
+        vec![make_entry(OWNER_ONLY_FW_ID, OWNER_ONLY_DIGEST)],
+        MIN_SVN - 1,
+    );
+    let err = set_owner_auth_manifest(&mut model, &below_floor)
+        .expect_err("owner manifest SVN below the strap floor must be rejected");
+    let expected: u32 = CaliptraError::RUNTIME_OWNER_AUTH_MANIFEST_SVN_LESS_THAN_MIN.into();
+    assert!(
+        matches!(err, ModelError::MailboxCmdFailed(code) if code == expected),
+        "expected owner manifest SVN below minimum, got {err:?}",
+    );
+
+    let at_floor = build_owner_manifest(
+        vec![make_entry(OWNER_ONLY_FW_ID, OWNER_ONLY_DIGEST)],
+        MIN_SVN,
+    );
+    send_set_owner_auth_manifest(&mut model, &at_floor);
+}
+
+#[test]
 fn test_set_owner_auth_manifest_rejects_vendor_owner_fw_id() {
     let mut model = set_auth_manifest(None);
 
@@ -256,10 +289,8 @@ fn test_set_owner_auth_manifest_rejects_vendor_owner_fw_id() {
 #[test]
 fn test_verify_and_set_auth_manifest_reject_owner_only_fw_id() {
     let mut model = run_rt_test(RuntimeTestArgs {
-        test_image_options: Some(ImageOptions {
-            pqc_key_type: FwVerificationPqcKeyType::LMS,
-            ..Default::default()
-        }),
+        key_type: Some(FwVerificationPqcKeyType::LMS),
+        subsystem_mode: !cfg!(feature = "fpga_realtime"),
         ..Default::default()
     });
     model.step_until_ready_for_runtime();
@@ -449,10 +480,7 @@ fn test_set_owner_auth_manifest_rejects_truncated_manifest() {
 #[test]
 fn test_set_owner_auth_manifest_invalid_marker() {
     let mut model = run_rt_test(RuntimeTestArgs {
-        test_image_options: Some(ImageOptions {
-            pqc_key_type: FwVerificationPqcKeyType::LMS,
-            ..Default::default()
-        }),
+        key_type: Some(FwVerificationPqcKeyType::LMS),
         ..Default::default()
     });
     model.step_until(|m| {

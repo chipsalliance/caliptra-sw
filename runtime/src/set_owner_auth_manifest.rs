@@ -224,7 +224,7 @@ impl SetOwnerAuthManifestCmd {
         Ok(())
     }
 
-    /// SVN check against `SS_STRAP_GENERIC[3][7:0]`. The strap is
+    /// SVN check against `SS_STRAP_GENERIC[3][15:8]`. The strap is
     /// sampled at reset and locked by `CPTRA_FUSE_WR_DONE`. Skipped
     /// when the lifecycle is `Unprovisioned` or anti-rollback is
     /// disabled, mirroring the policy in
@@ -389,7 +389,7 @@ impl SetOwnerAuthManifestCmd {
         }
         cfi_assert_eq(preamble.flags, 0);
 
-        // SVN floor enforced via SS_STRAP_GENERIC[3][7:0].
+        // SVN floor enforced via SS_STRAP_GENERIC[3][15:8].
         Self::verify_owner_svn(&drivers.soc_ifc, preamble.svn)?;
 
         // Determine PQC key type from the firmware image.

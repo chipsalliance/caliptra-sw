@@ -1468,7 +1468,7 @@ Verification chain:
 
 1. The manifest's `owner_pub_keys` are signed by the firmware-image owner key (latched from FMC at boot via `manifest1.preamble.owner_pub_keys`). This signature also covers the policy fields `version`, `svn`, `flags`, and `owner_pub_keys`.
 2. The manifest's IMC is signed by the manifest's own `owner_pub_keys`, which were just verified to chain to the firmware-image owner key.
-3. The manifest's `svn` is checked against the floor encoded in `SS_STRAP_GENERIC[3][7:0]` (subsystem mode only). The check is skipped when the lifecycle is `Unprovisioned` or anti-rollback is disabled.
+3. The manifest's `svn` is checked against the floor encoded in `SS_STRAP_GENERIC[3][15:8]` (subsystem mode only). The check is skipped when the lifecycle is `Unprovisioned` or anti-rollback is disabled.
 
 The maximum IMC capacity is 32 entries. Every active `fw_id` must be unique within this manifest and must not appear in the installed vendor + owner manifest. A collision rejects the command without replacing either active collection. Each successful call replaces the existing owner-only collection.
 
@@ -1481,7 +1481,7 @@ The maximum IMC capacity is 32 entries. Every active `fw_id` must be unique with
 | preamble\_marker                      | u32          | Marker needs to be `0x4D4F_574F` ("OWOM" little-endian) for the preamble to be valid. |
 | preamble\_size                        | u32          | Size of the Owner Authorization Manifest Preamble. |
 | preamble\_version                     | u32          | Version of the preamble. |
-| preamble\_svn                         | u32          | Security version, range `[0, 255]`. Checked against `SS_STRAP_GENERIC[3][7:0]`. |
+| preamble\_svn                         | u32          | Security version, range `[0, 255]`. Checked against `SS_STRAP_GENERIC[3][15:8]`. |
 | preamble\_flags                       | u32          | Reserved. Must be zero. |
 | preamble\_owner\_ecc384\_key          | u32[24]      | Owner ECC384 public key carried in the manifest. |
 | preamble\_owner\_pqc\_key             | u32[648]     | Owner MLDSA-87 or LMS-SHA192-H15 public key carried in the manifest. |

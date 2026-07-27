@@ -26,6 +26,8 @@ pub type Lifecycle = DeviceLifecycleE;
 
 const SS_STRAP_GENERIC_3_STABLE_OWNER_KEY_ENABLE: u32 = 1 << 0;
 const SS_STRAP_GENERIC_3_WAIT_FOR_DEVICE_RESET_BEFORE_FATAL_ERROR: u32 = 1 << 1;
+const SS_STRAP_GENERIC_3_OWNER_MANIFEST_MIN_SVN_SHIFT: u32 = 8;
+const SS_STRAP_GENERIC_3_OWNER_MANIFEST_MIN_SVN_MASK: u32 = 0xFF;
 
 pub fn report_boot_status(val: u32) {
     let mut soc_ifc = unsafe { soc_ifc::SocIfcReg::new() };
@@ -698,13 +700,15 @@ impl SocIfc {
     }
 
     /// Returns the Owner Authorization Manifest minimum-SVN floor as
-    /// populated by the MCU into `SS_STRAP_GENERIC[3][7:0]` during
+    /// populated by the MCU into `SS_STRAP_GENERIC[3][15:8]` during
     /// boot. Subsystem mode only; Caliptra latches the strap at reset
     /// and the field is hardware write-once-locked for the boot
     /// lifetime. Encoded as an unsigned binary integer (not one-hot);
     /// monotonicity across cold resets is the MCU's responsibility.
     pub fn ss_owner_manifest_min_svn(&self) -> u32 {
-        self.soc_ifc.regs().ss_strap_generic().at(3).read() & 0xFF
+        (self.soc_ifc.regs().ss_strap_generic().at(3).read()
+            >> SS_STRAP_GENERIC_3_OWNER_MANIFEST_MIN_SVN_SHIFT)
+            & SS_STRAP_GENERIC_3_OWNER_MANIFEST_MIN_SVN_MASK
     }
 
     pub fn get_timestamp(&self) -> u64 {
