@@ -166,6 +166,7 @@ pub struct Drivers {
     pub aes: Aes,
 
     pub debug_unlock: ProductionDebugUnlock,
+    pub vendor_auth: crate::vendor_auth::VendorAuth,
     pub ocp_lock_context: OcpLockContext,
 
     /// MCU firmware metadata recorded during recovery.
@@ -228,6 +229,7 @@ impl Drivers {
             dma: Dma::default(),
             cryptographic_mailbox: CmStorage::new(),
             debug_unlock: ProductionDebugUnlock::new(),
+            vendor_auth: crate::vendor_auth::VendorAuth::new(),
             ocp_lock_context,
             aes,
             mcu_fw_info: crate::get_mcu_fw_size::McuFwInfo::default(),

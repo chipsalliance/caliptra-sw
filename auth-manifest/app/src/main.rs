@@ -156,6 +156,9 @@ pub(crate) fn run_auth_man_cmd(args: &ArgMatches) -> anyhow::Result<()> {
             &config.owner_fw_key_config,
         )?,
         image_metadata_list: config::image_metadata_config_from_file(&config.image_metadata_list)?,
+        vendor_cmd_auth_pk_hash: config::vendor_cmd_auth_pk_hash_from_file(
+            &config.vendor_cmd_auth_pk_hash,
+        )?,
     };
 
     let gen = AuthManifestGenerator::new(Crypto::default());

@@ -68,6 +68,12 @@ pub(crate) struct AuthManifestConfigFromFile {
     pub owner_man_key_config: Option<AuthManifestKeyConfigFromFile>,
 
     pub image_metadata_list: Vec<ImageMetadataConfigFromFile>,
+
+    /// Optional hex-encoded vendor-command-auth PK-hash
+    /// (`SHA-384(cmd_ecc_pub ‖ cmd_mldsa_pub)`, 48 bytes / 96 hex chars). Emitted as the
+    /// `0x0001` Vendor Ext TLV record when present.
+    #[serde(default)]
+    pub vendor_cmd_auth_pk_hash: Option<String>,
 }
 
 /// Load Authorization Manifest Key Configuration from file
@@ -124,6 +130,28 @@ pub(crate) fn optional_key_config_from_file(
         Ok(Some(gen_config))
     } else {
         Ok(None)
+    }
+}
+
+/// Parse the optional hex-encoded vendor-command-auth PK-hash (48 bytes) from the config.
+pub(crate) fn vendor_cmd_auth_pk_hash_from_file(
+    config: &Option<String>,
+) -> anyhow::Result<Option<[u8; caliptra_auth_man_types::VENDOR_EXT_AUTH_PK_HASH_LEN]>> {
+    match config {
+        Some(hex_str) => {
+            let bytes = hex::decode(hex_str)
+                .with_context(|| "Failed to hex-decode vendor_cmd_auth_pk_hash")?;
+            let arr: [u8; caliptra_auth_man_types::VENDOR_EXT_AUTH_PK_HASH_LEN] =
+                bytes.try_into().map_err(|v: Vec<u8>| {
+                    anyhow::anyhow!(
+                        "vendor_cmd_auth_pk_hash must be {} bytes, got {}",
+                        caliptra_auth_man_types::VENDOR_EXT_AUTH_PK_HASH_LEN,
+                        v.len()
+                    )
+                })?;
+            Ok(Some(arr))
+        }
+        None => Ok(None),
     }
 }
 

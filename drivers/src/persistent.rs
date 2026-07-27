@@ -673,6 +673,11 @@ pub struct FwPersistentData {
 
     pub ocp_lock_metadata: OcpLockMetadataFirmware,
 
+    /// Vendor-command-auth anchor: SHA-384(cmd_ecc_pub ‖ cmd_mldsa_pub), enrolled from Vendor
+    /// Ext 0x0001 at SET_AUTH_MANIFEST; same lifecycle as auth_manifest_digest. Literal
+    /// [u32;12] (not SHA384_HASH_SIZE/4) so layout is identical under fmc and runtime features.
+    pub vendor_cmd_pk_hash: [u32; 12],
+
     pub version: u32,
     /// Keep this as the bottom of the struct
     pub marker: u32,
@@ -681,7 +686,10 @@ pub struct FwPersistentData {
 #[cfg(any(feature = "fmc", feature = "runtime"))]
 impl FwPersistentData {
     pub const MAGIC: u32 = u32::from_be_bytes(*b"FWPD");
-    pub const VERSION: u32 = 1;
+    // Bumped 1 -> 2: added `vendor_cmd_pk_hash` (vendor-command-auth anchor). The strict
+    // version-equality check at runtime/FMC entry makes a hitless update over an old-layout
+    // DCCM fatal (intended torn-layout guard).
+    pub const VERSION: u32 = 2;
 
     pub fn assert_matches_layout() {
         const P: *const PersistentData =
@@ -748,7 +756,15 @@ impl FwPersistentData {
                 memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
             );
 
+            // + size of ocp_lock_metadata (FIRMWARE_OCP_LOCK_METADATA_SIZE = 4)
             persistent_data_offset += 4;
+            assert_eq!(
+                addr_of!((*P).fw.vendor_cmd_pk_hash) as u32,
+                memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
+            );
+
+            // + size of vendor_cmd_pk_hash ([u32; 12] = 48 bytes)
+            persistent_data_offset += 48;
             assert_eq!(
                 addr_of!((*P).fw.version) as u32,
                 memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
@@ -890,7 +906,7 @@ mod tests {
     #[test]
     #[cfg(any(feature = "fmc", feature = "runtime"))]
     fn test_fw_persistent_data_size() {
-        let expected_size = 40488;
+        let expected_size = 40536;
         if size_of::<FwPersistentData>() != expected_size {
             panic!(
                 "FwPersistentData size has changed from {} to {}. If this is intentional, update \
@@ -921,7 +937,7 @@ mod tests {
     fn test_fw_persistent_data_address() {
         let p = memory_layout::PERSISTENT_DATA_ORG as *const PersistentData;
         let fw_persistent_data_addr = unsafe { addr_of!((*p).fw) as u32 };
-        let expected_addr = 1342337332;
+        let expected_addr = 1342337284;
         if fw_persistent_data_addr != expected_addr {
             panic!(
                 "FwPersistentData address has changed from {} to {}. If this is \
@@ -988,8 +1004,9 @@ mod tests {
             (offset_of!(FwPersistentData, fmc_alias_csr), 31256, "fmc_alias_csr"),
             (offset_of!(FwPersistentData, mcu_firmware_loaded), 40472, "mcu_firmware_loaded"),
             (offset_of!(FwPersistentData, ocp_lock_metadata), 40476, "ocp_lock_metadata"),
-            (offset_of!(FwPersistentData, version), 40480, "version"),
-            (offset_of!(FwPersistentData, marker), 40484, "marker"),
+            (offset_of!(FwPersistentData, vendor_cmd_pk_hash), 40480, "vendor_cmd_pk_hash"),
+            (offset_of!(FwPersistentData, version), 40528, "version"),
+            (offset_of!(FwPersistentData, marker), 40532, "marker"),
         ];
 
         for (actual, expected, name) in actual_expected {

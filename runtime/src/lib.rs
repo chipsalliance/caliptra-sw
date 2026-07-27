@@ -51,6 +51,7 @@ mod sign_with_exported_mldsa;
 mod stash_measurement;
 mod subject_alt_name;
 mod update;
+mod vendor_auth;
 mod verify;
 
 // Used by runtime tests
@@ -610,6 +611,27 @@ fn execute_command(
                 cmd_bytes,
             )
         }),
+        CommandId::VENDOR_AUTH_HELLO => drivers.vendor_auth.handle_hello(&mut drivers.trng, resp),
+        CommandId::VENDOR_AUTH_CHALLENGE => {
+            let enrolled_pk_hash: [u8; 48] = drivers
+                .persistent_data
+                .get()
+                .fw
+                .vendor_cmd_pk_hash
+                .as_bytes()
+                .try_into()
+                .map_err(|_| CaliptraError::RUNTIME_INTERNAL)?;
+            drivers.abr.with_mldsa87(|mut mldsa| {
+                drivers.vendor_auth.handle_challenge(
+                    &mut drivers.sha2_512_384,
+                    &mut drivers.ecc384,
+                    &mut mldsa,
+                    &enrolled_pk_hash,
+                    cmd_bytes,
+                    resp,
+                )
+            })
+        }
         CommandId::FE_PROG => FeProgrammingCmd::execute(drivers, cmd_bytes),
         CommandId::REALLOCATE_DPE_CONTEXT_LIMITS => {
             ReallocateDpeContextLimitsCmd::execute(drivers, cmd_bytes, resp)

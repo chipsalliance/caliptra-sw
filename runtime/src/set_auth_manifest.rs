@@ -19,6 +19,7 @@ use crate::{Drivers, PauserPrivileges};
 use caliptra_auth_man_types::{
     AuthManifestFlags, AuthManifestImageMetadata, AuthManifestImageMetadataCollection,
     AuthManifestPreamble, AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT, AUTH_MANIFEST_MARKER,
+    AUTH_MANIFEST_VERSION_V2,
 };
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_cfi_lib::{
@@ -797,9 +798,36 @@ impl SetAuthManifestCmd {
             )
         })?;
 
+        // Extract the vendor-command-auth anchor from the (now signature-verified) Vendor Ext
+        // BEFORE any persistent commit, so a v2 manifest missing the 0x0001 record fails
+        // without leaving image-auth state and vendor-key state torn (a fallible step after the
+        // digest commit could diverge them). The 0x0001 record is required ONLY for a v2
+        // manifest — a correctly-signed pre-v2 manifest (no vendor-auth) is accepted so
+        // deployments that don't use vendor-auth are unaffected. Checked in both the SET and
+        // VERIFY paths for consistency.
+        let vendor_cmd_pk_hash = if auth_manifest_preamble.version >= AUTH_MANIFEST_VERSION_V2 {
+            Some(
+                auth_manifest_preamble
+                    .vendor_ext_auth_pk_hash()
+                    .ok_or(CaliptraError::RUNTIME_AUTH_MANIFEST_MISSING_VENDOR_AUTH_PK_HASH)?,
+            )
+        } else {
+            None
+        };
+
         if !verify_only {
             persistent_data.fw.auth_manifest_digest =
                 drivers.sha2_512_384.sha384_digest(manifest_buf)?.0;
+
+            // Stored bytes are the hardware-format digest (Array4x12 word order);
+            // VENDOR_AUTH_CHALLENGE compares word-level.
+            if let Some(pk_hash) = vendor_cmd_pk_hash {
+                persistent_data
+                    .fw
+                    .vendor_cmd_pk_hash
+                    .as_mut_bytes()
+                    .copy_from_slice(&pk_hash);
+            }
         }
         Ok(())
     }

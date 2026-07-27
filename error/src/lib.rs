@@ -1898,6 +1898,26 @@ impl CaliptraError {
             0x000E009E,
             "Runtime Error: Sign with exported MLDSA invalid signature"
         ),
+        (
+            RUNTIME_AUTH_MANIFEST_MISSING_VENDOR_AUTH_PK_HASH,
+            0x000E009F,
+            "Runtime Error: Auth manifest missing vendor command-auth PK hash (Vendor Ext 0x0001)"
+        ),
+        (
+            RUNTIME_VENDOR_AUTH_NONCE_MISMATCH,
+            0x000E00A0,
+            "Runtime Error: Vendor command auth challenge nonce mismatch"
+        ),
+        (
+            RUNTIME_VENDOR_AUTH_WRONG_PUBLIC_KEYS,
+            0x000E00A1,
+            "Runtime Error: Vendor command auth public keys do not match enrolled PK hash"
+        ),
+        (
+            RUNTIME_VENDOR_AUTH_INVALID_SIGNATURE,
+            0x000E00A2,
+            "Runtime Error: Vendor command auth signature verification failed"
+        ),
         // FMC Errors
         (FMC_GLOBAL_NMI, 0x000F0001, "FMC Error: Global NMI"),
         (
