@@ -5,7 +5,7 @@
 
 use crate::common::{run_rt_test, RuntimeTestArgs};
 use crate::test_authorize_and_stash::{set_auth_manifest, FW_ID_1, IMAGE_DIGEST1};
-use crate::test_set_auth_manifest::create_auth_manifest_with_metadata;
+use crate::test_set_auth_manifest::create_auth_manifest_with_metadata_with_svn;
 use caliptra_api::{mailbox::VerifyAuthManifestReq, SocManager};
 use caliptra_auth_man_gen::{
     AuthManifestGenerator, AuthManifestGeneratorKeyConfig, OwnerAuthManifestGeneratorConfig,
@@ -64,12 +64,20 @@ fn build_owner_manifest(
     entries: Vec<AuthManifestImageMetadata>,
     svn: u32,
 ) -> OwnerAuthorizationManifest {
+    build_owner_manifest_with_pqc(entries, svn, FwVerificationPqcKeyType::MLDSA)
+}
+
+fn build_owner_manifest_with_pqc(
+    entries: Vec<AuthManifestImageMetadata>,
+    svn: u32,
+    pqc_key_type: FwVerificationPqcKeyType,
+) -> OwnerAuthorizationManifest {
     let owner_key_config = owner_key_config();
     let gen = AuthManifestGenerator::new(Crypto::default());
     gen.generate_owner(&OwnerAuthManifestGeneratorConfig {
         version: 1,
         svn,
-        pqc_key_type: FwVerificationPqcKeyType::LMS,
+        pqc_key_type,
         owner_fw_key_info: owner_key_config.clone(),
         owner_man_key_info: owner_key_config,
         image_metadata_list: entries,
@@ -256,13 +264,21 @@ fn test_verify_and_set_auth_manifest_reject_owner_only_fw_id() {
     });
     model.step_until_ready_for_runtime();
 
-    let owner_man = build_owner_manifest(vec![make_entry(OWNER_ONLY_FW_ID, OWNER_ONLY_DIGEST)], 1);
+    let owner_man = build_owner_manifest_with_pqc(
+        vec![make_entry(OWNER_ONLY_FW_ID, OWNER_ONLY_DIGEST)],
+        1,
+        FwVerificationPqcKeyType::LMS,
+    );
     send_set_owner_auth_manifest(&mut model, &owner_man);
 
-    let vendor_owner_man = create_auth_manifest_with_metadata(vec![
-        make_entry(OWNER_ONLY_FW_ID, IMAGE_DIGEST1),
-        make_entry(u32::from_le_bytes(FW_ID_1), IMAGE_DIGEST1),
-    ]);
+    let vendor_owner_man = create_auth_manifest_with_metadata_with_svn(
+        vec![
+            make_entry(OWNER_ONLY_FW_ID, IMAGE_DIGEST1),
+            make_entry(u32::from_le_bytes(FW_ID_1), IMAGE_DIGEST1),
+        ],
+        FwVerificationPqcKeyType::LMS,
+        1,
+    );
     let expected: u32 =
         CaliptraError::RUNTIME_AUTH_MANIFEST_IMAGE_METADATA_LIST_DUPLICATE_FIRMWARE_ID.into();
 
@@ -443,8 +459,11 @@ fn test_set_owner_auth_manifest_invalid_marker() {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
     });
 
-    let mut owner_man =
-        build_owner_manifest(vec![make_entry(OWNER_ONLY_FW_ID, OWNER_ONLY_DIGEST)], 1);
+    let mut owner_man = build_owner_manifest_with_pqc(
+        vec![make_entry(OWNER_ONLY_FW_ID, OWNER_ONLY_DIGEST)],
+        1,
+        FwVerificationPqcKeyType::LMS,
+    );
     owner_man.preamble.marker = 0xDEAD_BEEF;
 
     let buf = owner_man.as_bytes();
