@@ -35,6 +35,8 @@ const K_DROPPED_BITS: u32 = 13;
 const K_HALF_PRIME: u32 = (K_PRIME - 1) / 2;
 const K_DEGREE: usize = 256;
 const K_INVERSE_DEGREE_MONTGOMERY: u32 = 41978;
+const K_SCALAR_ENCODE_10_CHUNK_SIZE: usize = 10 * K_DEGREE / 8;
+const K_SCALAR_ENCODE_20_CHUNK_SIZE: usize = 2 * K_SCALAR_ENCODE_10_CHUNK_SIZE;
 
 /* Common sizes. */
 const K_RHO_BYTES: usize = 32;
@@ -432,7 +434,7 @@ fn scalar_encode_4(out: &mut [u8], s: &Scalar) {
     }
 }
 
-fn scalar_encode_10(out: &mut [u8], s: &Scalar) {
+fn scalar_encode_10(out: &mut [u8; K_SCALAR_ENCODE_10_CHUNK_SIZE], s: &Scalar) {
     for i in 0..(K_DEGREE / 4) {
         let a = s.c[4 * i];
         let b = s.c[4 * i + 1];
@@ -689,20 +691,23 @@ fn matrix87_expand_mul_mask(
 /* Encoding. */
 
 fn vector8_encode_10(out: &mut [u8], a: &Vector8) {
-    for i in 0..8 {
-        scalar_encode_10(&mut out[i * 10 * K_DEGREE / 8..], &a.v[i]);
+    for (i, scalar) in a.v.iter().enumerate() {
+        let mut chunk = [0u8; K_SCALAR_ENCODE_10_CHUNK_SIZE];
+        scalar_encode_10(&mut chunk, scalar);
+        out[i * K_SCALAR_ENCODE_10_CHUNK_SIZE..][..K_SCALAR_ENCODE_10_CHUNK_SIZE]
+            .copy_from_slice(&chunk);
     }
 }
 
 fn vector8_decode_10(out: &mut Vector8, in_val: &[u8]) {
     for i in 0..8 {
-        scalar_decode_10(&mut out.v[i], &in_val[i * 10 * K_DEGREE / 8..]);
+        scalar_decode_10(&mut out.v[i], &in_val[i * K_SCALAR_ENCODE_10_CHUNK_SIZE..]);
     }
 }
 
 fn vector7_decode_signed_20_19(out: &mut Vector7, in_val: &[u8]) {
     for i in 0..7 {
-        scalar_decode_signed_20_19(&mut out.v[i], &in_val[i * 20 * K_DEGREE / 8..]);
+        scalar_decode_signed_20_19(&mut out.v[i], &in_val[i * K_SCALAR_ENCODE_20_CHUNK_SIZE..]);
     }
 }
 
@@ -784,13 +789,14 @@ const SK_T0_OFF: usize = SK_S2_OFF + 8 * SK_S_PACK_BYTES; // 1568
 
 /// Deterministic ML-DSA key generation (FIPS 204 ML-DSA.KeyGen).
 ///
-/// Always produces the encoded public key. If `out_encoded_private_key` is
-/// supplied, it is also populated with the FIPS 204 `skEncode` of the private
-/// key, packed in place from the normal-domain `s1`/`s2`/`t0` as they are
-/// produced (before they are converted to the NTT domain for signing). Callers
-/// that only need the public key pass `None` and pay nothing for sk encoding.
+/// If `out_encoded_public_key` is supplied, populate it with the encoded
+/// public key. If `out_encoded_private_key` is supplied, it is also populated
+/// with the FIPS 204 `skEncode` of the private key, packed in place from the
+/// normal-domain `s1`/`s2`/`t0` as they are produced (before they are converted
+/// to the NTT domain for signing). Callers that only need the public key pass
+/// `None` and pay nothing for sk encoding.
 fn generate_key_internal(
-    out_encoded_public_key: &mut [u8; MLDSA87_PUBLIC_KEY_BYTES],
+    mut out_encoded_public_key: Option<&mut [u8; MLDSA87_PUBLIC_KEY_BYTES]>,
     priv_key: &mut PrivateKey,
     entropy: &[u8; MLDSA87_PRIVATE_SEED_BYTES],
     mut out_encoded_private_key: Option<&mut [u8; MLDSA87_PRIVATE_KEY_BYTES]>,
@@ -878,13 +884,20 @@ fn generate_key_internal(
 
     vector8_ntt(&mut priv_key.t0_ntt);
 
-    out_encoded_public_key[..K_RHO_BYTES].copy_from_slice(rho);
-    vector8_encode_10(&mut out_encoded_public_key[K_RHO_BYTES..], t1);
+    if let Some(out_pk) = out_encoded_public_key.as_mut() {
+        out_pk[..K_RHO_BYTES].copy_from_slice(rho);
+        vector8_encode_10(&mut out_pk[K_RHO_BYTES..], t1);
+    }
 
     if out_encoded_private_key.is_some() || out_public_key_hash.is_some() {
         let mut tr = [0u8; K_TR_BYTES];
         let mut shake256 = Shake256::new();
-        shake256.absorb(out_encoded_public_key);
+        let mut chunk = [0u8; K_SCALAR_ENCODE_10_CHUNK_SIZE];
+        shake256.absorb(rho);
+        for i in 0..8 {
+            scalar_encode_10(&mut chunk, &t1.v[i]);
+            shake256.absorb(&chunk);
+        }
         shake256.squeeze(&mut tr);
 
         if let Some(sk) = out_encoded_private_key.as_mut() {
@@ -927,7 +940,7 @@ pub fn mldsa87_key_pair_from_seed(
         t0_ntt: Vector8::default(),
     };
     generate_key_internal(
-        out_encoded_public_key,
+        Some(out_encoded_public_key),
         &mut priv_key,
         entropy,
         Some(out_encoded_private_key),
@@ -940,14 +953,7 @@ fn generate_priv_internal(
     private_key_seed: &[u8; MLDSA87_PRIVATE_SEED_BYTES],
     out_public_key_hash: Option<&mut [u8; K_TR_BYTES]>,
 ) {
-    let mut encoded_public_key = [0u8; MLDSA87_PUBLIC_KEY_BYTES];
-    generate_key_internal(
-        &mut encoded_public_key,
-        priv_key,
-        private_key_seed,
-        None,
-        out_public_key_hash,
-    );
+    generate_key_internal(None, priv_key, private_key_seed, None, out_public_key_hash);
 }
 
 #[inline(never)]
@@ -1188,7 +1194,7 @@ pub fn mldsa87_pub_from_seed(
         t0_ntt: Vector8::default(),
     };
     generate_key_internal(
-        out_encoded_public_key,
+        Some(out_encoded_public_key),
         &mut priv_key,
         private_key_seed,
         None,
