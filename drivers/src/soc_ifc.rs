@@ -704,7 +704,8 @@ impl SocIfc {
     /// boot. Subsystem mode only; Caliptra latches the strap at reset
     /// and the field is hardware write-once-locked for the boot
     /// lifetime. Encoded as an unsigned binary integer (not one-hot);
-    /// monotonicity across cold resets is the MCU's responsibility.
+    /// conversion from platform monotonic storage and monotonicity across
+    /// cold resets are the MCU's responsibility.
     pub fn ss_owner_manifest_min_svn(&self) -> u32 {
         (self.soc_ifc.regs().ss_strap_generic().at(3).read()
             >> SS_STRAP_GENERIC_3_OWNER_MANIFEST_MIN_SVN_SHIFT)

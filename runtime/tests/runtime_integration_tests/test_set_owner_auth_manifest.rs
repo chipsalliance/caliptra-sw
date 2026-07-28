@@ -6,6 +6,7 @@
 use crate::common::{run_rt_test, RuntimeTestArgs};
 use crate::test_authorize_and_stash::{set_auth_manifest, FW_ID_1, IMAGE_DIGEST1};
 use crate::test_set_auth_manifest::create_auth_manifest_with_metadata_with_svn;
+use crate::test_update_reset::update_fw;
 use caliptra_api::{mailbox::VerifyAuthManifestReq, SocManager};
 use caliptra_auth_man_gen::{
     AuthManifestGenerator, AuthManifestGeneratorKeyConfig, OwnerAuthManifestGeneratorConfig,
@@ -14,6 +15,7 @@ use caliptra_auth_man_types::{
     AuthManifestImageMetadata, AuthManifestPrivKeysConfig, AuthManifestPubKeysConfig,
     AuthorizationManifest, ImageMetadataFlags, OwnerAuthorizationManifest,
 };
+use caliptra_builder::{firmware::APP_WITH_UART, ImageOptions};
 use caliptra_common::mailbox_api::{
     AuthorizeAndStashReq, AuthorizeAndStashResp, CommandId, ImageHashSource, MailboxReq,
     MailboxReqHeader, SetAuthManifestReq, SetOwnerAuthManifestReq,
@@ -219,6 +221,26 @@ fn test_set_owner_auth_manifest_then_authorize_returns_owner_only() {
     // Unknown fw_id rejects.
     let resp = authorize_and_stash_in_request(&mut model, [0xAB, 0xCD, 0, 0], OWNER_ONLY_DIGEST);
     assert_eq!(resp.auth_req_result, IMAGE_NOT_AUTHORIZED);
+}
+
+#[test]
+fn test_owner_and_vendor_auth_manifests_survive_update_reset() {
+    let mut model = set_auth_manifest(None);
+
+    let owner_man = build_owner_manifest(vec![make_entry(OWNER_ONLY_FW_ID, OWNER_ONLY_DIGEST)], 1);
+    send_set_owner_auth_manifest(&mut model, &owner_man);
+
+    update_fw(&mut model, &APP_WITH_UART, ImageOptions::default());
+
+    let resp = authorize_and_stash_in_request(
+        &mut model,
+        OWNER_ONLY_FW_ID.to_le_bytes(),
+        OWNER_ONLY_DIGEST,
+    );
+    assert_eq!(resp.auth_req_result, IMAGE_AUTHORIZED_OWNER_ONLY);
+
+    let resp = authorize_and_stash_in_request(&mut model, FW_ID_1, IMAGE_DIGEST1);
+    assert_eq!(resp.auth_req_result, IMAGE_AUTHORIZED_VENDOR_OWNER);
 }
 
 #[test]

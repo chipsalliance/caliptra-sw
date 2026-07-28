@@ -277,22 +277,19 @@ impl SetOwnerAuthManifestCmd {
             .get(..imc_size)
             .ok_or(CaliptraError::RUNTIME_OWNER_AUTH_MANIFEST_IMC_INVALID_SIZE)?;
 
-        // SAFETY: `OwnerAuthManifestImageMetadataCollection` is
-        // `#[repr(C)]` + `FromBytes`, alignment is u32 == 4 which the
-        // mailbox buffer satisfies. We only mutate via the sort routine
-        // before copying into persistent storage.
-        let imc_mailbox =
-            unsafe { &mut *(buf.as_ptr() as *mut OwnerAuthManifestImageMetadataCollection) };
+        let (mut imc_candidate, _) =
+            OwnerAuthManifestImageMetadataCollection::read_from_prefix(buf)
+                .map_err(|_| CaliptraError::RUNTIME_OWNER_AUTH_MANIFEST_IMC_INVALID_SIZE)?;
 
-        if imc_mailbox.entry_count == 0
-            || imc_mailbox.entry_count > OWNER_AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT as u32
+        if imc_candidate.entry_count == 0
+            || imc_candidate.entry_count > OWNER_AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT as u32
         {
             Err(CaliptraError::RUNTIME_OWNER_AUTH_MANIFEST_IMC_INVALID_ENTRY_COUNT)?;
         }
 
         if buf.len()
             < (size_of::<u32>()
-                + imc_mailbox.entry_count as usize * size_of::<AuthManifestImageMetadata>())
+                + imc_candidate.entry_count as usize * size_of::<AuthManifestImageMetadata>())
         {
             Err(CaliptraError::RUNTIME_OWNER_AUTH_MANIFEST_IMC_INVALID_SIZE)?;
         }
@@ -310,7 +307,8 @@ impl SetOwnerAuthManifestCmd {
         )?;
 
         // Sort + duplicate-fwid check on the incoming entries.
-        let new_slice = &mut imc_mailbox.image_metadata_list[..imc_mailbox.entry_count as usize];
+        let new_slice =
+            &mut imc_candidate.image_metadata_list[..imc_candidate.entry_count as usize];
         SetAuthManifestCmd::sort_and_check_duplicate_fwid(new_slice)
             .map_err(|_| CaliptraError::RUNTIME_OWNER_AUTH_MANIFEST_IMC_DUPLICATE_FW_ID)?;
 
@@ -323,7 +321,9 @@ impl SetOwnerAuthManifestCmd {
         }
 
         persistent.zeroize();
-        persistent.as_mut_bytes()[..buf.len()].copy_from_slice(buf);
+        persistent
+            .as_mut_bytes()
+            .copy_from_slice(imc_candidate.as_bytes());
 
         Ok(())
     }

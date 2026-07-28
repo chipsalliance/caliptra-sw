@@ -85,7 +85,7 @@ algorithm-defined byte encoding.
 | `0x0000` | **Manifest Marker (`marker`)** | 4 | Magic number identifying an Owner Authorization Manifest. It must be `0x4D4F574F`, which serializes as `OWOM`. |
 | `0x0004` | **Preamble Size (`size`)** | 4 | Size of the Owner Authorization Manifest Preamble. It must be 12,156 bytes (`0x2F7C`). |
 | `0x0008` | **Version (`version`)** | 4 | Owner manifest format version. This field is covered by the owner public-key endorsement signatures. |
-| `0x000C` | **SVN (`svn`)** | 4 | Security Version Number used for anti-rollback. The generator accepts values from 0 through 255. When the check is enabled, Runtime requires this value to be at least `SS_STRAP_GENERIC[3][15:8]`. |
+| `0x000C` | **SVN (`svn`)** | 4 | Security Version Number used for anti-rollback. The generator accepts values from 0 through 255. When the check is enabled, Runtime requires this value to be at least the binary value in `SS_STRAP_GENERIC[3][15:8]`; see the [Owner Authorization Manifest minimum SVN contract](../runtime/README.md#owner-authorization-manifest-minimum-svn). |
 | `0x0010` | **Reserved (`flags`)** | 4 | Reserved. Must be zero. |
 | `0x0014` | **Owner ECC Public Key (`owner_pub_keys.ecc_pub_key`)** | 96 | Owner ECDSA P-384 public key carried by this manifest.<br/>**X-Coordinate:** 48 bytes.<br/>**Y-Coordinate:** 48 bytes. |
 | `0x0074` | **Owner PQC Public Key (`owner_pub_keys.pqc_pub_key`)** | 2592 | Owner MLDSA87 or LMS-SHA192-H15 public key. MLDSA87 uses all 2,592 bytes. An LMS key occupies the first 48 bytes and the remaining bytes are zero. |
