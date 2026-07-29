@@ -81,6 +81,7 @@ int main(int argc, char *argv[])
 
     // Initialize Params
     struct caliptra_model_init_params init_params = {
+      .hw_version = CALIPTRA_HW_VERSION_2_1,
       .rom = read_file_or_die(rom_path),
       .dccm = {.data = empty, .len = 0},
       .iccm = {.data = empty, .len = 0},
