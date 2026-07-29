@@ -10,8 +10,8 @@ doctest = false
 
 [dependencies]
 arbitrary = { workspace = true, optional = true }
-caliptra-cfi-derive.workspace = true
-caliptra-cfi-lib.workspace = true
+caliptra-cfi-derive = { workspace = true, optional = true }
+caliptra-cfi-lib = { workspace = true, optional = true }
 caliptra-error = { workspace = true, default-features = false }
 caliptra-lms-types.workspace = true
 memoffset.workspace = true
@@ -23,4 +23,4 @@ zeroize.workspace = true
 [features]
 default = ["std", "cfi"]
 std = ["dep:serde", "dep:serde_derive", "caliptra-lms-types/std"]
-cfi = ["caliptra-lms-types/cfi"]
+cfi = ["dep:caliptra-cfi-derive", "dep:caliptra-cfi-lib", "caliptra-lms-types/cfi"]

@@ -9,14 +9,14 @@ edition = "2021"
 
 [dependencies]
 arbitrary = { workspace = true, optional = true }
-caliptra-cfi-derive.workspace = true
-caliptra-cfi-lib.workspace = true
+caliptra-cfi-derive = { workspace = true, optional = true }
+caliptra-cfi-lib = { workspace = true, optional = true }
 serde = { workspace = true, optional = true }
 serde_derive = { workspace = true, optional = true }
 zerocopy.workspace = true
 zeroize.workspace = true
 
 [features]
-default = ["cfi"]
+default = []
 std = ["dep:serde", "dep:serde_derive"]
-cfi = []
+cfi = ["dep:caliptra-cfi-derive", "dep:caliptra-cfi-lib"]
