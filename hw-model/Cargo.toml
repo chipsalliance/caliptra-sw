@@ -18,6 +18,11 @@ coverage = ["dep:caliptra-coverage"]
 ocp-lock = []
 
 [dependencies]
+# Enable cfi-test for host builds. This dep exists solely to add the feature
+# to the transitive copy pulled in by caliptra-image-types/caliptra-lms-types.
+# Without this, debug builds fail with unresolved CFI_STATE_ORG/cfi_panic_handler.
+caliptra-cfi-lib = { workspace = true, features = ["cfi-test"] }
+
 anyhow.workspace = true
 bitfield.workspace = true
 bitflags.workspace = true
