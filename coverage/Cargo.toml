@@ -18,4 +18,4 @@ caliptra-builder.workspace = true
 elf.workspace = true
 regex.workspace = true
 caliptra-image-types.workspace = true
-caliptra-drivers.workspace=true
+caliptra-drivers = { workspace = true, default-features = false }
