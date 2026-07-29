@@ -40,7 +40,6 @@ use caliptra_image_types::{
 };
 use memoffset::offset_of;
 use zerocopy::{FromBytes, IntoBytes};
-use zeroize::Zeroize;
 
 pub struct SetOwnerAuthManifestCmd;
 
@@ -320,10 +319,7 @@ impl SetOwnerAuthManifestCmd {
             Err(CaliptraError::RUNTIME_OWNER_AUTH_MANIFEST_IMC_DUPLICATE_FW_ID)?;
         }
 
-        persistent.zeroize();
-        persistent
-            .as_mut_bytes()
-            .copy_from_slice(imc_candidate.as_bytes());
+        *persistent = imc_candidate;
 
         Ok(())
     }

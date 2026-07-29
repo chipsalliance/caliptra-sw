@@ -1022,7 +1022,6 @@ mod tests {
     #[rustfmt::skip]
     #[cfg(any(feature = "fmc", feature = "runtime"))]
     fn test_fw_persistent_data_offsets() {
-        #[cfg(feature = "runtime")]
         let actual_expected = [
             (offset_of!(FwPersistentData, dpe), 0, "dpe"),
             (offset_of!(FwPersistentData, ecc_rtalias_tbs), 10240, "ecc_rtalias_tbs"),
@@ -1031,23 +1030,8 @@ mod tests {
             (offset_of!(FwPersistentData, rt_dice_mldsa_sign), 15364, "rt_dice_mldsa_sign"),
             (offset_of!(FwPersistentData, pcr_reset), 19992, "pcr_reset"),
             (offset_of!(FwPersistentData, auth_manifest_image_metadata_col), 21016, "auth_manifest_image_metadata_col"),
+            #[cfg(feature = "runtime")]
             (offset_of!(FwPersistentData, owner_auth_manifest_image_metadata_col), 27672, "owner_auth_manifest_image_metadata_col"),
-            (offset_of!(FwPersistentData, fmc_alias_csr), 31256, "fmc_alias_csr"),
-            (offset_of!(FwPersistentData, mcu_firmware_loaded), 40472, "mcu_firmware_loaded"),
-            (offset_of!(FwPersistentData, ocp_lock_metadata), 40476, "ocp_lock_metadata"),
-            (offset_of!(FwPersistentData, version), 40480, "version"),
-            (offset_of!(FwPersistentData, marker), 40484, "marker"),
-        ];
-
-        #[cfg(not(feature = "runtime"))]
-        let actual_expected = [
-            (offset_of!(FwPersistentData, dpe), 0, "dpe"),
-            (offset_of!(FwPersistentData, ecc_rtalias_tbs), 10240, "ecc_rtalias_tbs"),
-            (offset_of!(FwPersistentData, mldsa_rtalias_tbs), 11264, "mldsa_rtalias_tbs"),
-            (offset_of!(FwPersistentData, rtalias_mldsa_tbs_size), 15360, "rtalias_mldsa_tbs_size"),
-            (offset_of!(FwPersistentData, rt_dice_mldsa_sign), 15364, "rt_dice_mldsa_sign"),
-            (offset_of!(FwPersistentData, pcr_reset), 19992, "pcr_reset"),
-            (offset_of!(FwPersistentData, auth_manifest_image_metadata_col), 21016, "auth_manifest_image_metadata_col"),
             (offset_of!(FwPersistentData, fmc_alias_csr), 31256, "fmc_alias_csr"),
             (offset_of!(FwPersistentData, mcu_firmware_loaded), 40472, "mcu_firmware_loaded"),
             (offset_of!(FwPersistentData, ocp_lock_metadata), 40476, "ocp_lock_metadata"),
