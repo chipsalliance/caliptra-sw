@@ -10,6 +10,7 @@ edition = "2021"
 cargo-fuzz = true
 
 [dependencies]
+arbitrary = { version = "1.3.0", features = ["derive"] }
 libfuzzer-sys = { version = "0.4.6", optional = true }
 afl = { version = "0.13.3", optional = true }
 openssl = { version = "0.10", features = ["vendored"] }
@@ -24,8 +25,30 @@ members = ["."]
 [profile.release]
 debug = 1
 
+[lib]
+name = "x509_fuzz_common"
+path = "src/lib.rs"
+
 [[bin]]
-name = "fuzz_target_1"
-path = "src/fuzz_target_1.rs"
+name = "fuzz_idev"
+path = "src/fuzz_idev.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "fuzz_ldev"
+path = "src/fuzz_ldev.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "fuzz_fmc"
+path = "src/fuzz_fmc.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "fuzz_rt"
+path = "src/fuzz_rt.rs"
 test = false
 doc = false
