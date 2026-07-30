@@ -431,6 +431,7 @@ fn smoke_test() {
             hasher.update(&[image.manifest.header.vendor_pqc_pub_key_idx as u8]);
             hasher.update(&[image.manifest.pqc_key_type]);
             hasher.update(&[owner_pk_in_fuses as u8]);
+            hasher.update(&[hw.subsystem_mode() as u8]);
             hasher.update(vendor_pk_desc_hash.as_bytes());
             hasher.update(&owner_pk_hash);
             let device_info_hash = hasher.finish();
@@ -486,6 +487,7 @@ fn smoke_test() {
                     fw_fuse_svn: 7,
                     pqc_vendor_pub_key_index: image.manifest.header.vendor_pqc_pub_key_idx,
                     pqc_key_type: *pqc_key_type as u32,
+                    subsystem_mode: hw.subsystem_mode(),
                 }),
                 &expected_ldevid_key,
             );

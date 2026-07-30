@@ -84,7 +84,7 @@ pub(crate) fn extend_pcrs(
     // Clear the Current PCR, but do not clear the Journey PCR
     pcr_bank.erase_pcr(PCR_ID_FMC_CURRENT)?;
 
-    let device_status: [u8; 9] = [
+    let device_status: [u8; 10] = [
         soc_ifc.lifecycle() as u8,
         soc_ifc.debug_locked() as u8,
         soc_ifc.fuse_bank().anti_rollback_disable() as u8,
@@ -94,6 +94,7 @@ pub(crate) fn extend_pcrs(
         data_vault.vendor_pqc_pk_index() as u8,
         info.pqc_key_type as u8,
         info.owner_pub_keys_digest_in_fuses as u8,
+        soc_ifc.subsystem_mode() as u8,
     ];
 
     let mut pcr = PcrExtender {

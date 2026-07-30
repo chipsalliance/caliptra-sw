@@ -75,7 +75,9 @@ not (package(/caliptra-emu-.*/) |
     binary_id(caliptra-test::fips_test_suite) |
     test(test_update_reset::test_update_reset_verify_image_failure) |
     test(test_debug_unlock::test_dbg_unlock_prod_unlock_levels_success) |
-    test(test_debug_unlock::test_dbg_unlock_prod_unlock_levels_failure))
+    test(test_debug_unlock::test_dbg_unlock_prod_unlock_levels_failure) |
+    test(test_device_status_mode::test_device_status_mode_passive) |
+    test(test_device_status_mode::test_device_status_mode_subsystem))
 """
 failure-output = "immediate-final"
 fail-fast = false

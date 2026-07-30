@@ -237,6 +237,7 @@ impl FmcAliasLayer {
             data_vault.vendor_pqc_pk_index() as u8,
             fw_proc_info.pqc_key_type,
             fw_proc_info.owner_pub_keys_digest_in_fuses as u8,
+            soc_ifc.subsystem_mode() as u8,
         ])?;
         hasher.update(&<[u8; 48]>::from(
             soc_ifc.fuse_bank().vendor_pub_key_info_hash(),
@@ -344,6 +345,7 @@ impl FmcAliasLayer {
             data_vault.vendor_pqc_pk_index() as u8,
             fw_proc_info.pqc_key_type,
             fw_proc_info.owner_pub_keys_digest_in_fuses as u8,
+            soc_ifc.subsystem_mode() as u8,
         ])?;
         hasher.update(&<[u8; 48]>::from(
             soc_ifc.fuse_bank().vendor_pub_key_info_hash(),
