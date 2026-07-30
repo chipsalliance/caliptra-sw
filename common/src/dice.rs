@@ -266,6 +266,7 @@ pub fn gen_fmc_alias_vendor_device_info_hash(
     // Image Bundle FW SVN from cold boot (u8)
     // PK Index ECC (u8)
     // PK Index PQC (u8)
+    // Subsystem mode (CPTRA_HW_CONFIG.subsystem_mode_en) (u8)
     let mut fuse_vendor_info_digest = Array4x12::default();
     let mut hasher = sha2_512_384.sha384_digest_init()?;
 
@@ -279,6 +280,7 @@ pub fn gen_fmc_alias_vendor_device_info_hash(
         data_vault.cold_boot_fw_svn() as u8,
         data_vault.vendor_ecc_pk_index() as u8,
         data_vault.vendor_pqc_pk_index() as u8,
+        soc_ifc.subsystem_mode() as u8,
     ])?;
     hasher.finalize(&mut fuse_vendor_info_digest)?;
 
