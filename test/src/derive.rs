@@ -357,6 +357,7 @@ pub struct Pcr0Input {
     pub fw_fuse_svn: u32,
     pub pqc_vendor_pub_key_index: u32,
     pub pqc_key_type: u32,
+    pub subsystem_mode: bool,
 }
 impl Pcr0Input {}
 
@@ -381,6 +382,7 @@ impl Pcr0 {
                 input.pqc_vendor_pub_key_index as u8,
                 input.pqc_key_type as u8,
                 input.owner_pub_key_hash_from_fuses as u8,
+                input.subsystem_mode as u8,
             ],
         );
         extend(
@@ -424,12 +426,13 @@ fn test_derive_pcr0() {
         fw_fuse_svn: 2,
         pqc_vendor_pub_key_index: u32::MAX,
         pqc_key_type: FwVerificationPqcKeyType::LMS as u32,
+        subsystem_mode: false,
     });
     assert_eq!(
         pcr0,
         Pcr0([
-            1597321057, 3306746665, 3870835391, 3103173150, 3318383838, 3407565263, 3776158384,
-            4231654246, 1759479765, 3561253448, 1491479508, 1619944441
+            679012617, 2870272304, 32685831, 354009394, 790136628, 2021707955, 888925035,
+            559203880, 4286345466, 3614569310, 131280581, 1288174965
         ])
     )
 }

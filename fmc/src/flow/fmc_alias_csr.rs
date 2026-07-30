@@ -123,6 +123,7 @@ fn get_tbs_common_params(env: &mut FmcEnv) -> CaliptraResult<FmcAliasCsrTbsCommo
         data_vault.vendor_pqc_pk_index() as u8,
         env.soc_ifc.fuse_bank().pqc_key_type() as u8,
         owner_pub_keys_digest_in_fuses as u8,
+        env.soc_ifc.subsystem_mode() as u8,
     ])?;
     hasher.update(&<[u8; 48]>::from(
         env.soc_ifc.fuse_bank().vendor_pub_key_info_hash(),

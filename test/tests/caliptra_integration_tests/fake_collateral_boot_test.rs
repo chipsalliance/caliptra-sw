@@ -282,6 +282,7 @@ fn fake_boot_test() {
                     fw_fuse_svn: 7,
                     pqc_vendor_pub_key_index: image.manifest.header.vendor_pqc_pub_key_idx,
                     pqc_key_type: 1 as u32, // MLDSA
+                    subsystem_mode: false,
                 }),
                 &expected_ldevid_key,
             );
