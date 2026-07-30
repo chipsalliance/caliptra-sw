@@ -99,6 +99,12 @@ static inline void caliptra_set_mbox_pauser_lock(uint8_t idx)
 }
 
 // NOTE: Is the responsibility of the caller to ensure the index does not exceed MBOX_PAUSER_SLOTS
+static inline uint32_t caliptra_read_mbox_valid_pauser(uint8_t idx)
+{
+    return caliptra_generic_and_fuse_read(GENERIC_AND_FUSE_REG_CPTRA_MBOX_VALID_PAUSER_0 + (sizeof(uint32_t) * idx));
+}
+
+// NOTE: Is the responsibility of the caller to ensure the index does not exceed MBOX_PAUSER_SLOTS
 static inline void caliptra_write_mbox_valid_pauser(uint8_t idx, uint32_t data)
 {
     caliptra_generic_and_fuse_write(GENERIC_AND_FUSE_REG_CPTRA_MBOX_VALID_PAUSER_0 + (sizeof(uint32_t) * idx), data);
@@ -112,6 +118,11 @@ static inline bool caliptra_read_fuse_pauser_lock()
 static inline void caliptra_set_fuse_pauser_lock()
 {
     caliptra_generic_and_fuse_write(GENERIC_AND_FUSE_REG_CPTRA_FUSE_PAUSER_LOCK, 0x1);
+}
+
+static inline uint32_t caliptra_read_fuse_valid_pauser()
+{
+    return caliptra_generic_and_fuse_read(GENERIC_AND_FUSE_REG_CPTRA_FUSE_VALID_PAUSER);
 }
 
 static inline void caliptra_write_fuse_valid_pauser(uint32_t data)
