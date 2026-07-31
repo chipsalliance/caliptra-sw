@@ -488,8 +488,9 @@ dependencies = [
 [[package]]
 name = "caliptra-dpe"
 version = "0.1.0"
-source = "git+https://github.com/chipsalliance/caliptra-dpe.git?rev=e84f4b9d25972bd6a748fabe3ca931baa72756ab#e84f4b9d25972bd6a748fabe3ca931baa72756ab"
+source = "git+https://github.com/chipsalliance/caliptra-dpe.git?rev=75226a859d9fb009371dfe4b2fd8d4adeafcaa42#75226a859d9fb009371dfe4b2fd8d4adeafcaa42"
 dependencies = [
+ "arrayvec",
  "asn1",
  "bitflags 2.13.0",
  "caliptra-cfi-derive",
@@ -507,7 +508,7 @@ dependencies = [
 [[package]]
 name = "caliptra-dpe-crypto"
 version = "0.1.0"
-source = "git+https://github.com/chipsalliance/caliptra-dpe.git?rev=e84f4b9d25972bd6a748fabe3ca931baa72756ab#e84f4b9d25972bd6a748fabe3ca931baa72756ab"
+source = "git+https://github.com/chipsalliance/caliptra-dpe.git?rev=75226a859d9fb009371dfe4b2fd8d4adeafcaa42#75226a859d9fb009371dfe4b2fd8d4adeafcaa42"
 dependencies = [
  "arrayvec",
  "caliptra-cfi-derive",
@@ -521,7 +522,7 @@ dependencies = [
 [[package]]
 name = "caliptra-dpe-platform"
 version = "0.1.0"
-source = "git+https://github.com/chipsalliance/caliptra-dpe.git?rev=e84f4b9d25972bd6a748fabe3ca931baa72756ab#e84f4b9d25972bd6a748fabe3ca931baa72756ab"
+source = "git+https://github.com/chipsalliance/caliptra-dpe.git?rev=75226a859d9fb009371dfe4b2fd8d4adeafcaa42#75226a859d9fb009371dfe4b2fd8d4adeafcaa42"
 dependencies = [
  "arrayvec",
  "caliptra-dpe-crypto",
@@ -532,7 +533,7 @@ dependencies = [
 [[package]]
 name = "caliptra-dpe-response-buffer"
 version = "0.1.0"
-source = "git+https://github.com/chipsalliance/caliptra-dpe.git?rev=e84f4b9d25972bd6a748fabe3ca931baa72756ab#e84f4b9d25972bd6a748fabe3ca931baa72756ab"
+source = "git+https://github.com/chipsalliance/caliptra-dpe.git?rev=75226a859d9fb009371dfe4b2fd8d4adeafcaa42#75226a859d9fb009371dfe4b2fd8d4adeafcaa42"
 
 [[package]]
 name = "caliptra-drivers"
