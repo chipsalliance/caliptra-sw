@@ -1779,6 +1779,11 @@ impl CaliptraError {
             "OCP LOCK Error: DPK is not valid"
         ),
         (
+            RUNTIME_OCP_LOCK_LOCKED_MPK_INVALID,
+            0x000E00AF,
+            "OCP LOCK Error: LOCKED MPK is not valid"
+        ),
+        (
             RUNTIME_INVALID_ROM_PERSISTENT_DATA_MARKER,
             0x000E007A,
             "Runtime Error: Invalid ROM persistent data marker"
@@ -2829,6 +2834,11 @@ impl CaliptraError {
             RUNTIME_DRIVER_HPKE_INVALID_PUB_KEY_BUFFER_SIZE,
             0xa004_1004,
             "Driver Error: HPKE the pub key buffer was too small"
+        ),
+        (
+            RUNTIME_DRIVER_HPKE_OPEN_FAILED,
+            0xa004_1005,
+            "Driver Error: HPKE failed to open the encrypted message"
         ),
         (
             RUNTIME_DRIVER_HPKE_ML_KEM_TRNG_KEYGEN_FAIL,

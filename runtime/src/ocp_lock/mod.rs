@@ -974,7 +974,8 @@ impl<'a> Epk<'a> {
             &locked_mpk.tag.into(),
             &locked_mpk.encrypted_key,
             mpk.as_mut(),
-        )?;
+        )
+        .map_err(|_| CaliptraError::RUNTIME_OCP_LOCK_LOCKED_MPK_INVALID)?;
         Ok((mpk, aad))
     }
 }

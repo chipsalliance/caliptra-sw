@@ -59,6 +59,7 @@ test_suite! {
     test_p384_public_key_curve_validation,
     test_hybrid_test_vector,
     test_hybrid_self_talk,
+    test_hpke_open_failure,
 }
 
 fn test_ml_kem_1024_test_vector() {
@@ -405,4 +406,51 @@ fn test_hybrid_self_talk() {
             .unwrap();
         assert_eq!(vector.pt, pt);
     }
+}
+
+fn test_hpke_open_failure() {
+    CfiCounter::reset(&mut || Ok((0xdeadbeef, 0xdeadbeef, 0xdeadbeef, 0xdeadbeef)));
+    let mut regs = TestRegisters::default();
+
+    let hpke = HpkeP384Context::generate(&mut regs.trng).unwrap();
+    let mut kem_ctx = P384KemContext::new(&mut regs.trng, &mut regs.ecc, &mut regs.hmac);
+    let mut kem = P384::derive_key_pair(&mut kem_ctx, hpke.as_ref()).unwrap();
+
+    let ek = kem.serialize_public_key(&mut kem_ctx).unwrap();
+
+    let mut kem_ctx = HpkeP384DriverContext::new(&mut regs.trng, &mut regs.ecc, &mut regs.hmac);
+    let (enc, mut sender) = hpke
+        .setup_base_s(&mut kem, &mut kem_ctx, &ek, &P384_TEST_VECTOR.info)
+        .unwrap();
+    let mut reader = hpke
+        .setup_base_r(&mut kem, &mut kem_ctx, &enc, &P384_TEST_VECTOR.info)
+        .unwrap();
+
+    let mut ct = [0; 32];
+    let payload = b"secret payload";
+    let mut tag = sender
+        .seal(
+            &mut regs.aes,
+            &mut regs.trng,
+            b"aad",
+            payload,
+            &mut ct[..payload.len()],
+        )
+        .unwrap();
+
+    // Corrupt tag to cause open() decryption/authentication to fail
+    tag[0] ^= 0xFF;
+
+    let mut pt = [0; 32];
+    let err = reader
+        .open(
+            &mut regs.aes,
+            &mut regs.trng,
+            b"aad",
+            &tag,
+            &ct[..payload.len()],
+            &mut pt[..payload.len()],
+        )
+        .unwrap_err();
+    assert_eq!(err, CaliptraError::RUNTIME_DRIVER_HPKE_OPEN_FAILED);
 }

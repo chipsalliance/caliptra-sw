@@ -161,7 +161,8 @@ impl EncryptionContext<Receiver> {
             ct,
             pt,
             &tag,
-        )?;
+        )
+        .map_err(|_| CaliptraError::RUNTIME_DRIVER_HPKE_OPEN_FAILED)?;
         self.increment_sequence()?;
         Ok(())
     }
