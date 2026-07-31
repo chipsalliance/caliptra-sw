@@ -25,6 +25,9 @@ use crate::{memory_layout, FuseBank};
 
 pub type Lifecycle = DeviceLifecycleE;
 
+const SS_STRAP_GENERIC_3_OWNER_MANIFEST_MIN_SVN_SHIFT: u32 = 8;
+const SS_STRAP_GENERIC_3_OWNER_MANIFEST_MIN_SVN_MASK: u32 = 0xFF;
+
 pub fn report_boot_status(val: u32) {
     let mut soc_ifc = unsafe { soc_ifc::SocIfcReg::new() };
 
@@ -653,6 +656,14 @@ impl SocIfc {
 
     pub fn otp_direct_access_cmd_reg_offset(&self) -> u32 {
         self.soc_ifc.regs().ss_strap_generic().at(1).read() & 0xFFFF
+    }
+
+    /// Returns the Owner Authorization Manifest minimum-SVN floor as
+    /// populated by the MCU into `SS_STRAP_GENERIC[3][15:8]` during boot.
+    pub fn ss_owner_manifest_min_svn(&self) -> u32 {
+        (self.soc_ifc.regs().ss_strap_generic().at(3).read()
+            >> SS_STRAP_GENERIC_3_OWNER_MANIFEST_MIN_SVN_SHIFT)
+            & SS_STRAP_GENERIC_3_OWNER_MANIFEST_MIN_SVN_MASK
     }
 }
 

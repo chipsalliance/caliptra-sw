@@ -71,6 +71,27 @@ Following are the main FUSE & Architectural Registers used by the Caliptra ROM f
 | :------------------------------ | :------------|  :----------------------------------------------------- |
 | CPTRA_OWNER_PK_HASH             | 384          | Owner ECC and LMS or MLDSA Public Key Hash              |
 
+### Subsystem Generic Strap Allocation
+
+The following table is the allocation registry for `SS_STRAP_GENERIC[0..3]` fields consumed by Caliptra firmware. New uses must be assigned to a reserved, non-overlapping range and added to this table. These subsystem straps are sampled at reset, may be overwritten by the SoC before `CPTRA_FUSE_WR_DONE`, and are locked when `CPTRA_FUSE_WR_DONE` is set.
+
+| Register | Field/Bits | Allocation | Consumer |
+| :------- | :--------- | :--------- | :------- |
+| `SS_STRAP_GENERIC[0]` | `[15:0]` | Offset of the OTP controller `STATUS` register from `SS_OTP_FC_BASE_ADDR`. | ROM UDS and Field Entropy programming |
+| `SS_STRAP_GENERIC[0]` | `[31:16]` | Bit index of the DAI idle indicator in the OTP controller `STATUS` register. | ROM UDS and Field Entropy programming |
+| `SS_STRAP_GENERIC[1]` | `[15:0]` | Offset of the OTP controller `DIRECT_ACCESS_CMD` register from `SS_OTP_FC_BASE_ADDR`. | ROM UDS and Field Entropy programming |
+| `SS_STRAP_GENERIC[1]` | `[31:16]` | Reserved. | — |
+| `SS_STRAP_GENERIC[2]` | `[15:0]` | Entropy-source health-test window size. Zero selects the default value of 1024. | ROM entropy-source initialization |
+| `SS_STRAP_GENERIC[2]` | `[16]` | Entropy-source single-bit mode enable. | ROM entropy-source initialization |
+| `SS_STRAP_GENERIC[2]` | `[18:17]` | Entropy-source single-bit lane selector. | ROM entropy-source initialization |
+| `SS_STRAP_GENERIC[2]` | `[30:19]` | Reserved. | — |
+| `SS_STRAP_GENERIC[2]` | `[31]` | Entropy-source conditioning bypass enable. | ROM entropy-source initialization |
+| `SS_STRAP_GENERIC[3]` | `[0]` | Stable Owner Key enable. | ROM stable-key derivation and Runtime cryptographic mailbox |
+| `SS_STRAP_GENERIC[3]` | `[1]` | Wait for device reset before fatal-error reporting. | ROM fatal-error handling |
+| `SS_STRAP_GENERIC[3]` | `[7:2]` | Reserved. | — |
+| `SS_STRAP_GENERIC[3]` | `[15:8]` | Owner Authorization Manifest minimum SVN, encoded as an unsigned integer. | Runtime owner authorization manifest verification |
+| `SS_STRAP_GENERIC[3]` | `[31:16]` | Reserved. | — |
+
 ### Entropy Source Configuration Registers
 
 The ROM configures the entropy source (CSRNG) during initialization using the following registers:

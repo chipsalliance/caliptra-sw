@@ -171,6 +171,7 @@ pub struct RuntimeTestArgs<'a> {
     pub soc_manifest_max_svn: Option<u32>,
     pub subsystem_mode: bool,
     pub successful_reach_rt: bool,
+    pub initial_ss_strap_generic_3: Option<u32>,
     pub key_type: Option<FwVerificationPqcKeyType>,
 }
 
@@ -193,6 +194,7 @@ impl Default for RuntimeTestArgs<'_> {
             soc_manifest_max_svn: None,
             subsystem_mode: cfg!(feature = "fpga_subsystem"),
             successful_reach_rt: true,
+            initial_ss_strap_generic_3: None,
             key_type: None,
         }
     }
@@ -336,6 +338,7 @@ pub fn start_rt_test_pqc_model(
         BootParams {
             fw_image: if args.stop_at_rom { None } else { Some(&image) },
             initial_dbg_manuf_service_reg: boot_flags,
+            initial_ss_strap_generic_3: args.initial_ss_strap_generic_3,
             soc_manifest,
             mcu_fw_image,
             ..Default::default()
