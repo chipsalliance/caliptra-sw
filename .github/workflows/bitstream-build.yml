@@ -13,56 +13,80 @@ on:
   workflow_dispatch:
 
 jobs:
+  # Defines the set of variants to build. Both build-bitstream and open-pr
+  # consume this output so the list only lives in one place.
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+      variants: ${{ steps.set-matrix.outputs.variants }}
+    steps:
+      - name: Define build matrix
+        id: set-matrix
+        run: |
+          MATRIX=$(cat <<'EOF'
+          {
+            "include": [
+              { "variant": "core-latest-itrng", "rtl_version": "latest", "itrng": "TRUE"  },
+              { "variant": "core-latest-etrng", "rtl_version": "latest", "itrng": "FALSE" },
+              { "variant": "core-hw1.0-itrng",  "rtl_version": "1.0",    "itrng": "TRUE"  },
+              { "variant": "core-hw1.0-etrng",  "rtl_version": "1.0",    "itrng": "FALSE" }
+            ]
+          }
+          EOF
+          )
+          echo "matrix=$(echo $MATRIX | jq -c .)" >> $GITHUB_OUTPUT
+          echo "variants=$(echo $MATRIX | jq -c '[.include[].variant]')" >> $GITHUB_OUTPUT
+
   build-bitstream:
+    needs: setup
     runs-on: [bitstream-builder]
     timeout-minutes: 180
+    strategy:
+      matrix: ${{ fromJson(needs.setup.outputs.matrix) }}
     steps:
       - name: Checkout repo
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #v5
         with:
           submodules: 'recursive'
 
-      - name: Create Core bitstream
+      - name: Create bitstream
         run: |
           source /vck190-tools/Vivado/2024.2/settings64.sh
           cd hw/fpga/
-          /vck190-tools/Vivado/2024.2/bin/vivado -mode batch -source fpga_configuration.tcl -tclargs BUILD=TRUE
+          /vck190-tools/Vivado/2024.2/bin/vivado -mode batch -source fpga_configuration.tcl \
+            -tclargs BUILD=TRUE ITRNG=${{ matrix.itrng }} RTL_VERSION=${{ matrix.rtl_version }}
 
       - name: 'Upload bitstream artifact'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a #v7.0.1
         with:
-          name: caliptra-fpga-bitstream
-          path: |
-            hw/fpga/caliptra_build/caliptra_fpga.bin
+          name: caliptra-fpga-bitstream-${{ matrix.variant }}
+          path: hw/fpga/caliptra_build/caliptra_fpga.bin
           retention-days: 7
 
       - name: Bundle bitstream
         run: |
-          # Leave a copy for the uploader
           mkdir manifest-bundle
-          
           caliptra-bitstream-downloader bundle-manifest \
             --repository "${{ github.repository }}" \
-            --hw-major-version "1.0" \
+            --hw-major-version "1.x" \
             --target-branch "${{ github.base_ref || github.ref_name }}" \
-            --caliptra-variant "core" \
+            --caliptra-variant "${{ matrix.variant }}" \
             --commit-hash "${{ github.sha }}" \
             --job-id "${{ github.run_id }}-${{ github.job }}" \
             ${{ github.event.pull_request.number && format('--github-pr {0}', github.event.pull_request.number) || '' }} \
             --bin-file hw/fpga/caliptra_build/caliptra_fpga.bin \
             --output-dir manifest-bundle
 
-          cp manifest-bundle/caliptra-bitstream.tar.gz /tmp
-
       - name: 'Upload bitstream bundle'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a #v7.0.1
         with:
-          name: caliptra-bitstream-bundle
-          path: /tmp/caliptra-bitstream.tar.gz
+          name: caliptra-bitstream-bundle-${{ matrix.variant }}
+          path: manifest-bundle/caliptra-bitstream.tar.gz
           retention-days: 7
 
   open-pr:
-    needs: build-bitstream
+    needs: [setup, build-bitstream]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -73,26 +97,30 @@ jobs:
         with:
           submodules: 'recursive'
 
-      - name: Download updated manifest from GCS
+      - name: Download updated manifests from GCS
         run: |
-          URL="https://storage.googleapis.com/caliptra-github-ci-bitstreams/v1/${{ github.sha }}/manifest.toml"
-          TARGET_PATH="hw/fpga/bitstream_manifests/core.toml"
-          echo "Downloading manifest from $URL to $TARGET_PATH"
-          
-          # Retry for up to 5 minutes (30 * 10s)
-          for i in {1..30}; do
-            if curl -s -f -o "$TARGET_PATH" "$URL"; then
-              echo "Successfully downloaded manifest!"
-              break
-            fi
-            echo "Waiting for manifest to be uploaded... (attempt $i)"
-            sleep 10
+          BASE_URL="https://storage.googleapis.com/caliptra-github-ci-bitstreams/v1/${{ github.sha }}"
+
+          download_manifest() {
+            local VARIANT="$1"
+            local URL="${BASE_URL}/${VARIANT}/manifest.toml"
+            local TARGET_PATH="hw/fpga/bitstream_manifests/${VARIANT}.toml"
+            echo "Downloading manifest from $URL to $TARGET_PATH"
+            for i in {1..30}; do
+              if curl -s -f -o "$TARGET_PATH" "$URL"; then
+                echo "Successfully downloaded $TARGET_PATH!"
+                return 0
+              fi
+              echo "Waiting for manifest to be uploaded... (attempt $i)"
+              sleep 10
+            done
+            echo "Error: Failed to download $TARGET_PATH after 5 minutes."
+            return 1
+          }
+
+          for VARIANT in $(echo '${{ needs.setup.outputs.variants }}' | jq -r '.[]'); do
+            download_manifest "$VARIANT"
           done
-          
-          if [ ! -f "$TARGET_PATH" ]; then
-            echo "Error: Failed to download manifest after 5 minutes."
-            exit 1
-          fi
 
       - name: Commit and Push changes
         run: |
@@ -100,9 +128,12 @@ jobs:
           git checkout -b "$BRANCH_NAME"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          
-          git add hw/fpga/bitstream_manifests/core.toml
-          git commit -m "Update bitstream manifest for run ${{ github.run_id }}"
+
+          git rm --ignore-unmatch hw/fpga/bitstream_manifests/core.toml
+          for VARIANT in $(echo '${{ needs.setup.outputs.variants }}' | jq -r '.[]'); do
+            git add "hw/fpga/bitstream_manifests/${VARIANT}.toml"
+          done
+          git commit -m "Update bitstream manifests for run ${{ github.run_id }}"
           git push origin "$BRANCH_NAME"
           echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_ENV
 
@@ -110,8 +141,13 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          BASE_URL="https://storage.googleapis.com/caliptra-github-ci-bitstreams/v1/${{ github.sha }}"
+          BODY="Automated update for run ${{ github.run_id }}."$'\n'
+          for VARIANT in $(echo '${{ needs.setup.outputs.variants }}' | jq -r '.[]'); do
+            BODY+="- [${VARIANT}](${BASE_URL}/${VARIANT}/manifest.toml)"$'\n'
+          done
           gh pr create \
-            --title "Update bitstream manifest: Run ${{ github.run_id }}" \
-            --body "Automated update for run ${{ github.run_id }}. [GCS Manifest](https://storage.googleapis.com/caliptra-github-ci-bitstreams/v1/${{ github.sha }}/manifest.toml)" \
+            --title "Update bitstream manifests: Run ${{ github.run_id }}" \
+            --body "$BODY" \
             --head "${{ env.BRANCH_NAME }}" \
             --base "${{ github.base_ref || github.ref_name }}"
