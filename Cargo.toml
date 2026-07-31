@@ -82,7 +82,7 @@ members = [
 ]
 
 [workspace.dependencies]
-bitstream-downloader = { git = "https://github.com/chipsalliance/caliptra-infra.git", package = "caliptra-bitstream-downloader", rev = "31519d86a61a5b335c2385cf92dec9ca2945c201" }
+bitstream-downloader = { git = "https://github.com/chipsalliance/caliptra-infra.git", package = "caliptra-bitstream-downloader", rev = "9990da485779aa6bc5af14ea547db5c0ac8eebeb" }
 aes = "0.8.2"
 anyhow = "1.0.70"
 arbitrary = { version = "1.3.0", features = ["derive"] }

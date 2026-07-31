@@ -202,7 +202,13 @@ jobs:
 
       - name: Download bitstream
         run: |
-          cargo xtask ci bitstream-downloader hw/fpga/bitstream_manifests/core.toml
+          # TODO: re-enable variant selection once per-variant manifests are merged
+          # HW="${{ inputs.hw-version }}"
+          # if [ "$HW" != "1.0" ]; then HW="latest"; fi
+          # TRNG="itrng"
+          # if [ "${{ inputs.fpga-itrng }}" == "false" ]; then TRNG="etrng"; fi
+          # cargo xtask ci bitstream-downloader "hw/fpga/bitstream_manifests/core-${HW}-${TRNG}.toml"
+          cargo xtask ci bitstream-downloader "hw/fpga/bitstream_manifests/core.toml"
           mkdir -p /tmp/caliptra-fpga-bitstream
           mv caliptra_build/caliptra_fpga.bin /tmp/caliptra-fpga-bitstream/caliptra_fpga.bin
 
