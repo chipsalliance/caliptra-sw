@@ -26,6 +26,8 @@ pub type Lifecycle = DeviceLifecycleE;
 
 const SS_STRAP_GENERIC_3_STABLE_OWNER_KEY_ENABLE: u32 = 1 << 0;
 const SS_STRAP_GENERIC_3_WAIT_FOR_DEVICE_RESET_BEFORE_FATAL_ERROR: u32 = 1 << 1;
+const SS_STRAP_GENERIC_3_OWNER_MANIFEST_MIN_SVN_SHIFT: u32 = 8;
+const SS_STRAP_GENERIC_3_OWNER_MANIFEST_MIN_SVN_MASK: u32 = 0xFF;
 
 pub fn report_boot_status(val: u32) {
     let mut soc_ifc = unsafe { soc_ifc::SocIfcReg::new() };
@@ -602,7 +604,7 @@ impl SocIfc {
     pub fn uds_fuse_row_granularity_64(&self) -> bool {
         let config_val = self.soc_ifc.regs().cptra_hw_config().read();
         // 0: 64-bits, 1: 32-bits
-        !config_val.fuse_granularity()
+        u32::from(config_val.fuse_granularity()) == 0
     }
 
     pub fn fuse_controller_base_addr(&self) -> u64 {
@@ -695,6 +697,19 @@ impl SocIfc {
 
     pub fn otp_direct_access_cmd_reg_offset(&self) -> u32 {
         self.soc_ifc.regs().ss_strap_generic().at(1).read() & 0xFFFF
+    }
+
+    /// Returns the Owner Authorization Manifest minimum-SVN floor as
+    /// populated by the MCU into `SS_STRAP_GENERIC[3][15:8]` during
+    /// boot. Subsystem mode only; Caliptra latches the strap at reset
+    /// and the field is hardware write-once-locked for the boot
+    /// lifetime. Encoded as an unsigned binary integer (not one-hot);
+    /// conversion from platform monotonic storage and monotonicity across
+    /// cold resets are the MCU's responsibility.
+    pub fn ss_owner_manifest_min_svn(&self) -> u32 {
+        (self.soc_ifc.regs().ss_strap_generic().at(3).read()
+            >> SS_STRAP_GENERIC_3_OWNER_MANIFEST_MIN_SVN_SHIFT)
+            & SS_STRAP_GENERIC_3_OWNER_MANIFEST_MIN_SVN_MASK
     }
 
     pub fn get_timestamp(&self) -> u64 {

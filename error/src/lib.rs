@@ -1898,6 +1898,87 @@ impl CaliptraError {
             0x000E009E,
             "Runtime Error: Sign with exported MLDSA invalid signature"
         ),
+        // Owner Authorization Manifest errors (SET_OWNER_AUTH_MANIFEST).
+        (
+            RUNTIME_OWNER_AUTH_MANIFEST_INVALID_MARKER,
+            0x000E009F,
+            "Runtime Error: Owner auth manifest invalid marker"
+        ),
+        (
+            RUNTIME_OWNER_AUTH_MANIFEST_PREAMBLE_SIZE_LT_MIN,
+            0x000E00A0,
+            "Runtime Error: Owner auth manifest preamble too small"
+        ),
+        (
+            RUNTIME_OWNER_AUTH_MANIFEST_PREAMBLE_SIZE_MISMATCH,
+            0x000E00A1,
+            "Runtime Error: Owner auth manifest preamble size mismatch"
+        ),
+        (
+            RUNTIME_OWNER_AUTH_MANIFEST_SVN_LESS_THAN_MIN,
+            0x000E00A2,
+            "Runtime Error: Owner auth manifest SVN less than enforced minimum from SS_STRAP_GENERIC"
+        ),
+        (
+            RUNTIME_OWNER_AUTH_MANIFEST_SVN_GREATER_THAN_MAX,
+            0x000E00A3,
+            "Runtime Error: Owner auth manifest SVN greater than maximum"
+        ),
+        (
+            RUNTIME_OWNER_AUTH_MANIFEST_OWNER_ECC_SIGNATURE_INVALID,
+            0x000E00A4,
+            "Runtime Error: Owner auth manifest owner ECC signature invalid"
+        ),
+        (
+            RUNTIME_OWNER_AUTH_MANIFEST_OWNER_LMS_SIGNATURE_INVALID,
+            0x000E00A5,
+            "Runtime Error: Owner auth manifest owner LMS signature invalid"
+        ),
+        (
+            RUNTIME_OWNER_AUTH_MANIFEST_OWNER_MLDSA_SIGNATURE_INVALID,
+            0x000E00A6,
+            "Runtime Error: Owner auth manifest owner MLDSA signature invalid"
+        ),
+        (
+            RUNTIME_OWNER_AUTH_MANIFEST_IMC_OWNER_ECC_SIGNATURE_INVALID,
+            0x000E00A7,
+            "Runtime Error: Owner auth manifest IMC owner ECC signature invalid"
+        ),
+        (
+            RUNTIME_OWNER_AUTH_MANIFEST_IMC_OWNER_LMS_SIGNATURE_INVALID,
+            0x000E00A8,
+            "Runtime Error: Owner auth manifest IMC owner LMS signature invalid"
+        ),
+        (
+            RUNTIME_OWNER_AUTH_MANIFEST_IMC_OWNER_MLDSA_SIGNATURE_INVALID,
+            0x000E00A9,
+            "Runtime Error: Owner auth manifest IMC owner MLDSA signature invalid"
+        ),
+        (
+            RUNTIME_OWNER_AUTH_MANIFEST_IMC_INVALID_SIZE,
+            0x000E00AA,
+            "Runtime Error: Owner auth manifest IMC invalid size"
+        ),
+        (
+            RUNTIME_OWNER_AUTH_MANIFEST_IMC_INVALID_ENTRY_COUNT,
+            0x000E00AB,
+            "Runtime Error: Owner auth manifest IMC invalid entry count"
+        ),
+        (
+            RUNTIME_OWNER_AUTH_MANIFEST_IMC_DUPLICATE_FW_ID,
+            0x000E00AC,
+            "Runtime Error: Owner auth manifest IMC duplicate firmware ID"
+        ),
+        (
+            RUNTIME_OWNER_AUTH_MANIFEST_INVALID_FLAGS,
+            0x000E00AD,
+            "Runtime Error: Owner auth manifest flags must be zero"
+        ),
+        (
+            RUNTIME_OWNER_AUTH_MANIFEST_OWNER_PUB_KEY_MISMATCH,
+            0x000E00AE,
+            "Runtime Error: Owner auth manifest owner public key does not match firmware-image owner pub key"
+        ),
         // FMC Errors
         (FMC_GLOBAL_NMI, 0x000F0001, "FMC Error: Global NMI"),
         (

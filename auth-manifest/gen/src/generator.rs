@@ -266,4 +266,142 @@ impl<Crypto: ImageGeneratorCrypto> AuthManifestGenerator<Crypto> {
 
         Ok(auth_manifest)
     }
+
+    pub fn generate_owner(
+        &self,
+        config: &OwnerAuthManifestGeneratorConfig,
+    ) -> anyhow::Result<OwnerAuthorizationManifest> {
+        let mut auth_manifest = OwnerAuthorizationManifest::default();
+
+        if config.image_metadata_list.is_empty() {
+            return Err(anyhow::anyhow!(
+                "Owner authorization manifest requires at least one image metadata entry"
+            ));
+        }
+
+        if config.image_metadata_list.len() > OWNER_AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT {
+            eprintln!(
+                "Unsupported owner image metadata count, only {} entries supported.",
+                OWNER_AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT
+            );
+            return Err(anyhow::anyhow!(
+                "Error converting owner image metadata list"
+            ));
+        }
+
+        let owner_fw_priv_keys = config
+            .owner_fw_key_info
+            .priv_keys
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("Owner firmware private keys are required"))?;
+        let owner_man_priv_keys = config
+            .owner_man_key_info
+            .priv_keys
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("Owner manifest private keys are required"))?;
+
+        let slice = config.image_metadata_list.as_slice();
+        auth_manifest.image_metadata_col.image_metadata_list[..slice.len()].copy_from_slice(slice);
+        auth_manifest.image_metadata_col.entry_count = config.image_metadata_list.len() as u32;
+
+        auth_manifest.preamble.marker = OWNER_AUTH_MANIFEST_MARKER;
+        auth_manifest.preamble.size = size_of::<OwnerAuthManifestPreamble>() as u32;
+        auth_manifest.preamble.version = config.version;
+        auth_manifest.preamble.svn = config.svn;
+
+        auth_manifest.preamble.owner_pub_keys.ecc_pub_key =
+            config.owner_man_key_info.pub_keys.ecc_pub_key;
+        let pqc_pub_key = match config.pqc_key_type {
+            FwVerificationPqcKeyType::LMS => {
+                config.owner_man_key_info.pub_keys.lms_pub_key.as_bytes()
+            }
+            FwVerificationPqcKeyType::MLDSA => config
+                .owner_man_key_info
+                .pub_keys
+                .mldsa_pub_key
+                .0
+                .as_bytes(),
+        };
+        auth_manifest.preamble.owner_pub_keys.pqc_pub_key.0[..pqc_pub_key.len()]
+            .copy_from_slice(pqc_pub_key);
+
+        let range = OwnerAuthManifestPreamble::owner_signed_data_range();
+        let owner_data = auth_manifest
+            .preamble
+            .as_bytes()
+            .get(range.start as usize..)
+            .ok_or_else(|| anyhow::anyhow!("Failed to get owner signed data range start"))?
+            .get(..range.len())
+            .ok_or(anyhow::anyhow!(
+                "Failed to get owner signed data range length"
+            ))?
+            .to_vec();
+        let owner_digest = self.crypto.sha384_digest(&owner_data)?;
+
+        let sig = self.crypto.ecdsa384_sign(
+            &owner_digest,
+            &owner_fw_priv_keys.ecc_priv_key,
+            &config.owner_fw_key_info.pub_keys.ecc_pub_key,
+        )?;
+        auth_manifest.preamble.owner_pub_keys_signatures.ecc_sig = sig;
+
+        if config.pqc_key_type == FwVerificationPqcKeyType::LMS {
+            let lms_sig = self
+                .crypto
+                .lms_sign(&owner_digest, &owner_fw_priv_keys.lms_priv_key)?;
+            let sig = lms_sig.as_bytes();
+            auth_manifest.preamble.owner_pub_keys_signatures.pqc_sig.0[..sig.len()]
+                .copy_from_slice(sig);
+        } else {
+            let mldsa_sig = self.crypto.mldsa_sign(
+                &owner_data,
+                &owner_fw_priv_keys.mldsa_priv_key,
+                &config.owner_fw_key_info.pub_keys.mldsa_pub_key,
+            )?;
+            let sig = mldsa_sig.as_bytes();
+            auth_manifest.preamble.owner_pub_keys_signatures.pqc_sig.0[..sig.len()]
+                .copy_from_slice(sig);
+        }
+
+        let imc_data = auth_manifest.image_metadata_col.as_bytes().to_vec();
+        let imc_digest = self.crypto.sha384_digest(&imc_data)?;
+
+        let sig = self.crypto.ecdsa384_sign(
+            &imc_digest,
+            &owner_man_priv_keys.ecc_priv_key,
+            &config.owner_man_key_info.pub_keys.ecc_pub_key,
+        )?;
+        auth_manifest
+            .preamble
+            .owner_image_metdata_signatures
+            .ecc_sig = sig;
+
+        if config.pqc_key_type == FwVerificationPqcKeyType::LMS {
+            let lms_sig = self
+                .crypto
+                .lms_sign(&imc_digest, &owner_man_priv_keys.lms_priv_key)?;
+            let sig = lms_sig.as_bytes();
+            auth_manifest
+                .preamble
+                .owner_image_metdata_signatures
+                .pqc_sig
+                .0[..sig.len()]
+                .copy_from_slice(sig);
+        } else {
+            let mldsa_sig = self.crypto.mldsa_sign(
+                &imc_data,
+                &owner_man_priv_keys.mldsa_priv_key,
+                &config.owner_man_key_info.pub_keys.mldsa_pub_key,
+            )?;
+            let sig = mldsa_sig.as_bytes();
+            auth_manifest
+                .preamble
+                .owner_image_metdata_signatures
+                .pqc_sig
+                .0[..sig.len()]
+                .copy_from_slice(sig);
+        }
+
+        Ok(auth_manifest)
+    }
 }
