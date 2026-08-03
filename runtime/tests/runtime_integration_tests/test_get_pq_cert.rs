@@ -40,6 +40,7 @@ fn make_req() -> GetPqCertReq {
         tbs: tbs_buf,
         tbs_size: tbs.len() as u32,
         signature: *sig,
+        ..Default::default()
     }
 }
 
@@ -87,4 +88,35 @@ fn test_get_pq_cert_tbs_size_too_large() {
         CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS,
         resp,
     );
+}
+
+#[test]
+fn test_get_pq_cert_max_tbs_size() {
+    // The command must handle the maximum TBS it advertises: GetPqCertReq::
+    // DATA_MAX_SIZE is sized so the assembled certificate (TBS + signature-
+    // algorithm OID + signature + SEQUENCE framing) exactly fits the response
+    // cert buffer. Regression guard against the sizing being set too large.
+    let mut model = run_pqc_rt_test();
+
+    let mut req = make_req();
+    req.tbs = [0xABu8; GetPqCertReq::DATA_MAX_SIZE];
+    req.tbs_size = GetPqCertReq::DATA_MAX_SIZE as u32;
+
+    // Build the expected cert client-side; this also confirms a max-size TBS
+    // fits within the cert buffer.
+    let sig = Mldsa87Signature::new(req.signature);
+    let builder = MlDsa87CertBuilder::new(&req.tbs[..req.tbs_size as usize], &sig).unwrap();
+    let mut cert = [0u8; GetPqCertResp::DATA_MAX_SIZE];
+    let cert_size = builder.build(&mut cert).unwrap();
+
+    let mut cmd = MailboxReq::GetPqCert(req);
+    cmd.populate_chksum().unwrap();
+    let resp_bytes = model
+        .mailbox_execute(u32::from(CommandId::GET_PQ_CERT), cmd.as_bytes().unwrap())
+        .unwrap()
+        .unwrap();
+    let (resp, _) = GetPqCertResp::ref_from_prefix(&resp_bytes).unwrap();
+
+    assert_eq!(resp.cert_size as usize, cert_size);
+    assert_eq!(&resp.cert[..cert_size], &cert[..cert_size]);
 }
