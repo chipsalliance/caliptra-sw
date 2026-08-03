@@ -1,7 +1,7 @@
 // Licensed under the Apache-2.0 license
 
 use crate::common::run_pqc_rt_test;
-use crate::common::{execute_dpe_cmd, DpeResult, TEST_DIGEST_MLDSA, TEST_LABEL};
+use crate::common::{assert_error, execute_dpe_cmd, DpeResult, TEST_DIGEST_MLDSA, TEST_LABEL};
 use caliptra_api::{
     mailbox::{FwInfoResp, ReallocateDpeContextLimitsReq},
     SocManager,
@@ -674,4 +674,54 @@ fn test_certify_key_with_max_contexts() {
             DpeResult::Success,
         );
     }
+}
+
+#[test]
+fn test_invoke_dpe_mldsa_before_set_pq_seed() {
+    let mut model = run_pqc_rt_test();
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    // Without SET_PQ_SEED the ML-DSA INVOKE_DPE entry point rejects the command
+    // before dispatching it to DPE.
+    execute_dpe_cmd(
+        PROFILE,
+        &mut model,
+        &mut Command::GetProfile(&GetProfileCmd),
+        DpeResult::MboxCmdFailure(CaliptraError::RUNTIME_PQC_NOT_INITIALIZED),
+    );
+}
+
+#[test]
+fn test_invoke_dpe_mldsa_deserialization_failed() {
+    let mut model = run_pqc_rt_test();
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+    set_pq_seed(&mut model);
+
+    // A well-sized payload whose DPE command bytes are not a valid command (the
+    // DPEC magic is wrong) must fail deserialization inside the runtime, after
+    // the PQC-init and bounds checks pass.
+    let mut data = [0u8; InvokeDpeMldsa87Req::DATA_MAX_SIZE];
+    data[..8].copy_from_slice(&[0xAAu8; 8]);
+    let mut cmd = MailboxReq::InvokeDpeMldsa87Command(InvokeDpeMldsa87Req {
+        hdr: MailboxReqHeader { chksum: 0 },
+        data,
+        data_size: 8,
+    });
+    cmd.populate_chksum().unwrap();
+
+    let resp = model
+        .mailbox_execute(
+            u32::from(CommandId::INVOKE_DPE_MLDSA87),
+            cmd.as_bytes().unwrap(),
+        )
+        .unwrap_err();
+    assert_error(
+        &mut model,
+        CaliptraError::RUNTIME_DPE_COMMAND_DESERIALIZATION_FAILED,
+        resp,
+    );
 }
