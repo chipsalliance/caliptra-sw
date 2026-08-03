@@ -28,6 +28,11 @@ impl CapabilitiesCmd {
         let mut capabilities = Capabilities::default();
         capabilities |= Capabilities::RT_BASE;
 
+        #[cfg(feature = "mldsa_attestation")]
+        {
+            capabilities |= Capabilities::RT_MLDSA_ATTESTATION;
+        }
+
         let mut resp = CapabilitiesResp {
             hdr: MailboxRespHeader::default(),
             capabilities: capabilities.to_bytes(),

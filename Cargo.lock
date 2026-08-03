@@ -455,9 +455,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "caliptra-cfi-derive-git"
+version = "0.1.0"
+source = "git+https://github.com/chipsalliance/caliptra-cfi.git?rev=a98e499d279e81ae85881991b1e9eee354151189#a98e499d279e81ae85881991b1e9eee354151189"
+dependencies = [
+ "paste",
+ "proc-macro2",
+ "quote",
+ "syn 1.0.109",
+]
+
+[[package]]
 name = "caliptra-cfi-lib"
 version = "0.1.0"
 source = "git+https://github.com/chipsalliance/caliptra-cfi.git?rev=72c75dc70cde4120a9ce149d4f5cb21621399958#72c75dc70cde4120a9ce149d4f5cb21621399958"
+
+[[package]]
+name = "caliptra-cfi-lib-git"
+version = "0.1.0"
+source = "git+https://github.com/chipsalliance/caliptra-cfi.git?rev=a98e499d279e81ae85881991b1e9eee354151189#a98e499d279e81ae85881991b1e9eee354151189"
 
 [[package]]
 name = "caliptra-coverage"
@@ -1035,6 +1051,7 @@ dependencies = [
  "cfg-if 1.0.0",
  "cms",
  "constant_time_eq",
+ "dpe",
  "memoffset 0.8.0",
  "openssl",
  "sha2",
@@ -1499,6 +1516,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "crypto"
+version = "0.1.0"
+source = "git+https://github.com/chipsalliance/caliptra-dpe.git?rev=e63241cebad7c96ff954ec7d33207fc96b3323ef#e63241cebad7c96ff954ec7d33207fc96b3323ef"
+dependencies = [
+ "arrayvec",
+ "caliptra-cfi-derive-git",
+ "caliptra-cfi-lib-git",
+ "zeroize",
+]
+
+[[package]]
 name = "crypto-bigint"
 version = "0.5.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1684,6 +1712,23 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.118",
+]
+
+[[package]]
+name = "dpe"
+version = "0.1.0"
+source = "git+https://github.com/chipsalliance/caliptra-dpe.git?rev=e63241cebad7c96ff954ec7d33207fc96b3323ef#e63241cebad7c96ff954ec7d33207fc96b3323ef"
+dependencies = [
+ "bitflags 2.13.0",
+ "caliptra-cfi-derive-git",
+ "caliptra-cfi-lib-git",
+ "cfg-if 1.0.0",
+ "constant_time_eq",
+ "crypto",
+ "platform",
+ "ufmt",
+ "zerocopy",
+ "zeroize",
 ]
 
 [[package]]
@@ -3031,6 +3076,16 @@ name = "pkg-config"
 version = "0.3.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6ac9a59f73473f1b8d852421e59e64809f025994837ef743615c6d0c5b305160"
+
+[[package]]
+name = "platform"
+version = "0.1.0"
+source = "git+https://github.com/chipsalliance/caliptra-dpe.git?rev=e63241cebad7c96ff954ec7d33207fc96b3323ef#e63241cebad7c96ff954ec7d33207fc96b3323ef"
+dependencies = [
+ "arrayvec",
+ "cfg-if 1.0.0",
+ "ufmt",
+]
 
 [[package]]
 name = "powerfmt"
