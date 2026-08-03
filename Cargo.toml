@@ -78,9 +78,11 @@ members = [
   "test-harness",
   "test-harness/types",
   "zero_bin",
+  "xtask",
 ]
 
 [workspace.dependencies]
+bitstream-downloader = { git = "https://github.com/chipsalliance/caliptra-infra.git", package = "caliptra-bitstream-downloader", rev = "31519d86a61a5b335c2385cf92dec9ca2945c201" }
 aes = "0.8.2"
 anyhow = "1.0.70"
 arbitrary = { version = "1.3.0", features = ["derive"] }
@@ -143,10 +145,10 @@ clap = { version = "3.2.14", default-features = false, features = ["std"] }
 cms = "0.2.2"
 constant_time_eq = "0.3.0"
 convert_case = "0.6.0"
-dpe = { git = "https://github.com/chipsalliance/caliptra-dpe.git", rev = "e84f4b9d25972bd6a748fabe3ca931baa72756ab", package = "caliptra-dpe", features = ["hybrid", "arbitrary_max_handles"] }
-crypto = { git = "https://github.com/chipsalliance/caliptra-dpe.git", rev = "e84f4b9d25972bd6a748fabe3ca931baa72756ab", package = "caliptra-dpe-crypto", default-features = false }
-platform = { git = "https://github.com/chipsalliance/caliptra-dpe.git", rev = "e84f4b9d25972bd6a748fabe3ca931baa72756ab", package = "caliptra-dpe-platform", default-features = false }
-caliptra-dpe-response-buffer = { git = "https://github.com/chipsalliance/caliptra-dpe.git", rev = "e84f4b9d25972bd6a748fabe3ca931baa72756ab", default-features = false }
+dpe = { git = "https://github.com/chipsalliance/caliptra-dpe.git", rev = "75226a859d9fb009371dfe4b2fd8d4adeafcaa42", package = "caliptra-dpe", features = ["hybrid", "arbitrary_max_handles"] }
+crypto = { git = "https://github.com/chipsalliance/caliptra-dpe.git", rev = "75226a859d9fb009371dfe4b2fd8d4adeafcaa42", package = "caliptra-dpe-crypto", default-features = false }
+platform = { git = "https://github.com/chipsalliance/caliptra-dpe.git", rev = "75226a859d9fb009371dfe4b2fd8d4adeafcaa42", package = "caliptra-dpe-platform", default-features = false }
+caliptra-dpe-response-buffer = { git = "https://github.com/chipsalliance/caliptra-dpe.git", rev = "75226a859d9fb009371dfe4b2fd8d4adeafcaa42", default-features = false }
 elf = "0.7.2"
 fips204 = "0.2.1"
 gdbstub = "0.6.3"
