@@ -16,7 +16,7 @@ typedef uint32_t caliptra_checksum;
 #if !defined(HWMODEL)
 typedef struct caliptra_buffer
 {
-    const uint8_t *data; //< Pointer to a buffer with data to send/space to receive
+    uint8_t *data;       //< Pointer to a buffer with data to send/space to receive
     uintptr_t len;       //< Size of the buffer
 } caliptra_buffer;
 #endif
