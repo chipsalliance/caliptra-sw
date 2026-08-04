@@ -21,7 +21,7 @@ Abstract:
 #![no_std]
 #![no_main]
 
-use caliptra_drivers::{Csrng, PersistentDataAccessor};
+use caliptra_drivers::{Csrng, CsrngSeed, PersistentDataAccessor};
 use caliptra_error::CaliptraError;
 use caliptra_registers::{csrng::CsrngReg, entropy_src::EntropySrcReg, soc_ifc::SocIfcReg};
 use caliptra_test_harness::test_suite;
@@ -36,10 +36,10 @@ fn test_runtime_health_check_failure() {
     let mut csrng = Csrng::new(csrng_reg, entropy_src_reg, &soc_ifc_reg, persistent_data)
         .expect("CSRNG should pass startup health testing");
 
-    // First generate should start seeing bad entropy
-    // The emulator will be configured to provide good entropy for startup,
-    // then bad entropy for runtime operations
-    let result = csrng.generate12();
+    // Reseed from entropy_src — this enables entropy_src, consumes from it,
+    // and is where the health check fires. Bad entropy injected by the test
+    // harness will be detected here.
+    let result = csrng.reseed(CsrngSeed::EntropySrc);
 
     match result {
         Err(CaliptraError::DRIVER_CSRNG_REPCNT_HEALTH_CHECK_FAILED) => {
@@ -52,7 +52,7 @@ fn test_runtime_health_check_failure() {
             panic!("Expected health check failure error, got: {:?}", e);
         }
         Ok(_) => {
-            panic!("Expected generate12 to fail due to runtime health check failure");
+            panic!("Expected reseed to fail due to runtime health check failure");
         }
     }
 }
