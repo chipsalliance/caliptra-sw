@@ -96,24 +96,45 @@ fn new_cert_builder(subject: &X509NameRef, serial: u32, pubkey: &PKey<Public>) -
     b
 }
 
-/// Build a self-signed ML-DSA test Root CA certificate.
-fn build_root_ca(ca_key: &PKey<Private>, cn: &str) -> X509 {
-    let name = x509_name(cn);
-    let ca_pub = PKey::public_key_from_der(&ca_key.public_key_to_der().unwrap()).unwrap();
-    let mut b = new_cert_builder(&name, 1, &ca_pub);
-    b.set_issuer_name(&name).unwrap();
-    b.sign(ca_key, MessageDigest::null()).unwrap();
-    b.build()
+/// A test post-quantum Root CA: an ML-DSA-87 key pair and its self-signed CA
+/// certificate. Guides the "stand up a CA, then issue certificates from it"
+/// flow so a DevID cert can only be produced from a CA.
+struct TestPqCa {
+    key: PKey<Private>,
+    cert: X509,
 }
 
-/// Issue a DevID certificate certifying `devid_pubkey` (the PQ.DevID key),
-/// signed by the Root CA. The Subject CN matches the DPE leaf issuer CN.
-fn issue_devid_cert(ca_key: &PKey<Private>, ca_cert: &X509, devid_pubkey: &PKey<Public>) -> X509 {
-    let subject = x509_name(DEVID_SUBJECT_CN);
-    let mut b = new_cert_builder(&subject, 2, devid_pubkey);
-    b.set_issuer_name(ca_cert.subject_name()).unwrap();
-    b.sign(ca_key, MessageDigest::null()).unwrap();
-    b.build()
+impl TestPqCa {
+    /// Generate a deterministic ML-DSA-87 CA key pair and its self-signed root
+    /// certificate.
+    fn new() -> Self {
+        let key = gen_mldsa_key([0x11; 32]);
+        let name = x509_name("Caliptra Test PQ Root CA");
+        let ca_pub = PKey::public_key_from_der(&key.public_key_to_der().unwrap()).unwrap();
+        let mut b = new_cert_builder(&name, 1, &ca_pub);
+        b.set_issuer_name(&name).unwrap();
+        b.sign(&key, MessageDigest::null()).unwrap();
+        Self {
+            key,
+            cert: b.build(),
+        }
+    }
+
+    /// Issue a DevID certificate certifying `devid_pubkey` (the PQ.DevID key),
+    /// signed by this CA. The Subject CN matches the DPE leaf issuer CN so the
+    /// leaf's issuer name resolves to it.
+    fn issue_devid_cert(&self, devid_pubkey: &PKey<Public>) -> X509 {
+        let subject = x509_name(DEVID_SUBJECT_CN);
+        let mut b = new_cert_builder(&subject, 2, devid_pubkey);
+        b.set_issuer_name(self.cert.subject_name()).unwrap();
+        b.sign(&self.key, MessageDigest::null()).unwrap();
+        b.build()
+    }
+
+    /// The CA key, for verifying certificates issued or chained under this CA.
+    fn key(&self) -> &PKey<Private> {
+        &self.key
+    }
 }
 
 /// The CN component of an X.509 name, if present.
@@ -189,9 +210,8 @@ fn test_mldsa_full_attestation_workflow() {
     let devid_pubkey_raw = mldsa_csr_public_key(&csr_bytes);
 
     // 3. Stand up a test Root CA and issue a DevID cert over the PQ.DevID key.
-    let ca_key = gen_mldsa_key([0x11; 32]);
-    let ca_cert = build_root_ca(&ca_key, "Caliptra Test PQ Root CA");
-    let devid_cert = issue_devid_cert(&ca_key, &ca_cert, &devid_pubkey);
+    let ca = TestPqCa::new();
+    let devid_cert = ca.issue_devid_cert(&devid_pubkey);
     let devid_der = devid_cert.to_der().unwrap();
     assert!(
         devid_der.len() <= PopulatePqCertReq::MAX_CERT_SIZE,
@@ -200,7 +220,7 @@ fn test_mldsa_full_attestation_workflow() {
     );
     // The DevID cert is CA-signed and certifies the PQ.DevID key.
     assert!(
-        devid_cert.verify(&ca_key).unwrap(),
+        devid_cert.verify(ca.key()).unwrap(),
         "DevID cert must be signed by the Root CA"
     );
     assert_eq!(
@@ -219,7 +239,7 @@ fn test_mldsa_full_attestation_workflow() {
     );
     let chain_devid = X509::from_der(&chain).unwrap();
     assert!(
-        chain_devid.verify(&ca_key).unwrap(),
+        chain_devid.verify(ca.key()).unwrap(),
         "DevID cert in the chain must verify under the Root CA"
     );
     assert_eq!(
@@ -365,9 +385,8 @@ fn test_mldsa_exported_cdi_attestation_workflow() {
     let devid_pubkey_raw = mldsa_csr_public_key(&csr_bytes);
 
     // 3. Stand up a test Root CA and issue a DevID cert over the PQ.DevID key.
-    let ca_key = gen_mldsa_key([0x22; 32]);
-    let ca_cert = build_root_ca(&ca_key, "Caliptra Test PQ Root CA");
-    let devid_cert = issue_devid_cert(&ca_key, &ca_cert, &devid_pubkey);
+    let ca = TestPqCa::new();
+    let devid_cert = ca.issue_devid_cert(&devid_pubkey);
     let devid_der = devid_cert.to_der().unwrap();
 
     // 4. Populate the ML-DSA cert chain with the DevID cert.
@@ -377,7 +396,7 @@ fn test_mldsa_exported_cdi_attestation_workflow() {
     let chain = get_certificate_chain(&mut model);
     let chain_devid = X509::from_der(&chain).unwrap();
     assert!(
-        chain_devid.verify(&ca_key).unwrap(),
+        chain_devid.verify(ca.key()).unwrap(),
         "DevID cert in the chain must verify under the Root CA"
     );
     assert_eq!(
