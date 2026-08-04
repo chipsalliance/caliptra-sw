@@ -143,7 +143,7 @@ impl AuthorizeAndStashCmd {
             {
                 (entry, IMAGE_AUTHORIZED_OWNER_ONLY)
             } else {
-                return Ok(IMAGE_NOT_AUTHORIZED);
+                return Ok((IMAGE_NOT_AUTHORIZED, stash_measurement));
             };
 
         // If 'ignore_auth_check' is set, then skip the image digest comparison and authorize the image.

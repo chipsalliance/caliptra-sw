@@ -158,13 +158,15 @@ pub type AuthManifestImageMetadataList =
     [AuthManifestImageMetadata; AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT];
 
 #[cfg(feature = "runtime")]
-#[derive(Clone, Copy, FromBytes, Immutable, IntoBytes, KnownLayout, Zeroize)]
+#[derive(Clone, Copy, FromZeros, Immutable, IntoBytes, KnownLayout, Zeroize)]
 #[repr(C)]
 pub struct CaliptraManagedDpeContextIndices {
     pub initialized: U8Bool,
     pub cciv: u8,
     pub mcu_rt: u8,
-    pub reserved: [u8; 1],
+    pub somv: u8,
+    pub somo: u8,
+    pub reserved: [u8; 3],
 }
 
 #[cfg(feature = "runtime")]
@@ -188,6 +190,16 @@ impl CaliptraManagedDpeContextIndices {
         self.initialized = U8Bool::new(true);
         self.mcu_rt = idx;
     }
+
+    pub fn set_somv(&mut self, idx: u8) {
+        self.initialized = U8Bool::new(true);
+        self.somv = idx;
+    }
+
+    pub fn set_somo(&mut self, idx: u8) {
+        self.initialized = U8Bool::new(true);
+        self.somo = idx;
+    }
 }
 
 #[cfg(feature = "runtime")]
@@ -197,7 +209,9 @@ impl Default for CaliptraManagedDpeContextIndices {
             initialized: U8Bool::new(false),
             cciv: Self::INVALID_INDEX,
             mcu_rt: Self::INVALID_INDEX,
-            reserved: [Self::INVALID_INDEX; 1],
+            somv: Self::INVALID_INDEX,
+            somo: Self::INVALID_INDEX,
+            reserved: [Self::INVALID_INDEX; 3],
         }
     }
 }
@@ -831,19 +845,13 @@ impl FwPersistentData {
                 addr_of!((*P).fw.mcu_firmware_loaded) as u32,
                 memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
             );
-            persistent_data_offset += _DPE_PL_CONTEXT_LIMITS_WITH_PAD_SIZE;
-            assert_eq!(
-                addr_of!((*P).rt_mldsa_keypair_seed_kv_hdl) as u32,
-                memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
-            );
-            persistent_data_offset += size_of::<HandOffDataHandle>() as u32;
-            persistent_data_offset += FIRMWARE_OCP_LOCK_METADATA_SIZE;
+            persistent_data_offset += 4;
             assert_eq!(
                 addr_of!((*P).fw.ocp_lock_metadata) as u32,
                 memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
             );
 
-            persistent_data_offset += 4;
+            persistent_data_offset += FIRMWARE_OCP_LOCK_METADATA_SIZE;
             assert_eq!(
                 addr_of!((*P).fw.version) as u32,
                 memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset

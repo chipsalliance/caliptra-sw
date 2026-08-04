@@ -663,7 +663,7 @@ fn test_subsystem_response_buffer_limits() {
 
 #[test]
 #[cfg_attr(feature = "fpga_realtime", ignore)]
-fn test_subsystem_leaf_cert_contains_mcfw_tci_type() {
+fn test_subsystem_leaf_cert_contains_caliptra_managed_tci_types() {
     let mut model = run_rt_test(RuntimeTestArgs {
         subsystem_mode: true,
         ..Default::default()
@@ -694,13 +694,17 @@ fn test_subsystem_leaf_cert_contains_mcfw_tci_type() {
             .expect("MultiTcbInfo extension missing");
 
         let parsed_tcb_infos = asn1::parse_single::<asn1::SequenceOf<TcbInfo>>(ext.value).unwrap();
-
-        let mcu_tci_type = u32::from_be_bytes(*b"MCFW");
-        let found_mcfw = parsed_tcb_infos
-            .filter(|tcb_info| tcb_info.tci_type == Some(mcu_tci_type.as_bytes()))
-            .count()
-            == 1;
-        assert!(found_mcfw);
+        let tcb_infos: Vec<TcbInfo> = parsed_tcb_infos.collect();
+        for expected_tci_type in [b"SOMV", b"SOMO", b"MCFW"] {
+            let expected_tci_type = u32::from_be_bytes(*expected_tci_type);
+            assert_eq!(
+                tcb_infos
+                    .iter()
+                    .filter(|tcb_info| tcb_info.tci_type == Some(expected_tci_type.as_bytes()))
+                    .count(),
+                1
+            );
+        }
     }
 }
 
