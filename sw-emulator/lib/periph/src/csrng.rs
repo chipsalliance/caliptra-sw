@@ -33,6 +33,13 @@ pub struct Csrng {
     #[register(offset = 0x18, write_fn = cmd_req_write)]
     cmd_req: WriteOnlyRegister<u32>,
 
+    #[register(offset = 0x1C, write_fn = reseed_interval_write)]
+    reseed_interval: u32,
+
+    // SW app instance counter (NumApps=3, instance 2 is what the driver reads).
+    #[register(offset = 0x28, read_fn = reseed_counter_read)]
+    reseed_counter_2: ReadOnlyRegister<u32>,
+
     #[register(offset = 0x2c)]
     sw_cmd_sts: ReadOnlyRegister<u32>,
 
@@ -41,6 +48,11 @@ pub struct Csrng {
 
     #[register(offset = 0x34, read_fn = genbits_read)]
     genbits: ReadOnlyRegister<u32>,
+
+    // MAIN_SM_STATE (0x5c): CSRNG main SM state. The emulator processes
+    // commands synchronously, so it always reads Idle (0x4e = MainSmIdle).
+    #[register(offset = 0x5c)]
+    main_sm_state_csrng: ReadOnlyRegister<u32>,
 
     #[register(offset = 0x54)]
     err_code: ReadOnlyRegister<u32>,
@@ -107,9 +119,12 @@ impl Csrng {
             // These reset values come from register definitions
             ctrl: 0x999,
             cmd_req: WriteOnlyRegister::new(0),
+            reseed_interval: 0xffffffff,
+            reseed_counter_2: ReadOnlyRegister::new(0),
             sw_cmd_sts: ReadOnlyRegister::new(0b110), // cmd_rdy=1, cmd_ack=1, cmd_sts=0
             genbits_vld: ReadOnlyRegister::new(0b01),
             genbits: ReadOnlyRegister::new(0),
+            main_sm_state_csrng: ReadOnlyRegister::new(0x4e), // MainSmIdle (csrng_pkg.sv)
             err_code: ReadOnlyRegister::new(0),
             me_regwen: 1, // Reset value: enabled (writable)
             sw_regupd: 1, // Reset value: enabled (writable)
@@ -173,6 +188,21 @@ impl Csrng {
             }
         }
         Ok(())
+    }
+
+    fn reseed_interval_write(&mut self, _: RvSize, data: RvData) -> Result<(), BusError> {
+        if self.sw_regupd == 0 {
+            return Ok(());
+        }
+        self.reseed_interval = data;
+
+        self.ctr_drbg.set_reseed_interval(data);
+        Ok(())
+    }
+
+    /// Read handler for RESEED_COUNTER_2 (SW app instance; NumApps=3).
+    fn reseed_counter_read(&mut self, _: RvSize) -> Result<RvData, BusError> {
+        Ok(self.ctr_drbg.reseed_counter())
     }
 
     fn genbits_vld_read(&mut self, _: RvSize) -> Result<RvData, BusError> {
