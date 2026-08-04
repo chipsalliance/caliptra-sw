@@ -63,6 +63,62 @@ fn write_response(mbox: &mut Mailbox, data: &[u8]) {
     mbox.set_status(MboxStatusE::DataReady);
 }
 
+#[inline(never)]
+fn invalidate_dpe_index_cache(drivers: &mut Drivers) {
+    drivers
+        .persistent_data
+        .get_mut()
+        .fw
+        .dpe
+        .caliptra_managed_dpe_context_indices
+        .invalidate();
+    write_response(&mut drivers.mbox, &[]);
+}
+
+#[inline(never)]
+fn read_dpe_index_cache(drivers: &mut Drivers) {
+    let indices = drivers
+        .persistent_data
+        .get()
+        .fw
+        .dpe
+        .caliptra_managed_dpe_context_indices;
+    write_response(&mut drivers.mbox, indices.as_bytes());
+}
+
+#[inline(never)]
+fn read_cached_dpe_context_measurement(drivers: &mut Drivers, context_idx: u8, cumulative: bool) {
+    let context = &drivers.persistent_data.get().fw.dpe.state.contexts[context_idx as usize];
+    let measurement = if cumulative {
+        context.tci.tci_cumulative.as_bytes()
+    } else {
+        context.tci.tci_current.as_bytes()
+    };
+    write_response(&mut drivers.mbox, measurement);
+}
+
+#[inline(never)]
+fn read_cached_dpe_cciv_context_measurement(drivers: &mut Drivers, cumulative: bool) {
+    let indices = drivers
+        .persistent_data
+        .get()
+        .fw
+        .dpe
+        .caliptra_managed_dpe_context_indices;
+    read_cached_dpe_context_measurement(drivers, indices.cciv, cumulative);
+}
+
+#[inline(never)]
+fn read_cached_dpe_mcu_rt_context_measurement(drivers: &mut Drivers, cumulative: bool) {
+    let indices = drivers
+        .persistent_data
+        .get()
+        .fw
+        .dpe
+        .caliptra_managed_dpe_context_indices;
+    read_cached_dpe_context_measurement(drivers, indices.mcu_rt, cumulative);
+}
+
 const BANNER: &str = r#"
   ____      _ _       _               ____ _____
  / ___|__ _| (_)_ __ | |_ _ __ __ _  |  _ \_   _|
@@ -244,10 +300,7 @@ pub fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
                     Some(root_idx),
                 )
                 .unwrap();
-                let cciv_measurement = dpe.contexts[cciv_idx]
-                    .tci
-                    .tci_current
-                    .as_bytes();
+                let cciv_measurement = dpe.contexts[cciv_idx].tci.tci_current.as_bytes();
                 write_response(&mut drivers.mbox, cciv_measurement);
             }
             CommandId(OPCODE_READ_DPE_CCIV_CONTEXT_CUMULATIVE) => {
@@ -260,74 +313,26 @@ pub fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
                     Some(root_idx),
                 )
                 .unwrap();
-                let cciv_measurement = dpe.contexts[cciv_idx]
-                    .tci
-                    .tci_cumulative
-                    .as_bytes();
+                let cciv_measurement = dpe.contexts[cciv_idx].tci.tci_cumulative.as_bytes();
                 write_response(&mut drivers.mbox, cciv_measurement);
             }
             CommandId(OPCODE_INVALIDATE_DPE_INDEX_CACHE) => {
-                drivers
-                    .persistent_data
-                    .get_mut()
-                    .caliptra_managed_dpe_context_indices
-                    .invalidate();
-                write_response(&mut drivers.mbox, &[]);
+                invalidate_dpe_index_cache(drivers);
             }
             CommandId(OPCODE_READ_DPE_INDEX_CACHE) => {
-                let indices = drivers
-                    .persistent_data
-                    .get()
-                    .caliptra_managed_dpe_context_indices;
-                write_response(&mut drivers.mbox, indices.as_bytes());
+                read_dpe_index_cache(drivers);
             }
             CommandId(OPCODE_READ_CACHED_DPE_CCIV_CONTEXT_MEASUREMENT) => {
-                let indices = drivers
-                    .persistent_data
-                    .get()
-                    .caliptra_managed_dpe_context_indices;
-                let measurement = drivers.persistent_data.get().state.contexts
-                    [indices.cciv as usize]
-                    .tci
-                    .tci_current
-                    .as_bytes();
-                write_response(&mut drivers.mbox, measurement);
+                read_cached_dpe_cciv_context_measurement(drivers, false);
             }
             CommandId(OPCODE_READ_CACHED_DPE_CCIV_CONTEXT_CUMULATIVE) => {
-                let indices = drivers
-                    .persistent_data
-                    .get()
-                    .caliptra_managed_dpe_context_indices;
-                let measurement = drivers.persistent_data.get().state.contexts
-                    [indices.cciv as usize]
-                    .tci
-                    .tci_cumulative
-                    .as_bytes();
-                write_response(&mut drivers.mbox, measurement);
+                read_cached_dpe_cciv_context_measurement(drivers, true);
             }
             CommandId(OPCODE_READ_CACHED_DPE_MCU_RT_CONTEXT_MEASUREMENT) => {
-                let indices = drivers
-                    .persistent_data
-                    .get()
-                    .caliptra_managed_dpe_context_indices;
-                let measurement = drivers.persistent_data.get().state.contexts
-                    [indices.mcu_rt as usize]
-                    .tci
-                    .tci_current
-                    .as_bytes();
-                write_response(&mut drivers.mbox, measurement);
+                read_cached_dpe_mcu_rt_context_measurement(drivers, false);
             }
             CommandId(OPCODE_READ_CACHED_DPE_MCU_RT_CONTEXT_CUMULATIVE) => {
-                let indices = drivers
-                    .persistent_data
-                    .get()
-                    .caliptra_managed_dpe_context_indices;
-                let measurement = drivers.persistent_data.get().state.contexts
-                    [indices.mcu_rt as usize]
-                    .tci
-                    .tci_cumulative
-                    .as_bytes();
-                write_response(&mut drivers.mbox, measurement);
+                read_cached_dpe_mcu_rt_context_measurement(drivers, true);
             }
             CommandId(OPCODE_READ_DPE_TAGS) => {
                 let context_tags = drivers.persistent_data.get().fw.dpe.context_tags;

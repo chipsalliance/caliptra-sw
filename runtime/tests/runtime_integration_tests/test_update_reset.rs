@@ -9,7 +9,7 @@ pub use caliptra_api::SocManager;
 use caliptra_builder::{
     firmware::{
         runtime_tests::{MBOX, MBOX_FPGA, MBOX_WITHOUT_UART, MBOX_WITHOUT_UART_FPGA},
-        APP_WITH_UART, FMC_FAKE_WITH_UART, FMC_WITH_UART,
+        APP_WITH_UART, APP_WITH_UART_FPGA, FMC_FAKE_WITH_UART, FMC_WITH_UART,
     },
     FwId, ImageOptions,
 };
@@ -62,6 +62,14 @@ pub fn mbox_test_image_without_uart() -> &'static FwId<'static> {
     }
 }
 
+fn app_test_image() -> &'static FwId<'static> {
+    if cfg!(any(feature = "fpga_realtime", feature = "fpga_subsystem")) {
+        &APP_WITH_UART_FPGA
+    } else {
+        &APP_WITH_UART
+    }
+}
+
 const OPCODE_INVALIDATE_DPE_INDEX_CACHE: u32 = 0x6000_0004;
 const OPCODE_READ_DPE_INDEX_CACHE: u32 = 0x6000_0005;
 const OPCODE_READ_CACHED_DPE_CCIV_CONTEXT_MEASUREMENT: u32 = 0x6000_0006;
@@ -79,14 +87,13 @@ fn read_48_byte_test_response(model: &mut DefaultHwModel, cmd: u32) -> [u8; 48] 
         .unwrap()
 }
 
-fn read_dpe_index_cache(model: &mut DefaultHwModel) -> [u8; 4] {
+fn read_dpe_index_cache(model: &mut DefaultHwModel) -> Vec<u8> {
     model
         .mailbox_execute(OPCODE_READ_DPE_INDEX_CACHE, &[])
         .unwrap()
         .expect("We should have received a response")
         .as_bytes()
-        .try_into()
-        .unwrap()
+        .to_vec()
 }
 
 fn extend_journey_measurement(prev_journey: [u8; 48], current: [u8; 48]) -> [u8; 48] {
@@ -134,7 +141,7 @@ fn test_rt_journey_pcr_updated_with_good_fw() {
     let image_options = ImageOptions::default();
     let runtime_test_args = RuntimeTestArgs {
         test_image_options: Some(image_options.clone()),
-        test_fwid: Some(mbox_test_image()),
+        test_fwid: Some(mbox_test_image_without_uart()),
         ..Default::default()
     };
     let mut model = run_rt_test(runtime_test_args);
@@ -145,7 +152,7 @@ fn test_rt_journey_pcr_updated_with_good_fw() {
     let orig_rt_journey_pcr: [u8; 48] = orig_rt_journey_pcr_resp.as_bytes().try_into().unwrap();
 
     // trigger update reset
-    update_fw(&mut model, mbox_test_image_without_uart(), image_options);
+    update_fw(&mut model, mbox_test_image(), image_options);
 
     model.step_until_ready_for_runtime();
 
@@ -810,9 +817,12 @@ fn test_cciv_updated_in_dpe() {
         pqc_key_type: FwVerificationPqcKeyType::MLDSA,
         ..Default::default()
     };
-    let image_bundle_standard =
-        caliptra_builder::build_and_sign_image(&FMC_WITH_UART, &APP_WITH_UART, image_opts.clone())
-            .unwrap();
+    let image_bundle_standard = caliptra_builder::build_and_sign_image(
+        &FMC_WITH_UART,
+        app_test_image(),
+        image_opts.clone(),
+    )
+    .unwrap();
 
     // Start model with mailbox responder FW first
     let args = RuntimeTestArgs {
@@ -911,17 +921,21 @@ fn test_dpe_index_cache_initialized_after_hitless_update() {
         pqc_key_type: FwVerificationPqcKeyType::LMS,
         ..Default::default()
     };
-    let image_bundle_standard =
-        caliptra_builder::build_and_sign_image(&FMC_WITH_UART, &APP_WITH_UART, image_opts.clone())
-            .unwrap();
+    let image_bundle_standard = caliptra_builder::build_and_sign_image(
+        &FMC_WITH_UART,
+        app_test_image(),
+        image_opts.clone(),
+    )
+    .unwrap();
 
     // Boot with the mailbox responder so the test can inspect persistent DPE state.
     // Clearing the new cache fields simulates a fw-2.0.2 cold boot whose DCCM
     // did not initialize the cache appended by fw-2.0.3.
     let args = RuntimeTestArgs {
         subsystem_mode: true,
-        test_fwid: Some(mbox_test_image()),
+        test_fwid: Some(mbox_test_image_without_uart()),
         test_image_options: Some(image_opts.clone()),
+        key_type: Some(image_opts.pqc_key_type),
         ..Default::default()
     };
     let (mut model, image_bundle_mbox) = run_rt_test_return_fw(args);

@@ -18,6 +18,7 @@ use crate::{
         AuthorizeAndStashCmd, IMAGE_AUTHORIZED_OWNER_ONLY, IMAGE_AUTHORIZED_VENDOR_OWNER,
     },
     drivers::{McuFwStatus, McuResetReason},
+    set_auth_manifest::AuthManifestUpdateMode,
     Drivers, SetAuthManifestCmd,
 };
 use caliptra_auth_man_types::AuthorizationManifest;
@@ -84,7 +85,12 @@ impl RecoveryFlow {
             buffer.as_bytes()
         };
 
-        if let Err(err) = SetAuthManifestCmd::set_auth_manifest(drivers, source, false) {
+        if let Err(err) = SetAuthManifestCmd::set_auth_manifest(
+            drivers,
+            source,
+            false,
+            AuthManifestUpdateMode::CreateMissingDpeContexts,
+        ) {
             let recovery_reason = DmaRecovery::recovery_reason_from_auth_manifest_error(err);
             Self::set_recovery_boot_failure(drivers, SOC_MANIFEST_INDEX, recovery_reason)?;
             return Err(err);
