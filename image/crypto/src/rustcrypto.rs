@@ -12,10 +12,8 @@ Abstract:
 
 --*/
 
+use anyhow::{anyhow, bail};
 use core::{ops::Deref, str::from_utf8};
-use std::path::Path;
-
-use anyhow::{anyhow, bail, Context};
 
 use caliptra_image_gen::{
     from_hw_format, to_hw_format, ImageGeneratorCrypto, ImageGeneratorHasher,
@@ -23,16 +21,14 @@ use caliptra_image_gen::{
 use caliptra_image_types::*;
 use caliptra_lms_types::{LmotsAlgorithmType, LmsAlgorithmType};
 
+use ecdsa::{elliptic_curve::sec1::ToEncodedPoint, signature::hazmat::PrehashSigner};
 use fips204::ml_dsa_87::{PrivateKey, PublicKey, SIG_LEN};
 use fips204::traits::{SerDes, Signer, Verifier};
+use p384::pkcs8::DecodePublicKey;
+use rand::{rngs::OsRng, RngCore};
+use sec1::DecodeEcPrivateKey;
+use sha2::{Digest, Sha256, Sha384, Sha512};
 use zerocopy::IntoBytes;
-use {
-    ecdsa::{elliptic_curve::sec1::ToEncodedPoint, signature::hazmat::PrehashSigner},
-    p384::pkcs8::DecodePublicKey,
-    rand::{rngs::OsRng, RngCore},
-    sec1::DecodeEcPrivateKey,
-    sha2::{Digest, Sha256, Sha384, Sha512},
-};
 
 use crate::{sign_with_lms_key, LmsKeyGen, Sha256Hasher, SUPPORTED_LMS_Q_VALUE};
 
@@ -144,12 +140,9 @@ impl ImageGeneratorCrypto for RustCrypto {
         Ok(sig)
     }
 
-    fn ecc_pub_key_from_pem(path: &Path) -> anyhow::Result<ImageEccPubKey> {
-        let key_bytes = std::fs::read(path)
-            .with_context(|| format!("Failed to read public key PEM file {}", path.display()))?;
-
+    fn ecc_pub_key_from_pem_bytes(key_bytes: &[u8]) -> anyhow::Result<ImageEccPubKey> {
         let pub_key =
-            p384::PublicKey::from_public_key_pem(from_utf8(&key_bytes)?)?.to_encoded_point(false);
+            p384::PublicKey::from_public_key_pem(from_utf8(key_bytes)?)?.to_encoded_point(false);
 
         let x = pub_key.x().ok_or(anyhow!("Error parsing x coordinate"))?;
         let y = pub_key.y().ok_or(anyhow!("Error parsing y coordinate"))?;
@@ -161,11 +154,8 @@ impl ImageGeneratorCrypto for RustCrypto {
         Ok(image_key)
     }
 
-    fn ecc_priv_key_from_pem(path: &Path) -> anyhow::Result<ImageEccPrivKey> {
-        let key_bytes = std::fs::read(path)
-            .with_context(|| format!("Failed to read private key PEM file {}", path.display()))?;
-
-        let priv_key = p384::ecdsa::SigningKey::from_sec1_pem(from_utf8(&key_bytes)?)?.to_bytes();
+    fn ecc_priv_key_from_pem_bytes(key_bytes: &[u8]) -> anyhow::Result<ImageEccPrivKey> {
+        let priv_key = p384::ecdsa::SigningKey::from_sec1_pem(from_utf8(key_bytes)?)?.to_bytes();
 
         Ok(to_hw_format(&priv_key))
     }

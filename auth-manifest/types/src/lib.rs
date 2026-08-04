@@ -23,7 +23,7 @@ use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
 use zeroize::Zeroize;
 
 pub const AUTH_MANIFEST_MARKER: u32 = 0x324D_5441;
-pub const AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT: usize = 127;
+pub const AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT: usize = 80;
 pub const AUTH_MANIFEST_PREAMBLE_SIZE: usize = 24292;
 
 bitflags::bitflags! {
@@ -220,9 +220,140 @@ pub struct AuthorizationManifest {
     pub image_metadata_col: AuthManifestImageMetadataCollection,
 }
 
+// =====================================================================
+// Owner Authorization Manifest
+//
+// A separate, owner-only manifest format. Carries owner public keys and
+// owner signatures only; no vendor key or signature fields. Loaded via
+// the dedicated `SET_OWNER_AUTH_MANIFEST` mailbox command into a
+// dedicated owner-only Image Metadata Entry collection (separate from
+// the existing vendor + owner collection populated by
+// `SET_AUTH_MANIFEST`).
+// =====================================================================
+
+/// Magic marker identifying an Owner Authorization Manifest. ASCII "OWOM".
+pub const OWNER_AUTH_MANIFEST_MARKER: u32 = 0x4D4F_574F;
+
+/// Maximum number of Image Metadata Entries in the owner-only IMC.
+/// Sized smaller than the vendor + owner cap because owner-only
+/// manifests are expected to carry on the order of ~16 entries (per
+/// the RFC use case); the cap leaves headroom while keeping the
+/// owner-only DCCM region small.
+pub const OWNER_AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT: usize = 32;
+
+/// Serialized size of [`OwnerAuthManifestPreamble`] in bytes.
+/// Validated by the unit test below.
+pub const OWNER_AUTH_MANIFEST_PREAMBLE_SIZE: usize = 12156;
+
+/// Serialized size of [`OwnerAuthorizationManifest`] in bytes.
+/// Validated by the unit test below.
+pub const OWNER_AUTH_MANIFEST_SIZE: usize = 14720;
+
+/// Preamble of the Owner Authorization Manifest.
+///
+/// Contains the owner ECC and PQC public keys, the owner endorsement
+/// signatures over the Preamble policy fields, and the owner signatures
+/// over the IMC.
+///
+/// Signature coverage:
+/// - `owner_pub_keys_signatures` covers the Preamble policy fields
+///   (`version`, `svn`, `flags`, `owner_pub_keys`). The marker and
+///   Preamble size are validated separately.
+/// - `owner_image_metdata_signatures` covers the serialized
+///   [`OwnerAuthManifestImageMetadataCollection`] (entry count + IMEs).
+#[repr(C)]
+#[derive(IntoBytes, FromBytes, Immutable, KnownLayout, Clone, Copy, Debug, Zeroize, Default)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+pub struct OwnerAuthManifestPreamble {
+    pub marker: u32,
+
+    pub size: u32,
+
+    pub version: u32,
+
+    pub svn: u32,
+
+    pub flags: u32,
+
+    pub owner_pub_keys: AuthManifestPubKeys,
+
+    pub owner_pub_keys_signatures: AuthManifestSignatures,
+
+    pub owner_image_metdata_signatures: AuthManifestSignatures,
+}
+
+impl OwnerAuthManifestPreamble {
+    /// Range covering the Preamble policy fields signed by
+    /// `owner_pub_keys_signatures`.
+    pub fn owner_signed_data_range() -> Range<u32> {
+        let span = span_of!(OwnerAuthManifestPreamble, version..=owner_pub_keys);
+        span.start as u32..span.end as u32
+    }
+
+    /// Range covering `owner_pub_keys_signatures`.
+    pub fn owner_pub_keys_signatures_range() -> Range<u32> {
+        let span = span_of!(OwnerAuthManifestPreamble, owner_pub_keys_signatures);
+        span.start as u32..span.end as u32
+    }
+
+    /// Range covering `owner_image_metdata_signatures`.
+    pub fn owner_image_metdata_signatures_range() -> Range<u32> {
+        let span = span_of!(OwnerAuthManifestPreamble, owner_image_metdata_signatures);
+        span.start as u32..span.end as u32
+    }
+}
+
+/// Owner-only Image Metadata Collection.
+///
+/// Per-entry layout is identical to the existing
+/// [`AuthManifestImageMetadata`] used by the vendor + owner manifest.
+#[repr(C)]
+#[derive(IntoBytes, FromBytes, Immutable, KnownLayout, Clone, Copy, Debug)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+pub struct OwnerAuthManifestImageMetadataCollection {
+    pub entry_count: u32,
+
+    pub image_metadata_list:
+        [AuthManifestImageMetadata; OWNER_AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT],
+}
+
+impl zeroize::Zeroize for OwnerAuthManifestImageMetadataCollection {
+    fn zeroize(&mut self) {
+        self.as_mut_bytes().zeroize();
+    }
+}
+
+impl Default for OwnerAuthManifestImageMetadataCollection {
+    fn default() -> Self {
+        OwnerAuthManifestImageMetadataCollection {
+            entry_count: 0,
+            image_metadata_list: [AuthManifestImageMetadata::default();
+                OWNER_AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT],
+        }
+    }
+}
+
+/// Caliptra Owner Authorization Manifest.
+///
+/// Loaded via the `SET_OWNER_AUTH_MANIFEST` mailbox command. Carries
+/// owner-only authorization material; never mixed with the vendor +
+/// owner collection populated by `SET_AUTH_MANIFEST`.
+#[repr(C)]
+#[derive(IntoBytes, FromBytes, Immutable, KnownLayout, Clone, Copy, Debug, Zeroize, Default)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+pub struct OwnerAuthorizationManifest {
+    pub preamble: OwnerAuthManifestPreamble,
+
+    pub image_metadata_col: OwnerAuthManifestImageMetadataCollection,
+}
+
 #[cfg(test)]
 mod test {
-    use crate::{AuthManifestPreamble, AUTH_MANIFEST_PREAMBLE_SIZE};
+    use crate::{
+        AuthManifestPreamble, OwnerAuthManifestPreamble, OwnerAuthorizationManifest,
+        AUTH_MANIFEST_PREAMBLE_SIZE, OWNER_AUTH_MANIFEST_MARKER, OWNER_AUTH_MANIFEST_PREAMBLE_SIZE,
+        OWNER_AUTH_MANIFEST_SIZE,
+    };
     use zerocopy::IntoBytes;
 
     #[test]
@@ -231,5 +362,43 @@ mod test {
             AUTH_MANIFEST_PREAMBLE_SIZE,
             AuthManifestPreamble::default().as_bytes().len()
         );
+    }
+
+    #[test]
+    fn test_owner_auth_preamble_size() {
+        assert_eq!(
+            OWNER_AUTH_MANIFEST_PREAMBLE_SIZE,
+            OwnerAuthManifestPreamble::default().as_bytes().len()
+        );
+    }
+
+    #[test]
+    fn test_owner_auth_manifest_size() {
+        assert_eq!(
+            OWNER_AUTH_MANIFEST_SIZE,
+            OwnerAuthorizationManifest::default().as_bytes().len()
+        );
+    }
+
+    #[test]
+    fn test_owner_auth_manifest_marker_value() {
+        // 'O','W','O','M' little-endian.
+        assert_eq!(OWNER_AUTH_MANIFEST_MARKER, 0x4D4F_574F);
+        assert_eq!(&OWNER_AUTH_MANIFEST_MARKER.to_le_bytes(), b"OWOM");
+    }
+
+    #[test]
+    fn test_owner_signed_data_range_covers_policy_fields() {
+        let range = OwnerAuthManifestPreamble::owner_signed_data_range();
+        // The signed range must start at `version` (i.e. skip
+        // `marker` and `size` which are validated by exact equality)
+        // and end at the end of `owner_pub_keys`. It must not include
+        // either signature region.
+        let pub_keys_sigs = OwnerAuthManifestPreamble::owner_pub_keys_signatures_range();
+        let imc_sigs = OwnerAuthManifestPreamble::owner_image_metdata_signatures_range();
+        assert!(range.end <= pub_keys_sigs.start);
+        assert!(pub_keys_sigs.end <= imc_sigs.start);
+        // Non-empty.
+        assert!(range.start < range.end);
     }
 }

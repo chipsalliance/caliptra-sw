@@ -25,7 +25,7 @@ pub const PCR_ID_STASH_MEASUREMENT: PcrId = PcrId::PcrId31;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PcrLogEntryId {
     Invalid = 0,
-    DeviceStatus = 1,         // data size = 9 bytes
+    DeviceStatus = 1,         // data size = 18 bytes
     VendorPubKeyInfoHash = 2, // data size = 48 bytes
     OwnerPubKeyHash = 3,      // data size = 48 bytes
     FmcTci = 4,               // data size = 48 bytes
@@ -70,7 +70,7 @@ impl PcrLogEntry {
     pub fn measured_data(&self) -> &[u8] {
         let data_len = match PcrLogEntryId::from(self.id) {
             PcrLogEntryId::Invalid => 0,
-            PcrLogEntryId::DeviceStatus => 17,
+            PcrLogEntryId::DeviceStatus => 18,
             PcrLogEntryId::VendorPubKeyInfoHash => 48,
             PcrLogEntryId::OwnerPubKeyHash => 48,
             PcrLogEntryId::FmcTci => 48,

@@ -554,8 +554,6 @@ impl HwModel for ModelFpgaRealtime {
 
         // TODO(mtimkovich): uds_fuse_row_granularity_64 should be written to cptra_hw_config
         // here but that register is readonly.
-
-        // Set generic input wires.
         m.set_generic_input_wires(&[0, 0]);
 
         // Set Security State signal wires

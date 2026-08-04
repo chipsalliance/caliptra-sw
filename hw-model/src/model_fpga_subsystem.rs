@@ -21,7 +21,7 @@ use crate::xi3c::XI3cError;
 use crate::{
     xi3c, BootParams, Error, HwModel, InitParams, ModelCallback, ModelError, Output, TrngMode,
 };
-use crate::{OcpLockState, SecurityState};
+use crate::{OcpLockState, ProvisioningStage, SecurityState};
 use anyhow::Result;
 use caliptra_api::SocManager;
 use caliptra_emu_bus::{Bus, BusError, BusMmio, Device, Event, EventData, RecoveryCommandCode};
@@ -423,7 +423,7 @@ pub struct ModelFpgaSubsystem {
     pub secondary_flash: Vec<u8>,
     // whether or not to attempt flash boot instead of streaming boot
     pub flash_boot: bool,
-    pub skip_otp_provisioning: bool,
+    pub target_provisioning_stage: ProvisioningStage,
 
     // Saved init params needed for cold_reset re-initialization
     saved_input_wires: [u32; 2],
@@ -1529,8 +1529,10 @@ impl ModelFpgaSubsystem {
             otp_data[offset..offset + mem.len()].copy_from_slice(&mem);
         }
 
-        // Provision default LC tokens.
-        if !self.skip_otp_provisioning {
+        // Provision OTP based on target_provisioning_stage
+        let stage = self.target_provisioning_stage;
+
+        if stage > ProvisioningStage::Raw {
             println!("Provisioning SECRET_LC_TRANSITION partition.");
             let tokens = &DEFAULT_LIFECYCLE_RAW_TOKENS;
             let mem = otp_generate_lifecycle_tokens_mem(tokens)?;
@@ -1543,7 +1545,9 @@ impl ModelFpgaSubsystem {
                 otp_generate_manuf_debug_unlock_token_mem(&DEFAULT_MANUF_DEBUG_UNLOCK_RAW_TOKEN)?;
             let offset = otp::SW_TEST_UNLOCK_PARTITION_OFFSET;
             otp_data[offset..offset + mem.len()].copy_from_slice(&mem);
+        }
 
+        if stage > ProvisioningStage::TestUnlocked {
             // Provision default SW_MANUF partition.
             // TODO(timothytrippel): enable provisioning prod debug unlock public key hashes for public
             // keys passed in `prod_dbg_unlock_keypairs` field in InitParams.
@@ -1959,7 +1963,7 @@ impl HwModel for ModelFpgaSubsystem {
                 .ss_init_params
                 .primary_flash_initial_contents
                 .is_some(),
-            skip_otp_provisioning: params.ss_init_params.skip_otp_provisioning,
+            target_provisioning_stage: params.ss_init_params.target_provisioning_stage,
 
             saved_input_wires,
             saved_cptra_obf_key: params.cptra_obf_key,

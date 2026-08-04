@@ -548,6 +548,13 @@ impl<TBus: Bus> Cpu<TBus> {
         self.csrs.write(self.priv_mode, csr, val)
     }
 
+    /// Returns true when the core is halted via the VeeR MPMC low-power CSR
+    /// (not the RISC-V `wfi` instruction, which this emulator treats as a
+    /// no-op).
+    pub fn read_halted(&self) -> bool {
+        self.halted
+    }
+
     /// Write the specified Configuration status register as if we were in M mode
     ///
     /// # Arguments

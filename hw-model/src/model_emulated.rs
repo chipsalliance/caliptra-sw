@@ -162,6 +162,19 @@ impl ModelEmulated {
     }
 }
 
+impl ModelEmulated {
+    /// Returns true when the emulated CPU is halted via the VeeR MPMC
+    /// low-power CSR (not the RISC-V `wfi` instruction, which this emulator
+    /// treats as a no-op).
+    ///
+    /// This reflects the VeeR EL2 core-halt power-management state tracked by the
+    /// CPU (`Cpu::read_halted`), used by external schedulers to drop the core off
+    /// their event queue while it is idle.
+    pub fn cpu_halted(&self) -> bool {
+        self.cpu.read_halted()
+    }
+}
+
 fn hash_slice(slice: &[u8]) -> u64 {
     let mut hasher = DefaultHasher::new();
     std::hash::Hash::hash_slice(slice, &mut hasher);
@@ -223,6 +236,7 @@ impl HwModel for ModelEmulated {
         let output_sink = output.sink().clone();
 
         let bus_args = CaliptraRootBusArgs {
+            hw_version: params.hw_version,
             rom: params.rom.into(),
             tb_services_cb: TbServicesCb::new(move |ch| {
                 output_sink.set_now(timer.now());
@@ -272,7 +286,9 @@ impl HwModel for ModelEmulated {
             hw_config
         };
         root_bus.soc_reg.set_hw_config(hw_config.into());
-        root_bus.soc_reg.set_hek_seed(&params.fuses.hek_seed);
+        if params.hw_version >= crate::CaliptraHwVersion::V2_1 {
+            root_bus.soc_reg.set_hek_seed(&params.fuses.hek_seed);
+        }
 
         root_bus.soc_reg.set_generic_input_wires(&[0, 0]);
 

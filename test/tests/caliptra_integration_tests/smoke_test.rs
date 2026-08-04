@@ -457,9 +457,11 @@ fn smoke_test() {
                 String::from_utf8_lossy(&fmc_alias_cert.to_text().unwrap())
             );
 
+            let owner_pk_in_fuses = (fuses.owner_pk_hash != [0u32; 12]) && !hw.subsystem_mode();
+
             let mut hasher = Sha384::new();
             hasher.update(&owner_pk_hash);
-            hasher.update(&[(fuses.owner_pk_hash != [0u32; 12]) as u8]);
+            hasher.update(&[owner_pk_in_fuses as u8]);
             hasher.update(&[fuses.anti_rollback_disable as u8]);
             hasher.update(&[fuses.fuse_ecc_revocation as u8]);
             hasher.update(&fuses.fuse_lms_revocation.to_le_bytes());
@@ -529,7 +531,7 @@ fn smoke_test() {
                 &Pcr0::derive(&Pcr0Input {
                     fmc_digest: image.manifest.fmc.digest,
                     owner_pub_key_hash: owner_pk_hash_words,
-                    owner_pub_key_hash_in_fuses: fuses.owner_pk_hash != [0u32; 12],
+                    owner_pub_key_hash_in_fuses: owner_pk_in_fuses,
                     anti_rollback_disable: fuses.anti_rollback_disable,
                     vendor_ecc_pub_key_revocation: fuses.fuse_ecc_revocation as u8,
                     vendor_lms_pub_key_revocation: fuses.fuse_lms_revocation,

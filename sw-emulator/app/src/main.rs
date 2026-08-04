@@ -22,6 +22,7 @@ use caliptra_emu_periph::{
     ReadyForFwCb, TbServicesCb, UploadUpdateFwCb,
 };
 use caliptra_hw_model::BusMmio;
+use caliptra_hw_model_types::CaliptraHwVersion;
 use caliptra_registers::i3ccsr::regs::DeviceStatus0ReadVal;
 use clap::{arg, value_parser, ArgAction};
 use std::cell::Cell;
@@ -259,6 +260,11 @@ fn main() -> io::Result<()> {
                 .required(true)
                 .value_parser(value_parser!(u32)),
         )
+        .arg(
+            arg!(--"hw-version" <VERSION> "Caliptra hardware version (2.0, 2.1, 2.2)")
+                .required(false)
+                .default_value("2.1"),
+        )
         .get_matches();
 
     let args_rom = args.get_one::<PathBuf>("rom").unwrap();
@@ -286,6 +292,16 @@ fn main() -> io::Result<()> {
     };
     let args_device_lifecycle = args.get_one::<String>("device-lifecycle").unwrap();
     let pqc_key_type = args.get_one::<u32>("pqc-key-type").unwrap();
+    let hw_version_str = args.get_one::<String>("hw-version").unwrap();
+    let version = match hw_version_str.as_str() {
+        "2.0" => CaliptraHwVersion::V2_0,
+        "2.1" => CaliptraHwVersion::V2_1,
+        "2.2" => CaliptraHwVersion::V2_2,
+        other => {
+            println!("Unknown Caliptra hardware version: {}", other);
+            exit(-1);
+        }
+    };
 
     if !Path::new(&args_rom).exists() {
         println!("ROM File {:?} does not exist", args_rom);
@@ -371,6 +387,7 @@ fn main() -> io::Result<()> {
     #[allow(clippy::redundant_clone)]
     let firmware_buffer = current_fw_buf.clone();
     let bus_args = CaliptraRootBusArgs {
+        hw_version: version,
         rom: rom_buffer,
         log_dir: args_log_dir.clone(),
         tb_services_cb: TbServicesCb::new(move |val| match val {

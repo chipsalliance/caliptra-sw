@@ -485,12 +485,14 @@ dependencies = [
  "hex",
  "memoffset 0.8.0",
  "once_cell",
+ "reqwest 0.12.28",
  "serde",
  "serde_derive",
  "serde_json",
  "sha2",
  "toml 0.7.8",
  "zerocopy",
+ "zip",
 ]
 
 [[package]]
@@ -944,6 +946,7 @@ dependencies = [
  "caliptra-lms-types",
  "fips204",
  "memoffset 0.8.0",
+ "p384",
  "rand 0.8.5",
  "serde",
  "serde_derive",
@@ -4038,7 +4041,9 @@ checksum = "eddd3ca559203180a307f12d114c268abf583f59b03cb906fd0b3ff8646c1147"
 dependencies = [
  "base64 0.22.1",
  "bytes",
+ "futures-channel",
  "futures-core",
+ "futures-util",
  "http",
  "http-body",
  "http-body-util",
