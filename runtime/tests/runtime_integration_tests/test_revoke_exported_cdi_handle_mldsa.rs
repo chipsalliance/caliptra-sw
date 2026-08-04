@@ -3,109 +3,16 @@
 use caliptra_api::SocManager;
 use caliptra_builder::firmware::APP_MLDSA_ATTESTATION;
 use caliptra_common::mailbox_api::{
-    CommandId, MailboxReq, MailboxReqHeader, PopulatePqCertReq, RevokeExportedCdiHandleReq,
-    SetPqSeedReq, SET_PQ_SEED_SEED_SIZE,
+    CommandId, MailboxReq, MailboxReqHeader, RevokeExportedCdiHandleReq,
 };
-use caliptra_drivers::Mldsa87Signature;
 use caliptra_error::CaliptraError;
-use caliptra_hw_model::{DefaultHwModel, HwModel};
-use caliptra_runtime::{CaliptraDpeProfile, RtBootStatus};
-use caliptra_x509::MlDsa87CertBuilder;
-use dpe::{
-    commands::{Command, DeriveContextCmd, DeriveContextFlags},
-    context::ContextHandle,
-    response::Response,
-    tci::TciMeasurement,
-    TCI_SIZE,
-};
-use openssl::pkey::Private;
-use openssl::pkey_ctx::PkeyCtx;
-use openssl::pkey_ml_dsa::{PKeyMlDsaBuilder, Variant};
-use openssl::signature::Signature;
+use caliptra_hw_model::HwModel;
+use caliptra_runtime::RtBootStatus;
 
 use crate::common::{
-    assert_error, execute_dpe_cmd, run_pqc_rt_test, run_rt_test, DpeResult, RuntimeTestArgs,
+    assert_error, export_ecdsa_cdi, export_mldsa_cdi, populate_pq_cert, provision_pq_seed,
+    run_pqc_rt_test, run_rt_test, RuntimeTestArgs,
 };
-
-/// Provision the PQ.DevID CDI (as PL0), enabling PQC mode.
-fn set_pq_seed(model: &mut DefaultHwModel) {
-    let mut cmd = MailboxReq::SetPqSeed(SetPqSeedReq {
-        hdr: MailboxReqHeader { chksum: 0 },
-        seed: [0x5a; SET_PQ_SEED_SEED_SIZE],
-    });
-    cmd.populate_chksum().unwrap();
-    model
-        .mailbox_execute(u32::from(CommandId::SET_PQ_SEED), cmd.as_bytes().unwrap())
-        .expect("SET_PQ_SEED failed");
-}
-
-/// Populate the ML-DSA PQ certificate (a prerequisite for exporting a CDI).
-fn populate_pq_cert(model: &mut DefaultHwModel) {
-    let pk_builder = PKeyMlDsaBuilder::<Private>::from_seed(Variant::MlDsa87, &[0u8; 32]).unwrap();
-    let priv_key = pk_builder.build().unwrap();
-    let tbs: &[u8] = b"this is going to be the TBS";
-    let mut sig_bytes = vec![];
-    let mut ctx = PkeyCtx::new(&priv_key).unwrap();
-    let mut algo = Signature::for_ml_dsa(Variant::MlDsa87).unwrap();
-    ctx.sign_message_init(&mut algo).unwrap();
-    ctx.sign_to_vec(tbs, &mut sig_bytes).unwrap();
-    let sig = Mldsa87Signature::new(sig_bytes.try_into().unwrap());
-    let builder = MlDsa87CertBuilder::new(tbs, &sig).unwrap();
-    let mut cert = [0u8; PopulatePqCertReq::MAX_CERT_SIZE];
-    let cert_size = builder.build(&mut cert).unwrap();
-
-    let mut cmd = MailboxReq::PopulatePqCert(PopulatePqCertReq {
-        hdr: MailboxReqHeader { chksum: 0 },
-        cert_size: cert_size as u32,
-        cert,
-    });
-    cmd.populate_chksum().unwrap();
-    model
-        .mailbox_execute(
-            u32::from(CommandId::POPULATE_PQ_CERT),
-            cmd.as_bytes().unwrap(),
-        )
-        .expect("POPULATE_PQ_CERT failed");
-}
-
-/// Export an ML-DSA CDI via INVOKE_DPE_MLDSA87 + `DeriveContext{EXPORT_CDI}` and
-/// return the exported-CDI handle. RETAIN_PARENT_CONTEXT keeps the root context
-/// valid so a second export can run in the same boot (used by the re-export
-/// test). Requires SET_PQ_SEED and POPULATE_PQ_CERT first.
-fn export_cdi_with_profile(model: &mut DefaultHwModel, profile: CaliptraDpeProfile) -> [u8; 32] {
-    let derive_ctx_cmd = DeriveContextCmd {
-        handle: ContextHandle::default(),
-        data: TciMeasurement([0; TCI_SIZE]),
-        flags: DeriveContextFlags::EXPORT_CDI
-            | DeriveContextFlags::CREATE_CERTIFICATE
-            | DeriveContextFlags::RETAIN_PARENT_CONTEXT,
-        tci_type: 0,
-        target_locality: 0,
-        ..Default::default()
-    };
-    let resp = execute_dpe_cmd(
-        profile,
-        model,
-        &mut Command::DeriveContext(&derive_ctx_cmd),
-        DpeResult::Success,
-    );
-    let Some(Response::DeriveContextExportedCdi(resp)) = resp else {
-        panic!("expected derive context exported cdi resp!");
-    };
-    resp.header.exported_cdi
-}
-
-/// Export an ML-DSA CDI (the PQ.DevID identity) and return its handle.
-fn export_cdi(model: &mut DefaultHwModel) -> [u8; 32] {
-    export_cdi_with_profile(model, CaliptraDpeProfile::Mldsa)
-}
-
-/// Export an ECDSA CDI (the RT-alias identity) and return its handle. Shares the
-/// DPE context tree with the ML-DSA export but lands in the separate key-vault
-/// exported-CDI slot.
-fn export_ecdsa_cdi(model: &mut DefaultHwModel) -> [u8; 32] {
-    export_cdi_with_profile(model, CaliptraDpeProfile::Ecc384)
-}
 
 /// Build a REVOKE_EXPORTED_CDI_HANDLE request for `handle`.
 fn revoke_req(handle: [u8; 32]) -> MailboxReq {
@@ -194,9 +101,9 @@ fn test_revoke_exported_cdi_handle_mldsa_pl1_rejected() {
 #[test]
 fn test_revoke_exported_cdi_handle_mldsa_success() {
     let mut model = run_pqc_rt_test();
-    set_pq_seed(&mut model);
+    provision_pq_seed(&mut model);
     populate_pq_cert(&mut model);
-    let handle = export_cdi(&mut model);
+    let handle = export_mldsa_cdi(&mut model);
 
     // Revoking the handle of an active exported-CDI slot succeeds.
     let cmd = revoke_req(handle);
@@ -211,9 +118,9 @@ fn test_revoke_exported_cdi_handle_mldsa_success() {
 #[test]
 fn test_revoke_exported_cdi_handle_mldsa_double_revoke() {
     let mut model = run_pqc_rt_test();
-    set_pq_seed(&mut model);
+    provision_pq_seed(&mut model);
     populate_pq_cert(&mut model);
-    let handle = export_cdi(&mut model);
+    let handle = export_mldsa_cdi(&mut model);
 
     let cmd = revoke_req(handle);
     model
@@ -239,9 +146,9 @@ fn test_revoke_exported_cdi_handle_mldsa_double_revoke() {
 #[test]
 fn test_revoke_exported_cdi_handle_mldsa_reexport_after_revoke() {
     let mut model = run_pqc_rt_test();
-    set_pq_seed(&mut model);
+    provision_pq_seed(&mut model);
     populate_pq_cert(&mut model);
-    let handle = export_cdi(&mut model);
+    let handle = export_mldsa_cdi(&mut model);
 
     // Revoking frees the single ML-DSA exported-CDI slot.
     let cmd = revoke_req(handle);
@@ -254,7 +161,7 @@ fn test_revoke_exported_cdi_handle_mldsa_reexport_after_revoke() {
 
     // With the slot freed, a fresh export succeeds instead of hitting the
     // single-slot limit.
-    let _new_handle = export_cdi(&mut model);
+    let _new_handle = export_mldsa_cdi(&mut model);
 }
 
 // Export both an ECDSA (RT-alias) and an ML-DSA (PQ.DevID) CDI, then revoke each
@@ -264,11 +171,11 @@ fn test_revoke_exported_cdi_handle_mldsa_reexport_after_revoke() {
 #[test]
 fn test_revoke_exported_cdi_handle_both_populated_revoke_ecdsa_first() {
     let mut model = run_pqc_rt_test();
-    set_pq_seed(&mut model);
+    provision_pq_seed(&mut model);
     populate_pq_cert(&mut model);
 
     let ecdsa_handle = export_ecdsa_cdi(&mut model);
-    let mldsa_handle = export_cdi(&mut model);
+    let mldsa_handle = export_mldsa_cdi(&mut model);
     assert_ne!(
         ecdsa_handle, mldsa_handle,
         "the ECDSA and ML-DSA handles must differ for this test to be meaningful"
@@ -305,11 +212,11 @@ fn test_revoke_exported_cdi_handle_both_populated_revoke_ecdsa_first() {
 #[test]
 fn test_revoke_exported_cdi_handle_both_populated_revoke_mldsa_first() {
     let mut model = run_pqc_rt_test();
-    set_pq_seed(&mut model);
+    provision_pq_seed(&mut model);
     populate_pq_cert(&mut model);
 
     let ecdsa_handle = export_ecdsa_cdi(&mut model);
-    let mldsa_handle = export_cdi(&mut model);
+    let mldsa_handle = export_mldsa_cdi(&mut model);
     assert_ne!(
         ecdsa_handle, mldsa_handle,
         "the ECDSA and ML-DSA handles must differ for this test to be meaningful"
