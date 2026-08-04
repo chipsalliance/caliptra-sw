@@ -104,7 +104,9 @@ pub struct CaliptraManagedDpeContextIndices {
     pub initialized: U8Bool,
     pub cciv: u8,
     pub mcu_rt: u8,
-    pub reserved: [u8; 1],
+    pub somv: u8,
+    pub somo: u8,
+    pub reserved: [u8; 3],
 }
 
 #[cfg(feature = "runtime")]
@@ -128,6 +130,16 @@ impl CaliptraManagedDpeContextIndices {
         self.initialized = U8Bool::new(true);
         self.mcu_rt = idx;
     }
+
+    pub fn set_somv(&mut self, idx: u8) {
+        self.initialized = U8Bool::new(true);
+        self.somv = idx;
+    }
+
+    pub fn set_somo(&mut self, idx: u8) {
+        self.initialized = U8Bool::new(true);
+        self.somo = idx;
+    }
 }
 
 #[cfg(feature = "runtime")]
@@ -137,7 +149,9 @@ impl Default for CaliptraManagedDpeContextIndices {
             initialized: U8Bool::new(false),
             cciv: Self::INVALID_INDEX,
             mcu_rt: Self::INVALID_INDEX,
-            reserved: [Self::INVALID_INDEX; 1],
+            somv: Self::INVALID_INDEX,
+            somo: Self::INVALID_INDEX,
+            reserved: [Self::INVALID_INDEX; 3],
         }
     }
 }
