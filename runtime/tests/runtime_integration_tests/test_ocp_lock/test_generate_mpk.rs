@@ -82,7 +82,7 @@ fn test_generate_mpk_invalid_hpke_key() {
     validate_ocp_lock_response(&mut model, response, |response, _| {
         assert_eq!(
             response.unwrap_err(),
-            ModelError::MailboxCmdFailed(CaliptraError::RUNTIME_DRIVER_AES_INVALID_TAG.into(),)
+            ModelError::MailboxCmdFailed(CaliptraError::RUNTIME_DRIVER_HPKE_OPEN_FAILED.into(),)
         );
     });
 }

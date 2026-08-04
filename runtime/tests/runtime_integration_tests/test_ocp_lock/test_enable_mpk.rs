@@ -4,7 +4,8 @@ use caliptra_api::mailbox::{
     CommandId, OcpLockEnableMpkResp, OcpLockGenerateMpkResp, WrappedKey,
     OCP_LOCK_WRAPPED_KEY_MAX_METADATA_LEN,
 };
-use caliptra_hw_model::HwModel;
+use caliptra_hw_model::{HwModel, ModelError};
+use caliptra_kat::CaliptraError;
 
 use super::{
     boot_ocp_lock_runtime, create_enable_mpk_req, create_generate_mpk_req,
@@ -72,4 +73,56 @@ fn validate_wrapped_key(key: &WrappedKey, metadata: &[u8]) {
     assert_eq!(key.metadata_len, metadata.len() as u32);
     assert_eq!(key.key_len, WRAPPED_KEY_LEN);
     assert_eq!(&key.metadata, &metadata);
+}
+
+#[test]
+#[cfg_attr(feature = "fpga_realtime", ignore)]
+fn test_enable_mpk_invalid_locked_mpk() {
+    let mut model = boot_ocp_lock_runtime(OcpLockBootParams {
+        hek_available: true,
+        force_ocp_lock_en: true,
+        ..Default::default()
+    });
+
+    let endorsed_handle = get_validated_hpke_handle(&mut model).unwrap();
+
+    let info = [0xDE; 256];
+    let metadata = [0xFE; OCP_LOCK_WRAPPED_KEY_MAX_METADATA_LEN];
+    let access_key = [0xAE; 32];
+    let cmd = create_generate_mpk_req(&endorsed_handle, &info, &metadata, &access_key);
+
+    let response = model.mailbox_execute(
+        CommandId::OCP_LOCK_GENERATE_MPK.into(),
+        cmd.as_bytes().unwrap(),
+    );
+
+    let mut wrapped_key = validate_ocp_lock_response(&mut model, response, |response, _| {
+        let response = response.unwrap().unwrap();
+        let response = OcpLockGenerateMpkResp::ref_from_bytes(response.as_bytes()).unwrap();
+        response.wrapped_mek.clone()
+    })
+    .unwrap();
+
+    // Corrupt wrapped MPK ciphertext/tag
+    wrapped_key.ciphertext_and_auth_tag[0] ^= 0xFF;
+
+    let cmd = create_enable_mpk_req(
+        &endorsed_handle,
+        &info,
+        &metadata,
+        &access_key,
+        &wrapped_key,
+    );
+
+    let response = model.mailbox_execute(
+        CommandId::OCP_LOCK_ENABLE_MPK.into(),
+        cmd.as_bytes().unwrap(),
+    );
+
+    validate_ocp_lock_response(&mut model, response, |response, _| {
+        assert_eq!(
+            response.unwrap_err(),
+            ModelError::MailboxCmdFailed(CaliptraError::RUNTIME_OCP_LOCK_LOCKED_MPK_INVALID.into(),)
+        );
+    });
 }
