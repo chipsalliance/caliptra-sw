@@ -19,6 +19,7 @@ use crate::debug_unlock::ProductionDebugUnlock;
 use crate::dpe_crypto::DpeCrypto;
 #[cfg(feature = "fips_self_test")]
 pub use crate::fips::fips_self_test_cmd::SelfTestStatus;
+use crate::invoke_dpe::invoke_dpe_cmd;
 use crate::ocp_lock::OcpLockContext;
 use crate::recovery_flow::RecoveryFlow;
 use crate::CaliptraDpeEnv;
@@ -38,7 +39,7 @@ use caliptra_common::cfi_check;
 use caliptra_common::crypto::Crypto;
 use caliptra_common::dice::{copy_ldevid_ecc384_cert, copy_ldevid_mldsa87_cert};
 use caliptra_common::mailbox_api::AddSubjectAltNameReq;
-use caliptra_dpe::commands::DeriveContextCmd;
+use caliptra_dpe::commands::{Command, DeriveContextCmd};
 use caliptra_dpe::context::{Context, ContextState, ContextType};
 use caliptra_dpe::response::DeriveContextResp;
 use caliptra_dpe::tci::TciMeasurement;
@@ -74,7 +75,10 @@ use caliptra_registers::{
 use caliptra_ureg::MmioMut;
 use caliptra_x509::{NotAfter, NotBefore};
 
-use core::cmp::Ordering::{Equal, Greater};
+use core::{
+    cmp::Ordering::{Equal, Greater},
+    mem::size_of,
+};
 use zerocopy::IntoBytes;
 
 pub const MCI_TOP_REG_RESET_REASON_OFFSET: u32 = 0x38;
@@ -102,6 +106,8 @@ impl From<McuResetReason> for u32 {
 #[derive(Clone, Copy)]
 pub(crate) enum CaliptraManagedDpeContext {
     Cciv,
+    Somv,
+    Somo,
     McuRt,
 }
 
@@ -109,7 +115,27 @@ impl CaliptraManagedDpeContext {
     fn tci_type(self) -> u32 {
         match self {
             Self::Cciv => Drivers::CCIV_TCI_TYPE,
+            Self::Somv => Drivers::SOMV_TCI_TYPE,
+            Self::Somo => Drivers::SOMO_TCI_TYPE,
             Self::McuRt => Drivers::MCU_RT_TCI_TYPE,
+        }
+    }
+
+    fn cached_index(self, indices: &CaliptraManagedDpeContextIndices) -> u8 {
+        match self {
+            Self::Cciv => indices.cciv,
+            Self::Somv => indices.somv,
+            Self::Somo => indices.somo,
+            Self::McuRt => indices.mcu_rt,
+        }
+    }
+
+    fn set_cached_index(self, indices: &mut CaliptraManagedDpeContextIndices, idx: u8) {
+        match self {
+            Self::Cciv => indices.set_cciv(idx),
+            Self::Somv => indices.set_somv(idx),
+            Self::Somo => indices.set_somo(idx),
+            Self::McuRt => indices.set_mcu_rt(idx),
         }
     }
 }
@@ -190,6 +216,8 @@ pub struct Drivers {
 
 impl Drivers {
     pub const CCIV_TCI_TYPE: u32 = u32::from_be_bytes(*b"CCIV");
+    pub const SOMV_TCI_TYPE: u32 = u32::from_be_bytes(*b"SOMV");
+    pub const SOMO_TCI_TYPE: u32 = u32::from_be_bytes(*b"SOMO");
     pub const MCU_RT_TCI_TYPE: u32 = u32::from_be_bytes(*b"MCFW");
 
     /// # Safety
@@ -376,10 +404,7 @@ impl Drivers {
             return None;
         }
 
-        let idx = match context {
-            CaliptraManagedDpeContext::Cciv => indices.cciv,
-            CaliptraManagedDpeContext::McuRt => indices.mcu_rt,
-        };
+        let idx = context.cached_index(&indices);
 
         if idx == CaliptraManagedDpeContextIndices::INVALID_INDEX {
             None
@@ -401,7 +426,7 @@ impl Drivers {
             return Ok(());
         }
 
-        let (cciv_idx, mcu_rt_idx) = {
+        let (cciv_idx, somv_idx, somo_idx, mcu_rt_idx) = {
             let persistent_data = self.persistent_data.get();
             let dpe = &persistent_data.fw.dpe.state;
             let root_idx = Self::get_dpe_root_context_idx(dpe)? as u8;
@@ -411,6 +436,10 @@ impl Drivers {
                 None,
                 Some(root_idx),
             )?;
+            let somv_idx =
+                Self::get_dpe_context_idx_by_tci_type(dpe, Self::SOMV_TCI_TYPE, None, None).ok();
+            let somo_idx =
+                Self::get_dpe_context_idx_by_tci_type(dpe, Self::SOMO_TCI_TYPE, None, None).ok();
             let mcu_rt_idx = Self::get_dpe_context_idx_by_tci_type(
                 dpe,
                 Self::MCU_RT_TCI_TYPE,
@@ -418,7 +447,7 @@ impl Drivers {
                 None,
             )
             .ok();
-            (cciv_idx, mcu_rt_idx)
+            (cciv_idx, somv_idx, somo_idx, mcu_rt_idx)
         };
 
         let indices = &mut self
@@ -430,6 +459,16 @@ impl Drivers {
         indices.set_cciv(
             u8::try_from(cciv_idx).map_err(|_| CaliptraError::RUNTIME_DPE_CONTEXT_NOT_FOUND)?,
         );
+        if let Some(somv_idx) = somv_idx {
+            indices.set_somv(
+                u8::try_from(somv_idx).map_err(|_| CaliptraError::RUNTIME_DPE_CONTEXT_NOT_FOUND)?,
+            );
+        }
+        if let Some(somo_idx) = somo_idx {
+            indices.set_somo(
+                u8::try_from(somo_idx).map_err(|_| CaliptraError::RUNTIME_DPE_CONTEXT_NOT_FOUND)?,
+            );
+        }
         if let Some(mcu_rt_idx) = mcu_rt_idx {
             indices.set_mcu_rt(
                 u8::try_from(mcu_rt_idx)
@@ -437,6 +476,93 @@ impl Drivers {
             );
         }
 
+        Ok(())
+    }
+
+    pub(crate) fn create_or_update_caliptra_managed_measurement(
+        &mut self,
+        caliptra_managed_context: CaliptraManagedDpeContext,
+        measurement: &[u8; 48],
+        svn: u32,
+        locality: u32,
+        create_if_missing: bool,
+    ) -> CaliptraResult<()> {
+        if self
+            .get_caliptra_managed_dpe_context_index(caliptra_managed_context)
+            .is_some()
+        {
+            return self.update_caliptra_managed_measurement(
+                caliptra_managed_context,
+                measurement,
+                Some(locality),
+            );
+        }
+
+        if !create_if_missing {
+            return Ok(());
+        }
+
+        // Creating missing Caliptra-managed contexts is only used during recovery
+        // boot before MCFW is created. Hitless update paths update existing cached
+        // contexts only. Behavior is unspecified for existing chains that do not
+        // already contain SOMV/SOMO, so runtime does not insert them mid-chain.
+        self.is_dpe_context_threshold_exceeded(PauserPrivileges::PL0)?;
+        let flags = DeriveContextFlags::MAKE_DEFAULT
+            | DeriveContextFlags::CHANGE_LOCALITY
+            | DeriveContextFlags::ALLOW_NEW_CONTEXT_TO_EXPORT
+            | DeriveContextFlags::INPUT_ALLOW_X509
+            | DeriveContextFlags::ALLOW_RECURSIVE;
+        let cmd = DeriveContextCmd {
+            handle: ContextHandle::default(),
+            data: TciMeasurement(*measurement),
+            flags,
+            tci_type: caliptra_managed_context.tci_type(),
+            target_locality: locality,
+            svn,
+        };
+        let cmd = &Command::from(&cmd);
+        let mut resp_buf_storage = [0u32; size_of::<DeriveContextResp>() / 4];
+        let resp_buf = resp_buf_storage.as_mut_bytes();
+        let ueid = Some(self.soc_ifc.fuse_bank().ueid());
+        invoke_dpe_cmd(
+            CaliptraDpeProfile::Ecc384,
+            self,
+            cmd,
+            None,
+            ueid,
+            Some(locality),
+            resp_buf,
+        )
+        .map_err(|e| {
+            if let Some(ext_err) = e.get_error_detail() {
+                self.soc_ifc.set_fw_extended_error(ext_err);
+            }
+            CaliptraError::RUNTIME_AUTH_AND_STASH_MEASUREMENT_DPE_ERROR
+        })?;
+
+        let idx = u8::try_from(
+            self.persistent_data
+                .get()
+                .fw
+                .dpe
+                .state
+                .get_active_context_pos(&ContextHandle::default(), locality)
+                .map_err(|_| CaliptraError::RUNTIME_DPE_CONTEXT_NOT_FOUND)?,
+        )
+        .map_err(|_| CaliptraError::RUNTIME_DPE_CONTEXT_NOT_FOUND)?;
+        let indices = &mut self
+            .persistent_data
+            .get_mut()
+            .fw
+            .dpe
+            .caliptra_managed_dpe_context_indices;
+        caliptra_managed_context.set_cached_index(indices, idx);
+
+        self.pcr_bank.extend_pcr(
+            PCR_ID_STASH_MEASUREMENT,
+            &mut self.sha2_512_384,
+            measurement,
+        )?;
         Ok(())
     }
 

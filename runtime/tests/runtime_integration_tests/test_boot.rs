@@ -13,7 +13,8 @@ use sha2::{Digest, Sha384};
 use zerocopy::IntoBytes;
 
 use crate::common::{
-    calculate_cptra_config_init_vals_hash, run_rt_test, run_rt_test_return_fw, RuntimeTestArgs,
+    calculate_cptra_config_init_vals_hash, default_lms_soc_manifest_measurements,
+    default_soc_manifest_measurements, run_rt_test, run_rt_test_return_fw, RuntimeTestArgs,
     DEFAULT_APP_VERSION, DEFAULT_FMC_VERSION, PQC_KEY_TYPE,
 };
 
@@ -184,9 +185,16 @@ fn test_boot_tci_data() {
     hasher.update(rt_current_pcr);
     hasher.update(cptra_config_init_vals_hash);
     if model.subsystem_mode() {
+        let (somv_measurement, somo_measurement) = default_lms_soc_manifest_measurements(0);
+        hasher.update(somv_measurement);
+        hasher.update(somo_measurement);
         let mut mcu_hasher = Sha384::new();
         mcu_hasher.update(crate::common::DEFAULT_MCU_FW);
         hasher.update(mcu_hasher.finalize());
+        // MCU ROM stashes field_entropy_state measurement.
+        let mut fe_hasher = Sha384::new();
+        fe_hasher.update([0u8; 48]);
+        hasher.update(fe_hasher.finalize());
     }
     let expected_measurement_hash = hasher.finalize();
 
@@ -266,8 +274,12 @@ fn test_measurement_in_measurement_log_added_to_dpe() {
         hasher.update(cptra_config_init_vals_hash);
         hasher.update(measurement);
         if model.subsystem_mode() {
+            let (somv_measurement, somo_measurement) =
+                default_soc_manifest_measurements(*pqc_key_type, 1);
             let mut mcu_hasher = Sha384::new();
             mcu_hasher.update(crate::common::DEFAULT_MCU_FW);
+            hasher.update(somv_measurement);
+            hasher.update(somo_measurement);
             hasher.update(mcu_hasher.finalize());
         }
         let expected_measurement_hash = hasher.finalize();
