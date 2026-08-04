@@ -193,4 +193,7 @@ pub trait ImageVerificationEnv {
     fn pqc_key_type_fuse(&self) -> CaliptraResult<FwVerificationPqcKeyType>;
 
     fn dot_owner_pk_hash(&self) -> Option<&ImageDigest384>;
+
+    /// Whether subsystem Debug Intent (SS_DEBUG_INTENT) is asserted.
+    fn ss_debug_intent(&self) -> bool;
 }

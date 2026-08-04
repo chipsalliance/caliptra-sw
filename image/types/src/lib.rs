@@ -49,6 +49,10 @@ pub trait ZeroizeWithByteScrub: FromZeros + IntoBytes + Sized {
 }
 
 pub const MANIFEST_MARKER: u32 = 0x324E4D43;
+/// ImageHeader.flags Bit 0: Interpret the pl0_pauser field. If not set, all PAUSERs are PL1.
+pub const IMAGE_FLAGS_PL0_PAUSER: u32 = 1 << 0;
+/// ImageHeader.flags Bit 1: Debug Image. When set, image is only accepted if SS_DEBUG_INTENT is asserted.
+pub const IMAGE_FLAGS_DEBUG_IMAGE: u32 = 1 << 1;
 pub const KEY_DESCRIPTOR_VERSION: u16 = 1;
 pub const VENDOR_ECC_MAX_KEY_COUNT: u32 = 4;
 pub const VENDOR_LMS_MAX_KEY_COUNT: u32 = 32;
@@ -720,6 +724,7 @@ pub struct ImageHeader {
 
     /// Flags
     /// Bit 0: Interpret the pl0_pauser field. If not set, all PAUSERs are PL1.
+    /// Bit 1: Debug Image. When set, image is only accepted if SS_DEBUG_INTENT is asserted.
     pub flags: u32,
 
     /// TOC Entry Count
