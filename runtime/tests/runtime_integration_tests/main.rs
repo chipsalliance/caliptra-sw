@@ -27,6 +27,8 @@ mod test_lms;
 mod test_mailbox;
 mod test_measurements_common;
 #[cfg(feature = "mldsa_attestation")]
+mod test_mldsa_attestation_workflow;
+#[cfg(feature = "mldsa_attestation")]
 mod test_mldsa_verify;
 mod test_panic_missing;
 mod test_pauser_privilege_levels;
