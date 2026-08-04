@@ -1,7 +1,7 @@
 // Licensed under the Apache-2.0 license
 
 use caliptra_common::mailbox_api::{
-    CommandId, GetPqInfoResp, MailboxReq, MailboxReqHeader, SetPqSeedReq, SET_PQ_SEED_SEED_SIZE,
+    CommandId, GetPqInfoResp, MailboxReqHeader, SET_PQ_SEED_SEED_SIZE,
 };
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::HwModel;
@@ -12,26 +12,14 @@ use openssl::pkey_ml_dsa::{PKeyMlDsaBuilder, PKeyMlDsaParams, Variant as MlDsaVa
 use openssl::sign::Signer;
 use zerocopy::{FromBytes, IntoBytes};
 
-use crate::common::{assert_error, run_pqc_rt_test};
+use crate::common::{assert_error, provision_pq_seed, run_pqc_rt_test};
 
-/// Seed provisioned via SET_PQ_SEED in these tests.
+/// Seed provisioned via SET_PQ_SEED in these tests. Matches `common::PQ_SEED`
+/// used by `provision_pq_seed`; kept here to derive the expected public key.
 const PQ_SEED: [u8; SET_PQ_SEED_SEED_SIZE] = [0x5a; SET_PQ_SEED_SEED_SIZE];
 
 fn get_pq_info_checksum() -> u32 {
     caliptra_common::checksum::calc_checksum(u32::from(CommandId::GET_PQ_INFO), &[])
-}
-
-/// Provision the PQ.DevID seed (as PL0) so that PQC mode is enabled and
-/// GET_PQ_INFO can derive the public key.
-fn provision_pq_seed(model: &mut caliptra_hw_model::DefaultHwModel) {
-    let mut cmd = MailboxReq::SetPqSeed(SetPqSeedReq {
-        hdr: MailboxReqHeader { chksum: 0 },
-        seed: PQ_SEED,
-    });
-    cmd.populate_chksum().unwrap();
-    model
-        .mailbox_execute(u32::from(CommandId::SET_PQ_SEED), cmd.as_bytes().unwrap())
-        .unwrap();
 }
 
 /// SP 800-108 counter-mode KDF (single iteration) with HMAC-SHA384, reproducing

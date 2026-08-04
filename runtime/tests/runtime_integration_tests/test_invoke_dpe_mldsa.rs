@@ -1,7 +1,10 @@
 // Licensed under the Apache-2.0 license
 
 use crate::common::run_pqc_rt_test;
-use crate::common::{execute_dpe_cmd, DpeResult, TEST_DIGEST_MLDSA, TEST_LABEL};
+use crate::common::{
+    assert_error, execute_dpe_cmd, populate_pq_cert, provision_pq_seed, DpeResult,
+    TEST_DIGEST_MLDSA, TEST_LABEL,
+};
 use caliptra_api::{
     mailbox::{FwInfoResp, ReallocateDpeContextLimitsReq},
     SocManager,
@@ -12,14 +15,11 @@ use caliptra_builder::{
 };
 use caliptra_common::checksum::calc_checksum;
 use caliptra_common::mailbox_api::{
-    CommandId, GetPqCsrResp, InvokeDpeMldsa87Req, MailboxReq, MailboxReqHeader, PopulatePqCertReq,
-    SetPqSeedReq, SET_PQ_SEED_SEED_SIZE,
+    CommandId, GetPqCsrResp, InvokeDpeMldsa87Req, MailboxReq, MailboxReqHeader,
 };
-use caliptra_drivers::Mldsa87Signature;
 use caliptra_error::CaliptraError;
-use caliptra_hw_model::{DefaultHwModel, HwModel, ModelError};
+use caliptra_hw_model::{HwModel, ModelError};
 use caliptra_runtime::{CaliptraDpeProfile, RtBootStatus, DPE_SUPPORT, VENDOR_ID, VENDOR_SKU};
-use caliptra_x509::MlDsa87CertBuilder;
 use cms::{
     cert::x509::der::{Decode, Encode},
     content_info::{CmsVersion, ContentInfo},
@@ -39,9 +39,9 @@ use dpe::{
     TCI_SIZE,
 };
 use openssl::hash::{hash, MessageDigest};
-use openssl::pkey::{Private, Public};
+use openssl::pkey::Public;
 use openssl::pkey_ctx::PkeyCtx;
-use openssl::pkey_ml_dsa::{PKeyMlDsaBuilder, PKeyMlDsaParams, Variant};
+use openssl::pkey_ml_dsa::{PKeyMlDsaParams, Variant};
 use openssl::signature::Signature;
 use openssl::x509::X509Req;
 use platform::MAX_CHUNK_SIZE;
@@ -49,54 +49,6 @@ use x509_parser::{nom::Parser, prelude::*};
 use zerocopy::{FromBytes, IntoBytes};
 
 const PROFILE: CaliptraDpeProfile = CaliptraDpeProfile::Mldsa;
-
-// Invoke SET_PQ_SEED to set the PQ seed and thus enable PQC mode.
-fn set_pq_seed(model: &mut DefaultHwModel) {
-    let mut cmd = MailboxReq::SetPqSeed(SetPqSeedReq {
-        hdr: MailboxReqHeader { chksum: 0 },
-        seed: [0x5a; SET_PQ_SEED_SEED_SIZE],
-    });
-    cmd.populate_chksum().unwrap();
-    model
-        .mailbox_execute(u32::from(CommandId::SET_PQ_SEED), cmd.as_bytes().unwrap())
-        .unwrap();
-}
-
-// Build a cert out of a test TBS and invoke POPULATE_PQ_CERT to initialize the PQ cert.
-// Return the built cert for other test purposes.
-fn populate_pq_cert(model: &mut DefaultHwModel) -> Vec<u8> {
-    // Generate an ML-DSA87 key pair
-    let pk_builder = PKeyMlDsaBuilder::<Private>::from_seed(Variant::MlDsa87, &[0u8; 32]).unwrap();
-    let priv_key = pk_builder.build().unwrap();
-
-    // Sign the TBS with ML-DSA87
-    let tbs: &[u8] = b"this is going to be the TBS";
-    let mut sig_bytes = vec![];
-    let mut ctx = PkeyCtx::new(&priv_key).unwrap();
-    let mut algo = Signature::for_ml_dsa(Variant::MlDsa87).unwrap();
-    ctx.sign_message_init(&mut algo).unwrap();
-    ctx.sign_to_vec(tbs, &mut sig_bytes).unwrap();
-    let sig = Mldsa87Signature::new(sig_bytes.try_into().unwrap());
-    let builder = MlDsa87CertBuilder::new(tbs, &sig).unwrap();
-    let mut cert = [0u8; PopulatePqCertReq::MAX_CERT_SIZE];
-    let cert_size = builder.build(&mut cert).unwrap();
-
-    // Build the request
-    let mut cmd = MailboxReq::PopulatePqCert(PopulatePqCertReq {
-        hdr: MailboxReqHeader { chksum: 0 },
-        cert_size: cert_size as u32,
-        cert,
-    });
-    cmd.populate_chksum().unwrap();
-    model
-        .mailbox_execute(
-            u32::from(CommandId::POPULATE_PQ_CERT),
-            cmd.as_bytes().unwrap(),
-        )
-        .unwrap();
-
-    cert[..cert_size].to_vec()
-}
 
 #[test]
 fn test_invoke_dpe_get_profile_cmd() {
@@ -106,7 +58,7 @@ fn test_invoke_dpe_get_profile_cmd() {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
     });
 
-    set_pq_seed(&mut model);
+    provision_pq_seed(&mut model);
 
     let mut cmd: Command<'_> = Command::GetProfile(&GetProfileCmd);
     let resp = execute_dpe_cmd(PROFILE, &mut model, &mut cmd, DpeResult::Success);
@@ -142,7 +94,7 @@ fn test_invoke_dpe_get_certificate_chain_cmd() {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
     });
 
-    set_pq_seed(&mut model);
+    provision_pq_seed(&mut model);
     let populated_cert = populate_pq_cert(&mut model);
 
     // Collect the full chain by concatenating multiple chunks.
@@ -185,7 +137,7 @@ fn test_invoke_dpe_sign_and_certify_key_cmds() {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
     });
 
-    set_pq_seed(&mut model);
+    provision_pq_seed(&mut model);
     populate_pq_cert(&mut model);
 
     let sign_cmd = SignMldsa87Cmd {
@@ -242,7 +194,7 @@ fn test_invoke_dpe_asymmetric_sign() {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
     });
 
-    set_pq_seed(&mut model);
+    provision_pq_seed(&mut model);
     populate_pq_cert(&mut model);
 
     let sign_cmd = SignMldsa87Cmd {
@@ -276,7 +228,7 @@ fn test_dpe_header_error_code() {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
     });
 
-    set_pq_seed(&mut model);
+    provision_pq_seed(&mut model);
 
     // cannot initialize non-simulation contexts so expect DPE cmd to fail
     let init_ctx_cmd = InitCtxCmd::new_use_default();
@@ -303,7 +255,7 @@ fn test_invoke_dpe_certify_key_csr() {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
     });
 
-    set_pq_seed(&mut model);
+    provision_pq_seed(&mut model);
     populate_pq_cert(&mut model);
 
     let certify_key_cmd = CertifyKeyMldsa87Cmd {
@@ -381,7 +333,7 @@ fn test_invoke_dpe_rotate_context() {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
     });
 
-    set_pq_seed(&mut model);
+    provision_pq_seed(&mut model);
 
     let rotate_ctx_cmd = RotateCtxCmd {
         handle: ContextHandle::default(),
@@ -440,7 +392,7 @@ fn test_invoke_dpe_certify_key_with_non_critical_dice_extensions() {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
     });
 
-    set_pq_seed(&mut model);
+    provision_pq_seed(&mut model);
     populate_pq_cert(&mut model);
 
     let certify_key_cmd = CertifyKeyMldsa87Cmd {
@@ -469,7 +421,7 @@ fn test_invoke_dpe_export_cdi_with_non_critical_dice_extensions() {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
     });
 
-    set_pq_seed(&mut model);
+    provision_pq_seed(&mut model);
     populate_pq_cert(&mut model);
 
     let derive_ctx_cmd = DeriveContextCmd {
@@ -504,7 +456,7 @@ fn test_export_cdi_attestation_not_disabled_after_update_reset() {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
     });
 
-    set_pq_seed(&mut model);
+    provision_pq_seed(&mut model);
     populate_pq_cert(&mut model);
 
     let derive_ctx_cmd = DeriveContextCmd {
@@ -558,7 +510,7 @@ fn test_export_cdi_destroyed_root_context() {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
     });
 
-    set_pq_seed(&mut model);
+    provision_pq_seed(&mut model);
     populate_pq_cert(&mut model);
 
     // You probably want to retain the parent context, otherwise the whole DPE chain _may be
@@ -615,7 +567,7 @@ fn test_certify_key_with_max_contexts() {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
     });
 
-    set_pq_seed(&mut model);
+    provision_pq_seed(&mut model);
     populate_pq_cert(&mut model);
 
     // Set the limit to 32 so we don't have to deal with the PL1 locality
@@ -674,4 +626,54 @@ fn test_certify_key_with_max_contexts() {
             DpeResult::Success,
         );
     }
+}
+
+#[test]
+fn test_invoke_dpe_mldsa_before_set_pq_seed() {
+    let mut model = run_pqc_rt_test();
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    // Without SET_PQ_SEED the ML-DSA INVOKE_DPE entry point rejects the command
+    // before dispatching it to DPE.
+    execute_dpe_cmd(
+        PROFILE,
+        &mut model,
+        &mut Command::GetProfile(&GetProfileCmd),
+        DpeResult::MboxCmdFailure(CaliptraError::RUNTIME_PQC_NOT_INITIALIZED),
+    );
+}
+
+#[test]
+fn test_invoke_dpe_mldsa_deserialization_failed() {
+    let mut model = run_pqc_rt_test();
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+    provision_pq_seed(&mut model);
+
+    // A well-sized payload whose DPE command bytes are not a valid command (the
+    // DPEC magic is wrong) must fail deserialization inside the runtime, after
+    // the PQC-init and bounds checks pass.
+    let mut data = [0u8; InvokeDpeMldsa87Req::DATA_MAX_SIZE];
+    data[..8].copy_from_slice(&[0xAAu8; 8]);
+    let mut cmd = MailboxReq::InvokeDpeMldsa87Command(InvokeDpeMldsa87Req {
+        hdr: MailboxReqHeader { chksum: 0 },
+        data,
+        data_size: 8,
+    });
+    cmd.populate_chksum().unwrap();
+
+    let resp = model
+        .mailbox_execute(
+            u32::from(CommandId::INVOKE_DPE_MLDSA87),
+            cmd.as_bytes().unwrap(),
+        )
+        .unwrap_err();
+    assert_error(
+        &mut model,
+        CaliptraError::RUNTIME_DPE_COMMAND_DESERIALIZATION_FAILED,
+        resp,
+    );
 }

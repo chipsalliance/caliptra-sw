@@ -119,6 +119,98 @@ pub fn provision_pq_seed(model: &mut DefaultHwModel) {
         .unwrap();
 }
 
+/// Populate the ML-DSA PQ certificate (a prerequisite for exporting an ML-DSA
+/// CDI with a certificate). Returns the DER certificate that was populated.
+#[cfg(feature = "mldsa_attestation")]
+pub fn populate_pq_cert(model: &mut DefaultHwModel) -> Vec<u8> {
+    use caliptra_common::mailbox_api::PopulatePqCertReq;
+    use caliptra_drivers::Mldsa87Signature;
+    use caliptra_x509::MlDsa87CertBuilder;
+    use openssl::pkey::Private;
+    use openssl::pkey_ctx::PkeyCtx;
+    use openssl::pkey_ml_dsa::{PKeyMlDsaBuilder, Variant};
+    use openssl::signature::Signature;
+
+    // Generate an ML-DSA-87 key pair and self-sign a placeholder TBS.
+    let pk_builder = PKeyMlDsaBuilder::<Private>::from_seed(Variant::MlDsa87, &[0u8; 32]).unwrap();
+    let priv_key = pk_builder.build().unwrap();
+    let tbs: &[u8] = b"this is going to be the TBS";
+    let mut sig_bytes = vec![];
+    let mut ctx = PkeyCtx::new(&priv_key).unwrap();
+    let mut algo = Signature::for_ml_dsa(Variant::MlDsa87).unwrap();
+    ctx.sign_message_init(&mut algo).unwrap();
+    ctx.sign_to_vec(tbs, &mut sig_bytes).unwrap();
+    let sig = Mldsa87Signature::new(sig_bytes.try_into().unwrap());
+    let builder = MlDsa87CertBuilder::new(tbs, &sig).unwrap();
+    let mut cert = [0u8; PopulatePqCertReq::MAX_CERT_SIZE];
+    let cert_size = builder.build(&mut cert).unwrap();
+
+    let mut cmd = MailboxReq::PopulatePqCert(PopulatePqCertReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        cert_size: cert_size as u32,
+        cert,
+    });
+    cmd.populate_chksum().unwrap();
+    model
+        .mailbox_execute(
+            u32::from(CommandId::POPULATE_PQ_CERT),
+            cmd.as_bytes().unwrap(),
+        )
+        .unwrap();
+
+    cert[..cert_size].to_vec()
+}
+
+/// Export a CDI for `profile` via `DeriveContext{EXPORT_CDI | CREATE_CERTIFICATE
+/// | RETAIN_PARENT_CONTEXT}` and return the exported-CDI handle. Retaining the
+/// parent keeps the root context valid so multiple exports can run in one boot.
+/// An ML-DSA export requires SET_PQ_SEED (+ POPULATE_PQ_CERT) first.
+#[cfg(feature = "mldsa_attestation")]
+pub fn export_cdi_with_profile(
+    model: &mut DefaultHwModel,
+    profile: CaliptraDpeProfile,
+) -> [u8; 32] {
+    use dpe::{
+        commands::{DeriveContextCmd, DeriveContextFlags},
+        context::ContextHandle,
+        tci::TciMeasurement,
+        TCI_SIZE,
+    };
+
+    let derive_ctx_cmd = DeriveContextCmd {
+        handle: ContextHandle::default(),
+        data: TciMeasurement([0; TCI_SIZE]),
+        flags: DeriveContextFlags::EXPORT_CDI
+            | DeriveContextFlags::CREATE_CERTIFICATE
+            | DeriveContextFlags::RETAIN_PARENT_CONTEXT,
+        tci_type: 0,
+        target_locality: 0,
+        ..Default::default()
+    };
+    let resp = execute_dpe_cmd(
+        profile,
+        model,
+        &mut Command::DeriveContext(&derive_ctx_cmd),
+        DpeResult::Success,
+    );
+    let Some(Response::DeriveContextExportedCdi(resp)) = resp else {
+        panic!("expected derive context exported cdi resp!");
+    };
+    resp.header.exported_cdi
+}
+
+/// Export the ML-DSA (PQ.DevID) CDI and return its handle.
+#[cfg(feature = "mldsa_attestation")]
+pub fn export_mldsa_cdi(model: &mut DefaultHwModel) -> [u8; 32] {
+    export_cdi_with_profile(model, CaliptraDpeProfile::Mldsa)
+}
+
+/// Export the ECDSA (RT-alias) CDI and return its handle.
+#[cfg(feature = "mldsa_attestation")]
+pub fn export_ecdsa_cdi(model: &mut DefaultHwModel) -> [u8; 32] {
+    export_cdi_with_profile(model, CaliptraDpeProfile::Ecc384)
+}
+
 #[cfg(feature = "mldsa_attestation")]
 pub fn get_pq_csr_checksum() -> u32 {
     caliptra_common::checksum::calc_checksum(u32::from(CommandId::GET_PQ_CSR), &[])

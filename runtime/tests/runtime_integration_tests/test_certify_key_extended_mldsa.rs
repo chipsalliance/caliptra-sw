@@ -4,8 +4,7 @@ use caliptra_api::SocManager;
 use caliptra_builder::ImageOptions;
 use caliptra_common::mailbox_api::{
     AddSubjectAltNameReq, CertifyKeyExtendedFlags, CertifyKeyExtendedMldsa87Req,
-    CertifyKeyExtendedMldsa87Resp, CommandId, MailboxReq, MailboxReqHeader, SetPqSeedReq,
-    SET_PQ_SEED_SEED_SIZE,
+    CertifyKeyExtendedMldsa87Resp, CommandId, MailboxReq, MailboxReqHeader,
 };
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{DefaultHwModel, HwModel};
@@ -24,20 +23,9 @@ use x509_parser::{certificate::X509Certificate, extensions::GeneralName, prelude
 use zerocopy::{FromZeros, IntoBytes};
 
 use crate::common::{
-    assert_error, run_pqc_rt_test, run_pqc_rt_test_wdt, run_rt_test, RuntimeTestArgs, TEST_LABEL,
+    assert_error, provision_pq_seed, run_pqc_rt_test, run_pqc_rt_test_wdt, run_rt_test,
+    RuntimeTestArgs, TEST_LABEL,
 };
-
-/// Provision the PQ.DevID seed (as PL0) so PQC mode is enabled.
-fn provision_pq_seed(model: &mut DefaultHwModel) {
-    let mut cmd = MailboxReq::SetPqSeed(SetPqSeedReq {
-        hdr: MailboxReqHeader { chksum: 0 },
-        seed: [0x5a; SET_PQ_SEED_SEED_SIZE],
-    });
-    cmd.populate_chksum().unwrap();
-    model
-        .mailbox_execute(u32::from(CommandId::SET_PQ_SEED), cmd.as_bytes().unwrap())
-        .unwrap();
-}
 
 /// Without SET_PQ_SEED there is no PQ.DevID identity, so the command must reject.
 #[test]

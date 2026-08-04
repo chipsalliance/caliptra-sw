@@ -606,11 +606,42 @@ pub struct GetPqCertReq {
     pub tbs_size: u32,
     pub signature: [u8; MLDSA87_SIGNATURE_BYTES],
     pub tbs: [u8; GetPqCertReq::DATA_MAX_SIZE], // variable length
+    pub _pad: [u8; GetPqCertReq::PAD_LEN],
 }
 #[cfg(feature = "mldsa_attestation")]
 impl GetPqCertReq {
-    // GetPqCertResp::DATA_MAX_SIZE - MAX_MLDSA87_SIG_DER_LEN + 2-byte padding for alignment
-    pub const DATA_MAX_SIZE: usize = 3553;
+    // A GET_PQ_CERT response certificate is the DER SEQUENCE
+    //   `{ tbs, signatureAlgorithm, signatureValue }`
+    // assembled into the `GetPqCertResp::DATA_MAX_SIZE` cert buffer. The largest
+    // TBS we can accept is that buffer minus everything else the certificate
+    // carries, so any TBS within DATA_MAX_SIZE is guaranteed to fit in the
+    // response (larger TBS is rejected up front as RUNTIME_MAILBOX_INVALID_PARAMS).
+
+    /// DER length of the ML-DSA-87 `signatureValue` BIT STRING: tag (1) +
+    /// long-form length (3, for a >255-byte value) + unused-bits byte (1) +
+    /// the fixed-size signature.
+    const SIG_DER_LEN: usize = 1 + 3 + 1 + MLDSA87_SIGNATURE_BYTES;
+    /// DER length of the `id-ml-dsa-87` AlgorithmIdentifier (see the ML-DSA-87
+    /// `oid_der()` in `caliptra-x509`).
+    const SIG_ALG_OID_DER_LEN: usize = 13;
+    /// Outer certificate SEQUENCE header: tag (1) + long-form length (3).
+    const CERT_SEQ_HEADER_LEN: usize = 1 + 3;
+
+    /// Largest TBS whose assembled certificate fits `GetPqCertResp`'s cert
+    /// buffer, so any TBS this size is guaranteed to fit in the response.
+    pub const DATA_MAX_SIZE: usize = GetPqCertResp::DATA_MAX_SIZE
+        - Self::SIG_DER_LEN
+        - Self::SIG_ALG_OID_DER_LEN
+        - Self::CERT_SEQ_HEADER_LEN;
+
+    // Calculate the length of the pad, so that the overall messge is 4 byte aligned
+    const PAD_LEN: usize = (4
+        - (size_of::<MailboxReqHeader>()
+            + size_of::<u32>()
+            + MLDSA87_SIGNATURE_BYTES
+            + Self::DATA_MAX_SIZE)
+            % 4)
+        % 4;
 
     pub fn as_bytes_partial(&self) -> CaliptraResult<&[u8]> {
         if self.tbs_size as usize > Self::DATA_MAX_SIZE {
@@ -636,6 +667,7 @@ impl Default for GetPqCertReq {
             tbs_size: 0,
             signature: [0u8; MLDSA87_SIGNATURE_BYTES],
             tbs: [0u8; GetPqCertReq::DATA_MAX_SIZE],
+            _pad: [0u8; Self::PAD_LEN],
         }
     }
 }

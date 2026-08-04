@@ -2,25 +2,29 @@
 
 //! Integration tests for the SIGN_WITH_EXPORTED_MLDSA mailbox command.
 //!
-//! The exported ML-DSA CDI slot is normally populated by a DPE export command
-//! that does not exist yet, and there is no test backdoor to seed it. Until one
-//! exists the successful-sign path is deferred, but every request-validation
-//! path (privilege, malformed request, handle-not-found) runs before the CDI
-//! lookup and so is covered here.
+//! An exported ML-DSA CDI slot is produced by INVOKE_DPE_MLDSA87 carrying a DPE
+//! `DeriveContext{EXPORT_CDI | CREATE_CERTIFICATE}` (see `common::export_mldsa_cdi`),
+//! so the successful-sign lineage is exercised here alongside the
+//! request-validation paths (privilege, malformed request, handle-not-found)
+//! that run before the CDI lookup.
 
 use caliptra_api::SocManager;
 use caliptra_builder::firmware::APP_MLDSA_ATTESTATION;
 use caliptra_common::checksum::calc_checksum;
 use caliptra_common::mailbox_api::{
-    CommandId, MailboxReq, MailboxReqHeader, SetPqSeedReq, SignWithExportedMldsaReq,
-    SET_PQ_SEED_SEED_SIZE,
+    CommandId, MailboxReq, MailboxReqHeader, RevokeExportedCdiHandleReq, SignWithExportedMldsaReq,
+    SignWithExportedMldsaResp,
 };
+use caliptra_drivers::MLDSA87_MU_BYTES;
 use caliptra_error::CaliptraError;
-use caliptra_hw_model::{HwModel, ModelError};
+use caliptra_hw_model::{DefaultHwModel, HwModel, ModelError};
 use caliptra_runtime::RtBootStatus;
-use zerocopy::IntoBytes;
+use zerocopy::{FromBytes, IntoBytes};
 
-use crate::common::{assert_error, run_pqc_rt_test, run_rt_test, RuntimeTestArgs};
+use crate::common::{
+    assert_error, export_mldsa_cdi, populate_pq_cert, provision_pq_seed, run_pqc_rt_test,
+    run_rt_test, RuntimeTestArgs,
+};
 
 /// Issue SIGN_WITH_EXPORTED_MLDSA and return the raw response bytes.
 fn sign(
@@ -74,23 +78,173 @@ fn sign_full(
         .map(|resp| resp.expect("expected a SIGN_WITH_EXPORTED_MLDSA response"))
 }
 
-/// Provision the PQ.DevID CDI via SET_PQ_SEED, enabling PQC mode. Signing with an
-/// exported CDI requires this to have run first.
-fn set_pq_seed(model: &mut caliptra_hw_model::DefaultHwModel) {
-    let mut cmd = MailboxReq::SetPqSeed(SetPqSeedReq {
+/// Issue REVOKE_EXPORTED_CDI_HANDLE for `handle`, expecting success.
+fn revoke_cdi(model: &mut DefaultHwModel, handle: [u8; 32]) {
+    let mut cmd = MailboxReq::RevokeExportedCdiHandle(RevokeExportedCdiHandleReq {
         hdr: MailboxReqHeader { chksum: 0 },
-        seed: [0x5a; SET_PQ_SEED_SEED_SIZE],
+        exported_cdi_handle: handle,
     });
     cmd.populate_chksum().unwrap();
     model
-        .mailbox_execute(u32::from(CommandId::SET_PQ_SEED), cmd.as_bytes().unwrap())
-        .expect("SET_PQ_SEED failed");
+        .mailbox_execute(
+            CommandId::REVOKE_EXPORTED_CDI_HANDLE.into(),
+            cmd.as_bytes().unwrap(),
+        )
+        .expect("REVOKE_EXPORTED_CDI_HANDLE failed");
+}
+
+#[test]
+fn test_sign_with_exported_mldsa_success_sign_data() {
+    let mut model = run_pqc_rt_test();
+    provision_pq_seed(&mut model);
+    populate_pq_cert(&mut model);
+    let handle = export_mldsa_cdi(&mut model);
+
+    // Data mode: the firmware signs the raw message directly.
+    let message = b"caliptra exported ml-dsa sign-data test message";
+    let resp = sign(
+        &mut model,
+        handle,
+        SignWithExportedMldsaReq::SIGN_MODE_DATA,
+        message,
+    )
+    .expect("SIGN_WITH_EXPORTED_MLDSA (data mode) should succeed");
+
+    let (sign_resp, _) = SignWithExportedMldsaResp::ref_from_prefix(resp.as_bytes()).unwrap();
+    assert_eq!(
+        caliptra_mldsa::Mldsa87::verify(&sign_resp.derived_pubkey, &sign_resp.signature, message,),
+        caliptra_mldsa::Mldsa87Result::Success,
+        "returned signature must verify under the returned public key"
+    );
+}
+
+#[test]
+fn test_sign_with_exported_mldsa_success_sign_external_mu() {
+    let mut model = run_pqc_rt_test();
+    provision_pq_seed(&mut model);
+    populate_pq_cert(&mut model);
+    let handle = export_mldsa_cdi(&mut model);
+
+    // External-mu mode: the caller supplies the 64-byte mu and the firmware signs
+    // it directly.
+    let mu = [0x42u8; MLDSA87_MU_BYTES];
+    let resp = sign(
+        &mut model,
+        handle,
+        SignWithExportedMldsaReq::SIGN_MODE_EXTERNAL_MU,
+        &mu,
+    )
+    .expect("SIGN_WITH_EXPORTED_MLDSA (external-mu mode) should succeed");
+
+    let (sign_resp, _) = SignWithExportedMldsaResp::ref_from_prefix(resp.as_bytes()).unwrap();
+    assert_eq!(
+        caliptra_mldsa::Mldsa87::verify_mu(&sign_resp.derived_pubkey, &sign_resp.signature, &mu),
+        caliptra_mldsa::Mldsa87Result::Success,
+        "returned signature must verify under the returned public key"
+    );
+}
+
+#[test]
+fn test_sign_with_exported_mldsa_wrong_handle_after_export() {
+    let mut model = run_pqc_rt_test();
+    provision_pq_seed(&mut model);
+    populate_pq_cert(&mut model);
+    // A CDI is exported, but a handle that does not match the active slot must
+    // still be rejected as not found.
+    let _handle = export_mldsa_cdi(&mut model);
+
+    let result = sign(
+        &mut model,
+        [0xFFu8; 32],
+        SignWithExportedMldsaReq::SIGN_MODE_DATA,
+        b"message",
+    );
+    assert_error(
+        &mut model,
+        CaliptraError::RUNTIME_SIGN_WITH_EXPORTED_MLDSA_NOT_FOUND,
+        result.unwrap_err(),
+    );
+}
+
+#[test]
+fn test_sign_with_exported_mldsa_sign_after_revoke() {
+    let mut model = run_pqc_rt_test();
+    provision_pq_seed(&mut model);
+    populate_pq_cert(&mut model);
+    let handle = export_mldsa_cdi(&mut model);
+
+    // Signing succeeds while the exported-CDI slot is active.
+    sign(
+        &mut model,
+        handle,
+        SignWithExportedMldsaReq::SIGN_MODE_DATA,
+        b"message",
+    )
+    .expect("sign before revoke should succeed");
+
+    revoke_cdi(&mut model, handle);
+
+    // Revoking zeroizes the slot (active = false), so the same handle no longer
+    // matches and signing is rejected as not found.
+    let result = sign(
+        &mut model,
+        handle,
+        SignWithExportedMldsaReq::SIGN_MODE_DATA,
+        b"message",
+    );
+    assert_error(
+        &mut model,
+        CaliptraError::RUNTIME_SIGN_WITH_EXPORTED_MLDSA_NOT_FOUND,
+        result.unwrap_err(),
+    );
+}
+
+#[test]
+fn test_sign_with_exported_mldsa_sign_after_disable_attestation() {
+    let mut model = run_pqc_rt_test();
+    provision_pq_seed(&mut model);
+    populate_pq_cert(&mut model);
+    let handle = export_mldsa_cdi(&mut model);
+
+    // Signing succeeds before attestation is disabled.
+    sign(
+        &mut model,
+        handle,
+        SignWithExportedMldsaReq::SIGN_MODE_DATA,
+        b"message",
+    )
+    .expect("sign before disable-attestation should succeed");
+
+    // DISABLE_ATTESTATION zeroizes the exported ML-DSA CDI slot. Unlike ECDSA
+    // (which still returns a now-invalid signature), the ML-DSA slot goes
+    // inactive, so signing fails outright as not found.
+    let payload = MailboxReqHeader {
+        chksum: calc_checksum(u32::from(CommandId::DISABLE_ATTESTATION), &[]),
+    };
+    model
+        .mailbox_execute(
+            u32::from(CommandId::DISABLE_ATTESTATION),
+            payload.as_bytes(),
+        )
+        .expect("DISABLE_ATTESTATION failed");
+
+    let result = sign(
+        &mut model,
+        handle,
+        SignWithExportedMldsaReq::SIGN_MODE_DATA,
+        b"message",
+    );
+    assert_error(
+        &mut model,
+        CaliptraError::RUNTIME_SIGN_WITH_EXPORTED_MLDSA_NOT_FOUND,
+        result.unwrap_err(),
+    );
 }
 
 #[test]
 fn test_sign_with_exported_mldsa_invalid_sign_mode() {
     let mut model = run_pqc_rt_test();
-    set_pq_seed(&mut model);
+    provision_pq_seed(&mut model);
 
     // sign_mode is neither SIGN_MODE_DATA nor SIGN_MODE_EXTERNAL_MU.
     let result = sign(&mut model, [0u8; 32], 0xDEAD_BEEF, b"message");
@@ -104,7 +258,7 @@ fn test_sign_with_exported_mldsa_invalid_sign_mode() {
 #[test]
 fn test_sign_with_exported_mldsa_external_mu_wrong_size() {
     let mut model = run_pqc_rt_test();
-    set_pq_seed(&mut model);
+    provision_pq_seed(&mut model);
 
     // External-mu mode requires exactly MLDSA87_MU_BYTES (64) of message; any
     // other length is rejected before the CDI lookup.
@@ -127,7 +281,7 @@ fn test_sign_with_exported_mldsa_external_mu_wrong_size() {
 #[test]
 fn test_sign_with_exported_mldsa_message_too_large() {
     let mut model = run_pqc_rt_test();
-    set_pq_seed(&mut model);
+    provision_pq_seed(&mut model);
 
     // A message_size larger than the buffer must be rejected as invalid params
     // (and must not be used to index the message buffer).
@@ -146,7 +300,7 @@ fn test_sign_with_exported_mldsa_message_too_large() {
 #[test]
 fn test_sign_with_exported_mldsa_handle_not_found() {
     let mut model = run_pqc_rt_test();
-    set_pq_seed(&mut model);
+    provision_pq_seed(&mut model);
 
     // No CDI has been exported, so any handle must be rejected as not found.
     let result = sign(
