@@ -53,6 +53,10 @@ impl SignWithExportedMldsaCmd {
             _ => return Err(CaliptraError::RUNTIME_SIGN_WITH_EXPORTED_MLDSA_INVALID_PARAMS),
         };
 
+        // The ML-DSA-87 key derivation and signing below exceed the default
+        // 20M-cycle command watchdog budget; extend it.
+        drivers.extend_wdt_for_pqc();
+
         let pdata = drivers.persistent_data.get_mut();
         let root_cdi = pdata.pq_devid_cdi()?;
         let mut crypto = DpeCrypto::new_mldsa87(

@@ -908,6 +908,29 @@ impl Drivers {
         dice::derive_devid_seed(&cdi, seed, &mut self.hmac384, &mut self.trng)
     }
 
+    /// Re-arm the per-command watchdog with the extended PQC budget for the
+    /// duration of a long-running ML-DSA-87 mailbox command (key generation
+    /// and/or signing).
+    ///
+    /// The runtime arms a 20M-cycle watchdog before each mailbox command (see
+    /// `run` in `lib.rs`). A single ML-DSA-87 keygen or sign -- and the
+    /// multi-operation CERTIFY_KEY_EXTENDED_MLDSA87 path -- exceeds that budget,
+    /// so the PQC commands re-arm the watchdog here first. `PQC_MLDSA_WDT_TIMEOUT`
+    /// mirrors the CERTIFY_KEY_EXTENDED_MLDSA87 budget (longest measurement
+    /// ~400M cycles). A no-op unless the device is debug-locked (see
+    /// `caliptra_common::wdt::start_wdt`).
+    #[cfg(feature = "mldsa_attestation")]
+    pub(crate) fn extend_wdt_for_pqc(&mut self) {
+        /// Extended command-watchdog budget, in cycles, for long-running
+        /// ML-DSA-87 mailbox commands. Matches CERTIFY_KEY_EXTENDED_MLDSA87.
+        const PQC_MLDSA_WDT_TIMEOUT: u64 = 800_000_000;
+
+        caliptra_common::wdt::start_wdt(
+            &mut self.soc_ifc,
+            caliptra_common::WdtTimeout::new_const(PQC_MLDSA_WDT_TIMEOUT),
+        );
+    }
+
     #[cfg(feature = "mldsa_attestation")]
     #[inline(never)]
     pub fn compute_mldsa_key_material(

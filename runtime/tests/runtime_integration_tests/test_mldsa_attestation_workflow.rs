@@ -28,7 +28,7 @@ use caliptra_common::mailbox_api::{
 };
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{DefaultHwModel, HwModel};
-use caliptra_runtime::{CaliptraDpeProfile, RtBootStatus};
+use caliptra_runtime::CaliptraDpeProfile;
 use dpe::{
     commands::{
         CertifyKeyCommand, CertifyKeyFlags, CertifyKeyMldsa87Cmd, Command, DeriveContextCmd,
@@ -52,7 +52,7 @@ use zerocopy::{FromBytes, IntoBytes};
 
 use crate::common::{
     assert_error, execute_dpe_cmd, get_pq_csr, mldsa_csr_public_key, provision_pq_seed,
-    run_pqc_rt_test, DpeResult, DEFAULT_APP_VERSION, DEFAULT_FMC_VERSION, PQ_SEED,
+    run_pqc_rt_test_wdt, DpeResult, DEFAULT_APP_VERSION, DEFAULT_FMC_VERSION, PQ_SEED,
     TEST_DIGEST_MLDSA, TEST_LABEL,
 };
 
@@ -408,12 +408,14 @@ fn hitless_update_bumped_version(model: &mut DefaultHwModel) {
 
 /// The leaf attestation workflow: provision the PQ.DevID identity, build its
 /// CA-rooted DevID chain, then certify and challenge a measured DPE leaf.
+///
+/// Boots debug-locked via `run_pqc_rt_test_wdt` so the firmware arms the
+/// per-command watchdog; the test fails if any PQC command exceeds its WDT
+/// budget. The helper already waits until the runtime is ready for commands, so
+/// no further boot-status polling is needed here.
 #[test]
 fn test_mldsa_full_attestation_workflow() {
-    let mut model = run_pqc_rt_test();
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-    });
+    let mut model = run_pqc_rt_test_wdt();
 
     let chain = provision_and_build_devid_chain(&mut model);
     run_leaf_attestation_round(&mut model, &chain, 0);
@@ -428,12 +430,12 @@ fn test_mldsa_full_attestation_workflow() {
 ///   * SIGN_WITH_EXPORTED_MLDSA (SPDM CHALLENGE) signs a nonce with the exported
 ///     key; the returned key matches the exported cert's subject key and the
 ///     signature verifies under it.
+///
+/// Boots debug-locked (`run_pqc_rt_test_wdt`) so the per-command watchdog is
+/// armed for the duration of the workflow.
 #[test]
 fn test_mldsa_exported_cdi_attestation_workflow() {
-    let mut model = run_pqc_rt_test();
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-    });
+    let mut model = run_pqc_rt_test_wdt();
 
     let chain = provision_and_build_devid_chain(&mut model);
     populate_and_validate_chain(&mut model, &chain);
@@ -502,12 +504,12 @@ fn test_mldsa_exported_cdi_attestation_workflow() {
 /// update, reusing the PQ.DevID identity provisioned before the update. Only the
 /// first run performs SET_PQ_SEED / GET_PQ_CSR; the identity persists, while the
 /// (non-persistent) cert chain is re-populated after the update.
+///
+/// Boots debug-locked (`run_pqc_rt_test_wdt`) so the per-command watchdog is
+/// armed across both firmware versions.
 #[test]
 fn test_mldsa_attestation_survives_hitless_update() {
-    let mut model = run_pqc_rt_test();
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-    });
+    let mut model = run_pqc_rt_test_wdt();
 
     // First run: provision the PQ.DevID identity, build its DevID chain, and run
     // the full leaf attestation workflow.
