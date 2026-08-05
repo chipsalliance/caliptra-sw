@@ -519,7 +519,7 @@ impl Ecc384 {
     }
 
     /// Sign the PCR digest with PCR signing private key in keyvault slot 7 (KV7).
-    /// KV7 contains the Alias FMC ECC private key.
+    /// KV7 contains the dedicated PCR signing ECC private key.
     ///
     /// # Arguments
     ///

@@ -1050,59 +1050,79 @@ Alias FMC Layer includes the measurement of the FMC and other security states. T
 
     `hmac512_kdf(KvSlot6, label: b"alias_fmc_cdi", context: Pcr0Measurement, KvSlot6)`
 
-3. Derive Alias FMC ECDSA Key Pair using CDI in Key Vault Slot 6 and store the generated private key in Key Vault Slot 7.
+3. Derive Alias FMC ECDSA Key Pair using CDI in Key Vault Slot 6 and store the generated private key in Key Vault Slot 13.
 
-    `AliasFmcSeedEcdsa = hmac512_kdf(KvSlot6, b"fmc_alias_ecc_key", KvSlot3)`
+    `AliasFmcSeedEcdsa = hmac512_kdf(KvSlot6, b"alias_fmc_ecc_key", KvSlot3)`
 
-    `AliasFmcPubKeyEcdsa = ecc384_keygen(KvSlot3, KvSlot7)`
+    `AliasFmcPubKeyEcdsa = ecc384_keygen(KvSlot3, KvSlot13)`
 
     `kv_clear(KvSlot3)`
 
-    Derive the Alias FMC MLDSA Key Pair using CDI in Key Vault Slot 6 and store the key pair generation seed in Key Vault Slot 8.
+    Derive the Alias FMC MLDSA Key Pair using CDI in Key Vault Slot 6 and store the key pair generation seed in Key Vault Slot 14.
 
-    `AliasFmcSeedMldsa = hmac512_kdf(KvSlot6, b"fmc_alias_mldsa_key", KvSlot8)`
+    `AliasFmcSeedMldsa = hmac512_kdf(KvSlot6, b"alias_fmc_mldsa_key", KvSlot14)`
 
-    `AliasFmcPubKeyMldsa = mldsa87_keygen(KvSlot8)`
+    `AliasFmcPubKeyMldsa = mldsa87_keygen(KvSlot14)`
 
-4. Store and lock (for write) the FMC ECDSA and MLDSA Public Keys in the DCCM datavault.
+4. Derive dedicated PCR signing key pairs from the same FMC CDI. Store the ECC private key in Key Vault Slot 7 and the MLDSA keypair seed in Slot 8.
 
-5. Generate the `To Be Signed` DER Blob of the ECDSA Alias FMC Certificate.
+    `PcrSigningSeedEcdsa = hmac512_kdf(KvSlot6, b"pcr_signing_key_pair", KvSlot3)`
+
+    `PcrSigningPubKeyEcdsa = ecc384_keygen(KvSlot3, KvSlot7)`
+
+    `PcrSigningSeedMldsa = hmac512_kdf(KvSlot6, b"pcr_signing_mldsa_keypair", KvSlot8)`
+
+    `PcrSigningPubKeyMldsa = mldsa87_keygen(KvSlot8)`
+
+    Store the ECC public key in ROM persistent data and write-lock Slots 7 and 8. The MLDSA public key is regenerated from the seed by the `KEYGEN_SIGN` operation used for each PCR quote.
+
+    The ECC and MLDSA FMC Alias certificates respectively contain the following SHA-384 binding digests in the non-critical extensions `1.3.6.1.4.1.42623.2.1` and `1.3.6.1.4.1.42623.2.2`:
+
+    `SHA384("CALIPTRA_PCR_SIGNING_PUBLIC_KEY_ECC384" || 1_u32_be || 0_u32_be || x || y)`
+
+    `SHA384("CALIPTRA_PCR_SIGNING_PUBLIC_KEY_MLDSA87" || 1_u32_be || 0_u32_be || pub_key)`
+
+    Version is 1 and flags are 0.
+
+5. Store and lock (for write) the FMC ECDSA and MLDSA Public Keys in the DCCM datavault.
+
+6. Generate the `To Be Signed` DER Blob of the ECDSA Alias FMC Certificate, including the ECC PCR signing public-key binding digest.
 
     `AliasFmcTbsEcdsa = gen_cert_tbs(ALIAS_FMC_CERT, LDevIdPubKeyEcdsa, AliasFmcPubKeyEcdsa)`
 
-6. Sign the Alias FMC `To Be Signed` DER Blob with the LDevId ECDSA Private Key in Key Vault Slot 5.
+7. Sign the Alias FMC `To Be Signed` DER Blob with the LDevId ECDSA Private Key in Key Vault Slot 5.
 
     `AliasFmcTbsDigestEcdsa = sha384_digest(AliasFmcTbsEcdsa)`
 
     `AliasFmcTbsCertSigEcdsa = ecc384_sign(KvSlot5, AliasFmcTbsDigestEcdsa)`
 
-7. Clear the LDevId Private Key in Key Vault Slot 5.
+8. Clear the LDevId Private Key in Key Vault Slot 5.
 
     `kv_clear(KvSlot5)`
 
-8. Verify the signature of Alias FMC `To Be Signed` ECDSA Blob.
+9. Verify the signature of Alias FMC `To Be Signed` ECDSA Blob.
 
     `Result = ecc384_verify(LDevIdPubKeyEcdsa, AliasFmcDigestEcdsa, AliasFmcTbsCertSigEcdsa)`
 
-9. Generate the `To Be Signed` DER Blob of the MLDSA Alias FMC Certificate.
+10. Generate the `To Be Signed` DER Blob of the MLDSA Alias FMC Certificate, including the MLDSA PCR signing public-key binding digest.
 
     `AliasFmcTbsMldsa = gen_cert_tbs(ALIAS_FMC_CERT, LDevIdPubKeyMldsa, AliasFmcPubKeyMldsa)`
 
-10. Sign the Alias FMC `To Be Signed` DER Blob with the LDevId MLDSA Private Key generated from the seed in Key Vault Slot 4.
+11. Sign the Alias FMC `To Be Signed` DER Blob with the LDevId MLDSA Private Key generated from the seed in Key Vault Slot 4.
 
     `AliasFmcTbsDigestMldsa = sha512_digest(AliasFmcTbsMldsa)`
 
     `AliasFmcTbsCertSigMldsa = mldsa87_sign(KvSlot4, AliasFmcTbsDigestMldsa)`
 
-11. Clear the LDevId MLDSA key generation seed in Key Vault Slot 4.
+12. Clear the LDevId MLDSA key generation seed in Key Vault Slot 4.
 
     `kv_clear(KvSlot4)`
 
-12. Verify the signature of Alias FMC `To Be Signed` MLDSA Blob.
+13. Verify the signature of Alias FMC `To Be Signed` MLDSA Blob.
 
     `Result = mldsa87_verify(LDevIdPubKeyMldsa, AliasFmcDigestMldsa, AliasFmcTbsCertSigMldsa)`
 
-13. Store and lock (for write) the Alias FMC Certificate ECDSA and MLDSA Signatures in the DCCM datavault.
+14. Store and lock (for write) the Alias FMC Certificate ECDSA and MLDSA Signatures in the DCCM datavault.
 
 14. Lock critical state needed for warm and update reset in the DCCM datavault.
 

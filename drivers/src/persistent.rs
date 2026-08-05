@@ -22,7 +22,7 @@ use crate::{
     fuse_log::FuseLogEntry,
     memory_layout,
     pcr_log::{MeasurementLogEntry, PcrLogEntry},
-    DataVault, FirmwareHandoffTable, LEArray4x8, Mldsa87PubKey,
+    DataVault, Ecc384PubKey, FirmwareHandoffTable, LEArray4x8, Mldsa87PubKey,
 };
 #[cfg(any(feature = "fmc", feature = "runtime"))]
 use crate::{FmcAliasCsrs, Mldsa87Signature};
@@ -426,8 +426,13 @@ pub struct RomPersistentData {
     pub fht: FirmwareHandoffTable,
     reserved2: [u8; FHT_SIZE as usize - size_of::<FirmwareHandoffTable>()],
 
+    // Keep the PCR ECC public key in the existing IDevID public-key allocation
+    // so all subsequent persistent-data offsets remain unchanged.
     pub idevid_mldsa_pub_key: Mldsa87PubKey,
-    reserved2_1: [u8; IDEVID_MLDSA_PUB_KEY_MAX_SIZE as usize - size_of::<Mldsa87PubKey>()],
+    pub pcr_signing_ecc_pub_key: Ecc384PubKey,
+    reserved2_1: [u8; IDEVID_MLDSA_PUB_KEY_MAX_SIZE as usize
+        - size_of::<Mldsa87PubKey>()
+        - size_of::<Ecc384PubKey>()],
 
     pub ecc_ldevid_tbs: [u8; ECC_LDEVID_TBS_SIZE as usize],
     pub ecc_fmcalias_tbs: [u8; ECC_FMCALIAS_TBS_SIZE as usize],
@@ -475,7 +480,7 @@ pub struct RomPersistentData {
 impl RomPersistentData {
     pub const MAGIC: u32 = u32::from_be_bytes(*b"ROMP");
     pub const MAJOR_VERSION: u16 = 1;
-    pub const MINOR_VERSION: u16 = 1;
+    pub const MINOR_VERSION: u16 = 2;
     pub const MINOR_VERSION_ENTROPY_CFG_EXTENSION: u16 = 1;
 
     pub fn supports_entropy_cfg_extension(&self) -> bool {
@@ -518,7 +523,14 @@ impl RomPersistentData {
                 memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
             );
 
-            persistent_data_offset += IDEVID_MLDSA_PUB_KEY_MAX_SIZE;
+            persistent_data_offset += size_of::<Mldsa87PubKey>() as u32;
+            assert_eq!(
+                addr_of!((*P).rom.pcr_signing_ecc_pub_key) as u32,
+                memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
+            );
+
+            persistent_data_offset +=
+                IDEVID_MLDSA_PUB_KEY_MAX_SIZE - size_of::<Mldsa87PubKey>() as u32;
             assert_eq!(
                 addr_of!((*P).rom.ecc_ldevid_tbs) as u32,
                 memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
@@ -985,6 +997,7 @@ mod tests {
             (offset_of!(RomPersistentData, data_vault), 17408, "data_vault"),
             (offset_of!(RomPersistentData, fht), 32768, "fht"),
             (offset_of!(RomPersistentData, idevid_mldsa_pub_key), 34816, "idevid_mldsa_pub_key"),
+            (offset_of!(RomPersistentData, pcr_signing_ecc_pub_key), 37408, "pcr_signing_ecc_pub_key"),
             (offset_of!(RomPersistentData, ecc_ldevid_tbs), 37888, "ecc_ldevid_tbs"),
             (offset_of!(RomPersistentData, ecc_fmcalias_tbs), 38912, "ecc_fmcalias_tbs"),
             (offset_of!(RomPersistentData, mldsa_ldevid_tbs), 39936, "mldsa_ldevid_tbs"),

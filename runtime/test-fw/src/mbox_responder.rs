@@ -14,7 +14,7 @@ use caliptra_drivers::{
     cprintln,
     pcr_log::{PCR_ID_STASH_MEASUREMENT, RT_FW_CURRENT_PCR, RT_FW_JOURNEY_PCR},
     sha2_512_384::Sha2DigestOpTrait,
-    Array4x12, CaliptraError, CaliptraResult, ResetReason,
+    Array4x12, CaliptraError, CaliptraResult, KeyId, ResetReason,
 };
 use caliptra_registers::{mbox::enums::MboxStatusE, soc_ifc::SocIfcReg};
 use caliptra_runtime::{
@@ -44,6 +44,7 @@ const OPCODE_CORRUPT_DPE_ROOT_CURRENT_TCI: u32 = 0xD000_0001;
 const OPCODE_HOLD_COMMAND_BUSY: u32 = 0xE000_0000;
 const OPCODE_READ_KEY_LADDER_MAX_SVN: u32 = 0xF000_0000;
 const OPCODE_OCP_LOCK_HEK_STATE: u32 = 0xF100_0000;
+const OPCODE_READ_PCR_SIGNING_KEY_LOCKS: u32 = 0xF200_0000;
 const OPCODE_READ_KEY_LADDER_DIGEST: u32 = 0x1000_1000;
 const OPCODE_FW_LOAD: u32 = CommandId::FIRMWARE_LOAD.0;
 
@@ -345,6 +346,14 @@ pub fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
                     .hek_available;
                 let state = U8Bool::new(hek_available);
                 write_response(&mut drivers.mbox, &state.as_bytes());
+            }
+            CommandId(OPCODE_READ_PCR_SIGNING_KEY_LOCKS) => {
+                let mut locks = 0u32;
+                locks |= u32::from(drivers.key_vault.key_write_lock(KeyId::KeyId7));
+                locks |= u32::from(drivers.key_vault.key_use_lock(KeyId::KeyId7)) << 1;
+                locks |= u32::from(drivers.key_vault.key_write_lock(KeyId::KeyId8)) << 2;
+                locks |= u32::from(drivers.key_vault.key_use_lock(KeyId::KeyId8)) << 3;
+                write_response(&mut drivers.mbox, locks.as_bytes());
             }
             // Computes a digest from the key ladder for a given target SVN.
             CommandId(OPCODE_READ_KEY_LADDER_DIGEST) => {

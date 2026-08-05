@@ -983,8 +983,10 @@ PcrValue is defined as u8[48]
 | nonce              | u8[32]       | Return the nonce used as input for convenience.
 | reset\_ctrs        | u32[32]      | Reset counters for all PCRs.
 | digest             | u8[48]       | Return the lower 48 bytes of SHA2-512 digest over the PCR values and the nonce.
-| signature\_r       | u8[48]       | ECC P-384 R portion of the signature over the `ecc_digest`. </br> The FMC Alias ECC P-384 private key stored in Key Vault slot 7 is utilized for the signing operation.
+| signature\_r       | u8[48]       | ECC P-384 R portion of the signature over the `ecc_digest`. </br> The dedicated PCR signing ECC P-384 private key stored in Key Vault slot 7 is utilized for the signing operation.
 | signature\_s       | u8[48]       | ECC P-384 S portion of the signature over the `ecc_digest`.
+| pub\_key\_x        | u8[48]       | P-384 signing public-key affine X coordinate in big-endian byte order.
+| pub\_key\_y        | u8[48]       | P-384 signing public-key affine Y coordinate in big-endian byte order.
 
 ### QUOTE\_PCRS\_MLDSA87
 
@@ -1012,7 +1014,8 @@ PcrValue is defined as u8[48]
 | nonce              | u8[32]       | Return the nonce used as input for convenience.
 | reset\_ctrs        | u32[32]      | Reset counters for all PCRs.
 | digest             | u8[64]       | SHA2-512 digest over the PCR values and the nonce, in DWORD-reversed order with per-word byte swap. See note below.
-| signature          | u8[4628]     | MLDSA-87 signature over the `digest` (4627 bytes + 1 Reserved byte). </br> The FMC Alias MLDSA seed stored in Key Vault slot 8 is utilized to generate the private key, which is subsequently used for the signing operation.
+| signature          | u8[4628]     | MLDSA-87 signature over the `digest` (4627 bytes + 1 Reserved byte). </br> The dedicated PCR signing MLDSA seed stored in Key Vault slot 8 is utilized to generate the private key, which is subsequently used for the signing operation.
+| pub\_key           | u8[2592]     | Canonical ML-DSA-87 signing public key in the FIPS 204 encoding.
 
 **Digest byte order:** The `digest` field has two transformations applied relative
 to the standard `openssl dgst -sha512` output: (1) the 16 u32 words are in
@@ -1041,6 +1044,27 @@ Mailbox digest = result of Step 2
 To **verify the signature** with an external tool such as OpenSSL, pass the `digest`
 bytes as-is as the pre-hashed message to ML-DSA-87 verification — no conversion
 is needed because the signature was computed over these exact bytes.
+
+### PCR signing public-key certificate binding
+
+The matching ECC and MLDSA FMC Alias certificates carry non-critical extensions
+with OIDs `1.3.6.1.4.1.42623.2.1` and `1.3.6.1.4.1.42623.2.2`, respectively.
+Each value is a DER OCTET STRING containing a 48-byte SHA-384 public-key binding
+digest. The 2.2 binding format fixes version to 1 and flags to 0; these constants
+are not returned in each quote. Verifiers compute:
+
+```
+SHA384("CALIPTRA_PCR_SIGNING_PUBLIC_KEY_ECC384" || 1_u32_be ||
+  0_u32_be || pub_key_x || pub_key_y)
+
+SHA384("CALIPTRA_PCR_SIGNING_PUBLIC_KEY_MLDSA87" || 1_u32_be ||
+  0_u32_be || pub_key)
+```
+
+Before accepting a quote, a verifier **must** validate the FMC Alias certificate
+chain, recompute the applicable digest from the public key returned with the
+quote, and compare it with the matching certificate extension. These
+cryptographic checks remain authoritative across reset and debug states.
 
 ### EXTEND\_PCR
 
