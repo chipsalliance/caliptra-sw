@@ -26,7 +26,8 @@ use caliptra_common::cfi_check;
 use caliptra_common::cprintln;
 use caliptra_common::crypto::{Crypto, Ecc384KeyPair, MlDsaKeyPair, PubKey};
 use caliptra_common::keyids::{
-    KEY_ID_RT_CDI, KEY_ID_RT_ECDSA_PRIV_KEY, KEY_ID_RT_MLDSA_KEYPAIR_SEED, KEY_ID_TMP,
+    KEY_ID_PCR_ECDSA_PRIV_KEY, KEY_ID_PCR_MLDSA_KEYPAIR_SEED, KEY_ID_RT_CDI,
+    KEY_ID_RT_ECDSA_PRIV_KEY, KEY_ID_RT_MLDSA_KEYPAIR_SEED, KEY_ID_TMP,
 };
 use caliptra_common::HexBytes;
 use caliptra_drivers::{
@@ -38,6 +39,7 @@ use caliptra_x509::{
     RtAliasCertTbsMlDsa87Params,
 };
 use zerocopy::IntoBytes;
+use zeroize::Zeroize;
 
 #[derive(Default)]
 pub struct RtAliasLayer {}
@@ -168,6 +170,7 @@ impl RtAliasLayer {
             if reset_reason == ResetReason::WarmReset && debug_not_locked {
                 cfi_assert_eq(reset_reason, ResetReason::WarmReset);
                 cfi_assert_bool(debug_not_locked);
+                Self::regenerate_pcr_signing_key_pairs(env)?;
                 Self::regenerate_fmc_key_pairs(env)?
             } else {
                 (
@@ -418,7 +421,7 @@ impl RtAliasLayer {
             auth_priv_key as u8
         );
 
-        // Sign the AliasRt To Be Signed DER Blob with AliasFMC Private Key in Key Vault Slot 7
+        // Sign the AliasRt TBS with the FHT-selected AliasFMC ECC private key.
         let sig = Crypto::ecdsa384_sign(
             &mut env.sha2_512_384,
             &mut env.ecc384,
@@ -513,7 +516,7 @@ impl RtAliasLayer {
             key_pair_seed as u8
         );
 
-        // Sign the AliasRt To Be Signed DER Blob with AliasFMC Private Key in Key Vault Slot 7
+        // Sign the AliasRt TBS with the FHT-selected AliasFMC MLDSA keypair seed.
         let sig = env.abr.with_mldsa87(|mut mldsa87| {
             Crypto::mldsa87_sign(
                 &mut mldsa87,
@@ -634,5 +637,35 @@ impl RtAliasLayer {
             .map_err(|_| CaliptraError::FMC_REGENERATE_FMC_MLDSA_KEY_PAIR_FAILED)?;
 
         Ok((ecc_key_pair, mldsa_key_pair))
+    }
+
+    fn regenerate_pcr_signing_key_pairs(env: &mut FmcEnv) -> CaliptraResult<()> {
+        let fmc_cdi = HandOff::fmc_cdi(env);
+        let mut ecc_key_pair = Crypto::ecc384_key_gen(
+            &mut env.ecc384,
+            &mut env.hmac,
+            &mut env.trng,
+            &mut env.key_vault,
+            fmc_cdi,
+            b"pcr_signing_key_pair",
+            KEY_ID_PCR_ECDSA_PRIV_KEY,
+        )?;
+
+        let mut mldsa_key_pair = env.abr.with_mldsa87(|mut mldsa87| {
+            Crypto::mldsa87_key_gen(
+                &mut mldsa87,
+                &mut env.hmac,
+                &mut env.trng,
+                fmc_cdi,
+                b"pcr_signing_mldsa_keypair",
+                KEY_ID_PCR_MLDSA_KEYPAIR_SEED,
+            )
+        })?;
+
+        let persistent_data = &mut env.persistent_data.get_mut().rom;
+        persistent_data.pcr_signing_ecc_pub_key = ecc_key_pair.pub_key;
+        ecc_key_pair.zeroize();
+        mldsa_key_pair.zeroize();
+        Ok(())
     }
 }
