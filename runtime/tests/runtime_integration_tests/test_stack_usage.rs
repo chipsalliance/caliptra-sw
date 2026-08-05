@@ -25,7 +25,11 @@
 //!
 //! The mechanism relies on the emulator's stack-pointer tracking, so this test
 //! only runs against the software emulator (not verilator/FPGA).
-#![cfg(not(any(feature = "verilator", feature = "fpga_realtime")))]
+#![cfg(not(any(
+    feature = "verilator",
+    feature = "fpga_realtime",
+    feature = "sw_emu_stack_check_disable"
+)))]
 
 use crate::common::{run_rt_test, RuntimeTestArgs};
 use crate::test_measurements_common::{run_command_suite, CommandSampler};
