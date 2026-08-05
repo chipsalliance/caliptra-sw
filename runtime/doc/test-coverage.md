@@ -127,7 +127,8 @@ Checks the limit on the number of active DPE contexts belonging to PL0 by adding
 # **PCR Tests**
 Test Scenario| Test Name | Runtime Error Code
 ---|---|---
-Increments the PCR reset counter, calls the quote_pcr mailbox command, and verifies the response | **test_pcr_quote** | N/A
+Increments the PCR reset counter, validates the FMC certificate public-key binding, and verifies an ECC PCR quote with the dedicated key | **test_pcr_quote_ecc** | N/A
+Increments the PCR reset counter, validates the FMC certificate public-key binding, and verifies an MLDSA PCR quote with the dedicated key | **test_pcr_quote_mldsa** | N/A
 Calls the extend_pcr mailbox command on various PCRs and checks that the PCR values are updated correctly | **test_extend_pcr_cmd_multiple_extensions** | N/A
 Checks that extending an invalid PCR index throws an error | **test_extend_pcr_cmd_invalid_pcr_index** | RUNTIME_PCR_INVALID_INDEX
 Checks that extending a reserved PCR throws an error | **test_extend_pcr_cmd_reserved_range** | RUNTIME_PCR_RESERVED

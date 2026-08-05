@@ -210,7 +210,7 @@ fn test_tcb_info_find_multiple_in_cert_when_no_tcb_info() {
 /// Extracts the DER bytes of an extension from x509 certificate bytes
 /// (`cert_der`) with the provided `oid`.
 #[allow(clippy::result_large_err)]
-pub(crate) fn get_cert_extension<'a>(
+pub fn get_cert_extension<'a>(
     cert_der: &'a [u8],
     oid: &asn1::ObjectIdentifier,
 ) -> Result<Option<&'a [u8]>, asn1::ParseError> {

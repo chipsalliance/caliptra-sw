@@ -27,10 +27,15 @@ pub const KEY_ID_LDEVID_MLDSA_KEYPAIR_SEED: KeyId = KeyId::KeyId4;
 pub const KEY_ID_LDEVID_ECDSA_PRIV_KEY: KeyId = KeyId::KeyId5;
 #[cfg(feature = "rom")]
 pub const KEY_ID_ROM_FMC_CDI: KeyId = KeyId::KeyId6;
+#[cfg(any(feature = "rom", feature = "fmc"))]
+pub const KEY_ID_PCR_ECDSA_PRIV_KEY: KeyId = KeyId::KeyId7;
+#[cfg(any(feature = "rom", feature = "fmc"))]
+pub const KEY_ID_PCR_MLDSA_KEYPAIR_SEED: KeyId = KeyId::KeyId8;
 #[cfg(feature = "rom")]
-pub const KEY_ID_FMC_ECDSA_PRIV_KEY: KeyId = KeyId::KeyId7;
+pub const KEY_ID_FMC_ECDSA_PRIV_KEY: KeyId = KeyId::KeyId13;
+// KV14 is reused only after the IDevID flow has consumed the HEK seed.
 #[cfg(feature = "rom")]
-pub const KEY_ID_FMC_MLDSA_KEYPAIR_SEED: KeyId = KeyId::KeyId8;
+pub const KEY_ID_FMC_MLDSA_KEYPAIR_SEED: KeyId = KeyId::KeyId14;
 #[cfg(feature = "rom")]
 pub const KEY_ID_FW_KEY_LADDER: KeyId = KeyId::KeyId2;
 #[cfg(feature = "fmc")]

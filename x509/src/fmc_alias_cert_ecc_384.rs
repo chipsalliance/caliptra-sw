@@ -38,6 +38,8 @@ mod tests {
         &[0xEFu8; FmcAliasCertTbsEcc384Params::TCB_INFO_VENDOR_DEVICE_INFO_HASH_LEN];
     const TEST_FMC_HASH: &[u8] = &[0x89u8; FmcAliasCertTbsEcc384Params::TCB_INFO_FMC_TCI_LEN];
     const TEST_TCB_INFO_FW_SVN: &[u8] = &[0xB7];
+    const TEST_PCR_SIGNING_KEY_DIGEST: &[u8] =
+        &[0xA5; FmcAliasCertTbsEcc384Params::PCR_SIGNING_KEY_DIGEST_LEN];
 
     fn make_test_cert(
         subject_key: &Ecc384AsymKey,
@@ -65,6 +67,7 @@ mod tests {
             tcb_info_vendor_device_info_hash: &TEST_VENDOR_INFO_HASH.try_into().unwrap(),
             tcb_info_fmc_tci: &TEST_FMC_HASH.try_into().unwrap(),
             tcb_info_fw_svn: &TEST_TCB_INFO_FW_SVN.try_into().unwrap(),
+            pcr_signing_key_digest: &TEST_PCR_SIGNING_KEY_DIGEST.try_into().unwrap(),
             not_before: &NotBefore::default().value,
             not_after: &NotAfter::default().value,
         };
@@ -144,6 +147,12 @@ mod tests {
                     + FmcAliasCertTbsEcc384::TCB_INFO_FW_SVN_LEN],
             TEST_TCB_INFO_FW_SVN,
         );
+        assert_eq!(
+            &cert.tbs()[FmcAliasCertTbsEcc384::PCR_SIGNING_KEY_DIGEST_OFFSET
+                ..FmcAliasCertTbsEcc384::PCR_SIGNING_KEY_DIGEST_OFFSET
+                    + FmcAliasCertTbsEcc384::PCR_SIGNING_KEY_DIGEST_LEN],
+            TEST_PCR_SIGNING_KEY_DIGEST,
+        );
 
         let ecdsa_sig = crate::Ecdsa384Signature {
             r: TryInto::<[u8; 48]>::try_into(sig.r().to_vec_padded(48).unwrap()).unwrap(),
@@ -206,5 +215,8 @@ mod tests {
 
         const MULTI_TCB_INFO_OID: Oid = oid!(2.23.133 .5 .4 .5);
         assert!(!ext_map[&MULTI_TCB_INFO_OID].critical);
+
+        const PCR_SIGNING_KEY_DIGEST_OID: Oid = oid!(1.3.6 .1 .4 .1 .42623 .2 .1);
+        assert!(!ext_map[&PCR_SIGNING_KEY_DIGEST_OID].critical);
     }
 }
