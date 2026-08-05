@@ -7,7 +7,7 @@ use std::collections::hash_map::Entry;
 use std::collections::{HashMap, HashSet};
 use std::env;
 use std::fs;
-use std::io::{self, ErrorKind};
+use std::io;
 use std::mem::size_of;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
@@ -44,7 +44,7 @@ pub enum CiRomVersion {
 }
 
 fn other_err(e: impl Into<Box<dyn std::error::Error + Send + Sync>>) -> io::Error {
-    io::Error::new(ErrorKind::Other, e)
+    io::Error::other(e)
 }
 
 fn run_cmd(cmd: &mut Command) -> io::Result<()> {
@@ -52,15 +52,12 @@ fn run_cmd(cmd: &mut Command) -> io::Result<()> {
     if status.success() {
         Ok(())
     } else {
-        Err(io::Error::new(
-            ErrorKind::Other,
-            format!(
-                "Process {:?} {:?} exited with status code {:?}",
-                cmd.get_program(),
-                cmd.get_args(),
-                status.code()
-            ),
-        ))
+        Err(io::Error::other(format!(
+            "Process {:?} {:?} exited with status code {:?}",
+            cmd.get_program(),
+            cmd.get_args(),
+            status.code()
+        )))
     }
 }
 
@@ -523,7 +520,7 @@ pub fn get_prebuilt_firmware(id: &FwId<'static>) -> io::Result<Vec<u8>> {
     match id.fw_type {
         FirmwareType::TaggedReleaseFromNetwork { version_tag, url } => {
             let artifacts = release_artifacts::download_and_extract_release(version_tag, url)
-                .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+                .map_err(io::Error::other)?;
             artifacts.get_file(id.bin_name)
         }
         _ => Err(io::Error::new(

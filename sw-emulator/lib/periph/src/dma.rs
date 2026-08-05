@@ -347,7 +347,11 @@ impl Dma {
     }
 
     fn read_xfer(&self) -> ReadXfer {
-        assert!(self.byte_count.reg.get() % Self::AXI_DATA_WIDTH as u32 == 0);
+        assert!(self
+            .byte_count
+            .reg
+            .get()
+            .is_multiple_of(Self::AXI_DATA_WIDTH as u32));
         ReadXfer {
             src: ((self.src_addr_h.reg.get() as u64) << 32) | self.src_addr_l.reg.get() as u64,
             fixed: self.control.reg.is_set(Control::READ_ADDR_FIXED),
@@ -356,7 +360,11 @@ impl Dma {
     }
 
     fn write_xfer(&self) -> WriteXfer {
-        assert!(self.byte_count.reg.get() % Self::AXI_DATA_WIDTH as u32 == 0);
+        assert!(self
+            .byte_count
+            .reg
+            .get()
+            .is_multiple_of(Self::AXI_DATA_WIDTH as u32));
         WriteXfer {
             dest: ((self.dest_addr_h.reg.get() as u64) << 32) | self.dest_addr_l.reg.get() as u64,
             fixed: self.control.reg.is_set(Control::WRITE_ADDR_FIXED),

@@ -304,24 +304,20 @@ impl EncryptionEngine {
         let ctrl: ReadWriteRegister<u32, Control::Register> = ReadWriteRegister::new(val);
 
         match self.state_machine.state() {
-            States::Ready => {
-                if ctrl.reg.is_set(Control::EXE) {
-                    self.state_machine.context.command = ctrl.reg.read(Control::CMD);
-                    let _ = match self
-                        .state_machine
-                        .process_event(Events::WriteCommandExecution)
-                    {
-                        Ok(_) => self.state_machine.process_event(Events::ProcessSuccess),
-                        _ => self.state_machine.process_event(Events::ProcessFail),
-                    };
+            States::Ready if ctrl.reg.is_set(Control::EXE) => {
+                self.state_machine.context.command = ctrl.reg.read(Control::CMD);
+                let _ = match self
+                    .state_machine
+                    .process_event(Events::WriteCommandExecution)
+                {
+                    Ok(_) => self.state_machine.process_event(Events::ProcessSuccess),
+                    _ => self.state_machine.process_event(Events::ProcessFail),
                 };
             }
-            States::WaitClear => {
-                if ctrl.reg.is_set(Control::DONE) {
-                    let _ = match self.state_machine.process_event(Events::WriteDone) {
-                        Ok(_) => self.state_machine.process_event(Events::ClearSuccess),
-                        _ => self.state_machine.process_event(Events::ClearFail),
-                    };
+            States::WaitClear if ctrl.reg.is_set(Control::DONE) => {
+                let _ = match self.state_machine.process_event(Events::WriteDone) {
+                    Ok(_) => self.state_machine.process_event(Events::ClearSuccess),
+                    _ => self.state_machine.process_event(Events::ClearFail),
                 };
             }
             _ => (),

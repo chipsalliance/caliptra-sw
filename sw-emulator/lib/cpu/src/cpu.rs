@@ -238,7 +238,7 @@ impl CodeCoverage {
         }
     }
 
-    pub fn code_coverage_bitmap(&self) -> CoverageBitmaps {
+    pub fn code_coverage_bitmap(&self) -> CoverageBitmaps<'_> {
         CoverageBitmaps {
             rom: &self.rom_bit_vec,
             iccm: &self.iccm_bit_vec,
@@ -697,7 +697,7 @@ impl<TBus: Bus> Cpu<TBus> {
     /// # Error
     ///
     /// * `RvException` - Exception with cause `RvExceptionCause::LoadAccessFault`
-    ///                   or `RvExceptionCause::LoadAddrMisaligned`
+    ///   or `RvExceptionCause::LoadAddrMisaligned`
     pub fn read_bus(&mut self, size: RvSize, addr: RvAddr) -> Result<RvData, RvException> {
         // Check if we are in step mode
         if self.is_execute_instr {
@@ -735,7 +735,7 @@ impl<TBus: Bus> Cpu<TBus> {
     /// # Error
     ///
     /// * `RvException` - Exception with cause `RvExceptionCause::StoreAccessFault`
-    ///                   or `RvExceptionCause::StoreAddrMisaligned`
+    ///   or `RvExceptionCause::StoreAddrMisaligned`
     pub fn write_bus(
         &mut self,
         size: RvSize,
@@ -777,7 +777,7 @@ impl<TBus: Bus> Cpu<TBus> {
     /// # Error
     ///
     /// * `RvException` - Exception with cause `RvExceptionCause::LoadAccessFault`
-    ///                   or `RvExceptionCause::LoadAddrMisaligned`
+    ///   or `RvExceptionCause::LoadAddrMisaligned`
     pub fn read_instr(&mut self, size: RvSize, addr: RvAddr) -> Result<RvData, RvException> {
         self.check_mem_priv(addr, size, RvMemAccessType::Execute)?;
 
@@ -1204,8 +1204,7 @@ mod tests {
         let mut bus = DynamicBus::new();
 
         let ram = Ram::new(
-            std::iter::repeat(fill_val)
-                .take(128)
+            std::iter::repeat_n(fill_val, 128)
                 .flat_map(u32::to_le_bytes)
                 .collect(),
         );
@@ -2050,8 +2049,7 @@ mod tests {
         let mut bus = DynamicBus::new();
 
         let rom = Rom::new(
-            std::iter::repeat(RV32_NO_OP)
-                .take(256)
+            std::iter::repeat_n(RV32_NO_OP, 256)
                 .flat_map(u32::to_le_bytes)
                 .collect(),
         );
@@ -2120,8 +2118,7 @@ mod tests {
         let mut bus = DynamicBus::new();
 
         let rom = Rom::new(
-            std::iter::repeat(RV32_NO_OP)
-                .take(256)
+            std::iter::repeat_n(RV32_NO_OP, 256)
                 .flat_map(u32::to_le_bytes)
                 .collect(),
         );

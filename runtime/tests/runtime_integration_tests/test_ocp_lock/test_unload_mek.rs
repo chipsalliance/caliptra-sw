@@ -162,33 +162,36 @@ fn test_unload_mek_without_loading() {
 
     let result = validate_ocp_lock_response(&mut model, response, |response, _| {
         // behavior of unloading non-existing metadata might be dependent to encryption engine implementation
-        if response.is_ok() {
-            let response = response.unwrap().unwrap();
-            let unload_mek_resp =
-                OcpLockUnloadMekResp::ref_from_bytes(response.as_bytes()).unwrap();
+        match response {
+            Ok(response) => {
+                let response = response.unwrap();
+                let unload_mek_resp =
+                    OcpLockUnloadMekResp::ref_from_bytes(response.as_bytes()).unwrap();
 
-            // Verify response checksum
-            assert!(caliptra_common::checksum::verify_checksum(
-                unload_mek_resp.hdr.chksum,
-                0x0,
-                &unload_mek_resp.as_bytes()[core::mem::size_of_val(&unload_mek_resp.hdr.chksum)..],
-            ));
+                // Verify response checksum
+                assert!(caliptra_common::checksum::verify_checksum(
+                    unload_mek_resp.hdr.chksum,
+                    0x0,
+                    &unload_mek_resp.as_bytes()
+                        [core::mem::size_of_val(&unload_mek_resp.hdr.chksum)..],
+                ));
 
-            // Verify FIPS status
-            assert_eq!(
-                unload_mek_resp.hdr.fips_status,
-                MailboxRespHeader::FIPS_STATUS_APPROVED
-            );
+                // Verify FIPS status
+                assert_eq!(
+                    unload_mek_resp.hdr.fips_status,
+                    MailboxRespHeader::FIPS_STATUS_APPROVED
+                );
 
-            assert_eq!(unload_mek_resp.reserved, 0);
-            Ok(())
-        } else {
-            let error_code = response.unwrap_err();
-            assert_eq!(
-                error_code,
-                ModelError::MailboxCmdFailed(CaliptraError::OCP_LOCK_ENGINE_ERR.into())
-            );
-            Err(error_code)
+                assert_eq!(unload_mek_resp.reserved, 0);
+                Ok(())
+            }
+            Err(error_code) => {
+                assert_eq!(
+                    error_code,
+                    ModelError::MailboxCmdFailed(CaliptraError::OCP_LOCK_ENGINE_ERR.into())
+                );
+                Err(error_code)
+            }
         }
     });
 

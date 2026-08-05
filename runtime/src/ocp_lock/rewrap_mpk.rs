@@ -13,7 +13,7 @@ use caliptra_error::{CaliptraError, CaliptraResult};
 
 use zerocopy::FromBytes;
 
-use super::{AccessKey, Current, EncryptedAccessKey, LockedMpk, New, Sek};
+use super::{stage_mailbox_request, AccessKey, Current, EncryptedAccessKey, LockedMpk, New, Sek};
 
 pub struct RewrapMpkCmd;
 impl RewrapMpkCmd {
@@ -24,13 +24,13 @@ impl RewrapMpkCmd {
         cmd_args: &[u8],
         resp: &mut [u8],
     ) -> CaliptraResult<usize> {
-        let cmd = OcpLockRewrapMpkReq::ref_from_bytes(cmd_args)
-            .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+        let mut staging_buffer = [0u32; core::mem::size_of::<OcpLockRewrapMpkReq>() / 4];
+        let cmd = stage_mailbox_request::<OcpLockRewrapMpkReq>(cmd_args, &mut staging_buffer)?;
 
         let sek = Sek::new(cmd.sek)?;
         let hpke_handle = HpkeHandle::from(cmd.sealed_access_key.hpke_handle.handle);
         let current_locked_mpk = LockedMpk::try_from(&cmd.current_locked_mpk)?;
-        let enc = &cmd.sealed_access_key.kem_ciphertext.clone();
+        let enc = &cmd.sealed_access_key.kem_ciphertext;
 
         let info = cmd
             .sealed_access_key

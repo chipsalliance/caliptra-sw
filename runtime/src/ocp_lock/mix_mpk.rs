@@ -6,11 +6,9 @@ use caliptra_api::mailbox::{MailboxRespHeader, OcpLockMixMpkReq, OcpLockMixMpkRe
 #[cfg(feature = "cfi")]
 use caliptra_cfi_derive::cfi_impl_fn;
 
-use caliptra_error::{CaliptraError, CaliptraResult};
+use caliptra_error::CaliptraResult;
 
-use zerocopy::FromBytes;
-
-use super::EnabledMpk;
+use super::{stage_mailbox_request, EnabledMpk};
 
 pub struct MixMpkCmd;
 impl MixMpkCmd {
@@ -21,8 +19,8 @@ impl MixMpkCmd {
         cmd_args: &[u8],
         resp: &mut [u8],
     ) -> CaliptraResult<usize> {
-        let cmd = OcpLockMixMpkReq::ref_from_bytes(cmd_args)
-            .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+        let mut staging_buffer = [0u32; core::mem::size_of::<OcpLockMixMpkReq>() / 4];
+        let cmd = stage_mailbox_request::<OcpLockMixMpkReq>(cmd_args, &mut staging_buffer)?;
 
         let enabled_mpk = EnabledMpk::try_from(&cmd.enabled_mpk)?;
         let state = &drivers.persistent_data.get().fw.ocp_lock_metadata;

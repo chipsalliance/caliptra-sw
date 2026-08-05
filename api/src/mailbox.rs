@@ -83,15 +83,15 @@ pub const OCP_LOCK_MAX_ENC_LEN: usize = 1665;
 
 /// Metadata size for encryption engine interaction supported by OCP LOCK
 pub const OCP_LOCK_ENCRYPTION_ENGINE_METADATA_SIZE: usize = 20;
-const _: () = assert!(OCP_LOCK_ENCRYPTION_ENGINE_METADATA_SIZE % size_of::<u32>() == 0);
+const _: () = assert!(OCP_LOCK_ENCRYPTION_ENGINE_METADATA_SIZE.is_multiple_of(size_of::<u32>()));
 
 /// Aux size for encryption engine interaction supported by OCP LOCK
 pub const OCP_LOCK_ENCRYPTION_ENGINE_AUX_SIZE: usize = 32;
-const _: () = assert!(OCP_LOCK_ENCRYPTION_ENGINE_AUX_SIZE % size_of::<u32>() == 0);
+const _: () = assert!(OCP_LOCK_ENCRYPTION_ENGINE_AUX_SIZE.is_multiple_of(size_of::<u32>()));
 
 /// Maximum MEK size for encryption engine interaction supported by OCP LOCK
 pub const OCP_LOCK_ENCRYPTION_ENGINE_MAX_MEK_SIZE: usize = 64;
-const _: () = assert!(OCP_LOCK_ENCRYPTION_ENGINE_MAX_MEK_SIZE % size_of::<u32>() == 0);
+const _: () = assert!(OCP_LOCK_ENCRYPTION_ENGINE_MAX_MEK_SIZE.is_multiple_of(size_of::<u32>()));
 
 #[derive(PartialEq, Eq)]
 pub struct CommandId(pub u32);

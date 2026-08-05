@@ -69,7 +69,7 @@ impl TryFrom<u32> for DevIdKeyType {
 }
 
 impl DevIdKeyType {
-    pub fn to_kda_oid(&self) -> TaggedOid {
+    pub fn to_kda_oid(&self) -> TaggedOid<'_> {
         match self {
             DevIdKeyType::LdevId => TaggedOid::new(oids::OCP_SECURITY_OID_KDA_OWNER_ENTROPY_FUSE),
             DevIdKeyType::FmcAlias => TaggedOid::new(oids::OCP_SECURITY_OID_KDA_FIRST_MUTABLE_CODE),
