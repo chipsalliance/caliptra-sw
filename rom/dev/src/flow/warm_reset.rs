@@ -15,7 +15,10 @@ use crate::{cprintln, flow::cold_reset::ocp_lock, rom_env::RomEnv};
 #[cfg(feature = "cfi")]
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_cfi_lib::{cfi_assert_eq, cfi_assert_ne, cfi_launder};
-use caliptra_common::keyids::{KEY_ID_STABLE_IDEV, KEY_ID_STABLE_LDEV, KEY_ID_STABLE_OWNER};
+use caliptra_common::keyids::{
+    KEY_ID_PCR_ECDSA_PRIV_KEY, KEY_ID_PCR_MLDSA_KEYPAIR_SEED, KEY_ID_STABLE_IDEV,
+    KEY_ID_STABLE_LDEV, KEY_ID_STABLE_OWNER,
+};
 use caliptra_common::{handle_fatal_error, RomBootStatus::*};
 use caliptra_drivers::RomPersistentData;
 use caliptra_error::{CaliptraError, CaliptraResult};
@@ -41,6 +44,14 @@ impl WarmResetFlow {
         env.key_vault.set_key_write_lock(KEY_ID_STABLE_IDEV);
         env.key_vault.set_key_write_lock(KEY_ID_STABLE_LDEV);
         env.key_vault.set_key_write_lock(KEY_ID_STABLE_OWNER);
+        if env.soc_ifc.debug_locked() {
+            env.key_vault.set_key_write_lock(KEY_ID_PCR_ECDSA_PRIV_KEY);
+            env.key_vault
+                .set_key_write_lock(KEY_ID_PCR_MLDSA_KEYPAIR_SEED);
+            env.key_vault.set_key_use_lock(KEY_ID_PCR_ECDSA_PRIV_KEY);
+            env.key_vault
+                .set_key_use_lock(KEY_ID_PCR_MLDSA_KEYPAIR_SEED);
+        }
 
         // Check persistent data is valid
         let pdata = env.persistent_data.get();

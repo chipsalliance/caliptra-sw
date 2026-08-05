@@ -22,7 +22,8 @@ use crate::rom_env::RomEnv;
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_common::crypto::{Crypto, Ecc384KeyPair, MlDsaKeyPair, PubKey};
 use caliptra_common::keyids::{
-    KEY_ID_FMC_ECDSA_PRIV_KEY, KEY_ID_FMC_MLDSA_KEYPAIR_SEED, KEY_ID_ROM_FMC_CDI,
+    KEY_ID_FMC_ECDSA_PRIV_KEY, KEY_ID_FMC_MLDSA_KEYPAIR_SEED, KEY_ID_PCR_ECDSA_PRIV_KEY,
+    KEY_ID_PCR_MLDSA_KEYPAIR_SEED, KEY_ID_ROM_FMC_CDI,
 };
 use caliptra_common::pcr::PCR_ID_FMC_CURRENT;
 use caliptra_common::RomBootStatus::*;
@@ -65,6 +66,32 @@ impl FmcAliasLayer {
             KEY_ID_FMC_MLDSA_KEYPAIR_SEED,
         )?;
 
+        let (mut pcr_ecc_key_pair, mut pcr_mldsa_key_pair) =
+            Self::derive_pcr_signing_key_pair(env)?;
+        let pcr_signing_key_digests: CaliptraResult<([u8; 48], [u8; 48])> = (|| {
+            let persistent_data = &mut env.persistent_data.get_mut().rom;
+            persistent_data.pcr_signing_ecc_pub_key = pcr_ecc_key_pair.pub_key;
+            Ok((
+                x509::pcr_signing_ecc384_pub_key_digest(
+                    &mut env.sha2_512_384,
+                    &pcr_ecc_key_pair.pub_key,
+                )?,
+                x509::pcr_signing_mldsa87_pub_key_digest(
+                    &mut env.sha2_512_384,
+                    &pcr_mldsa_key_pair.pub_key,
+                )?,
+            ))
+        })();
+        env.key_vault.set_key_write_lock(KEY_ID_PCR_ECDSA_PRIV_KEY);
+        env.key_vault
+            .set_key_write_lock(KEY_ID_PCR_MLDSA_KEYPAIR_SEED);
+        env.key_vault.set_key_use_lock(KEY_ID_PCR_ECDSA_PRIV_KEY);
+        env.key_vault
+            .set_key_use_lock(KEY_ID_PCR_MLDSA_KEYPAIR_SEED);
+        pcr_ecc_key_pair.zeroize();
+        pcr_mldsa_key_pair.zeroize();
+        let (pcr_signing_ecc_key_digest, pcr_signing_mldsa_key_digest) = pcr_signing_key_digests?;
+
         // Generate the Subject Serial Number and Subject Key Identifier.
         //
         // This information will be used by next DICE Layer while generating
@@ -92,8 +119,20 @@ impl FmcAliasLayer {
 
         // Generate FMC Alias Certificate
         let result: CaliptraResult<()> = (|| {
-            Self::generate_cert_sig_ecc(env, input, &output, fw_proc_info)?;
-            Self::generate_cert_sig_mldsa(env, input, &output, fw_proc_info)?;
+            Self::generate_cert_sig_ecc(
+                env,
+                input,
+                &output,
+                &pcr_signing_ecc_key_digest,
+                fw_proc_info,
+            )?;
+            Self::generate_cert_sig_mldsa(
+                env,
+                input,
+                &output,
+                &pcr_signing_mldsa_key_digest,
+                fw_proc_info,
+            )?;
             Ok(())
         })();
         output.zeroize();
@@ -165,6 +204,20 @@ impl FmcAliasLayer {
         )
     }
 
+    fn derive_pcr_signing_key_pair(
+        env: &mut RomEnv,
+    ) -> CaliptraResult<(Ecc384KeyPair, MlDsaKeyPair)> {
+        crate::flow::cold_reset::derive_dice_key_pair(
+            env,
+            KEY_ID_ROM_FMC_CDI,
+            KEY_ID_PCR_ECDSA_PRIV_KEY,
+            KEY_ID_PCR_MLDSA_KEYPAIR_SEED,
+            b"pcr_signing_key_pair",
+            b"pcr_signing_mldsa_keypair",
+            PcrSigningKeyPairDerivationComplete.into(),
+        )
+    }
+
     /// Generate Local Device ID Certificate Signature
     ///
     /// # Arguments
@@ -176,6 +229,7 @@ impl FmcAliasLayer {
         env: &mut RomEnv,
         input: &DiceInput,
         output: &DiceOutput,
+        pcr_signing_key_digest: &[u8; 48],
         fw_proc_info: &FwProcInfo,
     ) -> CaliptraResult<()> {
         let auth_priv_key = input.ecc_auth_key_pair.priv_key;
@@ -204,6 +258,7 @@ impl FmcAliasLayer {
             tcb_info_owner_device_info_hash: &owner_device_info_hash,
             tcb_info_vendor_device_info_hash: &vendor_device_info_hash,
             tcb_info_fw_svn: &svn.to_be_bytes(),
+            pcr_signing_key_digest,
             not_before: &fw_proc_info.fmc_cert_valid_not_before.value,
             not_after: &fw_proc_info.fmc_cert_valid_not_after.value,
         };
@@ -257,6 +312,7 @@ impl FmcAliasLayer {
         env: &mut RomEnv,
         input: &DiceInput,
         output: &DiceOutput,
+        pcr_signing_key_digest: &[u8; 48],
         fw_proc_info: &FwProcInfo,
     ) -> CaliptraResult<()> {
         let auth_priv_key = input.mldsa_auth_key_pair.key_pair_seed;
@@ -285,6 +341,7 @@ impl FmcAliasLayer {
             tcb_info_owner_device_info_hash: &owner_device_info_hash,
             tcb_info_vendor_device_info_hash: &vendor_device_info_hash,
             tcb_info_fw_svn: &svn.to_be_bytes(),
+            pcr_signing_key_digest,
             not_before: &fw_proc_info.fmc_cert_valid_not_before.value,
             not_after: &fw_proc_info.fmc_cert_valid_not_after.value,
         };

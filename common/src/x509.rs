@@ -11,11 +11,54 @@ Abstract:
     File contains X509 Certificate & CSR related utility functions
 
 --*/
+use caliptra_drivers::sha2_512_384::Sha2DigestOpTrait;
 use caliptra_drivers::*;
 use core::mem::size_of;
 use zerocopy::IntoBytes;
 
 use crate::crypto::PubKey;
+
+pub const PCR_SIGNING_ECC384_PUB_KEY_DIGEST_OID: &str = "1.3.6.1.4.1.42623.2.1";
+pub const PCR_SIGNING_MLDSA87_PUB_KEY_DIGEST_OID: &str = "1.3.6.1.4.1.42623.2.2";
+pub const PCR_SIGNING_KEY_BINDING_VERSION: u32 = 1;
+pub const PCR_SIGNING_KEY_BINDING_FLAGS: u32 = 0;
+
+const PCR_SIGNING_ECC384_DOMAIN: &[u8] = b"CALIPTRA_PCR_SIGNING_PUBLIC_KEY_ECC384";
+const PCR_SIGNING_MLDSA87_DOMAIN: &[u8] = b"CALIPTRA_PCR_SIGNING_PUBLIC_KEY_MLDSA87";
+
+fn pcr_signing_key_digest(
+    sha2_512_384: &mut Sha2_512_384,
+    domain: &[u8],
+    key_parts: &[&[u8]],
+) -> CaliptraResult<[u8; 48]> {
+    let mut digest = Array4x12::default();
+    let mut hasher = sha2_512_384.sha384_digest_init()?;
+    hasher.update(domain)?;
+    hasher.update(&PCR_SIGNING_KEY_BINDING_VERSION.to_be_bytes())?;
+    hasher.update(&PCR_SIGNING_KEY_BINDING_FLAGS.to_be_bytes())?;
+    for part in key_parts {
+        hasher.update(part)?;
+    }
+    hasher.finalize(&mut digest)?;
+    Ok(digest.into())
+}
+
+pub fn pcr_signing_ecc384_pub_key_digest(
+    sha2_512_384: &mut Sha2_512_384,
+    pub_key: &Ecc384PubKey,
+) -> CaliptraResult<[u8; 48]> {
+    let x: [u8; 48] = pub_key.x.into();
+    let y: [u8; 48] = pub_key.y.into();
+    pcr_signing_key_digest(sha2_512_384, PCR_SIGNING_ECC384_DOMAIN, &[&x, &y])
+}
+
+pub fn pcr_signing_mldsa87_pub_key_digest(
+    sha2_512_384: &mut Sha2_512_384,
+    pub_key: &Mldsa87PubKey,
+) -> CaliptraResult<[u8; 48]> {
+    let pub_key: [u8; 2592] = (*pub_key).into();
+    pcr_signing_key_digest(sha2_512_384, PCR_SIGNING_MLDSA87_DOMAIN, &[&pub_key])
+}
 
 /// Get device serial number
 ///
