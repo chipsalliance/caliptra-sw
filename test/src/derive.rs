@@ -771,6 +771,7 @@ pub struct Pcr0Input {
     pub fw_svn: u8,
     pub vendor_ecc_pk_index: u8,
     pub vendor_pqc_pk_index: u8,
+    pub subsystem_mode: u8,
 }
 impl Pcr0Input {}
 
@@ -803,6 +804,7 @@ impl Pcr0 {
                 input.fw_svn,
                 input.vendor_ecc_pk_index,
                 input.vendor_pqc_pk_index,
+                input.subsystem_mode,
             ],
         );
         extend(
@@ -850,12 +852,13 @@ fn test_derive_pcr0() {
         fw_svn: 6,
         vendor_ecc_pk_index: 7,
         vendor_pqc_pk_index: 8,
+        subsystem_mode: 0,
     });
     assert_eq!(
         pcr0,
         Pcr0([
-            105088857, 944151149, 2604353809, 791137423, 1712852176, 1628755509, 3990671566,
-            2052346331, 640093718, 3145303069, 2197324478, 520085314
+            3663688547, 292490323, 2989019511, 1238385844, 3324789810, 1099712823, 752274733,
+            1844697096, 3223280379, 1397148399, 1640486654, 1743252165
         ])
     )
 }

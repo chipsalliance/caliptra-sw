@@ -479,6 +479,7 @@ fn smoke_test() {
             hasher.update(&[fw_svn as u8]);
             hasher.update(&[image.manifest.header.vendor_ecc_pub_key_idx as u8]);
             hasher.update(&[image.manifest.header.vendor_pqc_pub_key_idx as u8]);
+            hasher.update(&[hw.subsystem_mode() as u8]);
             let vendor_info_hash = hasher.finish();
 
             let fmc_expected_tcb_info = [
@@ -546,6 +547,7 @@ fn smoke_test() {
                     fw_svn: fw_svn as u8,
                     vendor_ecc_pk_index: image.manifest.header.vendor_ecc_pub_key_idx as u8,
                     vendor_pqc_pk_index: image.manifest.header.vendor_pqc_pub_key_idx as u8,
+                    subsystem_mode: hw.subsystem_mode() as u8,
                 }),
                 &expected_ldevid_key,
             );
