@@ -194,7 +194,8 @@ impl InvokeDpeCmd {
         let pdata = drivers.persistent_data.get_mut();
         let pl0_pauser = pdata.rom.manifest1.header.pl0_pauser;
 
-        // Check if command can be executed
+        // Apply Caliptra-specific preflight checks. Commands not matched here are still executed
+        // by invoke_dpe_cmd below.
         match command {
             Command::InitCtx(cmd) if InitCtxCmd::flag_is_simulation(cmd) => {
                 // InitCtx can only create new contexts if they are simulation contexts.
