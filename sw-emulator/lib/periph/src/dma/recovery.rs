@@ -283,7 +283,7 @@ impl RecoveryRegisterInterface {
         // head pointer must be aligned to 4 bytes at the end
         self.indirect_fifo_status_1
             .reg
-            .set(((address + data.len()).next_multiple_of(4) / 4) as u32);
+            .set((address + data.len()).div_ceil(4) as u32);
     }
 
     pub fn indirect_fifo_ctrl_0_write(
@@ -390,7 +390,7 @@ impl RecoveryRegisterInterface {
                 // ensure we have space for the image
                 if idx >= self.cms_data.len() {
                     self.cms_data
-                        .extend(std::iter::repeat(vec![]).take(idx - self.cms_data.len() + 1));
+                        .extend(std::iter::repeat_n(vec![], idx - self.cms_data.len() + 1));
                 }
                 while idx >= self.cms_data.len() {
                     self.cms_data.push(vec![]);

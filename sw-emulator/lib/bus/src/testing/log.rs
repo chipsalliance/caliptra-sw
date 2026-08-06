@@ -50,7 +50,7 @@ impl Log {
     }
 
     /// Access the contents of the log without modifying it.
-    pub fn as_str(&self) -> (impl Deref<Target = str> + '_) {
+    pub fn as_str(&self) -> impl Deref<Target = str> + '_ {
         Ref::map(self.log.borrow(), String::as_str)
     }
 
@@ -64,7 +64,7 @@ impl Log {
     }
 
     /// returns a writer that can be use with write!() or writeln!().
-    pub fn w(&self) -> (impl Write + '_) {
+    pub fn w(&self) -> impl Write + '_ {
         LogWriter { log: &self.log }
     }
 }

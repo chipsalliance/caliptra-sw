@@ -7,7 +7,7 @@ use std::collections::hash_map::Entry;
 use std::collections::{HashMap, HashSet};
 use std::env;
 use std::fs;
-use std::io::{self, ErrorKind};
+use std::io;
 use std::mem::size_of;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
@@ -44,7 +44,7 @@ pub enum CiRomVersion {
 }
 
 fn other_err(e: impl Into<Box<dyn std::error::Error + Send + Sync>>) -> io::Error {
-    io::Error::new(ErrorKind::Other, e)
+    io::Error::other(e)
 }
 
 fn run_cmd(cmd: &mut Command) -> io::Result<()> {
@@ -52,15 +52,12 @@ fn run_cmd(cmd: &mut Command) -> io::Result<()> {
     if status.success() {
         Ok(())
     } else {
-        Err(io::Error::new(
-            ErrorKind::Other,
-            format!(
-                "Process {:?} {:?} exited with status code {:?}",
-                cmd.get_program(),
-                cmd.get_args(),
-                status.code()
-            ),
-        ))
+        Err(io::Error::other(format!(
+            "Process {:?} {:?} exited with status code {:?}",
+            cmd.get_program(),
+            cmd.get_args(),
+            status.code()
+        )))
     }
 }
 
