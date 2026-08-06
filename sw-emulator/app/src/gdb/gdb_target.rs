@@ -92,7 +92,7 @@ impl Target for GdbTarget {
     type Arch = gdbstub_arch::riscv::Riscv32;
     type Error = &'static str;
 
-    fn base_ops(&mut self) -> BaseOps<Self::Arch, Self::Error> {
+    fn base_ops(&mut self) -> BaseOps<'_, Self::Arch, Self::Error> {
         BaseOps::SingleThread(self)
     }
 

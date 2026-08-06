@@ -19,25 +19,14 @@ impl CommitInfo {
     fn parse_multiple(s: &str) -> io::Result<Vec<CommitInfo>> {
         let mut lines = s.lines();
         let mut result = vec![];
-        'outer: loop {
-            let Some(line) = lines.next() else {
-                break;
-            };
+        while let Some(line) = lines.next() {
             let commit_id = expect_line_with_prefix("commit ", Some(line))?;
             let author = expect_line_with_prefix("Author: ", lines.next())?;
             expect_line("", lines.next())?;
             let mut title = expect_line_with_prefix("    ", lines.next())?.to_string();
-            'inner: loop {
-                let Some(line) = lines.next() else {
-                    result.push(CommitInfo {
-                        id: commit_id.into(),
-                        author: author.into(),
-                        title,
-                    });
-                    break 'outer;
-                };
+            for line in lines.by_ref() {
                 if line.is_empty() {
-                    break 'inner;
+                    break;
                 }
                 title.push('\n');
                 title.push_str(expect_line_with_prefix("    ", Some(line))?);

@@ -412,14 +412,12 @@ impl AxiRootBus {
             EventData::MemoryReadResponse {
                 start_addr: _,
                 data,
-            } => {
+            } if event.src == Device::MCU
+                || event.src == Device::ExternalTestSram
+                || Device::RecoveryIntf == event.src =>
+            {
                 // we only allow read responses from the MCU, ExternalTestSram and RecoveryIntf
-                if event.src == Device::MCU
-                    || event.src == Device::ExternalTestSram
-                    || Device::RecoveryIntf == event.src
-                {
-                    self.dma_result = Some(words_from_bytes_le_vec(&data.clone()));
-                }
+                self.dma_result = Some(words_from_bytes_le_vec(&data.clone()));
             }
             EventData::RecoveryFifoStatusResponse { status } => {
                 self.indirect_fifo_status = *status;
