@@ -10,6 +10,7 @@ edition = "2021"
 [dependencies]
 bitfield.workspace = true
 bit-vec.workspace = true
+caliptra-builder.workspace = true
 caliptra-emu-bus.workspace = true
 caliptra-emu-derive.workspace = true
 caliptra-emu-types.workspace = true

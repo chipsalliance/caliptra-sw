@@ -66,6 +66,18 @@ impl From<XReg> for u16 {
     }
 }
 
+impl XReg {
+    /// Check if `self` is the return address register.
+    pub fn is_ra(&self) -> bool {
+        *self == Self::X1
+    }
+
+    /// Check if `self` is the alternate link register.
+    pub fn is_link(&self) -> bool {
+        *self == Self::X5
+    }
+}
+
 /// RISCV General purpose register file
 pub struct XRegFile {
     /// Registers
