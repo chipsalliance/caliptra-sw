@@ -4,27 +4,135 @@ use crate::common::{
     get_ecc_fmc_alias_cert, get_mldsa_fmc_alias_cert, run_rt_test, RuntimeTestArgs,
 };
 use caliptra_api::SocManager;
+use caliptra_builder::firmware::runtime_tests;
 
 use caliptra_common::mailbox_api::{
     CommandId, ExtendPcrReq, GetPcrLogResp, IncrementPcrResetCounterReq, MailboxReq,
     MailboxReqHeader, QuotePcrsEcc384Req, QuotePcrsEcc384Resp, QuotePcrsMldsa87Req,
     QuotePcrsMldsa87Resp,
 };
+use caliptra_common::x509::{PCR_SIGNING_KEY_BINDING_FLAGS, PCR_SIGNING_KEY_BINDING_VERSION};
 use caliptra_drivers::{PcrId, PcrLogArray};
 use caliptra_error::CaliptraError;
-use caliptra_hw_model::{DefaultHwModel, HwModel, ModelError};
+use caliptra_hw_model::{DefaultHwModel, DeviceLifecycle, HwModel, ModelError, SecurityState};
+use caliptra_test::x509::get_cert_extension;
 use ml_dsa::signature::Verifier;
 use ml_dsa::{MlDsa87, Signature, VerifyingKey};
 use openssl::{
     bn::BigNum,
+    ec::{EcGroup, EcKey},
     ecdsa::EcdsaSig,
     hash::{Hasher, MessageDigest},
+    nid::Nid,
+    sha::Sha384,
     x509::X509,
 };
 use spki::DecodePublicKey;
 use x509_cert::certificate::Certificate;
 use x509_cert::der::{Decode, Encode};
 use zerocopy::{FromBytes, IntoBytes};
+
+const PCR_SIGNING_ECC384_DOMAIN: &[u8] = b"CALIPTRA_PCR_SIGNING_PUBLIC_KEY_ECC384";
+const PCR_SIGNING_MLDSA87_DOMAIN: &[u8] = b"CALIPTRA_PCR_SIGNING_PUBLIC_KEY_MLDSA87";
+const PCR_SIGNING_ECC384_PUB_KEY_DIGEST_OID: asn1::ObjectIdentifier =
+    asn1::oid!(1, 3, 6, 1, 4, 1, 42623, 2, 1);
+const PCR_SIGNING_MLDSA87_PUB_KEY_DIGEST_OID: asn1::ObjectIdentifier =
+    asn1::oid!(1, 3, 6, 1, 4, 1, 42623, 2, 2);
+const OPCODE_READ_PCR_SIGNING_KEY_LOCKS: u32 = 0xF200_0000;
+
+fn pcr_signing_key_digest(
+    domain: &[u8],
+    version: u32,
+    flags: u32,
+    key_parts: &[&[u8]],
+) -> [u8; 48] {
+    let mut hasher = Sha384::new();
+    hasher.update(domain);
+    hasher.update(&version.to_be_bytes());
+    hasher.update(&flags.to_be_bytes());
+    for part in key_parts {
+        hasher.update(part);
+    }
+    hasher.finish()
+}
+
+fn cert_pcr_signing_key_digest(cert_der: &[u8], oid: &asn1::ObjectIdentifier) -> [u8; 48] {
+    let extension = get_cert_extension(cert_der, oid).unwrap().unwrap();
+    asn1::parse(extension, |parser| parser.read_element::<&[u8]>())
+        .unwrap()
+        .try_into()
+        .unwrap()
+}
+
+fn get_pcr_signing_ecc384_pub_key(model: &mut DefaultHwModel) -> ([u8; 48], [u8; 48]) {
+    let mut cmd = MailboxReq::QuotePcrsEcc384(QuotePcrsEcc384Req {
+        hdr: MailboxReqHeader { chksum: 0 },
+        nonce: [0u8; 32],
+    });
+    cmd.populate_chksum().unwrap();
+    let response = model
+        .mailbox_execute(
+            u32::from(CommandId::QUOTE_PCRS_ECC384),
+            cmd.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .unwrap();
+    let response = QuotePcrsEcc384Resp::read_from_bytes(&response).unwrap();
+    (response.pub_key_x, response.pub_key_y)
+}
+
+fn get_pcr_signing_mldsa87_pub_key(model: &mut DefaultHwModel) -> [u8; 2592] {
+    let mut cmd = MailboxReq::QuotePcrsMldsa87(QuotePcrsMldsa87Req {
+        hdr: MailboxReqHeader { chksum: 0 },
+        nonce: [0u8; 32],
+    });
+    cmd.populate_chksum().unwrap();
+    let response = model
+        .mailbox_execute(
+            u32::from(CommandId::QUOTE_PCRS_MLDSA87),
+            cmd.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .unwrap();
+    QuotePcrsMldsa87Resp::read_from_bytes(&response)
+        .unwrap()
+        .pub_key
+}
+
+#[test]
+fn test_pcr_signing_keys_are_write_and_use_locked() {
+    let security_state = *SecurityState::default()
+        .set_debug_locked(true)
+        .set_device_lifecycle(DeviceLifecycle::Production);
+    let mut model = run_rt_test(RuntimeTestArgs {
+        test_fwid: Some(&runtime_tests::MBOX),
+        security_state: Some(security_state),
+        ..Default::default()
+    });
+
+    let assert_pcr_signing_keys_locked = |model: &mut DefaultHwModel| {
+        let response = model
+            .mailbox_execute(OPCODE_READ_PCR_SIGNING_KEY_LOCKS, &[])
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            u32::from_le_bytes(response.as_slice().try_into().unwrap()),
+            0b1111
+        );
+    };
+
+    assert_pcr_signing_keys_locked(&mut model);
+
+    model.warm_reset_flow().unwrap();
+    model.step_until(|model| {
+        model
+            .soc_ifc()
+            .cptra_flow_status()
+            .read()
+            .ready_for_runtime()
+    });
+    assert_pcr_signing_keys_locked(&mut model);
+}
 
 #[test]
 fn test_pcr_quote_ecc() {
@@ -76,15 +184,34 @@ fn test_pcr_quote_ecc() {
     // See if incrementing the reset counter worked
     assert_eq!(pcr7_reset_counter, 1);
 
-    // verify signature
+    // Verify the certificate binding and quote signature with the dedicated key.
     let big_r = BigNum::from_slice(&resp.signature_r).unwrap();
     let big_s = BigNum::from_slice(&resp.signature_s).unwrap();
     let sig = EcdsaSig::from_private_components(big_r, big_s).unwrap();
 
     let fmc_resp = get_ecc_fmc_alias_cert(&mut model);
-    let fmc_cert: X509 = X509::from_der(&fmc_resp.data[..fmc_resp.data_size as usize]).unwrap();
-    let pkey = fmc_cert.public_key().unwrap().ec_key().unwrap();
-    assert!(sig.verify(&resp.digest, &pkey).unwrap());
+    let fmc_cert_der = &fmc_resp.data[..fmc_resp.data_size as usize];
+    let fmc_cert: X509 = X509::from_der(fmc_cert_der).unwrap();
+    let fmc_key = fmc_cert.public_key().unwrap().ec_key().unwrap();
+    assert!(!sig.verify(&resp.digest, &fmc_key).unwrap());
+
+    assert_eq!(
+        cert_pcr_signing_key_digest(fmc_cert_der, &PCR_SIGNING_ECC384_PUB_KEY_DIGEST_OID),
+        pcr_signing_key_digest(
+            PCR_SIGNING_ECC384_DOMAIN,
+            PCR_SIGNING_KEY_BINDING_VERSION,
+            PCR_SIGNING_KEY_BINDING_FLAGS,
+            &[&resp.pub_key_x, &resp.pub_key_y],
+        )
+    );
+
+    let pcr_signing_key = EcKey::from_public_key_affine_coordinates(
+        &EcGroup::from_curve_name(Nid::SECP384R1).unwrap(),
+        &BigNum::from_slice(&resp.pub_key_x).unwrap(),
+        &BigNum::from_slice(&resp.pub_key_y).unwrap(),
+    )
+    .unwrap();
+    assert!(sig.verify(&resp.digest, &pcr_signing_key).unwrap());
 }
 
 #[test]
@@ -141,18 +268,63 @@ fn test_pcr_quote_mldsa() {
     // See if incrementing the reset counter worked
     assert_eq!(pcr7_reset_counter, 1);
 
-    // verify signature
+    // Verify the certificate binding and quote signature with the dedicated key.
     let fmc_resp = get_mldsa_fmc_alias_cert(&mut model);
-    let cert = Certificate::from_der(&fmc_resp.data[..fmc_resp.data_size as usize]).unwrap();
+    let fmc_cert_der = &fmc_resp.data[..fmc_resp.data_size as usize];
+    let cert = Certificate::from_der(fmc_cert_der).unwrap();
     let pk_bytes = cert
         .tbs_certificate
         .subject_public_key_info
         .to_der()
         .unwrap();
-    let pk = VerifyingKey::<MlDsa87>::from_public_key_der(&pk_bytes).unwrap();
+    let fmc_key = VerifyingKey::<MlDsa87>::from_public_key_der(&pk_bytes).unwrap();
     let signature_bytes: [u8; 4627] = resp.signature[..4627].try_into().unwrap();
     let signature = Signature::<MlDsa87>::decode((&signature_bytes).into()).unwrap();
-    pk.verify(&resp.digest, &signature).unwrap();
+    assert!(fmc_key.verify(&resp.digest, &signature).is_err());
+
+    assert_eq!(
+        cert_pcr_signing_key_digest(fmc_cert_der, &PCR_SIGNING_MLDSA87_PUB_KEY_DIGEST_OID),
+        pcr_signing_key_digest(
+            PCR_SIGNING_MLDSA87_DOMAIN,
+            PCR_SIGNING_KEY_BINDING_VERSION,
+            PCR_SIGNING_KEY_BINDING_FLAGS,
+            &[&resp.pub_key],
+        )
+    );
+
+    let pcr_signing_key =
+        VerifyingKey::<MlDsa87>::decode(resp.pub_key.as_slice().try_into().unwrap());
+    pcr_signing_key.verify(&resp.digest, &signature).unwrap();
+}
+
+#[test]
+fn test_pcr_signing_keys_persist_across_warm_reset() {
+    let security_state = *SecurityState::default()
+        .set_debug_locked(true)
+        .set_device_lifecycle(DeviceLifecycle::Production);
+    let mut model = run_rt_test(RuntimeTestArgs {
+        security_state: Some(security_state),
+        ..Default::default()
+    });
+
+    while !model.boot_complete() {
+        model.step();
+    }
+
+    let ecc_before = get_pcr_signing_ecc384_pub_key(&mut model);
+    let mldsa_before = get_pcr_signing_mldsa87_pub_key(&mut model);
+
+    model.warm_reset_flow().unwrap();
+    model.step_until(|model| {
+        model
+            .soc_ifc()
+            .cptra_flow_status()
+            .read()
+            .ready_for_runtime()
+    });
+
+    assert_eq!(get_pcr_signing_ecc384_pub_key(&mut model), ecc_before);
+    assert_eq!(get_pcr_signing_mldsa87_pub_key(&mut model), mldsa_before);
 }
 
 fn generate_mailbox_extend_pcr_req(idx: u32, pcr_extension_data: [u8; 48]) -> MailboxReq {
