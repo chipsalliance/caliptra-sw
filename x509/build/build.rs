@@ -63,7 +63,7 @@ fn gen_init_devid_csr(out_dir: &str) {
         .add_basic_constraints_ext(true, 5)
         .add_key_usage_ext(usage)
         .add_ueid_ext(&[0xFF; 17]);
-    let template = bldr.tbs_template("Caliptra 1.0 MlDsa87 PQDevID");
+    let template = bldr.tbs_template("Caliptra 1.3 MlDsa87 PQDevID");
     CodeGen::gen_code("PqDevIdCsrTbsMlDsa87", template, out_dir);
 }
 
