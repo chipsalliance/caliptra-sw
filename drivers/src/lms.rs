@@ -563,7 +563,7 @@ impl Lms {
             for val in temp.0.iter() {
                 hasher.update(&val.to_be_bytes())?;
             }
-            if node_num % 2 == 0 {
+            if node_num.is_multiple_of(2) {
                 hasher.update(
                     lms_sig
                         .tree_path

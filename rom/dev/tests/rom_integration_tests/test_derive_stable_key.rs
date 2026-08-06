@@ -303,7 +303,7 @@ fn test_random_generate() {
             resp.data[..len]
                 .iter()
                 .copied()
-                .reduce(|a, b| (a | b))
+                .reduce(|a, b| a | b)
                 .unwrap()
                 != 0
         );

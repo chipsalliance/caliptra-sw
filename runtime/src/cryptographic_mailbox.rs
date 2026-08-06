@@ -163,8 +163,8 @@ impl CmStorage {
     /// Deletes the counter for the given key id, if it exists.
     pub fn delete_counter(&mut self, key_id: u32) -> CaliptraResult<()> {
         match self.counters.binary_search_by_key(&key_id, |k| k.key_id) {
-            Ok(idx) => {
-                self.counters.remove(idx);
+            Ok(_) => {
+                self.counters.retain(|counter| counter.key_id != key_id);
                 Ok(())
             }
             Err(_) => Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS),
@@ -817,7 +817,8 @@ impl Commands {
 
         let mode = CmAesMode::from(cmd.mode);
 
-        if matches!(mode, CmAesMode::Cbc) && cmd.plaintext_size as usize % AES_BLOCK_SIZE_BYTES != 0
+        if matches!(mode, CmAesMode::Cbc)
+            && !(cmd.plaintext_size as usize).is_multiple_of(AES_BLOCK_SIZE_BYTES)
         {
             Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
         }
@@ -899,7 +900,8 @@ impl Commands {
         )?;
 
         let mode = CmAesMode::from(context.mode);
-        if matches!(mode, CmAesMode::Cbc) && cmd.plaintext_size as usize % AES_BLOCK_SIZE_BYTES != 0
+        if matches!(mode, CmAesMode::Cbc)
+            && !(cmd.plaintext_size as usize).is_multiple_of(AES_BLOCK_SIZE_BYTES)
         {
             Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
         }
@@ -934,7 +936,7 @@ impl Commands {
         let mode = CmAesMode::from(cmd.mode);
 
         if matches!(mode, CmAesMode::Cbc)
-            && cmd.ciphertext_size as usize % AES_BLOCK_SIZE_BYTES != 0
+            && !(cmd.ciphertext_size as usize).is_multiple_of(AES_BLOCK_SIZE_BYTES)
         {
             Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
         }
@@ -1008,7 +1010,7 @@ impl Commands {
         )?;
         let mode: CmAesMode = context.mode.into();
         if matches!(mode, CmAesMode::Cbc)
-            && cmd.ciphertext_size as usize % AES_BLOCK_SIZE_BYTES != 0
+            && !(cmd.ciphertext_size as usize).is_multiple_of(AES_BLOCK_SIZE_BYTES)
         {
             Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
         }

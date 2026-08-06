@@ -442,6 +442,7 @@ pub struct DataIn(pub u32);
 
 #[derive(PartialEq)]
 /// Data length
+#[allow(dead_code)]
 pub struct Owner(pub u32);
 
 #[derive(PartialEq)]

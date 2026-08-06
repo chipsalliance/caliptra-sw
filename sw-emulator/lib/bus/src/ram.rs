@@ -114,7 +114,7 @@ impl<T: MemAccess> Bus for RamImpl<T> {
     /// # Error
     ///
     /// * `BusException` - Exception with cause `BusExceptionCause::LoadAccessFault`
-    ///                   or `BusExceptionCause::LoadAddrMisaligned`
+    ///   or `BusExceptionCause::LoadAddrMisaligned`
     fn read(&mut self, size: RvSize, addr: RvAddr) -> Result<RvData, BusError> {
         if 2 == self.error_injection {
             return Err(BusError::InstrAccessFault);
@@ -139,7 +139,7 @@ impl<T: MemAccess> Bus for RamImpl<T> {
     /// # Error
     ///
     /// * `BusException` - Exception with cause `BusExceptionCause::StoreAccessFault`
-    ///                   or `BusExceptionCause::StoreAddrMisaligned`
+    ///   or `BusExceptionCause::StoreAddrMisaligned`
     fn write(&mut self, size: RvSize, addr: RvAddr, val: RvData) -> Result<(), BusError> {
         match T::write_mem(&mut self.data, size, addr, val) {
             Ok(data) => Ok(data),
