@@ -12,6 +12,8 @@ Abstract:
 
 --*/
 
+#![allow(clippy::result_large_err)]
+
 use openssl::asn1::{Asn1Object, Asn1OctetString};
 use openssl::bn::BigNumContext;
 use openssl::ec::EcGroup;
@@ -626,6 +628,7 @@ impl HPKEIdentifiers {
 }
 
 #[derive(asn1::Asn1Read, asn1::Asn1Write)]
+#[allow(dead_code)]
 pub struct HPKEIdentifierExt<'a> {
     pub(crate) hpke_oid: asn1::ObjectIdentifier,
     pub(crate) critical: bool,

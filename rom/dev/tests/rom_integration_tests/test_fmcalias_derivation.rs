@@ -72,7 +72,7 @@ fn test_firmware_gt_max_size() {
         .cmd()
         .write(|_| CommandId::FIRMWARE_LOAD.into());
     hw.soc_mbox().dlen().write(|_| (IMAGE_BYTE_SIZE + 1) as u32);
-    for i in 0..((IMAGE_BYTE_SIZE + 1 + 3) / 4) {
+    for i in 0..(IMAGE_BYTE_SIZE + 1).div_ceil(4) {
         hw.soc_mbox().datain().write(|_| i as u32);
     }
     hw.soc_mbox().execute().write(|w| w.execute(true));
@@ -221,7 +221,7 @@ fn test_pcr_log() {
                 fuses.fuse_mldsa_revocation as u8,
                 first_set_msbit(&fuses.fw_svn) as u8,
                 first_set_msbit(&fuses.soc_manifest_svn) as u8,
-                fuses.soc_manifest_max_svn as u8,
+                fuses.soc_manifest_max_svn,
                 fuses.fuse_pqc_key_type as u8,
                 device_lifecycle as u8,
                 debug_locked as u8,
@@ -344,7 +344,7 @@ fn test_pcr_log_no_owner_key_digest_fuse() {
                 fuses.fuse_mldsa_revocation as u8,
                 first_set_msbit(&fuses.fw_svn) as u8,
                 first_set_msbit(&fuses.soc_manifest_svn) as u8,
-                fuses.soc_manifest_max_svn as u8,
+                fuses.soc_manifest_max_svn,
                 fuses.fuse_pqc_key_type as u8,
                 device_lifecycle as u8,
                 debug_locked as u8,
@@ -465,7 +465,7 @@ fn test_pcr_log_fmc_fuse_svn() {
                 fuses.fuse_mldsa_revocation as u8,
                 first_set_msbit(&fuses.fw_svn) as u8,
                 first_set_msbit(&fuses.soc_manifest_svn) as u8,
-                fuses.soc_manifest_max_svn as u8,
+                fuses.soc_manifest_max_svn,
                 fuses.fuse_pqc_key_type as u8,
                 device_lifecycle as u8,
                 debug_locked as u8,

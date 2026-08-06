@@ -10,17 +10,12 @@ use rand::{
 };
 
 /// Caliptra Hardware Version
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum CaliptraHwVersion {
     V2_0,
+    #[default]
     V2_1,
     V2_2,
-}
-
-impl Default for CaliptraHwVersion {
-    fn default() -> Self {
-        Self::V2_1
-    }
 }
 
 // Rationale behind this choice

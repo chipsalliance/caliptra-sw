@@ -173,7 +173,7 @@ pub fn copy_tbs(tbs: &[u8], tbs_type: TbsType, env: &mut RomEnv) -> CaliptraResu
     Ok(())
 }
 
-fn dice_input_from_output(dice_output: &DiceOutput) -> DiceInput {
+fn dice_input_from_output(dice_output: &DiceOutput) -> DiceInput<'_> {
     DiceInput {
         ecc_auth_key_pair: &dice_output.ecc_subj_key_pair,
         ecc_auth_sn: &dice_output.ecc_subj_sn,

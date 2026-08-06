@@ -100,7 +100,7 @@ impl CertifyKeyExtendedCmd {
         );
 
         // Get the number of words to send by rounding up to nearest word
-        let num_words = len.next_multiple_of(4) / 4;
+        let num_words = len.div_ceil(4);
         let len = num_words * 4;
         if len > cmd.axi_response.max_size as usize {
             return Err(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY);

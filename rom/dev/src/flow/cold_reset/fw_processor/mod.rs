@@ -1077,7 +1077,7 @@ impl FirmwareProcessor {
     ///
     /// # Returns
     /// * `&[u8]` - Command bytes slice
-    ///    Error code on failure.
+    ///   Error code on failure.
     pub fn get_and_verify_cmd_bytes<'a>(txn: &'a MailboxRecvTxn<'a>) -> CaliptraResult<&'a [u8]> {
         // Get command bytes from mailbox
         let raw_data = txn.raw_mailbox_contents();
@@ -1103,7 +1103,7 @@ impl FirmwareProcessor {
     ///
     /// # Returns
     /// * `()` - Ok
-    ///    Error code on failure.
+    ///   Error code on failure.
     pub fn verify_chksum(cmd: u32, data: &[u8]) -> CaliptraResult<()> {
         if data.len() < core::mem::size_of::<MailboxReqHeader>() {
             return Err(CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH);
