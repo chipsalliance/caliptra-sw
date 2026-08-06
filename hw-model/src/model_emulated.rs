@@ -1,7 +1,7 @@
 // Licensed under the Apache-2.0 license
 
 use std::cell::Cell;
-use std::collections::hash_map::DefaultHasher;
+use std::collections::{hash_map::DefaultHasher, HashMap};
 use std::error::Error;
 use std::hash::Hasher;
 use std::io::Write;
@@ -11,7 +11,7 @@ use std::rc::Rc;
 use caliptra_emu_bus::Clock;
 #[cfg(feature = "coverage")]
 use caliptra_emu_cpu::CoverageBitmaps;
-use caliptra_emu_cpu::{Cpu, InstrTracer};
+use caliptra_emu_cpu::{Cpu, InstrTracer, StackSample, StackSampler};
 use caliptra_emu_periph::ActionCb;
 use caliptra_emu_periph::MailboxExternal;
 use caliptra_emu_periph::ReadyForFwCb;
@@ -135,6 +135,16 @@ impl ModelEmulated {
     pub fn cpu_halted(&self) -> bool {
         self.cpu.read_halted()
     }
+
+    pub fn stack_samples(&self) -> Option<HashMap<StackSample, u64>> {
+        self.cpu.stack_sampler.as_ref().map(|s| s.samples.clone())
+    }
+
+    pub fn reset_stack_sampler(&mut self) {
+        if let Some(s) = self.cpu.stack_sampler.as_mut() {
+            s.reset();
+        }
+    }
 }
 
 fn hash_slice(slice: &[u8]) -> u64 {
@@ -226,6 +236,9 @@ impl HwModel for ModelEmulated {
             let mut cpu = Cpu::new(BusLogger::new(root_bus), clock);
             if let Some(stack_info) = params.stack_info {
                 cpu.with_stack_info(stack_info);
+            }
+            if params.sample_stack_traces {
+                cpu.stack_sampler = Some(StackSampler::new(params.stack_sample_rate));
             }
             cpu
         };
