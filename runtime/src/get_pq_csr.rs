@@ -36,6 +36,10 @@ impl GetPqCsrCmd {
     pub(crate) fn execute(drivers: &mut Drivers) -> CaliptraResult<()> {
         copy_from_mbox(drivers, GetPqCsrReq::new_zeroed().as_mut_bytes())?;
 
+        // Re-deriving the key material and signing the CSR below exceed the
+        // default 20M-cycle command watchdog budget; extend it.
+        drivers.extend_wdt_for_pqc();
+
         // Re-derive the PQ.DevID ML-DSA-87 seed and public key from the PQ.DevID CDI (held in
         // persistent data). The seed is transient and zeroized as soon as the key pair operations
         // are done.

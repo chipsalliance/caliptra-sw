@@ -113,6 +113,11 @@ impl InvokeDpeMldsa87Cmd {
 
         let mut cmd = InvokeDpeMldsa87Req::new_zeroed();
         crate::packet::copy_from_mbox(drivers, cmd.as_mut_bytes())?;
+
+        // ML-DSA-87 DPE operations (e.g. CertifyKey / Sign) can exceed the
+        // default 20M-cycle command watchdog budget; extend it.
+        drivers.extend_wdt_for_pqc();
+
         execute(
             drivers,
             CaliptraDpeProfile::Mldsa,

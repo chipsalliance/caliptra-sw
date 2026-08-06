@@ -34,12 +34,10 @@ impl CertifyKeyExtendedMldsa87Cmd {
             return Err(CaliptraError::RUNTIME_PQC_NOT_INITIALIZED);
         }
 
-        // The mldsa variant of the certify key extended can be quite long, the current longest
-        // measurement over 400_000_000 cycles. As such support 800_000_000 cycles prior to timeout.
-        caliptra_common::wdt::start_wdt(
-            &mut drivers.soc_ifc,
-            caliptra_common::WdtTimeout::new_const(800_000_000),
-        );
+        // The mldsa variant of the certify key extended can be quite long (the
+        // current longest measurement is over 400_000_000 cycles), well past the
+        // default 20M-cycle command watchdog budget; extend it.
+        drivers.extend_wdt_for_pqc();
 
         // The certify-key logic is shared with the ECDSA variant; only the DPE
         // profile (and thus identity / signature algorithm) differs.

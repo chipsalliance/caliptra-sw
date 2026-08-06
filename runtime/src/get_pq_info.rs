@@ -31,6 +31,10 @@ impl GetPqInfoCmd {
     pub(crate) fn execute(drivers: &mut Drivers) -> CaliptraResult<()> {
         copy_from_mbox(drivers, GetPqInfoReq::new_zeroed().as_mut_bytes())?;
 
+        // Computing the ML-DSA-87 public key below exceeds the default 20M-cycle
+        // command watchdog budget; extend it.
+        drivers.extend_wdt_for_pqc();
+
         let mut seed = Mldsa87Seed::default();
         drivers.derive_devid_seed(&mut seed)?;
 
