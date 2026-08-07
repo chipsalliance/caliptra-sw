@@ -13,6 +13,7 @@ Abstract:
 --*/
 
 use crate::manifest::{find_metadata_entry, find_owner_metadata_entry};
+use crate::stash_measurement::StashAuthorization;
 use crate::{mutrefbytes, Drivers, PauserPrivileges, StashMeasurementCmd};
 use caliptra_auth_man_types::ImageMetadataFlags;
 #[cfg(feature = "cfi")]
@@ -84,6 +85,10 @@ impl AuthorizeAndStashCmd {
                     cmd.svn,
                     drivers.caller_privilege_level(),
                     locality,
+                    // Only reachable once `authorize_image` matched this image
+                    // against the signed SoC manifest, so the measurement is
+                    // authorized even when the request came from the mailbox.
+                    StashAuthorization::Authorized,
                 )?;
                 if dpe_result != DpeErrorCode::NoError {
                     drivers

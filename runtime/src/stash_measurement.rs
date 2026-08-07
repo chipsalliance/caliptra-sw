@@ -17,7 +17,9 @@ use crate::{
 };
 #[cfg(feature = "cfi")]
 use caliptra_cfi_derive::cfi_impl_fn;
-use caliptra_common::mailbox_api::{MailboxRespHeader, StashMeasurementReq, StashMeasurementResp};
+use caliptra_common::mailbox_api::{
+    ActivateFirmwareReq, MailboxRespHeader, StashMeasurementReq, StashMeasurementResp,
+};
 use caliptra_dpe::{
     commands::{Command, DeriveContextCmd, DeriveContextFlags},
     context::ContextHandle,
@@ -30,12 +32,42 @@ use zerocopy::{FromBytes, IntoBytes};
 
 const MCU_TCI_TYPE: u32 = u32::from_be_bytes(*b"MCFW");
 
+/// Firmware ID reserved for the Caliptra-managed MCU runtime DPE context.
+///
+/// Measurements stashed under this ID are tagged with the `MCFW` TCI type and
+/// re-point the cached MCU RT context index, so it may only be used with a
+/// measurement Caliptra has authorized against the signed SoC manifest.
+pub(crate) const MCU_RT_RESERVED_FW_ID: [u8; 4] = ActivateFirmwareReq::MCU_IMAGE_ID.to_le_bytes();
+
+/// Identifies whether Caliptra has authorized the measurement being stashed.
+///
+/// The reserved MCU RT firmware ID tags the measurement with the `MCFW` TCI
+/// type and re-points the cached MCU RT context index, so it must only be
+/// reachable with a measurement Caliptra has authorized against the signed SoC
+/// manifest (or produced itself).
+///
+/// This deliberately has no `Default` impl and no conversion from raw mailbox
+/// bytes so that a mailbox caller cannot forge [`StashAuthorization::Authorized`].
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum StashAuthorization {
+    /// The measurement was authorized against the signed SoC manifest, or was
+    /// produced by a Caliptra-internal flow such as recovery.
+    Authorized,
+    /// The measurement was supplied verbatim by the SoC over the mailbox and has
+    /// not been authorized against the SoC manifest.
+    Unauthorized,
+}
+
 pub struct StashMeasurementCmd;
 impl StashMeasurementCmd {
     #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     /// This function MUST ONLY be called by Caliptra.
     /// Mailbox commands MUST use the `execute` function.
+    ///
+    /// Callers passing a measurement they have not authorized MUST pass
+    /// `StashAuthorization::Unauthorized`; only authorized measurements may
+    /// use `MCU_RT_RESERVED_FW_ID`.
     pub(crate) fn stash_measurement(
         drivers: &mut Drivers,
         metadata: &[u8; 4],
@@ -43,10 +75,20 @@ impl StashMeasurementCmd {
         svn: u32,
         caller_privilege_level: PauserPrivileges,
         locality: u32,
+        authorization: StashAuthorization,
     ) -> CaliptraResult<DpeErrorCode> {
+        // The reserved MCU RT firmware ID creates or re-points the
+        // Caliptra-managed MCFW context. Reject it for unauthorized
+        // measurements so the SoC cannot forge the MCU RT measurement or steal
+        // its cached context index via STASH_MEASUREMENT.
+        let is_mcu_rt = metadata == &MCU_RT_RESERVED_FW_ID;
+        if is_mcu_rt && authorization == StashAuthorization::Unauthorized {
+            return Err(CaliptraError::RUNTIME_STASH_MEASUREMENT_RESERVED_FW_ID);
+        }
+
         let dpe_result = {
             // Check for MCU FW ID and swap it's TCI type
-            let tci_type = if metadata == &[2, 0, 0, 0] {
+            let tci_type = if is_mcu_rt {
                 MCU_TCI_TYPE
             } else {
                 u32::from_ne_bytes(*metadata)
@@ -98,7 +140,7 @@ impl StashMeasurementCmd {
         };
 
         if let DpeErrorCode::NoError = dpe_result {
-            if metadata == &[2, 0, 0, 0] {
+            if is_mcu_rt {
                 let mcu_rt_dpe_context_idx = drivers
                     .persistent_data
                     .get()
@@ -150,6 +192,7 @@ impl StashMeasurementCmd {
             cmd.svn,
             caller_privilege_level,
             locality,
+            StashAuthorization::Unauthorized,
         )?;
 
         let resp = mutrefbytes::<StashMeasurementResp>(resp)?;
