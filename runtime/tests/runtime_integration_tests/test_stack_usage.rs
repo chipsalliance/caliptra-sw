@@ -85,7 +85,7 @@ fn measure_runtime_command_stack_usage() {
     // run with PQC mode enabled and before the side-effecting suite tail.
     #[cfg(feature = "mldsa_attestation")]
     results.extend(
-        run_pqc_command_suite(&mut model, &mut StackSampler)
+        run_pqc_command_suite(&mut model, &mut StackSampler, None)
             .into_iter()
             .map(|(name, v)| (name, v as u32)),
     );
