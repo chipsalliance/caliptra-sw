@@ -1,0 +1,32 @@
+# Run smoke_test against older ROM versions using the SW emulator.
+# This catches regressions in backward compatibility with older ROMs on every PR.
+
+name: Build and Test Firmware (legacy ROM, in emulator)
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+
+jobs:
+  sw-emulator-smoke-rom-1_0:
+    name: sw-emulator smoke (ROM 1.0)
+    uses: ./.github/workflows/fw-test-emu.yml
+    with:
+      artifact-suffix: -pr-smoke-rom-1.0
+      # hw-1.0 selects the 1.0 hardware model; sw_emu_stack_check_disable is needed
+      # because the 1.0.x ROM overflows the stack into unused space.
+      extra-features: hw-1.0,sw_emu_stack_check_disable
+      rom-version: "1.0"
+      test-filter: "test(=smoke_test::smoke_test)"
+      branch: ${{ github.sha }}
+
+  sw-emulator-smoke-rom-1_1:
+    name: sw-emulator smoke (ROM 1.1)
+    uses: ./.github/workflows/fw-test-emu.yml
+    with:
+      artifact-suffix: -pr-smoke-rom-1.1
+      extra-features: ""
+      rom-version: "1.1"
+      test-filter: "test(=smoke_test::smoke_test)"
+      branch: ${{ github.sha }}
