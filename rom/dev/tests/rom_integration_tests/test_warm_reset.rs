@@ -33,7 +33,7 @@ fn test_warm_reset_success() {
         .set_device_lifecycle(DeviceLifecycle::Production);
 
     let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
-    let image = caliptra_builder::build_and_sign_image(
+    let (image, _) = caliptra_builder::build_and_sign_image(
         &FMC_WITH_UART,
         &APP_WITH_UART,
         ImageOptions {
@@ -279,7 +279,7 @@ fn test_warm_reset_version() {
     let app_version = 5;
 
     let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
-    let image = caliptra_builder::build_and_sign_image(
+    let (image, _) = caliptra_builder::build_and_sign_image(
         &FMC_WITH_UART,
         &APP_WITH_UART,
         ImageOptions {

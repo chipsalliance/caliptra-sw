@@ -199,7 +199,7 @@ fn smoke_test() {
     let idevid_pubkey = get_idevid_pubkey();
 
     let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
-    let image = caliptra_builder::build_and_sign_image(
+    let (image, _) = caliptra_builder::build_and_sign_image(
         &firmware::FMC_WITH_UART,
         &firmware::APP_WITH_UART,
         ImageOptions {
@@ -700,7 +700,7 @@ fn smoke_test() {
 
     // Hitlessly update to the no-uart runtime firmware
 
-    let image2 = caliptra_builder::build_and_sign_image(
+    let (image2, _) = caliptra_builder::build_and_sign_image(
         &firmware::FMC_WITH_UART,
         &firmware::APP,
         ImageOptions {
@@ -862,7 +862,7 @@ fn test_rt_wdt_timeout() {
         ..Default::default()
     };
 
-    let image = caliptra_builder::build_and_sign_image(
+    let (image, _) = caliptra_builder::build_and_sign_image(
         &FMC_WITH_UART,
         &APP_WITH_UART,
         ImageOptions::default(),
@@ -939,7 +939,7 @@ fn test_fmc_wdt_timeout() {
         ..Default::default()
     };
 
-    let image = caliptra_builder::build_and_sign_image(
+    let (image, _) = caliptra_builder::build_and_sign_image(
         &FMC_WITH_UART,
         &APP_WITH_UART,
         ImageOptions::default(),

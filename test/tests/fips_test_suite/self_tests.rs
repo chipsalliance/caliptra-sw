@@ -154,6 +154,7 @@ fn self_test_failure_flow_rt(hook_code: u8, exp_error_code: u32) {
         ImageOptions::default(),
     )
     .unwrap()
+    .0
     .to_bytes()
     .unwrap();
 

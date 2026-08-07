@@ -114,7 +114,7 @@ fn test_fake_rom_fw_load() {
     .unwrap();
 
     // Build the image we are going to send to ROM to load
-    let image_bundle = caliptra_builder::build_and_sign_image(
+    let (image_bundle, _) = caliptra_builder::build_and_sign_image(
         &FAKE_TEST_FMC_WITH_UART,
         &APP_WITH_UART,
         ImageOptions::default(),
@@ -151,7 +151,7 @@ fn test_fake_rom_update_reset() {
     )
     .unwrap();
 
-    let image_bundle = caliptra_builder::build_and_sign_image(
+    let (image_bundle, _) = caliptra_builder::build_and_sign_image(
         &FAKE_TEST_FMC_INTERACTIVE,
         &APP_WITH_UART,
         ImageOptions::default(),
@@ -205,7 +205,7 @@ fn test_image_verify() {
     )
     .unwrap();
 
-    let mut image_bundle = caliptra_builder::build_and_sign_image(
+    let (mut image_bundle, _) = caliptra_builder::build_and_sign_image(
         &FAKE_TEST_FMC_WITH_UART,
         &APP_WITH_UART,
         ImageOptions::default(),

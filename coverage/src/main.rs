@@ -97,7 +97,7 @@ fn main() -> std::io::Result<()> {
     }
 
     let iccm_image_tag = {
-        let image = caliptra_builder::build_and_sign_image(
+        let (image, _) = caliptra_builder::build_and_sign_image(
             &FMC_WITH_UART,
             &APP_WITH_UART,
             caliptra_builder::ImageOptions {

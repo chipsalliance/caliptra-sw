@@ -51,7 +51,7 @@ fn fake_boot_test() {
     let idevid_pubkey = get_idevid_pubkey();
 
     let rom = caliptra_builder::build_firmware_rom(&ROM_FAKE_WITH_UART).unwrap();
-    let image = caliptra_builder::build_and_sign_image(
+    let (image, _) = caliptra_builder::build_and_sign_image(
         &FMC_FAKE_WITH_UART,
         &APP_WITH_UART,
         ImageOptions {

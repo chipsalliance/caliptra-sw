@@ -11,15 +11,11 @@
 //! and hand their impl to `run_command_suite` to get the table.
 #![cfg(not(any(feature = "verilator", feature = "fpga_realtime")))]
 
-#[cfg(feature = "mldsa_attestation")]
-use crate::common::gen_flamegraph;
 use crate::common::{execute_dpe_cmd, generate_test_x509_cert, DpeResult, TEST_DIGEST, TEST_LABEL};
 use crate::test_authorize_and_stash::{FW_ID_1, IMAGE_DIGEST1};
 use crate::test_lms::representative_lms_verify_req;
 use crate::test_set_auth_manifest::create_auth_manifest;
 use caliptra_auth_man_types::AuthManifestFlags;
-#[cfg(feature = "mldsa_attestation")]
-use caliptra_builder::Symbol;
 use caliptra_common::mailbox_api::{
     AddSubjectAltNameReq, AuthorizeAndStashReq, CertifyKeyExtendedFlags, CertifyKeyExtendedReq,
     CommandId, EcdsaVerifyReq, ExtendPcrReq, GetIdevCertReq, ImageHashSource,
@@ -515,7 +511,6 @@ pub fn run_command_suite(
 pub fn run_pqc_command_suite(
     model: &mut DefaultHwModel,
     sampler: &mut dyn CommandSampler,
-    elf_symbols: Option<&Vec<Symbol<'_>>>,
 ) -> Vec<(&'static str, u64)> {
     use caliptra_common::mailbox_api::{
         CertifyKeyExtendedMldsa87Req, GetPqCertReq, Mldsa87VerifyReq, PopulatePqCertReq,
@@ -550,7 +545,7 @@ pub fn run_pqc_command_suite(
             "GET_PQ_CSR",
             measure_hdr(sampler, model, CommandId::GET_PQ_CSR),
         ));
-        gen_flamegraph("GET_PQ_CSR", model, elf_symbols);
+        model.gen_flamegraph("GET_PQ_CSR").unwrap();
     }
 
     // CERTIFY_KEY_EXTENDED_MLDSA87 — certify the default DPE context under the
@@ -576,7 +571,9 @@ pub fn run_pqc_command_suite(
                 }),
             ),
         ));
-        gen_flamegraph("CERTIFY_KEY_EXTENDED_MLDSA87", model, elf_symbols);
+        model
+            .gen_flamegraph("CERTIFY_KEY_EXTENDED_MLDSA87")
+            .unwrap();
     }
 
     // MLDSA87_SIGNATURE_VERIFY — digest pulled from the SHA accelerator (same
@@ -606,7 +603,7 @@ pub fn run_pqc_command_suite(
                 MailboxReq::Mldsa87Verify(*req),
             ),
         ));
-        gen_flamegraph("MLDSA87_SIGNATURE_VERIFY", model, elf_symbols);
+        model.gen_flamegraph("MLDSA87_SIGNATURE_VERIFY").unwrap();
     }
 
     // GET_PQ_CERT — assemble an ML-DSA-87 DER certificate from the caller's

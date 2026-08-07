@@ -25,10 +25,6 @@
 use crate::common::{run_rt_test, RuntimeTestArgs};
 use crate::test_measurements_common::{run_command_suite, CommandSampler};
 use caliptra_api::SocManager;
-use caliptra_builder::{
-    build_firmware_elf, elf_symbols,
-    firmware::{APP_WITH_UART, APP_WITH_UART_FPGA},
-};
 use caliptra_hw_model::{DefaultHwModel, HwModel};
 use caliptra_runtime::RtBootStatus;
 
@@ -51,10 +47,14 @@ impl CommandSampler for CycleSampler {
     }
 }
 
-fn test_args(sample_stack_traces: bool) -> RuntimeTestArgs<'static> {
+fn test_args(
+    sample_stack_traces: bool,
+    stack_sample_rate: Option<u64>,
+) -> RuntimeTestArgs<'static> {
     #[allow(unused_mut)]
     let mut arg = RuntimeTestArgs {
         sample_stack_traces,
+        stack_sample_rate,
         ..RuntimeTestArgs::default()
     };
 
@@ -67,22 +67,6 @@ fn test_args(sample_stack_traces: bool) -> RuntimeTestArgs<'static> {
 }
 
 fn measure_timing(args: RuntimeTestArgs) {
-    // The binary is cached so we'll be using the same ELF as the one used in test.
-    let fwid = args
-        .test_fwid
-        .unwrap_or(if cfg!(feature = "fpga_realtime") {
-            &APP_WITH_UART_FPGA
-        } else {
-            &APP_WITH_UART
-        });
-    let elf_bytes = build_firmware_elf(fwid).unwrap();
-    #[allow(unused_variables)]
-    let symbols = if args.sample_stack_traces {
-        Some(elf_symbols(elf_bytes.as_slice()).expect("Failed to build ELF symbols"))
-    } else {
-        None
-    };
-
     let mut model = run_rt_test(args);
 
     model.step_until(|m| {
@@ -98,7 +82,6 @@ fn measure_timing(args: RuntimeTestArgs) {
     results.extend(run_pqc_command_suite(
         &mut model,
         &mut CycleSampler { start: 0 },
-        symbols.as_ref(),
     ));
 
     results.extend(run_command_suite(
@@ -121,10 +104,10 @@ fn measure_timing(args: RuntimeTestArgs) {
 
 #[test]
 fn measure_runtime_command_timing() {
-    measure_timing(test_args(false));
+    measure_timing(test_args(false, None));
 }
 
 #[test]
 fn measure_runtime_command_timing_and_sample_stack_traces() {
-    measure_timing(test_args(true));
+    measure_timing(test_args(true, None));
 }

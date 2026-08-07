@@ -16,7 +16,7 @@ fn test_wdt_activation_and_stoppage() {
         .set_device_lifecycle(DeviceLifecycle::Unprovisioned);
 
     // Build the image we are going to send to ROM to load
-    let image_bundle = caliptra_builder::build_and_sign_image(
+    let (image_bundle, _) = caliptra_builder::build_and_sign_image(
         &TEST_FMC_INTERACTIVE,
         &APP_WITH_UART,
         ImageOptions::default(),

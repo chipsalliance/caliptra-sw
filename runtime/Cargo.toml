@@ -42,7 +42,6 @@ cfg-if.workspace = true
 [dev-dependencies]
 caliptra-api.workspace = true
 caliptra-builder.workspace = true
-caliptra-emu-cpu.workspace = true
 caliptra-hw-model.workspace = true
 caliptra-image-elf.workspace = true
 caliptra-image-fake-keys.workspace = true
@@ -57,8 +56,6 @@ sha2 = { version = "0.10.2", default-features = false, features = ["compress"] }
 cms.workspace = true
 wycheproof.workspace = true
 x509-parser.workspace = true
-rustc-demangle = "0.1.28"
-inferno = "0.12.8"
 
 [features]
 default = ["std", "cfi"]

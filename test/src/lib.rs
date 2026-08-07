@@ -55,8 +55,9 @@ pub fn run_test(
         },
     };
 
-    let image = caliptra_builder::build_and_sign_image(&FMC_WITH_UART, runtime_fwid, image_options)
-        .unwrap();
+    let (image, _) =
+        caliptra_builder::build_and_sign_image(&FMC_WITH_UART, runtime_fwid, image_options)
+            .unwrap();
     let image_bytes = image.to_bytes().unwrap();
 
     let boot_params = boot_params.unwrap_or_default();

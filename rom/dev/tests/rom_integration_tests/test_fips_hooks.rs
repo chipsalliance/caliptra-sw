@@ -16,6 +16,7 @@ fn test_fips_hook_exit() {
         ImageOptions::default(),
     )
     .unwrap()
+    .0
     .to_bytes()
     .unwrap();
 

@@ -4,6 +4,7 @@ use api::CaliptraApiError;
 use caliptra_api as api;
 use caliptra_api::SocManager;
 use caliptra_api_types as api_types;
+use caliptra_builder::Elfs;
 use caliptra_emu_bus::Bus;
 use core::panic;
 use std::path::PathBuf;
@@ -187,8 +188,11 @@ pub struct InitParams<'a> {
     // If true, the CPU samples stack traces periodically for the generation of flamegraphs.
     pub sample_stack_traces: bool,
 
-    // Optional stack sample rate.
+    // Stack sample rate, will be used to create and initialize the stack sampler.
     pub stack_sample_rate: Option<u64>,
+
+    // ELF byte streams of the FMC and runtime, will be used to resolve symbols in stack samples.
+    pub elfs: Option<Elfs>,
 }
 impl<'a> Default for InitParams<'a> {
     fn default() -> Self {
@@ -227,6 +231,7 @@ impl<'a> Default for InitParams<'a> {
             soc_user: MailboxRequester::SocUser(1u32),
             sample_stack_traces: false,
             stack_sample_rate: None,
+            elfs: None,
         }
     }
 }
@@ -326,6 +331,8 @@ pub enum ModelError {
     FuseDoneNotSet,
     FusesAlreadyInitialized,
     StashMeasurementFailed,
+    NoStackSample,
+    NoElfBytes,
 }
 
 impl From<CaliptraApiError> for ModelError {
@@ -457,6 +464,12 @@ impl Display for ModelError {
             }
             ModelError::UnableToSetPauser => {
                 write!(f, "Valid PAUSER locked")
+            }
+            ModelError::NoStackSample => {
+                write!(f, "No stack samples recorded")
+            }
+            ModelError::NoElfBytes => {
+                write!(f, "No ELF bytes to resolve symbols from stack samples")
             }
         }
     }

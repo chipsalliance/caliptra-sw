@@ -35,7 +35,9 @@ enum TocDigest {
 }
 
 pub fn build_fw_image(image_options: ImageOptions) -> ImageBundle {
-    caliptra_builder::build_and_sign_image(&FMC_WITH_UART, &APP_WITH_UART, image_options).unwrap()
+    caliptra_builder::build_and_sign_image(&FMC_WITH_UART, &APP_WITH_UART, image_options)
+        .unwrap()
+        .0
 }
 
 fn update_manifest(image_bundle: &mut ImageBundle, hdr_digest: HdrDigest, toc_digest: TocDigest) {
@@ -719,7 +721,7 @@ fn fw_load_error_update_reset_fmc_digest_mismatch() {
     // Generate images
     let first_image = build_fw_image(ImageOptions::default());
     // Use a different FMC for the update image
-    let update_image = caliptra_builder::build_and_sign_image(
+    let (update_image, _) = caliptra_builder::build_and_sign_image(
         &FMC_FAKE_WITH_UART,
         &APP_WITH_UART,
         ImageOptions::default(),

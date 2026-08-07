@@ -164,7 +164,7 @@ fn test_pcr_log() {
         fmc_svn: FMC_SVN,
         ..Default::default()
     };
-    let image_bundle = caliptra_builder::build_and_sign_image(
+    let (image_bundle, _) = caliptra_builder::build_and_sign_image(
         &TEST_FMC_INTERACTIVE,
         &APP_WITH_UART,
         image_options,
@@ -266,7 +266,7 @@ fn test_pcr_log_no_owner_key_digest_fuse() {
         vendor_config: VENDOR_CONFIG_KEY_1,
         ..Default::default()
     };
-    let image_bundle = caliptra_builder::build_and_sign_image(
+    let (image_bundle, _) = caliptra_builder::build_and_sign_image(
         &TEST_FMC_INTERACTIVE,
         &APP_WITH_UART,
         image_options,
@@ -359,7 +359,7 @@ fn test_pcr_log_fmc_fuse_svn() {
         fmc_svn: FMC_SVN,
         ..Default::default()
     };
-    let image_bundle = caliptra_builder::build_and_sign_image(
+    let (image_bundle, _) = caliptra_builder::build_and_sign_image(
         &TEST_FMC_INTERACTIVE,
         &APP_WITH_UART,
         image_options,
@@ -500,7 +500,7 @@ fn test_pcr_log_across_update_reset() {
         fmc_svn: FMC_SVN,
         ..Default::default()
     };
-    let image_bundle = caliptra_builder::build_and_sign_image(
+    let (image_bundle, _) = caliptra_builder::build_and_sign_image(
         &TEST_FMC_INTERACTIVE,
         &APP_WITH_UART,
         image_options,
@@ -604,7 +604,7 @@ fn test_fuse_log() {
         app_svn: FMC_SVN,
         app_version: 0,
     };
-    let image_bundle =
+    let (image_bundle, _) =
         caliptra_builder::build_and_sign_image(&TEST_FMC_WITH_UART, &APP_WITH_UART, image_options)
             .unwrap();
 
@@ -728,7 +728,7 @@ fn test_fht_info() {
     )
     .unwrap();
 
-    let image_bundle = caliptra_builder::build_and_sign_image(
+    let (image_bundle, _) = caliptra_builder::build_and_sign_image(
         &TEST_FMC_WITH_UART,
         &APP_WITH_UART,
         ImageOptions::default(),
@@ -765,7 +765,7 @@ fn test_check_no_lms_info_in_datavault_on_lms_unavailable() {
     )
     .unwrap();
 
-    let image_bundle = caliptra_builder::build_and_sign_image(
+    let (image_bundle, _) = caliptra_builder::build_and_sign_image(
         &TEST_FMC_WITH_UART,
         &APP_WITH_UART,
         ImageOptions::default(),
@@ -813,7 +813,7 @@ fn test_check_rom_cold_boot_status_reg() {
     )
     .unwrap();
 
-    let image_bundle = caliptra_builder::build_and_sign_image(
+    let (image_bundle, _) = caliptra_builder::build_and_sign_image(
         &TEST_FMC_WITH_UART,
         &APP_WITH_UART,
         ImageOptions::default(),
@@ -858,7 +858,7 @@ fn test_upload_single_measurement() {
     )
     .unwrap();
 
-    let image_bundle = caliptra_builder::build_and_sign_image(
+    let (image_bundle, _) = caliptra_builder::build_and_sign_image(
         &TEST_FMC_INTERACTIVE,
         &APP_WITH_UART,
         ImageOptions::default(),
@@ -926,7 +926,7 @@ fn test_upload_measurement_limit() {
     )
     .unwrap();
 
-    let image_bundle = caliptra_builder::build_and_sign_image(
+    let (image_bundle, _) = caliptra_builder::build_and_sign_image(
         &TEST_FMC_INTERACTIVE,
         &APP_WITH_UART,
         ImageOptions::default(),
@@ -1070,7 +1070,7 @@ fn test_upload_no_measurement() {
     )
     .unwrap();
 
-    let image_bundle = caliptra_builder::build_and_sign_image(
+    let (image_bundle, _) = caliptra_builder::build_and_sign_image(
         &TEST_FMC_INTERACTIVE,
         &APP_WITH_UART,
         ImageOptions::default(),

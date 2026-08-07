@@ -1209,6 +1209,7 @@ pub fn zeroize_halt_check_no_output() {
         ImageOptions::default(),
     )
     .unwrap()
+    .0
     .to_bytes()
     .unwrap();
 

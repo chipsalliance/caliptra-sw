@@ -61,6 +61,7 @@ pub fn build_image_bundle(image_options: ImageOptions) -> ImageBundle {
         image_options,
     )
     .unwrap()
+    .0
 }
 
 /// This function matches the to_match string in the haystack string and returns the data

@@ -103,7 +103,7 @@ fn main() {
         };
 
         // Generate Image Bundle
-        let mut image =
+        let (mut image, _) =
             caliptra_builder::build_and_sign_image(&fmc_type, &app_type, image_options).unwrap();
 
         // Override signatures if provided
@@ -142,7 +142,7 @@ fn main() {
 
     if let Some(path) = args.get_one::<PathBuf>("fake-fw") {
         // Generate Image Bundle
-        let image = caliptra_builder::build_and_sign_image(
+        let (image, _) = caliptra_builder::build_and_sign_image(
             &firmware::FMC_FAKE_WITH_UART,
             &firmware::APP_WITH_UART,
             ImageOptions {

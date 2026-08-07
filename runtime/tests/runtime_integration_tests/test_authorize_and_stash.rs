@@ -102,7 +102,7 @@ fn test_authorize_and_stash_cmd_deny_authorization() {
     );
 
     // create a new fw image with the runtime replaced by the mbox responder
-    let updated_fw_image = caliptra_builder::build_and_sign_image(
+    let (updated_fw_image, _) = caliptra_builder::build_and_sign_image(
         &FMC_WITH_UART,
         &firmware::runtime_tests::MBOX,
         ImageOptions::default(),
@@ -160,7 +160,7 @@ fn test_authorize_and_stash_cmd_success() {
     assert_eq!(authorize_and_stash_resp.auth_req_result, IMAGE_AUTHORIZED);
 
     // create a new fw image with the runtime replaced by the mbox responder
-    let updated_fw_image = caliptra_builder::build_and_sign_image(
+    let (updated_fw_image, _) = caliptra_builder::build_and_sign_image(
         &FMC_WITH_UART,
         &firmware::runtime_tests::MBOX,
         ImageOptions::default(),

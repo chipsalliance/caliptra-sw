@@ -603,6 +603,7 @@ fn test_sign_with_exported_cdi_warm_reset() {
         ImageOptions::default(),
     )
     .unwrap()
+    .0
     .to_bytes()
     .unwrap();
 
@@ -726,6 +727,7 @@ fn test_sign_with_exported_cdi_warm_reset_parent() {
         ImageOptions::default(),
     )
     .unwrap()
+    .0
     .to_bytes()
     .unwrap();
 

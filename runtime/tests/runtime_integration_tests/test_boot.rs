@@ -84,6 +84,7 @@ fn test_update() {
     let image =
         caliptra_builder::build_and_sign_image(&FMC_WITH_UART, &APP_WITH_UART, image_options)
             .unwrap()
+            .0
             .to_bytes()
             .unwrap();
 
@@ -121,10 +122,12 @@ fn test_stress_update() {
     let image = [
         caliptra_builder::build_and_sign_image(&FMC_WITH_UART, &APP_WITH_UART, image_options_0)
             .unwrap()
+            .0
             .to_bytes()
             .unwrap(),
         caliptra_builder::build_and_sign_image(&FMC_WITH_UART, &APP_WITH_UART, image_options_1)
             .unwrap()
+            .0
             .to_bytes()
             .unwrap(),
     ];
@@ -197,7 +200,7 @@ fn test_measurement_in_measurement_log_added_to_dpe() {
     )
     .unwrap();
 
-    let image_bundle = caliptra_builder::build_and_sign_image(
+    let (image_bundle, _) = caliptra_builder::build_and_sign_image(
         &FMC_WITH_UART,
         &firmware::runtime_tests::MBOX,
         ImageOptions::default(),

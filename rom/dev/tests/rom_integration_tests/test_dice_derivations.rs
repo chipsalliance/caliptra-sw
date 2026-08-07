@@ -92,7 +92,7 @@ fn test_cold_reset_status_reporting() {
 #[test]
 fn test_cold_reset_success() {
     let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
-    let image_bundle = caliptra_builder::build_and_sign_image(
+    let (image_bundle, _) = caliptra_builder::build_and_sign_image(
         &TEST_FMC_WITH_UART,
         &APP_WITH_UART,
         ImageOptions::default(),
@@ -119,7 +119,7 @@ fn test_cold_reset_success() {
 #[test]
 fn test_cold_reset_no_rng() {
     let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
-    let image_bundle = caliptra_builder::build_and_sign_image(
+    let (image_bundle, _) = caliptra_builder::build_and_sign_image(
         &TEST_FMC_WITH_UART,
         &APP_WITH_UART,
         ImageOptions::default(),

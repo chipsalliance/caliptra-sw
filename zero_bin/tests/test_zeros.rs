@@ -17,7 +17,7 @@ fn test_zeros() {
         ..Default::default()
     };
 
-    let image =
+    let (image, _) =
         caliptra_builder::build_and_sign_image(&FMC_ZEROS, &APP_ZEROS, ImageOptions::default())
             .unwrap();
 

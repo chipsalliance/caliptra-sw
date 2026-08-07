@@ -28,6 +28,7 @@ use crate::common::{calculate_cptra_config_init_vals_hash, run_rt_test, RuntimeT
 pub fn update_fw(model: &mut DefaultHwModel, rt_fw: &FwId<'static>, image_opts: ImageOptions) {
     let image = caliptra_builder::build_and_sign_image(&FMC_WITH_UART, rt_fw, image_opts)
         .unwrap()
+        .0
         .to_bytes()
         .unwrap();
     model
@@ -377,13 +378,13 @@ fn test_cciv_updated_in_dpe() {
     .unwrap();
 
     // Build both standard FW and mailbox responder test FW
-    let image_bundle_mbox = caliptra_builder::build_and_sign_image(
+    let (image_bundle_mbox, _) = caliptra_builder::build_and_sign_image(
         &FMC_WITH_UART,
         &firmware::runtime_tests::MBOX,
         ImageOptions::default(),
     )
     .unwrap();
-    let image_bundle_standard = caliptra_builder::build_and_sign_image(
+    let (image_bundle_standard, _) = caliptra_builder::build_and_sign_image(
         &FMC_WITH_UART,
         &APP_WITH_UART,
         ImageOptions::default(),
