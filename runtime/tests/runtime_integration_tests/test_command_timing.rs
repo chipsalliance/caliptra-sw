@@ -72,6 +72,8 @@ fn measure_timing(args: RuntimeTestArgs) {
         .test_fwid
         .unwrap_or(if cfg!(feature = "fpga_realtime") {
             &APP_WITH_UART_FPGA
+        } else if cfg!(feature = "mldsa_attestation") {
+            &APP_MLDSA_ATTESTATION
         } else {
             &APP_WITH_UART
         });
