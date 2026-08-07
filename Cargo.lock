@@ -394,7 +394,7 @@ dependencies = [
 [[package]]
 name = "caliptra-bitstream-downloader"
 version = "0.1.0"
-source = "git+https://github.com/chipsalliance/caliptra-infra.git?rev=31519d86a61a5b335c2385cf92dec9ca2945c201#31519d86a61a5b335c2385cf92dec9ca2945c201"
+source = "git+https://github.com/chipsalliance/caliptra-infra.git?rev=9990da485779aa6bc5af14ea547db5c0ac8eebeb#9990da485779aa6bc5af14ea547db5c0ac8eebeb"
 dependencies = [
  "anyhow",
  "chrono",
