@@ -4,7 +4,7 @@ use caliptra_api::mailbox::Request;
 use caliptra_api::SocManager;
 use caliptra_builder::{
     firmware::{APP_WITH_UART, APP_WITH_UART_FPGA, FMC_WITH_UART},
-    FwId, ImageOptions,
+    FwId, ImageOptions, Symbol,
 };
 #[cfg(feature = "mldsa_attestation")]
 use caliptra_common::mailbox_api::InvokeDpeMldsa87Req;
@@ -19,8 +19,8 @@ use caliptra_common::{
 use caliptra_drivers::MfgFlags;
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{
-    BootParams, CodeRange, DefaultHwModel, Fuses, HwModel, ImageInfo, InitParams, ModelError,
-    StackInfo, StackRange,
+    BootParams, CodeRange, DefaultHwModel, Fuses, HwModel, ImageInfo, InitParams, ModelEmulated,
+    ModelError, StackInfo, StackRange,
 };
 use caliptra_image_types::ImageBundle;
 use caliptra_runtime::CaliptraDpeProfile;
@@ -29,6 +29,7 @@ use dpe::{
     error::DpeErrorCode,
     response::{Response, ResponseHdr},
 };
+use inferno::flamegraph;
 use openssl::{
     asn1::{Asn1Integer, Asn1Time},
     bn::BigNum,
@@ -37,6 +38,8 @@ use openssl::{
     x509::{X509Builder, X509},
     x509::{X509Name, X509NameBuilder},
 };
+use rustc_demangle::demangle;
+use std::{fs::File, io::BufWriter};
 use zerocopy::{FromZeros, IntoBytes, TryFromBytes};
 
 pub const TEST_LABEL: [u8; 48] = [
@@ -64,6 +67,7 @@ pub struct RuntimeTestArgs<'a> {
     pub test_image_options: Option<ImageOptions>,
     pub init_params: Option<InitParams<'a>>,
     pub test_mfg_flags: Option<MfgFlags>,
+    pub sample_stack_traces: bool,
 }
 
 pub fn run_rt_test_lms(args: RuntimeTestArgs, lms_verify: bool) -> DefaultHwModel {
@@ -360,6 +364,7 @@ pub fn run_rt_test_base(args: RuntimeTestArgs, lms_verify: bool) -> (DefaultHwMo
         None => InitParams {
             rom: &rom,
             stack_info: Some(StackInfo::new(image_info)),
+            sample_stack_traces: args.sample_stack_traces,
             ..Default::default()
         },
     };
@@ -608,4 +613,47 @@ pub fn calculate_cptra_config_init_vals_hash<T: HwModel>(
     hasher.update(manifest.runtime.entry_point.as_bytes());
 
     hasher.finalize().into()
+}
+
+#[allow(dead_code)]
+pub fn gen_flamegraph(
+    name: &str,
+    model: &mut ModelEmulated,
+    elf_symbols: Option<&Vec<Symbol<'_>>>,
+) {
+    if let Some(stack_samples) = model.stack_samples() {
+        let collapsed_samples = stack_samples
+            .iter()
+            .map(|(stack_sample, count)| {
+                let collapsed = stack_sample
+                    .iter()
+                    .map(|pc| {
+                        elf_symbols
+                            .unwrap()
+                            .iter()
+                            .find(|sym| sym.value == *pc as u64)
+                            .map(|sym| demangle(sym.name).to_string())
+                            .unwrap_or(format!("{:0x}", *pc))
+                    })
+                    .collect::<Vec<_>>()
+                    .as_slice()
+                    .join(";");
+
+                format!("{} {}", collapsed, count)
+            })
+            .collect::<Vec<_>>();
+
+        let mut opt = flamegraph::Options::default();
+        let target_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap()
+            .join("target")
+            .join("flamegraphs");
+        std::fs::create_dir_all(&target_dir).unwrap();
+        let filename = target_dir.join(format!("{}.svg", name));
+        let file = BufWriter::new(File::create(&filename).unwrap());
+
+        flamegraph::from_lines(&mut opt, collapsed_samples.iter().map(|s| s.as_str()), file)
+            .expect("Failed to render flamegraph");
+    }
 }
