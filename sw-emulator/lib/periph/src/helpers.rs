@@ -92,6 +92,15 @@ pub fn words_from_bytes_be_vec(arr: &[u8]) -> Vec<u32> {
     result
 }
 
+pub fn words_from_bytes_le_vec(arr: &[u8]) -> Vec<u32> {
+    assert_eq!(arr.len() % 4, 0);
+    let mut result = vec![0u32; arr.len() / 4];
+    for i in 0..result.len() {
+        result[i] = u32::from_le_bytes(arr[i * 4..][..4].try_into().unwrap())
+    }
+    result
+}
+
 pub fn bytes_from_words_le<A: U32Array>(arr: &A) -> A::ByteArray {
     let mut result = A::default_result();
     for i in 0..arr.as_ref().len() {

@@ -333,8 +333,16 @@ impl Sha512AcceleratorRegs {
             Err(BusError::StoreAccessFault)?
         }
 
+        // Check ENDIAN_TOGGLE bit. If set to 1, data from the mailbox is in big-endian format.
+        // Convert it to little-endian for padding operation.
+        let val = if self.mode.reg.read(ShaMode::ENDIAN_TOGGLE) == 1 {
+            val.to_be_bytes()
+        } else {
+            val.to_le_bytes()
+        };
+
         self.sha_stream
-            .update_bytes(&val.to_be_bytes(), Some(self.dlen.reg.get()));
+            .update_bytes(&val, Some(self.dlen.reg.get()));
 
         Ok(())
     }
