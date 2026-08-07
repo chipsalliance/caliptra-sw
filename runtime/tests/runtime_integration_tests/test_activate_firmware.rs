@@ -7,8 +7,8 @@ use caliptra_auth_man_types::AuthManifestImageMetadata;
 use caliptra_auth_man_types::{Addr64, ImageMetadataFlags};
 use caliptra_common::checksum::calc_checksum;
 use caliptra_common::mailbox_api::{
-    AuthorizeAndStashReq, AuthorizeAndStashResp, CommandId, ImageHashSource, MailboxReq,
-    MailboxReqHeader,
+    AuthorizeAndStashReq, AuthorizeAndStashResp, CommandId, GetTaggedTciReq, GetTaggedTciResp,
+    ImageHashSource, MailboxReq, MailboxReqHeader, TagTciReq,
 };
 use caliptra_hw_model::{DefaultHwModel, HwModel, InitParams, ModelError};
 use caliptra_kat::CaliptraError;
@@ -51,6 +51,7 @@ pub const SOC_STAGING_OFFSET: usize = 0x500;
 // hitless-update reset.
 pub const MCU_FW_SIZE: usize = 0x200;
 pub const SOC_FW_SIZE: usize = 256;
+const MCU_TCI_TAG: u32 = u32::from_be_bytes(*b"MCFW");
 
 /// Create a valid RISC-V firmware image that won't crash with an illegal
 /// instruction exception on real FPGA hardware. Uses `0x37` repeated, which
@@ -235,18 +236,60 @@ fn send_activate_firmware_cmd(
     model.finish_mailbox_execute()
 }
 
+fn tag_and_get_mcu_tci(model: &mut DefaultHwModel) -> GetTaggedTciResp {
+    let mut tag_cmd = MailboxReq::TagTci(TagTciReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        handle: [0u8; 16],
+        tag: MCU_TCI_TAG,
+    });
+    tag_cmd.populate_chksum().unwrap();
+    model
+        .mailbox_execute(
+            u32::from(CommandId::DPE_TAG_TCI),
+            tag_cmd.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .expect("We should have received a response");
+
+    get_mcu_tci(model)
+}
+
+fn get_mcu_tci(model: &mut DefaultHwModel) -> GetTaggedTciResp {
+    let mut get_cmd = MailboxReq::GetTaggedTci(GetTaggedTciReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        tag: MCU_TCI_TAG,
+    });
+    get_cmd.populate_chksum().unwrap();
+    let resp = model
+        .mailbox_execute(
+            u32::from(CommandId::DPE_GET_TAGGED_TCI),
+            get_cmd.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .expect("We should have received a response");
+
+    GetTaggedTciResp::read_from_bytes(resp.as_slice()).unwrap()
+}
+
 #[cfg_attr(feature = "fpga_realtime", ignore)]
 #[test]
 fn test_activate_mcu_fw_success() {
+    let mcu_contents = mcu_test_firmware();
+    let mut hasher = Sha384::new();
+    hasher.update(&mcu_contents);
+    let mcu_digest: [u8; 48] = hasher.finalize().into();
+
     let mcu_image = Image {
         fw_id: MCU_FW_ID_1,
         staging_offset: MCU_STAGING_OFFSET,
         load_offset: MCU_LOAD_OFFSET,
-        contents: mcu_test_firmware(),
+        contents: mcu_contents,
         exec_bit: 2,
     };
 
     let mut model = load_and_authorize_fw(&[mcu_image]);
+    let initial_mcu_tci = tag_and_get_mcu_tci(&mut model);
+    assert_eq!(initial_mcu_tci.tci_current, mcu_digest);
 
     // Send ActivateFirmware command
     let mut activate_cmd = MailboxReq::ActivateFirmware(ActivateFirmwareReq {
@@ -264,9 +307,19 @@ fn test_activate_mcu_fw_success() {
     send_activate_firmware_cmd(&mut model, activate_cmd, true)
         .unwrap()
         .expect("We should have received a response");
+
+    #[cfg(not(feature = "fpga_subsystem"))]
+    {
+        let updated_mcu_tci = get_mcu_tci(&mut model);
+        assert_eq!(updated_mcu_tci.tci_current, mcu_digest);
+        assert_eq!(
+            updated_mcu_tci.tci_cumulative,
+            initial_mcu_tci.tci_cumulative
+        );
+    }
 }
 
-#[cfg_attr(feature = "fpga_realtime", ignore)]
+#[cfg_attr(any(feature = "fpga_realtime", feature = "fpga_subsystem"), ignore)]
 #[test]
 fn test_activate_mcu_soc_fw_success() {
     let mcu_image = Image {
