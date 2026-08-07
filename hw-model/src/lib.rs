@@ -183,6 +183,12 @@ pub struct InitParams<'a> {
     pub stack_info: Option<StackInfo>,
 
     pub soc_user: MailboxRequester,
+
+    // If true, the CPU samples stack traces periodically for the generation of flamegraphs.
+    pub sample_stack_traces: bool,
+
+    // Optional stack sample rate.
+    pub stack_sample_rate: Option<u64>,
 }
 impl<'a> Default for InitParams<'a> {
     fn default() -> Self {
@@ -219,6 +225,8 @@ impl<'a> Default for InitParams<'a> {
             trace_path: None,
             stack_info: None,
             soc_user: MailboxRequester::SocUser(1u32),
+            sample_stack_traces: false,
+            stack_sample_rate: None,
         }
     }
 }

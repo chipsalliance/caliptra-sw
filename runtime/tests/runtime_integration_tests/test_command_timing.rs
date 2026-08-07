@@ -25,6 +25,10 @@
 use crate::common::{run_rt_test, RuntimeTestArgs};
 use crate::test_measurements_common::{run_command_suite, CommandSampler};
 use caliptra_api::SocManager;
+use caliptra_builder::{
+    build_firmware_elf, elf_symbols,
+    firmware::{APP_WITH_UART, APP_WITH_UART_FPGA},
+};
 use caliptra_hw_model::{DefaultHwModel, HwModel};
 use caliptra_runtime::RtBootStatus;
 
@@ -47,15 +51,41 @@ impl CommandSampler for CycleSampler {
     }
 }
 
-#[test]
-fn measure_runtime_command_timing() {
+fn test_args(sample_stack_traces: bool) -> RuntimeTestArgs<'static> {
+    #[allow(unused_mut)]
+    let mut arg = RuntimeTestArgs {
+        sample_stack_traces,
+        ..RuntimeTestArgs::default()
+    };
+
     #[cfg(feature = "mldsa_attestation")]
-    let mut model = run_rt_test(RuntimeTestArgs {
-        test_fwid: Some(&APP_MLDSA_ATTESTATION),
-        ..Default::default()
-    });
-    #[cfg(not(feature = "mldsa_attestation"))]
-    let mut model = run_rt_test(RuntimeTestArgs::default());
+    {
+        arg.test_fwid = Some(&APP_MLDSA_ATTESTATION);
+    }
+
+    arg
+}
+
+fn measure_timing(args: RuntimeTestArgs) {
+    // The binary is cached so we'll be using the same ELF as the one used in test.
+    let fwid = args
+        .test_fwid
+        .unwrap_or(if cfg!(feature = "fpga_realtime") {
+            &APP_WITH_UART_FPGA
+        } else if cfg!(feature = "mldsa_attestation") {
+            &APP_MLDSA_ATTESTATION
+        } else {
+            &APP_WITH_UART
+        });
+    let elf_bytes = build_firmware_elf(fwid).unwrap();
+    #[allow(unused_variables)]
+    let symbols = if args.sample_stack_traces {
+        Some(elf_symbols(elf_bytes.as_slice()).expect("Failed to build ELF symbols"))
+    } else {
+        None
+    };
+
+    let mut model = run_rt_test(args);
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -70,6 +100,7 @@ fn measure_runtime_command_timing() {
     results.extend(run_pqc_command_suite(
         &mut model,
         &mut CycleSampler { start: 0 },
+        symbols.as_ref(),
     ));
 
     results.extend(run_command_suite(
@@ -88,4 +119,14 @@ fn measure_runtime_command_timing() {
     for (name, cycles) in &results {
         assert!(*cycles > 0, "{name} reported zero cycles");
     }
+}
+
+#[test]
+fn measure_runtime_command_timing() {
+    measure_timing(test_args(false));
+}
+
+#[test]
+fn measure_runtime_command_timing_and_sample_stack_traces() {
+    measure_timing(test_args(true));
 }

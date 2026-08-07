@@ -19,6 +19,12 @@ use crate::xreg_file::{XReg, XRegFile};
 use bit_vec::BitVec;
 use caliptra_emu_bus::{Bus, BusError, Clock, TimerAction};
 use caliptra_emu_types::{RvAddr, RvData, RvException, RvSize};
+use std::collections::HashMap;
+
+// Currently the slowest command, CERTIFY_KEY_EXTENDED_MLDSA87 takes around 70M cycles.
+// This sample rate is the prime number that guarantees to record 5000 samples, without
+// accidentally resonating with any loop that runs a full integer's worth of iterations.
+const STACK_SAMPLE_RATE: u64 = 13997;
 
 pub type InstrTracer<'a> = dyn FnMut(u32, RvInstr) + 'a;
 
@@ -162,6 +168,61 @@ impl StackInfo {
     }
 }
 
+pub type StackSample = Vec<RvData>;
+
+/// Stack samples collected during the execution of CPU.
+///
+/// Used to generate flamegraphs.
+pub struct StackSampler {
+    /// The owning CPU will sample the stack every `sample_rate` cycles.
+    pub sample_rate: u64,
+    /// A map from stack sample to its count.
+    pub samples: HashMap<StackSample, u64>,
+    /// A stack that keeps track of current PCs. It is converted into a stack sample once the
+    /// `sample` method is called.
+    shadow_stack: Vec<RvData>,
+}
+
+impl StackSampler {
+    pub fn new(sample_rate: Option<u64>) -> Self {
+        Self {
+            samples: HashMap::new(),
+            shadow_stack: Vec::new(),
+            sample_rate: sample_rate.unwrap_or(STACK_SAMPLE_RATE),
+        }
+    }
+
+    /// Push a PC to the shadow stack to record a function call by JAL/JALR.
+    pub fn record_call(&mut self, pc: RvData) {
+        self.shadow_stack.push(pc)
+    }
+
+    /// Pop a PC from the shadow stack to record a function return by JALR.
+    pub fn record_ret(&mut self) {
+        self.shadow_stack.pop();
+    }
+
+    /// Record a stack sample.
+    pub fn sample(&mut self) {
+        self.samples
+            .entry(self.shadow_stack.clone())
+            .and_modify(|count| *count += 1)
+            .or_insert(1);
+    }
+
+    /// Clear the data collected so far.
+    pub fn reset(&mut self) {
+        self.shadow_stack.clear();
+        self.samples.clear();
+    }
+}
+
+impl Default for StackSampler {
+    fn default() -> Self {
+        Self::new(None)
+    }
+}
+
 #[derive(Clone)]
 pub struct CodeCoverage {
     rom_bit_vec: BitVec,
@@ -300,6 +361,9 @@ pub struct Cpu<TBus: Bus> {
 
     pub code_coverage: CodeCoverage,
     stack_info: Option<StackInfo>,
+
+    // An optional stack trace sampler.
+    pub stack_sampler: Option<StackSampler>,
 }
 
 impl<TBus: Bus> Drop for Cpu<TBus> {
@@ -352,6 +416,7 @@ impl<TBus: Bus> Cpu<TBus> {
             // isn't supposed to know anything about the caliptra memory map)
             code_coverage: CodeCoverage::new(ROM_SIZE, ICCM_SIZE),
             stack_info: None,
+            stack_sampler: None,
         }
     }
 
@@ -643,10 +708,18 @@ impl<TBus: Bus> Cpu<TBus> {
             return StepAction::Continue;
         }
 
-        match self.exec_instr(instr_tracer) {
+        let action = match self.exec_instr(instr_tracer) {
             Ok(result) => result,
             Err(exception) => self.handle_exception(exception),
+        };
+
+        if let Some(sampler) = self.stack_sampler.as_mut() {
+            if self.clock.now() > 0 && self.clock.now().is_multiple_of(sampler.sample_rate) {
+                sampler.sample();
+            }
         }
+
+        action
     }
 
     /// Handle synchronous exception
@@ -852,5 +925,36 @@ mod tests {
 
         // Check for expected values
         assert_eq!(count_executed(&coverage), 8);
+    }
+
+    #[test]
+    fn test_stack_sampler_apis() {
+        let mut sampler = StackSampler::new(None);
+
+        // We now have a call stack of 1 -> 2.
+        sampler.record_call(1);
+        sampler.record_call(2);
+        sampler.sample();
+        assert_eq!(sampler.samples.get(&vec![1, 2]), Some(&1));
+
+        // We now have a call stack of 1 -> 2 -> 3.
+        sampler.record_call(3);
+        sampler.sample();
+        assert_eq!(sampler.samples.get(&vec![1, 2, 3]), Some(&1));
+
+        // Go back to 1 -> 2.
+        sampler.record_ret();
+        sampler.sample();
+        assert_eq!(sampler.samples.get(&vec![1, 2]), Some(&2));
+
+        // Call 4, so we're at 1 -> 2 -> 4.
+        sampler.record_call(4);
+        sampler.sample();
+        assert_eq!(sampler.samples.get(&vec![1, 2, 4]), Some(&1));
+
+        // Return to 1 -> 2.
+        sampler.record_ret();
+        sampler.sample();
+        assert_eq!(sampler.samples.get(&vec![1, 2]), Some(&3));
     }
 }
