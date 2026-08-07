@@ -95,10 +95,14 @@ pub(crate) fn new_ec_dpe_crypto<'a>(
     exported_cdi_slots: &'a mut ExportedCdiHandles,
 ) -> CaliptraResult<DpeCrypto<'a>> {
     // The RT alias public key and both KeyIds all come from the FHT.
-    let rt_pub_key = PubKey::Ecdsa(EcdsaPubKey::Ecdsa384(EcdsaPub384::from_slice(
+    // Store the RT alias key as the concrete ECDSA type, not the `PubKey` enum:
+    // the enum is sized by its 2,592-byte ML-DSA variant, so wrapping this ~96-byte
+    // P-384 key in it would bloat the `Signer` enum (and thus the live DPE env on
+    // the sign stack) by ~2.5 KB for a variant that is never used here.
+    let rt_pub_key = EcdsaPubKey::Ecdsa384(EcdsaPub384::from_slice(
         &fht.rt_dice_pub_key.x.into(),
         &fht.rt_dice_pub_key.y.into(),
-    )));
+    ));
     DpeCrypto::new_ec(
         CryptoEngines {
             hasher: DpeHasher::new(sha384)?,
@@ -117,7 +121,7 @@ pub(crate) fn new_ec_dpe_crypto<'a>(
 impl<'a> DpeCrypto<'a> {
     pub fn new_ec(
         engines: CryptoEngines<'a>,
-        rt_pub_key: PubKey,
+        rt_pub_key: EcdsaPubKey,
         key_id_rt_cdi: KeyId,
         key_id_rt_priv_key: KeyId,
         exported_cdi_slots: &'a mut ExportedCdiHandles,
@@ -258,7 +262,7 @@ impl<'a> DpeCrypto<'a> {
         label: &[u8],
         info: &[u8],
         key_id: KeyId,
-    ) -> Result<(KeyId, PubKey), CryptoError> {
+    ) -> Result<(KeyId, EcdsaPubKey), CryptoError> {
         let mut usage: KeyUsage = KeyUsage::default();
         let usage = usage.set_ecc_key_gen_seed_en();
 
@@ -285,10 +289,10 @@ impl<'a> DpeCrypto<'a> {
                             .into(),
                     )
                     .map_err(|e| CryptoError::CryptoLibError(u32::from(e)))?;
-                let pub_key = PubKey::Ecdsa(EcdsaPubKey::Ecdsa384(EcdsaPub384::from_slice(
+                let pub_key = EcdsaPubKey::Ecdsa384(EcdsaPub384::from_slice(
                     &pub_key.x.into(),
                     &pub_key.y.into(),
-                )));
+                ));
                 Ok((key_id, pub_key))
             }
             #[cfg(feature = "mldsa_attestation")]
@@ -303,12 +307,13 @@ impl<'a> DpeCrypto<'a> {
         trng: &mut Trng,
         data: &SignData,
         priv_key: &KeyId,
-        pub_key: &PubKey,
-    ) -> Result<Signature, CryptoError> {
+        pub_key: &EcdsaPubKey,
+        out: &mut Signature,
+    ) -> Result<(), CryptoError> {
         let priv_key_args = KeyReadArgs::new(*priv_key);
         let ecc_priv_key = Ecc384PrivKeyIn::Key(priv_key_args);
 
-        let PubKey::Ecdsa(EcdsaPubKey::Ecdsa384(EcdsaPub384 { x, y })) = pub_key else {
+        let EcdsaPubKey::Ecdsa384(EcdsaPub384 { x, y }) = pub_key else {
             return Err(CryptoError::MismatchedAlgorithm);
         };
         let ecc_pub_key = Ecc384PubKey {
@@ -341,17 +346,20 @@ impl<'a> DpeCrypto<'a> {
             Ok(s) => s,
             Err(e) => Err(*e)?,
         };
-        Ok(Signature::Ecdsa(EcdsaSignature::Ecdsa384(
-            EcdsaSignature384::from_slice(&sig.r.into(), &sig.s.into()),
-        )))
+        let Signature::Ecdsa(EcdsaSignature::Ecdsa384(out_sig)) = out else {
+            return Err(CryptoError::MismatchedAlgorithm);
+        };
+        *out_sig = EcdsaSignature384::from_slice(&sig.r.into(), &sig.s.into());
+        Ok(())
     }
 
     fn sign_helper_ec(
         engines: &mut CryptoEngines,
         data: &SignData,
-        pub_key: &PubKey,
+        pub_key: &EcdsaPubKey,
         priv_key: &KeyId,
-    ) -> Result<Signature, CryptoError> {
+        out: &mut Signature,
+    ) -> Result<(), CryptoError> {
         Self::sign_ec(
             engines.ecc384,
             engines.hasher.driver(),
@@ -359,28 +367,39 @@ impl<'a> DpeCrypto<'a> {
             data,
             priv_key,
             pub_key,
+            out,
         )
     }
 
     #[cfg(feature = "mldsa_attestation")]
-    fn sign_helper_mldsa(data: &SignData, seed: &Mldsa87Seed) -> Result<Signature, CryptoError> {
-        let mut sig = Mldsa87Signature::default();
+    fn sign_helper_mldsa(
+        data: &SignData,
+        seed: &Mldsa87Seed,
+        out: &mut Signature,
+    ) -> Result<(), CryptoError> {
+        // Sign directly into the caller-owned signature buffer so the 4,627-byte
+        // signature lives in exactly one stack slot on the (stack-tight) sign path.
+        let Signature::Mldsa(MldsaSignature(buf)) = out else {
+            return Err(CryptoError::MismatchedAlgorithm);
+        };
+        let sig =
+            Mldsa87Signature::mut_from_bytes(buf.as_mut_slice()).map_err(|_| CryptoError::Size)?;
         match data {
-            SignData::ResponseBuffer(buf, range) => {
-                Mldsa87::generate_sign_mu_deterministic(seed, *buf, range.clone(), &mut sig)
+            SignData::ResponseBuffer(b, range) => {
+                Mldsa87::generate_sign_mu_deterministic(seed, *b, range.clone(), sig)
                     .map_err(|_| CryptoError::HashError(0))
             }
-            SignData::Raw(msg) => Mldsa87::sign_deterministic(seed, msg, &mut sig)
+            SignData::Raw(msg) => Mldsa87::sign_deterministic(seed, msg, sig)
                 .map_err(|e| CryptoError::CryptoLibError(u32::from(e))),
             SignData::Mu(mu) => {
                 let mu = Mldsa87Mu::ref_from_bytes(&mu.0).map_err(|_| CryptoError::Size)?;
-                Mldsa87::sign_mu_deterministic(seed, mu, &mut sig)
+                Mldsa87::sign_mu_deterministic(seed, mu, sig)
                     .map_err(|e| CryptoError::CryptoLibError(u32::from(e)))
             }
             _ => return Err(CryptoError::MismatchedAlgorithm),
         }?;
 
-        Ok(Signature::Mldsa(MldsaSignature(*sig)))
+        Ok(())
     }
 }
 
@@ -578,13 +597,13 @@ impl Crypto for DpeCrypto<'_> {
         Ok(self)
     }
 
-    fn sign_with_alias(&mut self, data: &SignData) -> Result<Signature, CryptoError> {
+    fn sign_with_alias(&mut self, data: &SignData, out: &mut Signature) -> Result<(), CryptoError> {
         match &self.signer {
             Signer::Ec {
                 rt_pub_key,
                 rt_priv_key,
                 ..
-            } => Self::sign_helper_ec(&mut self.engines, data, rt_pub_key, rt_priv_key),
+            } => Self::sign_helper_ec(&mut self.engines, data, rt_pub_key, rt_priv_key, out),
 
             #[cfg(feature = "mldsa_attestation")]
             Signer::Mldsa { .. } => {
@@ -595,7 +614,7 @@ impl Crypto for DpeCrypto<'_> {
                 let mut seed = Mldsa87Seed::default();
                 dice::derive_devid_seed(&cdi, &mut seed, self.engines.hmac384, self.engines.trng)
                     .map_err(|e| CryptoError::CryptoLibError(u32::from(e)))?;
-                Self::sign_helper_mldsa(data, &seed)
+                Self::sign_helper_mldsa(data, &seed, out)
             }
         }
     }
@@ -645,13 +664,13 @@ impl CdiManager for DpeCrypto<'_> {
 }
 
 impl crypto::Signer for DpeCrypto<'_> {
-    fn sign(&mut self, data: &SignData) -> Result<Signature, CryptoError> {
+    fn sign(&mut self, data: &SignData, out: &mut Signature) -> Result<(), CryptoError> {
         match self.signer {
             Signer::Ec { .. } => {
                 let Some(DerivedKey::Ec((priv_key, pub_key))) = &self.derived_key else {
                     return Err(CryptoError::CryptoLibError(3));
                 };
-                Self::sign_helper_ec(&mut self.engines, data, pub_key, priv_key)
+                Self::sign_helper_ec(&mut self.engines, data, pub_key, priv_key, out)
             }
 
             #[cfg(feature = "mldsa_attestation")]
@@ -659,14 +678,14 @@ impl crypto::Signer for DpeCrypto<'_> {
                 let Some(DerivedKey::Mldsa(seed)) = &self.derived_key else {
                     return Err(CryptoError::CryptoLibError(3));
                 };
-                Self::sign_helper_mldsa(data, seed)
+                Self::sign_helper_mldsa(data, seed, out)
             }
         }
     }
 
     fn public_key(&mut self) -> Result<PubKey, CryptoError> {
         match &self.derived_key {
-            Some(DerivedKey::Ec((_, pub_key))) => Ok(pub_key.clone()),
+            Some(DerivedKey::Ec((_, pub_key))) => Ok(PubKey::Ecdsa(pub_key.clone())),
             #[cfg(feature = "mldsa_attestation")]
             Some(DerivedKey::Mldsa(seed)) => {
                 let mut pub_key = Mldsa87PubKey::default();
@@ -683,7 +702,7 @@ impl crypto::Signer for DpeCrypto<'_> {
 #[allow(clippy::large_enum_variant)]
 enum Signer<'a> {
     Ec {
-        rt_pub_key: PubKey,
+        rt_pub_key: EcdsaPubKey,
         rt_priv_key: KeyId,
         // The ECC engine lives in `DpeCrypto::engines`; this keeps `'a` used when
         // the ML-DSA variant (the only other `'a` borrow) is compiled out.
@@ -700,7 +719,10 @@ enum Signer<'a> {
 // The mldsa key is significantly larger than ecdsa.  Allow a large enum variant to support it.
 #[allow(clippy::large_enum_variant)]
 enum DerivedKey {
-    Ec((KeyId, PubKey)),
+    // Store the concrete ECDSA type, not the `PubKey` enum: the enum is sized by
+    // its 2,592-byte ML-DSA variant, so this ~96-byte P-384 key would otherwise
+    // bloat the live DPE env on the sign stack by ~2.5 KB for an unused variant.
+    Ec((KeyId, EcdsaPubKey)),
     #[cfg(feature = "mldsa_attestation")]
     Mldsa(Mldsa87Seed),
 }

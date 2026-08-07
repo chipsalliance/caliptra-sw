@@ -16,7 +16,7 @@ use caliptra_error::{CaliptraError, CaliptraResult};
 
 use crypto::{
     ml_dsa::{MldsaPublicKey, MldsaSignature},
-    Mu, PubKey, SignData, Signature,
+    Mu, PubKey, SignData, Signature, SignatureType,
 };
 use zerocopy::{FromZeros, IntoBytes};
 
@@ -72,24 +72,33 @@ impl SignWithExportedMldsaCmd {
             &mut pdata.mldsa_exported_cdi_slots,
         )?;
 
+        let mut sig = Signature::zeroed(crypto.signature_algorithm());
+        let mut pub_key = PubKey::default();
+        sign_exported(
+            &mut crypto,
+            &data,
+            &cmd.exported_cdi_handle,
+            b"Exported ML-DSA",
+            &mut sig,
+            &mut pub_key,
+        )
+        .map_err(|e| match e {
+            ExportedSignError::NotFound => {
+                CaliptraError::RUNTIME_SIGN_WITH_EXPORTED_MLDSA_NOT_FOUND
+            }
+            ExportedSignError::KeyDerivation => {
+                CaliptraError::RUNTIME_SIGN_WITH_EXPORTED_MLDSA_KEY_DERIVATION_FAILED
+            }
+            ExportedSignError::Signature => {
+                CaliptraError::RUNTIME_SIGN_WITH_EXPORTED_MLDSA_SIGNATURE_FAILED
+            }
+        })?;
+
+        // Match by reference: the ~4.6 KB signature and ~2.6 KB public key stay in
+        // their single caller-owned slots rather than being moved into a tuple,
+        // which is what keeps this frame off the runtime stack limit.
         let (Signature::Mldsa(MldsaSignature(sig)), PubKey::Mldsa(MldsaPublicKey(pub_key))) =
-            sign_exported(
-                &mut crypto,
-                &data,
-                &cmd.exported_cdi_handle,
-                b"Exported ML-DSA",
-            )
-            .map_err(|e| match e {
-                ExportedSignError::NotFound => {
-                    CaliptraError::RUNTIME_SIGN_WITH_EXPORTED_MLDSA_NOT_FOUND
-                }
-                ExportedSignError::KeyDerivation => {
-                    CaliptraError::RUNTIME_SIGN_WITH_EXPORTED_MLDSA_KEY_DERIVATION_FAILED
-                }
-                ExportedSignError::Signature => {
-                    CaliptraError::RUNTIME_SIGN_WITH_EXPORTED_MLDSA_SIGNATURE_FAILED
-                }
-            })?
+            (&sig, &pub_key)
         else {
             return Err(CaliptraError::RUNTIME_SIGN_WITH_EXPORTED_MLDSA_SIGNATURE_FAILED);
         };
@@ -97,7 +106,7 @@ impl SignWithExportedMldsaCmd {
         // Explicitly drop crypto and pdata so the mutable borrow to drivers also ends.
         drop(crypto);
         let _ = pdata;
-        Self::send_response(drivers, &pub_key, &sig)
+        Self::send_response(drivers, pub_key, sig)
     }
 
     /// Assemble the response from `pub_key`/`sig` and send it. Kept in its own
