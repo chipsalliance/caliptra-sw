@@ -110,7 +110,15 @@ impl Platform for DpePlatform<'_> {
         &mut self,
         out: &mut [u8; MAX_ISSUER_NAME_SIZE],
     ) -> Result<usize, PlatformError> {
-        const CALIPTRA_CN: &[u8] = b"Caliptra 1.0 Rt Alias";
+        // The issuer name must match the Subject CN of the cert that certifies
+        // the DPE-issuing key. For ECDSA the issuer is the RT Alias cert; for
+        // ML-DSA it is the PQ.DevID cert (see `invoke_dpe::invoke_dpe_cmd`), so
+        // the CN differs by profile.
+        let caliptra_cn: &[u8] = match self.profile {
+            CaliptraDpeProfile::Ecc384 => b"Caliptra 1.0 Rt Alias",
+            #[cfg(feature = "mldsa_attestation")]
+            CaliptraDpeProfile::Mldsa => b"Caliptra 1.3 MlDsa87 PQDevID",
+        };
         let mut issuer_buf = SliceResponseBuffer::new(out.as_mut_slice());
         let mut issuer_writer = CertWriter::new(&mut issuer_buf, self.profile.into(), true);
 
@@ -121,7 +129,7 @@ impl Platform for DpePlatform<'_> {
             .map_err(|e| PlatformError::IssuerNameError(e.get_error_detail().unwrap_or(0)))?;
 
         let name = Name {
-            cn: DirectoryString::Utf8String(CALIPTRA_CN),
+            cn: DirectoryString::Utf8String(caliptra_cn),
             serial: DirectoryString::PrintableString(&serial),
         };
         let issuer_len = issuer_writer

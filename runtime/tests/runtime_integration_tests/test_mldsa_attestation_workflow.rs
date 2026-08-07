@@ -61,7 +61,7 @@ const PROFILE: CaliptraDpeProfile = CaliptraDpeProfile::Mldsa;
 /// Subject CN the ML-DSA DPE stamps as the leaf certificate's Issuer CN (see
 /// `runtime/src/dpe_platform.rs`). The populated DevID cert uses the same Subject
 /// CN so the leaf's issuer name resolves to it.
-const DEVID_SUBJECT_CN: &str = "Caliptra 1.0 Rt Alias";
+const DEVID_SUBJECT_CN: &str = "Caliptra 1.3 MlDsa87 PQDevID";
 
 /// Generate a deterministic ML-DSA-87 key pair from `seed`.
 fn gen_mldsa_key(seed: [u8; 32]) -> PKey<Private> {
