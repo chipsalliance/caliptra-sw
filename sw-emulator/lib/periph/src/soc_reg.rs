@@ -969,11 +969,13 @@ impl SocRegistersImpl {
             Err(BusError::StoreAccessFault)?
         }
 
+        let was_ready_for_fw = self.cptra_flow_status.reg.is_set(FlowStatus::READY_FOR_FW);
         // Set the flow status register.
         self.cptra_flow_status.reg.set(val);
+        let is_ready_for_fw = self.cptra_flow_status.reg.is_set(FlowStatus::READY_FOR_FW);
 
-        // If ready_for_fw bit is set, run the op_fn_write_complete_cb.
-        if self.cptra_flow_status.reg.is_set(FlowStatus::READY_FOR_FW) {
+        // If ready_for_fw bit is set for the first time, run the op_fn_write_complete_cb.
+        if !was_ready_for_fw && is_ready_for_fw {
             let op_fw_write_complete_action = &mut self.op_fw_write_complete_action;
             let op_fw_write_complete_cb = &mut self.op_fw_write_complete_cb;
             let timer = &self.timer;
