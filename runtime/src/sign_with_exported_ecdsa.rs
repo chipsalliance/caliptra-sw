@@ -15,7 +15,7 @@ use crypto::{
         curve_384::{EcdsaPub384, EcdsaSignature384},
         EcdsaPubKey, EcdsaSignature,
     },
-    Crypto, CryptoError, Digest, PubKey, SignData, Signature,
+    Crypto, CryptoError, Digest, PubKey, SignData, Signature, SignatureType,
 };
 use dpe::MAX_EXPORTED_CDI_SIZE;
 use zerocopy::{FromZeros, IntoBytes};
@@ -43,21 +43,29 @@ impl SignWithExportedEcdsaCmd {
         )?;
 
         let data = Digest::Sha384(crypto::Sha384(cmd.tbs)).into();
-        let (
-            Signature::Ecdsa(EcdsaSignature::Ecdsa384(EcdsaSignature384 { r, s })),
-            PubKey::Ecdsa(EcdsaPubKey::Ecdsa384(EcdsaPub384 { x, y })),
-        ) = sign_exported(
+        let mut sig = Signature::zeroed(crypto.signature_algorithm());
+        let mut pub_key = PubKey::default();
+        sign_exported(
             &mut crypto,
             &data,
             &cmd.exported_cdi_handle,
             b"Exported ECC",
+            &mut sig,
+            &mut pub_key,
         )
         .map_err(|e| match e {
             ExportedSignError::Signature => {
                 CaliptraError::RUNTIME_SIGN_WITH_EXPORTED_ECDSA_SIGNATURE_FAILED
             }
             _ => CaliptraError::RUNTIME_SIGN_WITH_EXPORTED_ECDSA_KEY_DERIVIATION_FAILED,
-        })?
+        })?;
+
+        // Match by reference so the (large) signature/pubkey stay in their single
+        // caller-owned slots instead of being moved out into a fresh tuple.
+        let (
+            Signature::Ecdsa(EcdsaSignature::Ecdsa384(EcdsaSignature384 { r, s })),
+            PubKey::Ecdsa(EcdsaPubKey::Ecdsa384(EcdsaPub384 { x, y })),
+        ) = (&sig, &pub_key)
         else {
             return Err(CaliptraError::RUNTIME_SIGN_WITH_EXPORTED_ECDSA_INVALID_SIGNATURE);
         };
@@ -105,15 +113,26 @@ pub(crate) enum ExportedSignError {
 }
 
 /// Derive the key pair bound to `exported_cdi_handle` (using `label`) and sign
-/// `data`, returning the signature and the derived public key. Shared by the
-/// SIGN_WITH_EXPORTED_{ECDSA,MLDSA} commands.
+/// `data`, writing the signature and derived public key into the caller-provided
+/// `sig`/`pub_key` buffers. Shared by the SIGN_WITH_EXPORTED_{ECDSA,MLDSA}
+/// commands.
+///
+/// The results are returned via out-params rather than by value: `Signature` and
+/// `PubKey` are large (the ML-DSA variants are ~4.6 KB and ~2.6 KB), and
+/// returning them by value materialized the pair ~3× on the caller's frame as it
+/// threaded them through `.map_err(...)?`. Out-params keep exactly one copy on
+/// the caller's stack — the dominant term of the SIGN_WITH_EXPORTED_MLDSA frame.
+/// `sig` must already be zeroed to the caller's signature algorithm (via
+/// [`Signature::zeroed`]); `pub_key` is fully overwritten on success.
 #[cfg_attr(feature = "cfi", cfi_mod_fn)]
 pub(crate) fn sign_exported(
     env: &mut DpeCrypto,
     data: &SignData,
     exported_cdi_handle: &[u8; MAX_EXPORTED_CDI_SIZE],
     label: &[u8],
-) -> Result<(Signature, PubKey), ExportedSignError> {
+    sig: &mut Signature,
+    pub_key: &mut PubKey,
+) -> Result<(), ExportedSignError> {
     let key_pair = env.derive_key_pair_exported(exported_cdi_handle, label, label);
     if cfi_launder(key_pair.is_ok()) {
         #[cfg(feature = "cfi")]
@@ -127,11 +146,11 @@ pub(crate) fn sign_exported(
         CryptoError::InvalidExportedCdiHandle => ExportedSignError::NotFound,
         _ => ExportedSignError::KeyDerivation,
     })?;
-    let pub_key = signer
+    *pub_key = signer
         .public_key()
         .map_err(|_| ExportedSignError::KeyDerivation)?;
-    let sig = signer
-        .sign(data)
+    signer
+        .sign(data, sig)
         .map_err(|_| ExportedSignError::Signature)?;
-    Ok((sig, pub_key))
+    Ok(())
 }

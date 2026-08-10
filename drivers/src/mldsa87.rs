@@ -20,7 +20,7 @@ Abstract:
 use crate::CaliptraResult;
 use caliptra_mldsa::Mldsa87 as Mldsa87Sw;
 use core::ops::{Deref, DerefMut};
-use zerocopy::{FromBytes, Immutable, KnownLayout};
+use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
 pub use caliptra_mldsa::{
@@ -46,7 +46,7 @@ pub struct Mldsa87PrivKey([u8; MLDSA87_PRIVATE_KEY_BYTES]);
 
 /// ML-DSA-87 encoded signature (4,627 bytes).
 #[repr(transparent)]
-#[derive(KnownLayout, Immutable, FromBytes)]
+#[derive(KnownLayout, Immutable, FromBytes, IntoBytes)]
 pub struct Mldsa87Signature([u8; MLDSA87_SIGNATURE_BYTES]);
 
 #[repr(transparent)]
