@@ -14,7 +14,7 @@ use sha2::{Digest, Sha384};
 use zerocopy::{FromBytes, IntoBytes};
 
 use crate::common::{
-    calculate_cptra_config_init_vals_hash, default_lms_soc_manifest_measurements, run_rt_test,
+    calculate_cptra_config_init_vals_hash, default_rt_test_soc_manifest_measurements, run_rt_test,
     RuntimeTestArgs, DEFAULT_MCU_FW,
 };
 
@@ -82,7 +82,7 @@ fn test_stash_measurement() {
     hasher.update(rt_current_pcr);
     hasher.update(cptra_config_init_vals_hash);
     if model.subsystem_mode() {
-        let (somv_measurement, somo_measurement) = default_lms_soc_manifest_measurements(0);
+        let (somv_measurement, somo_measurement) = default_rt_test_soc_manifest_measurements(0);
         hasher.update(somv_measurement);
         hasher.update(somo_measurement);
         let mut mcu_hasher = Sha384::new();

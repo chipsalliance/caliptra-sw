@@ -93,6 +93,11 @@ pub const PQC_KEY_TYPE: [FwVerificationPqcKeyType; 2] = [
     FwVerificationPqcKeyType::MLDSA,
 ];
 
+/// PQC key type used by `run_rt_test*` (and therefore by the default SoC
+/// manifest delivered over the recovery interface) when a test does not pick
+/// one explicitly.
+pub const DEFAULT_PQC_KEY_TYPE: FwVerificationPqcKeyType = FwVerificationPqcKeyType::MLDSA;
+
 fn default_soc_manifest(pqc_key_type: FwVerificationPqcKeyType, svn: u32) -> AuthorizationManifest {
     // generate a default SoC manifest if one is not provided in subsystem mode
     const IMAGE_SOURCE_IN_REQUEST: u32 = 1;
@@ -129,8 +134,12 @@ pub fn default_soc_manifest_measurements(
     soc_manifest_measurements(&manifest)
 }
 
-pub fn default_lms_soc_manifest_measurements(svn: u32) -> ([u8; 48], [u8; 48]) {
-    default_soc_manifest_measurements(FwVerificationPqcKeyType::LMS, svn)
+/// SOMV/SOMO measurements of the SoC manifest that `run_rt_test*` delivers over
+/// the recovery interface when the test does not supply one. Must track the key
+/// type that `run_rt_test_return_fw` defaults to, otherwise the expected DPE
+/// measurements will not match the ones Caliptra actually computed.
+pub fn default_rt_test_soc_manifest_measurements(svn: u32) -> ([u8; 48], [u8; 48]) {
+    default_soc_manifest_measurements(DEFAULT_PQC_KEY_TYPE, svn)
 }
 
 #[derive(Default)]
@@ -408,7 +417,7 @@ pub fn run_rt_test(args: RuntimeTestArgs) -> DefaultHwModel {
 }
 
 pub fn run_rt_test_return_fw(args: RuntimeTestArgs) -> (DefaultHwModel, ImageBundle) {
-    let key_type = args.key_type.unwrap_or(FwVerificationPqcKeyType::MLDSA);
+    let key_type = args.key_type.unwrap_or(DEFAULT_PQC_KEY_TYPE);
     run_rt_test_pqc_return_fw(args, key_type)
 }
 

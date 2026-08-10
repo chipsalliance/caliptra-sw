@@ -13,7 +13,7 @@ use sha2::{Digest, Sha384};
 use zerocopy::IntoBytes;
 
 use crate::common::{
-    calculate_cptra_config_init_vals_hash, default_lms_soc_manifest_measurements,
+    calculate_cptra_config_init_vals_hash, default_rt_test_soc_manifest_measurements,
     default_soc_manifest_measurements, run_rt_test, run_rt_test_return_fw, RuntimeTestArgs,
     DEFAULT_APP_VERSION, DEFAULT_FMC_VERSION, PQC_KEY_TYPE,
 };
@@ -185,7 +185,7 @@ fn test_boot_tci_data() {
     hasher.update(rt_current_pcr);
     hasher.update(cptra_config_init_vals_hash);
     if model.subsystem_mode() {
-        let (somv_measurement, somo_measurement) = default_lms_soc_manifest_measurements(0);
+        let (somv_measurement, somo_measurement) = default_rt_test_soc_manifest_measurements(0);
         hasher.update(somv_measurement);
         hasher.update(somo_measurement);
         let mut mcu_hasher = Sha384::new();
