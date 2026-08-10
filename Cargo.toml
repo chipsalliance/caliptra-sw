@@ -121,10 +121,10 @@ caliptra-image-fake-keys = { path = "image/fake-keys" }
 caliptra-image-gen = { path = "image/gen" }
 caliptra-image-crypto = { path = "image/crypto" }
 caliptra-image-serde = { path = "image/serde" }
-caliptra-image-types = { path = "image/types", default-features = false, features = ["cfi"] }
+caliptra-image-types = { path = "image/types", default-features = false }
 caliptra-image-verify = { path = "image/verify", default-features = false, features = ["cfi"] }
 caliptra-kat = { path = "kat" }
-caliptra-lms-types = { path = "lms-types", features = ["cfi"] }
+caliptra-lms-types = { path = "lms-types" }
 caliptra-mldsa = { path = "common/crypto/mldsa" }
 caliptra-registers = { path = "registers" }
 caliptra-registers-1_0 = { path = "hw/1.0/registers" }
