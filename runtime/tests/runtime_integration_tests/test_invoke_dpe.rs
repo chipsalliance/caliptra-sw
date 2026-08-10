@@ -230,9 +230,11 @@ fn test_certify_key_with_max_contexts() {
         ..Default::default()
     };
 
-    // Fill PL0 contexts
+    // Fill PL0 contexts. In subsystem mode, Caliptra uses 6 PL0 contexts
+    // (root + RT journey + SOMV + SOMO + MCU FW + field entropy state);
+    // otherwise, 2 (root + RT journey).
     let max_after_init_contexts = if model.subsystem_mode() {
-        64 - 4
+        64 - 6
     } else {
         64 - 2
     };

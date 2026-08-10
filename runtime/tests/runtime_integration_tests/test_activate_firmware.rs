@@ -236,6 +236,7 @@ fn send_activate_firmware_cmd(
     model.finish_mailbox_execute()
 }
 
+#[cfg_attr(feature = "fpga_subsystem", allow(dead_code))]
 fn tag_and_get_mcu_tci(model: &mut DefaultHwModel) -> GetTaggedTciResp {
     let mut tag_cmd = MailboxReq::TagTci(TagTciReq {
         hdr: MailboxReqHeader { chksum: 0 },
@@ -254,6 +255,7 @@ fn tag_and_get_mcu_tci(model: &mut DefaultHwModel) -> GetTaggedTciResp {
     get_mcu_tci(model)
 }
 
+#[cfg_attr(feature = "fpga_subsystem", allow(dead_code))]
 fn get_mcu_tci(model: &mut DefaultHwModel) -> GetTaggedTciResp {
     let mut get_cmd = MailboxReq::GetTaggedTci(GetTaggedTciReq {
         hdr: MailboxReqHeader { chksum: 0 },
@@ -275,9 +277,12 @@ fn get_mcu_tci(model: &mut DefaultHwModel) -> GetTaggedTciResp {
 #[test]
 fn test_activate_mcu_fw_success() {
     let mcu_contents = mcu_test_firmware();
-    let mut hasher = Sha384::new();
-    hasher.update(&mcu_contents);
-    let mcu_digest: [u8; 48] = hasher.finalize().into();
+    #[cfg(not(feature = "fpga_subsystem"))]
+    let mcu_digest: [u8; 48] = {
+        let mut hasher = Sha384::new();
+        hasher.update(&mcu_contents);
+        hasher.finalize().into()
+    };
 
     let mcu_image = Image {
         fw_id: MCU_FW_ID_1,
@@ -288,8 +293,19 @@ fn test_activate_mcu_fw_success() {
     };
 
     let mut model = load_and_authorize_fw(&[mcu_image]);
-    let initial_mcu_tci = tag_and_get_mcu_tci(&mut model);
-    assert_eq!(initial_mcu_tci.tci_current, mcu_digest);
+
+    // The MCU firmware DPE context is located by tagging the DPE default
+    // context. That only works when Caliptra's measurement of the MCU firmware
+    // is the last context derived. On the subsystem FPGA, MCU ROM stashes the
+    // field entropy state after Caliptra measures the MCU firmware, so the
+    // field entropy context is the default one and the MCU firmware context
+    // cannot be reached by handle.
+    #[cfg(not(feature = "fpga_subsystem"))]
+    let initial_mcu_tci = {
+        let initial_mcu_tci = tag_and_get_mcu_tci(&mut model);
+        assert_eq!(initial_mcu_tci.tci_current, mcu_digest);
+        initial_mcu_tci
+    };
 
     // Send ActivateFirmware command
     let mut activate_cmd = MailboxReq::ActivateFirmware(ActivateFirmwareReq {
