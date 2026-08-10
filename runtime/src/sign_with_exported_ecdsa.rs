@@ -12,7 +12,7 @@ use caliptra_error::{CaliptraError, CaliptraResult};
 
 use crypto::{
     ecdsa::{
-        curve_384::{EcdsaPub384, EcdsaSignature384},
+        curve_384::{EcdsaPub384, EcdsaSignature384, CURVE_SIZE},
         EcdsaPubKey, EcdsaSignature,
     },
     Crypto, CryptoError, Digest, PubKey, SignData, Signature, SignatureType,
@@ -44,7 +44,10 @@ impl SignWithExportedEcdsaCmd {
 
         let data = Digest::Sha384(crypto::Sha384(cmd.tbs)).into();
         let mut sig = Signature::zeroed(crypto.signature_algorithm());
-        let mut pub_key = PubKey::default();
+        let mut pub_key = PubKey::Ecdsa(EcdsaPubKey::Ecdsa384(EcdsaPub384 {
+            x: [0u8; CURVE_SIZE],
+            y: [0u8; CURVE_SIZE],
+        }));
         sign_exported(
             &mut crypto,
             &data,
@@ -146,8 +149,8 @@ pub(crate) fn sign_exported(
         CryptoError::InvalidExportedCdiHandle => ExportedSignError::NotFound,
         _ => ExportedSignError::KeyDerivation,
     })?;
-    *pub_key = signer
-        .public_key()
+    signer
+        .public_key(pub_key)
         .map_err(|_| ExportedSignError::KeyDerivation)?;
     signer
         .sign(data, sig)
