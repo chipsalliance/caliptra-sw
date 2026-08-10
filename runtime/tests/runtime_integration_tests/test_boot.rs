@@ -191,10 +191,11 @@ fn test_boot_tci_data() {
         let mut mcu_hasher = Sha384::new();
         mcu_hasher.update(crate::common::DEFAULT_MCU_FW);
         hasher.update(mcu_hasher.finalize());
-        // MCU ROM stashes field_entropy_state measurement.
-        let mut fe_hasher = Sha384::new();
-        fe_hasher.update([0u8; 48]);
-        hasher.update(fe_hasher.finalize());
+        // Note: MCU ROM also stashes the field_entropy_state measurement, but
+        // this test boots the mailbox responder test firmware instead of the
+        // production runtime, and that firmware does not implement
+        // STASH_MEASUREMENT. The stash therefore fails and no field entropy
+        // DPE context is created.
     }
     let expected_measurement_hash = hasher.finalize();
 
