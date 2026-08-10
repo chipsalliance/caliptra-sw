@@ -811,6 +811,7 @@ impl SetAuthManifestCmd {
         if !verify_only {
             persistent_data.fw.auth_manifest_digest =
                 drivers.sha2_512_384.sha384_digest(manifest_buf)?.0;
+            persistent_data.fw.auth_manifest_svn = auth_manifest_preamble.svn;
         }
         Ok(())
     }
