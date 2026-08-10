@@ -1,0 +1,14 @@
+# Licensed under the Apache-2.0 license
+schema_version = "1"
+repository = "chipsalliance/caliptra-sw"
+hw_major_version = "1.x"
+target_branch = "caliptra-1.x"
+caliptra_variant = "core-hw1.0-etrng"
+date = "2026-08-05T23:44:56.872257253+00:00"
+commit_hash = "a190c54bdf62456f6f99b261c03d1f4477209df1"
+job_id = "31051400664-build-bitstream"
+segmented = false
+github_pr = 4049
+name = "core-hw1.0-etrng-bitstream"
+bin_url = "https://storage.googleapis.com/caliptra-github-ci-bitstreams/v1/a190c54bdf62456f6f99b261c03d1f4477209df1/core-hw1.0-etrng/caliptra_fpga.bin"
+bin_hash = "bc47542d2471211b77518efa8ca26d9b965c5eb8ca967266ce5fa82447f36e50"
