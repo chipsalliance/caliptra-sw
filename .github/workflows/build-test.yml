@@ -10,6 +10,14 @@ on:
 
   workflow_call:
   workflow_dispatch:
+    inputs:
+      hw-revision:
+        description: 'Target hardware revision'
+        type: choice
+        default: latest
+        options:
+          - "2.1"
+          - latest
 
 permissions:
   contents: read
@@ -24,6 +32,7 @@ env:
 
   # Compiler warnings should fail to compile
   EXTRA_CARGO_CONFIG: "target.'cfg(all())'.rustflags = [\"-Dwarnings\"]"
+  CALIPTRA_HW_REV: ${{ inputs.hw-revision || 'latest' }}
 
 jobs:
   lint:
@@ -44,6 +53,7 @@ jobs:
     runs-on: ubuntu-24.04
     strategy:
       matrix:
+        # Always build for all HW-revisions
         revision: ["latest", "2.1"]
     env:
       CALIPTRA_HW_REV: ${{ matrix.revision }}
