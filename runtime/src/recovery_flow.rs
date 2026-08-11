@@ -19,6 +19,7 @@ use crate::{
     },
     drivers::{McuFwStatus, McuResetReason},
     set_auth_manifest::AuthManifestUpdateMode,
+    stash_measurement::MCU_RT_RESERVED_FW_ID,
     Drivers, SetAuthManifestCmd,
 };
 use caliptra_auth_man_types::AuthorizationManifest;
@@ -148,7 +149,7 @@ impl RecoveryFlow {
         // verify the digest
         let soc_manifest_svn = drivers.persistent_data.get().fw.dpe.soc_manifest_svn;
         let auth_and_stash_req = AuthorizeAndStashReq {
-            fw_id: [2, 0, 0, 0],
+            fw_id: MCU_RT_RESERVED_FW_ID,
             measurement: digest,
             source: ImageHashSource::InRequest.into(),
             // We want to make sure this measurement is not skipped.
