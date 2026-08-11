@@ -134,7 +134,6 @@ fn test_attestation_disabled_flag_after_update_reset() {
         ImageOptions::default(),
     )
     .unwrap()
-    .0
     .to_bytes()
     .unwrap();
     model

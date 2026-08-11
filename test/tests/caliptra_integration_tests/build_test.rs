@@ -7,14 +7,14 @@ use caliptra_builder::{firmware, ImageOptions};
 #[cfg(not(feature = "hw-1.0"))]
 #[test]
 fn test_hw_1_0_bin_identical() {
-    let (image, _) = caliptra_builder::build_and_sign_image(
+    let image = caliptra_builder::build_and_sign_image(
         &firmware::FMC_WITH_UART,
         &firmware::APP_WITH_UART,
         ImageOptions::default(),
     )
     .unwrap();
 
-    let (image_hw_1_0, _) = caliptra_builder::build_and_sign_image(
+    let image_hw_1_0 = caliptra_builder::build_and_sign_image(
         &firmware::FMC_WITH_UART_HW_1_0,
         &firmware::APP_WITH_UART_HW_1_0,
         ImageOptions::default(),

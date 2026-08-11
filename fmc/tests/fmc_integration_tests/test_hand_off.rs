@@ -6,7 +6,7 @@ use caliptra_hw_model::{BootParams, HwModel, InitParams};
 fn test_hand_off() {
     let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
 
-    let (image, _) = caliptra_builder::build_and_sign_image(
+    let image = caliptra_builder::build_and_sign_image(
         &firmware::FMC_WITH_UART,
         &firmware::runtime_tests::BOOT,
         ImageOptions::default(),

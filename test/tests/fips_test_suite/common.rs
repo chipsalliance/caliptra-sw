@@ -449,7 +449,6 @@ pub fn fips_fw_image() -> Vec<u8> {
             },
         )
         .unwrap()
-        .0
         .to_bytes()
         .unwrap(),
         // Read in the ROM file if a path was provided

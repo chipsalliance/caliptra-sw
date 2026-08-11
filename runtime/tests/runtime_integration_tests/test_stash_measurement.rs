@@ -47,7 +47,7 @@ fn test_stash_measurement() {
     assert_eq!(resp_hdr.dpe_result, 0);
 
     // create a new fw image with the runtime replaced by the mbox responder
-    let (updated_fw_image, _) = caliptra_builder::build_and_sign_image(
+    let updated_fw_image = caliptra_builder::build_and_sign_image(
         &FMC_WITH_UART,
         &firmware::runtime_tests::MBOX,
         ImageOptions::default(),
@@ -98,7 +98,6 @@ fn test_pcr31_extended_upon_stash_measurement() {
         ImageOptions::default(),
     )
     .unwrap()
-    .0
     .to_bytes()
     .unwrap();
     model
@@ -131,7 +130,6 @@ fn test_pcr31_extended_upon_stash_measurement() {
         ImageOptions::default(),
     )
     .unwrap()
-    .0
     .to_bytes()
     .unwrap();
     model
@@ -144,7 +142,6 @@ fn test_pcr31_extended_upon_stash_measurement() {
         ImageOptions::default(),
     )
     .unwrap()
-    .0
     .to_bytes()
     .unwrap();
     model

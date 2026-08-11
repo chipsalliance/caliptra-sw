@@ -85,7 +85,7 @@ fn test_fw_info() {
         ..Default::default()
     };
 
-    let (image, _) =
+    let image =
         caliptra_builder::build_and_sign_image(&FMC_WITH_UART, &APP_WITH_UART, image_opts10)
             .unwrap();
 
@@ -142,7 +142,6 @@ fn test_fw_info() {
     let image20 =
         caliptra_builder::build_and_sign_image(&FMC_WITH_UART, &APP_WITH_UART, image_opts20)
             .unwrap()
-            .0
             .to_bytes()
             .unwrap();
 
@@ -160,7 +159,6 @@ fn test_fw_info() {
     let image5 =
         caliptra_builder::build_and_sign_image(&FMC_WITH_UART, &APP_WITH_UART, image_opts5)
             .unwrap()
-            .0
             .to_bytes()
             .unwrap();
 

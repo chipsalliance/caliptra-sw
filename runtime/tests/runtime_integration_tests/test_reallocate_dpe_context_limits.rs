@@ -281,7 +281,6 @@ fn test_pl0_pl1_reallocation_warm_reset() {
         ImageOptions::default(),
     )
     .unwrap()
-    .0
     .to_bytes()
     .unwrap();
     model

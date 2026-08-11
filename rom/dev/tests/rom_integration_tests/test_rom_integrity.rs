@@ -63,7 +63,6 @@ fn test_read_rom_info_from_fmc() {
         ImageOptions::default(),
     )
     .unwrap()
-    .0
     .to_bytes()
     .unwrap();
 

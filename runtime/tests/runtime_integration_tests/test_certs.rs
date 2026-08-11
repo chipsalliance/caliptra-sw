@@ -379,7 +379,6 @@ pub fn test_all_measurement_apis() {
         ImageOptions::default(),
     )
     .unwrap()
-    .0
     .to_bytes()
     .unwrap();
 

@@ -38,7 +38,7 @@ const PCR2_AND_PCR3_EXTENDED_ID: u32 = (1 << PcrId::PcrId2 as u8) | (1 << PcrId:
 fn test_boot_status_reporting() {
     let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
 
-    let (image, _) = caliptra_builder::build_and_sign_image(
+    let image = caliptra_builder::build_and_sign_image(
         &firmware::FMC_WITH_UART,
         &firmware::runtime_tests::BOOT,
         ImageOptions::default(),
@@ -69,7 +69,7 @@ fn test_boot_status_reporting() {
 #[test]
 fn test_fht_info() {
     let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
-    let (image, _) = caliptra_builder::build_and_sign_image(
+    let image = caliptra_builder::build_and_sign_image(
         &FMC_WITH_UART,
         &MOCK_RT_INTERACTIVE,
         ImageOptions::default(),
@@ -105,7 +105,7 @@ fn test_fht_info() {
 #[test]
 fn test_pcr_log() {
     let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
-    let (image1, _) = caliptra_builder::build_and_sign_image(
+    let image1 = caliptra_builder::build_and_sign_image(
         &FMC_WITH_UART,
         &MOCK_RT_INTERACTIVE,
         ImageOptions {
@@ -165,7 +165,7 @@ fn test_pcr_log() {
     assert_eq!(pcr2_from_log, pcr2_from_hw);
     assert_eq!(pcr3_from_log, pcr3_from_hw);
 
-    let (image2, _) = caliptra_builder::build_and_sign_image(
+    let image2 = caliptra_builder::build_and_sign_image(
         &FMC_WITH_UART,
         &MOCK_RT_INTERACTIVE,
         ImageOptions {

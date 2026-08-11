@@ -397,7 +397,6 @@ fn hitless_update_bumped_version(model: &mut DefaultHwModel) {
     let image =
         caliptra_builder::build_and_sign_image(&FMC_WITH_UART, &APP_MLDSA_ATTESTATION, opts)
             .unwrap()
-            .0
             .to_bytes()
             .unwrap();
 

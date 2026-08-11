@@ -272,7 +272,7 @@ pub fn run_pqc_rt_test_wdt() -> DefaultHwModel {
     image_options.fmc_version = DEFAULT_FMC_VERSION;
     image_options.app_version = DEFAULT_APP_VERSION;
 
-    let (image, _) = caliptra_builder::build_and_sign_image(
+    let image = caliptra_builder::build_and_sign_image(
         &FMC_WITH_UART,
         &APP_MLDSA_ATTESTATION,
         image_options,
@@ -343,7 +343,7 @@ pub fn run_rt_test_base(args: RuntimeTestArgs, lms_verify: bool) -> (DefaultHwMo
     });
 
     let (image, elfs) =
-        caliptra_builder::build_and_sign_image(&FMC_WITH_UART, runtime_fwid, image_options)
+        caliptra_builder::build_image_artifacts(&FMC_WITH_UART, runtime_fwid, image_options)
             .unwrap();
 
     let image_info = vec![

@@ -484,7 +484,6 @@ fn test_export_cdi_attestation_not_disabled_after_update_reset() {
         ImageOptions::default(),
     )
     .unwrap()
-    .0
     .to_bytes()
     .unwrap();
     model
@@ -542,7 +541,6 @@ fn test_export_cdi_destroyed_root_context() {
         ImageOptions::default(),
     )
     .unwrap()
-    .0
     .to_bytes()
     .unwrap();
     model

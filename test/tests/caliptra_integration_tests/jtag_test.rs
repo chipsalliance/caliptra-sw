@@ -85,7 +85,7 @@ fn gdb_test() {
         .set_device_lifecycle(DeviceLifecycle::Production);
 
     let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
-    let (image, _) = caliptra_builder::build_and_sign_image(
+    let image = caliptra_builder::build_and_sign_image(
         &firmware::FMC_WITH_UART,
         &firmware::APP_WITH_UART,
         ImageOptions {

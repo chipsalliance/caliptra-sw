@@ -213,7 +213,7 @@ fn test_preamble_vendor_ecc_pubkey_revocation() {
         )
         .unwrap();
 
-        let (image_bundle, _) =
+        let image_bundle =
             caliptra_builder::build_and_sign_image(&FMC_WITH_UART, &APP_WITH_UART, image_options)
                 .unwrap();
 
@@ -276,7 +276,7 @@ fn test_preamble_vendor_lms_pubkey_revocation() {
         )
         .unwrap();
 
-        let (image_bundle, _) =
+        let image_bundle =
             caliptra_builder::build_and_sign_image(&FMC_WITH_UART, &APP_WITH_UART, image_options)
                 .unwrap();
 
@@ -333,7 +333,7 @@ fn test_preamble_vendor_lms_optional_no_pubkey_revocation_check() {
         )
         .unwrap();
 
-        let (image_bundle, _) =
+        let image_bundle =
             caliptra_builder::build_and_sign_image(&FMC_WITH_UART, &APP_WITH_UART, image_options)
                 .unwrap();
 
@@ -804,7 +804,7 @@ fn test_header_verify_vendor_lms_optional_no_pub_key_in_preamble_and_header_chec
 
 #[test]
 fn test_header_verify_owner_sig_zero_fuses() {
-    let (image_bundle, _) = caliptra_builder::build_and_sign_image(
+    let image_bundle = caliptra_builder::build_and_sign_image(
         &FMC_WITH_UART,
         &APP_WITH_UART,
         ImageOptions::default(),
@@ -835,7 +835,7 @@ fn test_header_verify_owner_sig_zero_fuses() {
 
 #[test]
 fn test_header_verify_owner_ecc_sig_zero_pubkey_x() {
-    let (mut image_bundle, _) = caliptra_builder::build_and_sign_image(
+    let mut image_bundle = caliptra_builder::build_and_sign_image(
         &FMC_WITH_UART,
         &APP_WITH_UART,
         ImageOptions::default(),
@@ -890,7 +890,7 @@ fn test_header_verify_owner_ecc_sig_zero_pubkey_x() {
 
 #[test]
 fn test_header_verify_owner_ecc_sig_zero_pubkey_y() {
-    let (mut image_bundle, _) = caliptra_builder::build_and_sign_image(
+    let mut image_bundle = caliptra_builder::build_and_sign_image(
         &FMC_WITH_UART,
         &APP_WITH_UART,
         ImageOptions::default(),
@@ -945,7 +945,7 @@ fn test_header_verify_owner_ecc_sig_zero_pubkey_y() {
 
 #[test]
 fn test_header_verify_owner_ecc_sig_zero_signature_r() {
-    let (mut image_bundle, _) = caliptra_builder::build_and_sign_image(
+    let mut image_bundle = caliptra_builder::build_and_sign_image(
         &FMC_WITH_UART,
         &APP_WITH_UART,
         ImageOptions::default(),
@@ -994,7 +994,7 @@ fn test_header_verify_owner_ecc_sig_zero_signature_r() {
 
 #[test]
 fn test_header_verify_owner_ecc_sig_zero_signature_s() {
-    let (mut image_bundle, _) = caliptra_builder::build_and_sign_image(
+    let mut image_bundle = caliptra_builder::build_and_sign_image(
         &FMC_WITH_UART,
         &APP_WITH_UART,
         ImageOptions::default(),
@@ -1043,7 +1043,7 @@ fn test_header_verify_owner_ecc_sig_zero_signature_s() {
 
 #[test]
 fn test_header_verify_owner_ecc_sig_invalid_signature_r() {
-    let (mut image_bundle, _) = caliptra_builder::build_and_sign_image(
+    let mut image_bundle = caliptra_builder::build_and_sign_image(
         &FMC_WITH_UART,
         &APP_WITH_UART,
         ImageOptions::default(),
@@ -1092,7 +1092,7 @@ fn test_header_verify_owner_ecc_sig_invalid_signature_r() {
 
 #[test]
 fn test_header_verify_owner_ecc_sig_invalid_signature_s() {
-    let (mut image_bundle, _) = caliptra_builder::build_and_sign_image(
+    let mut image_bundle = caliptra_builder::build_and_sign_image(
         &FMC_WITH_UART,
         &APP_WITH_UART,
         ImageOptions::default(),
@@ -1860,7 +1860,7 @@ fn cert_test_with_custom_dates() {
 
     opts.owner_config = Some(own_config);
 
-    let (image_bundle, _) =
+    let image_bundle =
         caliptra_builder::build_and_sign_image(&TEST_FMC_WITH_UART, &APP_WITH_UART, opts).unwrap();
 
     let mut output = vec![];
@@ -1916,7 +1916,7 @@ fn cert_test() {
     )
     .unwrap();
 
-    let (image_bundle, _) = caliptra_builder::build_and_sign_image(
+    let image_bundle = caliptra_builder::build_and_sign_image(
         &TEST_FMC_WITH_UART,
         &APP_WITH_UART,
         ImageOptions::default(),
@@ -1980,7 +1980,7 @@ fn cert_test_with_ueid() {
 
     let opts = ImageOptions::default();
 
-    let (image_bundle, _) =
+    let image_bundle =
         caliptra_builder::build_and_sign_image(&TEST_FMC_WITH_UART, &APP_WITH_UART, opts).unwrap();
 
     let mut output = vec![];
@@ -2303,7 +2303,7 @@ fn test_max_fw_image() {
     )
     .unwrap();
 
-    let (image_bundle, _) = caliptra_builder::build_and_sign_image(
+    let image_bundle = caliptra_builder::build_and_sign_image(
         &TEST_FMC_INTERACTIVE,
         &TEST_RT_WITH_UART,
         ImageOptions::default(),

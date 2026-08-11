@@ -25,7 +25,7 @@ fn warm_reset_basic() {
         .set_device_lifecycle(DeviceLifecycle::Production);
 
     let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
-    let (image, _) = caliptra_builder::build_and_sign_image(
+    let image = caliptra_builder::build_and_sign_image(
         &FMC_WITH_UART,
         &APP_WITH_UART,
         ImageOptions {
@@ -79,7 +79,7 @@ fn warm_reset_during_fw_load() {
         .set_device_lifecycle(DeviceLifecycle::Production);
 
     let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
-    let (image, _) = caliptra_builder::build_and_sign_image(
+    let image = caliptra_builder::build_and_sign_image(
         &FMC_WITH_UART,
         &APP_WITH_UART,
         ImageOptions {

@@ -694,7 +694,7 @@ fn test_pl0_unset_in_header() {
 
     let mut opts = ImageOptions::default();
     opts.vendor_config.pl0_pauser = None;
-    let (mut image_bundle, _) =
+    let mut image_bundle =
         caliptra_builder::build_and_sign_image(&FMC_WITH_UART, &APP_WITH_UART, opts).unwrap();
 
     // Change PL0 to 1 so that it matches the real PL0 PAUSER but don't set the
@@ -784,7 +784,7 @@ fn test_user_not_pl0() {
 
     let mut opts = ImageOptions::default();
     opts.vendor_config.pl0_pauser = Some(0); // Caller PAUSER is always 1 for current models
-    let (image_bundle, _) =
+    let image_bundle =
         caliptra_builder::build_and_sign_image(&FMC_WITH_UART, &APP_WITH_UART, opts).unwrap();
 
     model

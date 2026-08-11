@@ -527,7 +527,7 @@ pub struct Elfs {
     pub runtime: Arc<Vec<u8>>,
 }
 
-pub fn build_and_sign_image(
+pub fn build_image_artifacts(
     fmc: &FwId<'static>,
     app: &FwId<'static>,
     opts: ImageOptions,
@@ -553,6 +553,15 @@ pub fn build_and_sign_image(
             runtime: app_elf,
         },
     ))
+}
+
+pub fn build_and_sign_image(
+    fmc: &FwId<'static>,
+    app: &FwId<'static>,
+    opts: ImageOptions,
+) -> anyhow::Result<ImageBundle> {
+    let (image, _) = build_image_artifacts(fmc, app, opts)?;
+    Ok(image)
 }
 
 fn image_revision() -> io::Result<ImageRevision> {

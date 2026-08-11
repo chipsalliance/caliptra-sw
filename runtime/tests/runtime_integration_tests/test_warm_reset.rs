@@ -19,7 +19,7 @@ fn test_rt_journey_pcr_validation() {
         .set_device_lifecycle(DeviceLifecycle::Production);
 
     let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
-    let (image, _) = caliptra_builder::build_and_sign_image(
+    let image = caliptra_builder::build_and_sign_image(
         &FMC_WITH_UART,
         &firmware::runtime_tests::MBOX,
         ImageOptions {
@@ -81,7 +81,7 @@ fn test_rt_current_pcr_validation() {
     let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
 
     let fw_svn = 9;
-    let (image, _) = caliptra_builder::build_and_sign_image(
+    let image = caliptra_builder::build_and_sign_image(
         &FMC_WITH_UART,
         &MBOX,
         ImageOptions {
@@ -148,7 +148,7 @@ fn test_mbox_busy_during_warm_reset() {
         .set_device_lifecycle(DeviceLifecycle::Production);
 
     let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
-    let (image, _) = caliptra_builder::build_and_sign_image(
+    let image = caliptra_builder::build_and_sign_image(
         &FMC_WITH_UART,
         &MBOX,
         ImageOptions {
@@ -212,7 +212,7 @@ fn test_mbox_idle_during_warm_reset() {
         .set_device_lifecycle(DeviceLifecycle::Production);
 
     let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
-    let (image, _) = caliptra_builder::build_and_sign_image(
+    let image = caliptra_builder::build_and_sign_image(
         &FMC_WITH_UART,
         &APP_WITH_UART,
         ImageOptions {
@@ -269,7 +269,7 @@ fn test_warm_reset_debug_unlocked() {
         .set_device_lifecycle(DeviceLifecycle::Production);
 
     let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
-    let (image, _) = caliptra_builder::build_and_sign_image(
+    let image = caliptra_builder::build_and_sign_image(
         &FMC_WITH_UART,
         &APP_WITH_UART,
         ImageOptions::default(),
