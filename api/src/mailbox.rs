@@ -1996,6 +1996,7 @@ pub struct FwInfoResp {
     pub soc_manifest_current_svn: u32,
     pub soc_manifest_min_svn: u32,
     pub owner_auth_manifest_current_svn: u32,
+    pub owner_auth_manifest_min_svn: u32,
 }
 
 // CAPABILITIES

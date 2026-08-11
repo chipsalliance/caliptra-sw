@@ -1196,6 +1196,7 @@ Command Code: `0x494E_464F` ("INFO")
 | soc_manifest_current_svn    | u32      | SVN of the authorization manifest accepted by `SET_AUTH_MANIFEST`, or zero if none has been accepted.                                              |
 | soc_manifest_min_svn        | u32      | Minimum SoC manifest SVN encoded in `FUSE_SOC_MANIFEST_SVN` and enforced by `SET_AUTH_MANIFEST` when anti-rollback checks are enabled.               |
 | owner_auth_manifest_current_svn | u32   | SVN of the owner authorization manifest accepted by `SET_OWNER_AUTH_MANIFEST`, or zero if none has been accepted.                                  |
+| owner_auth_manifest_min_svn | u32      | Minimum owner authorization manifest SVN encoded in `SS_STRAP_GENERIC[3][15:8]` and enforced by `SET_OWNER_AUTH_MANIFEST` when anti-rollback checks are enabled. |
 
 ### VERSION
 

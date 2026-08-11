@@ -223,6 +223,7 @@ struct caliptra_fw_info_resp
     uint32_t soc_manifest_current_svn;
     uint32_t soc_manifest_min_svn;
     uint32_t owner_auth_manifest_current_svn;
+    uint32_t owner_auth_manifest_min_svn;
 };
 
 struct caliptra_dpe_tag_tci_req
