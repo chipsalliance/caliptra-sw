@@ -36,7 +36,7 @@ pub struct Mldsa87Seed([u8; MLDSA87_PRIVATE_SEED_BYTES]);
 
 /// ML-DSA-87 encoded public key (2,592 bytes).
 #[repr(transparent)]
-#[derive(KnownLayout, Immutable, FromBytes)]
+#[derive(KnownLayout, Immutable, FromBytes, IntoBytes)]
 pub struct Mldsa87PubKey([u8; MLDSA87_PUBLIC_KEY_BYTES]);
 
 /// ML-DSA-87 FIPS 204 encoded private key (4,896 bytes).

@@ -15,7 +15,7 @@ use caliptra_drivers::MLDSA87_MU_BYTES;
 use caliptra_error::{CaliptraError, CaliptraResult};
 
 use crypto::{
-    ml_dsa::{MldsaPublicKey, MldsaSignature},
+    ml_dsa::{MldsaAlgorithm, MldsaPublicKey, MldsaSignature},
     Mu, PubKey, SignData, Signature, SignatureType,
 };
 use zerocopy::{FromZeros, IntoBytes};
@@ -73,7 +73,9 @@ impl SignWithExportedMldsaCmd {
         )?;
 
         let mut sig = Signature::zeroed(crypto.signature_algorithm());
-        let mut pub_key = PubKey::default();
+        let mut pub_key = PubKey::Mldsa(MldsaPublicKey(
+            [0u8; MldsaAlgorithm::Mldsa87.public_key_size()],
+        ));
         sign_exported(
             &mut crypto,
             &data,
