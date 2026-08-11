@@ -2880,7 +2880,7 @@ impl Commands {
         // Compute and verify the GCM tag
         let computed_tag = drivers.aes.compute_tag(aad.len(), length as usize)?;
         let expected_tag: LEArray4x4 = LEArray4x4::new(cmd.tag);
-        let tag_verified = computed_tag.as_bytes() == expected_tag.as_bytes();
+        let tag_verified = constant_time_eq(computed_tag.as_bytes(), expected_tag.as_bytes());
 
         // Build response
         let resp = mutrefbytes::<CmAesGcmDecryptDmaResp>(resp)?;
