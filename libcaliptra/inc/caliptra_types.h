@@ -240,6 +240,7 @@ struct caliptra_get_tagged_tci_resp
     struct caliptra_resp_header hdr;
     uint8_t tci_cumulative[48];
     uint8_t tci_current[48];
+    uint32_t svn;
 };
 
 struct caliptra_increment_pcr_reset_counter_req

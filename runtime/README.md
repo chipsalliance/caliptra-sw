@@ -1137,6 +1137,10 @@ Command Code: `0x5451_4754` ("TAGT")
 
 Retrieves the TCI measurements corresponding to the tagged DPE context.
 
+NOTE: Additional fields and info may be appended to the response in subsequent FW
+versions. Appending changes the response length and therefore its checksum, so
+the caller and firmware are expected to be updated in lockstep.
+
 Command Code: `0x4754_4744` ("GTGD")
 
 *Table: `DPE_GET_TAGGED_TCI` input arguments*
@@ -1154,6 +1158,7 @@ Command Code: `0x4754_4744` ("GTGD")
 | fips\_status     | u32       | Indicates if the command is FIPS approved or an error.
 | tci\_cumulative  | u8[48]    | Hash of all of the input data provided to the context.
 | tci\_current     | u8[48]    | Most recent measurement made into the context.
+| svn              | u32       | Security Version Number of the tagged DPE context.
 
 ### FW\_INFO
 
