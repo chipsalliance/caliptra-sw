@@ -246,7 +246,8 @@ fn test_set_auth_manifest_cmd_pqc_lms() {
 fn test_set_auth_manifest_fw_info() {
     let mut rt_args = RuntimeTestArgs::test_productions_args();
     rt_args.soc_manifest_svn = Some(2);
-    rt_args.subsystem_mode = true;
+    let subsystem_mode = !cfg!(feature = "fpga_realtime");
+    rt_args.subsystem_mode = subsystem_mode;
     let mut image_options = ImageOptions {
         fw_svn: 12,
         pqc_key_type: FwVerificationPqcKeyType::MLDSA,
@@ -258,7 +259,10 @@ fn test_set_auth_manifest_fw_info() {
     model.step_until_ready_for_runtime();
 
     let info = get_fwinfo(&mut model);
-    assert_eq!(info.soc_manifest_current_svn, 2);
+    assert_eq!(
+        info.soc_manifest_current_svn,
+        if subsystem_mode { 2 } else { 0 }
+    );
     assert_eq!(info.soc_manifest_min_svn, 2);
     assert_eq!(info.fw_svn, 12);
 
