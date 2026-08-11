@@ -16,6 +16,9 @@ on:
       rom-version:
         default: "latest"
         type: string
+      hw-revision:
+        default: "latest"
+        type: string
 
 permissions:
   contents: read
@@ -27,6 +30,7 @@ jobs:
     env:
       NEXTEST_VERSION: 0.9.72
       CACHE_BUSTER: f7c64774f17c
+      CALIPTRA_HW_REV: ${{ inputs.hw-revision }}
 
     steps:
       - name: Restore cargo-nextest binary
