@@ -47,15 +47,27 @@ impl CommandSampler for CycleSampler {
     }
 }
 
-#[test]
-fn measure_runtime_command_timing() {
+fn test_args(
+    sample_stack_traces: bool,
+    stack_sample_rate: Option<u64>,
+) -> RuntimeTestArgs<'static> {
+    #[allow(unused_mut)]
+    let mut arg = RuntimeTestArgs {
+        sample_stack_traces,
+        stack_sample_rate,
+        ..RuntimeTestArgs::default()
+    };
+
     #[cfg(feature = "mldsa_attestation")]
-    let mut model = run_rt_test(RuntimeTestArgs {
-        test_fwid: Some(&APP_MLDSA_ATTESTATION),
-        ..Default::default()
-    });
-    #[cfg(not(feature = "mldsa_attestation"))]
-    let mut model = run_rt_test(RuntimeTestArgs::default());
+    {
+        arg.test_fwid = Some(&APP_MLDSA_ATTESTATION);
+    }
+
+    arg
+}
+
+fn measure_timing(args: RuntimeTestArgs) {
+    let mut model = run_rt_test(args);
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -88,4 +100,14 @@ fn measure_runtime_command_timing() {
     for (name, cycles) in &results {
         assert!(*cycles > 0, "{name} reported zero cycles");
     }
+}
+
+#[test]
+fn measure_runtime_command_timing() {
+    measure_timing(test_args(false, None));
+}
+
+#[test]
+fn measure_runtime_command_timing_and_sample_stack_traces() {
+    measure_timing(test_args(true, None));
 }

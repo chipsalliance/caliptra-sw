@@ -1,17 +1,19 @@
 // Licensed under the Apache-2.0 license
 
 use std::cell::Cell;
-use std::collections::hash_map::DefaultHasher;
+use std::collections::{hash_map::DefaultHasher, HashMap};
 use std::error::Error;
+use std::fs::{create_dir_all, File};
 use std::hash::Hasher;
-use std::io::Write;
-use std::path::PathBuf;
+use std::io::{BufWriter, Write};
+use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
+use caliptra_builder::{elf_symbols, Elfs};
 use caliptra_emu_bus::Clock;
 #[cfg(feature = "coverage")]
 use caliptra_emu_cpu::CoverageBitmaps;
-use caliptra_emu_cpu::{Cpu, InstrTracer};
+use caliptra_emu_cpu::{Cpu, InstrTracer, StackSample, StackSampler};
 use caliptra_emu_periph::ActionCb;
 use caliptra_emu_periph::MailboxExternal;
 use caliptra_emu_periph::ReadyForFwCb;
@@ -31,6 +33,9 @@ use crate::ModelError;
 use crate::Output;
 use crate::TrngMode;
 use caliptra_emu_bus::{Bus, BusMmio};
+
+use inferno::flamegraph;
+use rustc_demangle::demangle;
 
 use caliptra_api::soc_mgr::SocManager;
 pub struct EmulatedApbBus<'a> {
@@ -70,6 +75,7 @@ pub struct ModelEmulated {
     _rom_image_tag: u64,
     iccm_image_tag: Option<u64>,
     trng_mode: TrngMode,
+    elfs: Option<Elfs>,
 }
 
 #[cfg(feature = "coverage")]
@@ -134,6 +140,77 @@ impl ModelEmulated {
     /// their event queue while it is idle.
     pub fn cpu_halted(&self) -> bool {
         self.cpu.read_halted()
+    }
+
+    /// Fetch stack samples record so far.
+    pub fn stack_samples(&self) -> Option<HashMap<StackSample, u64>> {
+        self.cpu.stack_sampler.as_ref().map(|s| s.samples.clone())
+    }
+
+    /// Clear all data collected so far by the stack sampler.
+    pub fn reset_stack_sampler(&mut self) {
+        if let Some(s) = self.cpu.stack_sampler.as_mut() {
+            s.reset();
+        }
+    }
+
+    /// Generate a flamegraph named `name`.svg using the stack samples captured so far.
+    pub fn gen_flamegraph(&self, name: &str) -> Result<(), Box<dyn Error>> {
+        if self.cpu.stack_sampler.is_none() {
+            return Ok(());
+        }
+
+        let stack_samples = self
+            .stack_samples()
+            .ok_or(Box::new(ModelError::NoStackSample))?;
+        let (fmc_symbols, runtime_symbols) = match &self.elfs {
+            Some(elfs) => {
+                let fmc_symbols = elf_symbols(&elfs.fmc)?;
+                let runtime_symbols = elf_symbols(&elfs.runtime)?;
+                (fmc_symbols, runtime_symbols)
+            }
+            None => return Err(ModelError::NoElfBytes.into()),
+        };
+
+        let find_symbol = |pc: RvData| {
+            for symbols in [&runtime_symbols, &fmc_symbols] {
+                if let Some(resolved) = symbols
+                    .iter()
+                    .find(|sym| sym.value == pc as u64)
+                    .map(|sym| demangle(sym.name).to_string())
+                {
+                    return resolved;
+                }
+            }
+            format!("{:0x}", pc)
+        };
+
+        let collapsed_samples = stack_samples
+            .iter()
+            .map(|(stack_sample, count)| {
+                let collapsed = stack_sample
+                    .iter()
+                    .map(|pc| find_symbol(*pc))
+                    .collect::<Vec<_>>()
+                    .as_slice()
+                    .join(";");
+                format!("{} {}", collapsed, count)
+            })
+            .collect::<Vec<_>>();
+
+        let mut opt = flamegraph::Options::default();
+        let target_dir = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap_or(Path::new(""))
+            .join("target")
+            .join("flamegraphs");
+        create_dir_all(&target_dir)?;
+        let filename = target_dir.join(format!("{}.svg", name));
+        let file = BufWriter::new(File::create(&filename)?);
+
+        flamegraph::from_lines(&mut opt, collapsed_samples.iter().map(|s| s.as_str()), file)?;
+
+        Ok(())
     }
 }
 
@@ -227,6 +304,9 @@ impl HwModel for ModelEmulated {
             if let Some(stack_info) = params.stack_info {
                 cpu.with_stack_info(stack_info);
             }
+            if params.sample_stack_traces {
+                cpu.stack_sampler = Some(StackSampler::new(params.stack_sample_rate));
+            }
             cpu
         };
 
@@ -245,6 +325,7 @@ impl HwModel for ModelEmulated {
             _rom_image_tag: image_tag,
             iccm_image_tag: None,
             trng_mode,
+            elfs: params.elfs,
         };
         // Turn tracing on if the trace path was set
         m.tracing_hint(true);
