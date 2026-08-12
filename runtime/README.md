@@ -1349,7 +1349,11 @@ Command Code: `0x4154_5348` ("ATSH")
 
 ### GET_IMAGE_INFO
 
-The MCU uses this command to retrieve the Image Metadata Entry defined in the SoC Manifest given by an index to the Image Metadata Collection (IMC).
+The MCU uses this command to retrieve the active Image Metadata Entry for a
+firmware ID. The Runtime searches the vendor + owner Image Metadata Collection
+first, then the owner-only collection installed by
+[`SET_OWNER_AUTH_MANIFEST`](#set_owner_auth_manifest). Active firmware IDs are
+unique across the collections, so the response is unambiguous.
 
 Command Code: `0x494D_4530` ("IME0")
 
