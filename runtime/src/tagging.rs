@@ -92,6 +92,7 @@ impl GetTaggedTciCmd {
         resp.hdr = MailboxRespHeader::default();
         resp.tci_cumulative = context.tci.tci_cumulative.0;
         resp.tci_current = context.tci.tci_current.0;
+        resp.svn = context.tci.svn;
         Ok(core::mem::size_of::<GetTaggedTciResp>())
     }
 }
