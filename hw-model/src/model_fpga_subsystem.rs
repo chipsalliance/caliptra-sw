@@ -1987,8 +1987,8 @@ impl HwModel for ModelFpgaSubsystem {
         };
 
         if m.flash_boot && m.use_external_i3c_host {
-            eprintln!(
-                "Warning: `use_external_i3c_host` does not make sense when flash boot is enabled (`primary_flash_initial_contents` is some)."
+            panic!(
+                "Warning: `use_external_i3c_host` does not make sense when flash boot is enabled (`primary_flash_initial_contents` is some). Try the --flash-boot=false flag."
             );
         }
 
