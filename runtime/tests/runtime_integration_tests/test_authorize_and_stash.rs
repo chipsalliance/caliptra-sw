@@ -904,3 +904,32 @@ fn test_authorize_and_stash_after_update_reset_multiple_set_manifest() {
         IMAGE_NOT_AUTHORIZED
     );
 }
+
+#[test]
+fn test_authorize_and_stash_cmd_without_set_auth_manifest() {
+    let mut model = run_rt_test(RuntimeTestArgs::default());
+
+    let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        fw_id: [0; 4],
+        measurement: IMAGE_DIGEST1,
+        source: ImageHashSource::InRequest as u32,
+        flags: 0, // Don't skip stash
+        ..Default::default()
+    });
+    authorize_and_stash_cmd.populate_chksum().unwrap();
+
+    let resp = model
+        .mailbox_execute(
+            u32::from(CommandId::AUTHORIZE_AND_STASH),
+            authorize_and_stash_cmd.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .expect("We should have received a response");
+
+    let authorize_and_stash_resp = AuthorizeAndStashResp::read_from_bytes(resp.as_slice()).unwrap();
+    assert_eq!(
+        authorize_and_stash_resp.auth_req_result,
+        IMAGE_NOT_AUTHORIZED
+    );
+}

@@ -115,6 +115,7 @@ impl AuthorizeAndStashCmd {
     ) -> Option<&AuthManifestImageMetadata> {
         auth_manifest_image_metadata_col
             .image_metadata_list
+            .get(..auth_manifest_image_metadata_col.entry_count as usize)?
             .binary_search_by(|metadata| metadata.fw_id.cmp(&cmd_fw_id))
             .ok()
             .and_then(|index| {
@@ -122,5 +123,34 @@ impl AuthorizeAndStashCmd {
                     .image_metadata_list
                     .get(index)
             })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use caliptra_auth_man_types::{AuthManifestImageMetadata, AuthManifestImageMetadataCollection};
+
+    fn make_metadata_collection(fw_ids: &[u32]) -> AuthManifestImageMetadataCollection {
+        let mut collection = AuthManifestImageMetadataCollection {
+            entry_count: fw_ids.len() as u32,
+            ..Default::default()
+        };
+        collection.entry_count = fw_ids.len() as u32;
+        for (i, &id) in fw_ids.iter().enumerate() {
+            collection.image_metadata_list[i] = AuthManifestImageMetadata {
+                fw_id: id,
+                flags: 0,
+                digest: [0u8; 48],
+            };
+        }
+        collection
+    }
+
+    #[test]
+    fn test_find_metadata_entry_with_sentinel_fw_id() {
+        let collection = make_metadata_collection(&[1, 2, 3]);
+        let result = AuthorizeAndStashCmd::find_metadata_entry(&collection, u32::MAX);
+        assert!(result.is_none());
     }
 }
