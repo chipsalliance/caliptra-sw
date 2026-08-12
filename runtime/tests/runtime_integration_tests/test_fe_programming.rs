@@ -54,6 +54,26 @@ fn test_fe_programming_cmd() {
 
     // Verify no fatal errors occurred
     assert_eq!(model.soc_ifc().cptra_fw_error_non_fatal().read(), 0);
+
+    let mut other_partition_cmd = MailboxReq::FeProg(FeProgReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        partition: 2,
+    });
+    other_partition_cmd.populate_chksum().unwrap();
+    model
+        .mailbox_execute(
+            u32::from(CommandId::FE_PROG),
+            other_partition_cmd.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .expect("programming a different FE partition should succeed");
+
+    assert_eq!(
+        model.mailbox_execute(u32::from(CommandId::FE_PROG), cmd.as_bytes().unwrap()),
+        Err(ModelError::MailboxCmdFailed(
+            CaliptraError::UDS_FE_PROGRAMMING_OTP_ERROR.into()
+        ))
+    );
 }
 
 #[test]

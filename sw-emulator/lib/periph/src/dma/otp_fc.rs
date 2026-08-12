@@ -26,7 +26,7 @@ register_bitfields! {
 
     /// Status Register
     pub Status [
-        DAI_ERROR OFFSET(7) NUMBITS(1) [],
+        DAI_ERROR OFFSET(24) NUMBITS(1) [],
         /// Data Access Interface Idle Status
         DAI_IDLE OFFSET(30) NUMBITS(1) [
             Busy = 0,
@@ -81,6 +81,10 @@ pub enum Granularity {
 //   Total:         176 bytes (44 x u32)
 const FUSE_BANK_SIZE_BYTES: usize = 176;
 const UDS_SIZE_BYTES: usize = 64;
+const UDS_PARTITION_SIZE_BYTES: usize = 80;
+const FE_PARTITION_SIZE_BYTES: usize = 24;
+const FE_PARTITION_COUNT: usize = 4;
+const OTP_ACCESS_ERROR: u32 = 5;
 
 pub struct Context {
     pub address: Option<u32>,
@@ -91,6 +95,8 @@ pub struct Context {
     pub fuse_bank: [u32; FUSE_BANK_SIZE_BYTES / size_of::<u32>()],
     pub error_injection: bool,
     pub dai_error: bool,
+    pub dai_error_code: u32,
+    pub locked_partitions: [bool; FE_PARTITION_COUNT + 1],
     pub soc_reg: SocRegistersInternal,
 }
 
@@ -105,7 +111,33 @@ impl Context {
             fuse_bank: [0; FUSE_BANK_SIZE_BYTES / size_of::<u32>()],
             error_injection: false,
             dai_error: false,
+            dai_error_code: 0,
+            locked_partitions: [false; FE_PARTITION_COUNT + 1],
             soc_reg,
+        }
+    }
+
+    fn partition_index(address: u32) -> Option<usize> {
+        let address = address as usize;
+        if address < UDS_PARTITION_SIZE_BYTES {
+            Some(0)
+        } else if address < FUSE_BANK_SIZE_BYTES {
+            Some(1 + (address - UDS_PARTITION_SIZE_BYTES) / FE_PARTITION_SIZE_BYTES)
+        } else {
+            None
+        }
+    }
+
+    fn digest_partition_index(address: u32) -> Option<usize> {
+        match address as usize {
+            0 => Some(0),
+            address
+                if address >= UDS_PARTITION_SIZE_BYTES
+                    && (address - UDS_PARTITION_SIZE_BYTES) % FE_PARTITION_SIZE_BYTES == 0 =>
+            {
+                Self::partition_index(address as u32)
+            }
+            _ => None,
         }
     }
 
@@ -129,7 +161,8 @@ impl StateMachineContext for Context {
             (None, _) | (_, None) => Err(()),
             (Some(addr), Some(_)) => {
                 // Check address bounds
-                if (addr as usize) >= self.fuse_bank.len() * 4 {
+                let partition = Self::partition_index(addr).ok_or(())?;
+                if self.locked_partitions[partition] {
                     return Err(());
                 }
                 // For 64-bit writes, we need wdata1 too
@@ -155,14 +188,9 @@ impl StateMachineContext for Context {
         }
     }
 
-    // Validate digest command parameters.
-    // The digest operation is only valid when the address points to the base of the UDS fuses (relative address 0).
     fn is_valid_digest(&self) -> Result<bool, ()> {
-        match self.address {
-            None => Err(()),
-            Some(0) => Ok(true),
-            Some(_) => Err(()),
-        }
+        let partition = Self::digest_partition_index(self.address.ok_or(())?).ok_or(())?;
+        Ok(!self.locked_partitions[partition])
     }
 
     fn start_write(&mut self) -> Result<(), ()> {
@@ -185,6 +213,15 @@ impl StateMachineContext for Context {
     }
 
     fn start_digest(&mut self) -> Result<(), ()> {
+        let address = self.address.ok_or(())?;
+        let partition = Self::digest_partition_index(address).ok_or(())?;
+
+        if partition != 0 {
+            self.locked_partitions[partition] = true;
+            self.address = None;
+            return Ok(());
+        }
+
         use sha2::{Digest, Sha512};
 
         // Compute SHA-512 hash of UDS portion of fuse bank (first 64 bytes)
@@ -206,6 +243,8 @@ impl StateMachineContext for Context {
 
         // Zeroize the fuse bank
         self.fuse_bank.fill(0);
+        self.locked_partitions[partition] = true;
+        self.address = None;
         Ok(())
     }
 
@@ -273,6 +312,9 @@ pub struct FuseController {
     #[register(offset = 0x10, read_fn = read_status)]
     status: ReadOnlyRegister<u32, Status::Register>,
 
+    #[register(offset = 0x74, read_fn = read_dai_error_code)]
+    dai_error_code: ReadOnlyRegister<u32>,
+
     #[register(offset = 0x80, write_fn = write_cmd)]
     direct_access_cmd: WriteOnlyRegister<u32>,
 
@@ -300,6 +342,7 @@ impl FuseController {
     pub fn new(soc_reg: SocRegistersInternal) -> Self {
         Self {
             status: ReadOnlyRegister::new(Status::DAI_IDLE::Idle.value),
+            dai_error_code: ReadOnlyRegister::new(0),
             direct_access_cmd: WriteOnlyRegister::new(0),
             direct_access_address: WriteOnlyRegister::new(0),
             direct_access_wdata_0: WriteOnlyRegister::new(0),
@@ -322,10 +365,15 @@ impl FuseController {
         Ok(value)
     }
 
+    pub fn read_dai_error_code(&self, _size: RvSize) -> Result<u32, BusError> {
+        Ok(self.state_machine.context.dai_error_code)
+    }
+
     pub fn write_cmd(&mut self, _size: RvSize, val: u32) -> Result<(), BusError> {
         if let Ok(cmd) = DaiCmd::try_from(val) {
             // Reset error state before new command
             self.state_machine.context.dai_error = false;
+            self.state_machine.context.dai_error_code = 0;
 
             let event = match cmd {
                 DaiCmd::Write => Events::Write,
@@ -334,6 +382,7 @@ impl FuseController {
             };
             if self.state_machine.process_event(event).is_err() {
                 self.state_machine.context.dai_error = true;
+                self.state_machine.context.dai_error_code = OTP_ACCESS_ERROR;
             } else {
                 // Simulate HW delay before completing
                 let _ = self.state_machine.process_event(Events::Complete);

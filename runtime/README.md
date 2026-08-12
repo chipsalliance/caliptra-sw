@@ -3122,6 +3122,9 @@ Command Code: `0x4645_5052` ("FEPR")
 | partition   | u32      | FE partition number (valid values: 0–3).
 
 `FE_PROG` returns no output arguments other than the mailbox response header.
+Firmware checks the OTP direct-access error code after each write and the final digest operation.
+An OTP error, including an attempt to program an already locked partition, fails with
+`UDS_FE_PROGRAMMING_OTP_ERROR`.
 
 ### PRODUCTION\_AUTH\_DEBUG\_UNLOCK\_REQ
 
