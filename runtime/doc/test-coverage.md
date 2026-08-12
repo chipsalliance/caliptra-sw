@@ -143,6 +143,7 @@ Calls the dpe_get_tagged_tci mailbox command with a tag that does not exist and 
 Attempts to tag an inactive context and verifies that it fails | **test_tagging_inactive_context** | RUNTIME_TAGGING_FAILURE
 Tags the default context, destroys the default context, and checks that the dpe_get_tagged_tci mailbox command fails on the default context | **test_tagging_destroyed_context** | RUNTIME_TAGGING_FAILURE
 Tags the default context, retires the default context, and checks that the dpe_get_tagged_tci mailbox command fails on the default context | **test_tagging_retired_context** | RUNTIME_TAGGING_FAILURE
+Derives a context with a known SVN, tags it, and checks that the dpe_get_tagged_tci mailbox command reports that exact SVN | **test_get_tagged_tci_reports_context_svn** | N/A
 
 <br><br>
 # **Update Reset Tests**

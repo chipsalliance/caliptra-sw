@@ -15,6 +15,7 @@ use zerocopy::FromBytes;
 
 const TAG: u32 = 1;
 const INVALID_TAG: u32 = 2;
+const TEST_SVN: u32 = 0x5A5A_1234;
 const DEFAULT_HANDLE: [u8; 16] = [0u8; 16];
 const BAD_HANDLE: [u8; 16] = [1u8; 16];
 
@@ -47,7 +48,10 @@ fn test_tagging_default_context() {
         )
         .unwrap()
         .expect("We expected a response");
-    let _ = GetTaggedTciResp::read_from_bytes(resp.as_slice()).unwrap();
+    let resp = GetTaggedTciResp::read_from_bytes(resp.as_slice()).unwrap();
+
+    // DPE creates the default context with SVN 0.
+    assert_eq!(resp.svn, 0);
 }
 
 #[test]
@@ -284,4 +288,60 @@ fn test_tagging_retired_context() {
         .unwrap()
         .expect("We expected a response");
     let _ = GetTaggedTciResp::read_from_bytes(resp.as_slice()).unwrap();
+}
+
+/// `svn` is the field this response was extended to expose, and every other test
+/// would still pass if firmware reported a wrong or defaulted one. Derive a
+/// context with a known SVN, tag it, and require that exact value back.
+#[test]
+fn test_get_tagged_tci_reports_context_svn() {
+    let mut model = run_rt_test(RuntimeTestArgs::default());
+
+    // Derive a child carrying a known, non-default SVN.
+    let derive_context_cmd = DeriveContextCmd {
+        handle: ContextHandle::default(),
+        tci_type: 1,
+        svn: TEST_SVN,
+        ..Default::default()
+    };
+    let resp = execute_dpe_cmd(
+        &mut model,
+        CaliptraDpeProfile::Ecc384,
+        &mut Command::from(&derive_context_cmd),
+        DpeResult::Success,
+    );
+    let Some(Response::DeriveContext(derive_context_resp)) = resp else {
+        panic!("Wrong response type!");
+    };
+
+    // Tag that child so the tag resolves to the context just derived.
+    let mut cmd = MailboxReq::TagTci(TagTciReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        handle: derive_context_resp.handle.0,
+        tag: TAG,
+    });
+    cmd.populate_chksum().unwrap();
+    let _ = model
+        .mailbox_execute(u32::from(CommandId::DPE_TAG_TCI), cmd.as_bytes().unwrap())
+        .unwrap()
+        .expect("We expected a response");
+
+    let mut cmd = MailboxReq::GetTaggedTci(GetTaggedTciReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        tag: TAG,
+    });
+    cmd.populate_chksum().unwrap();
+    let resp = model
+        .mailbox_execute(
+            u32::from(CommandId::DPE_GET_TAGGED_TCI),
+            cmd.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .expect("We expected a response");
+    let resp = GetTaggedTciResp::read_from_bytes(resp.as_slice()).unwrap();
+
+    assert_eq!(
+        resp.svn, TEST_SVN,
+        "must report the SVN the tagged context was derived with"
+    );
 }
