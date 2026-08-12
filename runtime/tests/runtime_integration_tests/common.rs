@@ -176,6 +176,8 @@ pub struct RuntimeTestArgs<'a> {
     pub rom_callback: Option<ModelCallback>,
     /// Use encrypted firmware boot (RI_DOWNLOAD_ENCRYPTED_FIRMWARE instead of RI_DOWNLOAD_FIRMWARE)
     pub encrypted_boot: bool,
+    // Whether or not to use external I3C host instead of soft IP.
+    pub use_external_i3c_host: bool,
 }
 
 impl RuntimeTestArgs<'_> {
@@ -224,6 +226,7 @@ impl Default for RuntimeTestArgs<'_> {
             key_type: None,
             rom_callback: None,
             encrypted_boot: false,
+            use_external_i3c_host: false,
         }
     }
 }
@@ -346,6 +349,7 @@ pub fn start_rt_test_pqc_model(
         stable_owner_key_en: args.stable_owner_key_en,
         ss_init_params: SubsystemInitParams {
             enable_mcu_uart_log: args.subsystem_mode,
+            use_external_i3c_host: args.use_external_i3c_host,
             ..Default::default()
         },
         rom_callback: args.rom_callback,
