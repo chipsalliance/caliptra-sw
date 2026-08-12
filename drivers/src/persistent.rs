@@ -53,7 +53,7 @@ pub const PQ_DEVID_PUB_KEY_DIGEST_SIZE: u32 = 32;
 pub const PQC_STATUS_FLAGS_SIZE: u32 = 1;
 #[cfg(feature = "mldsa_attestation")]
 pub const PQC_MODE_ENABLED_FLAG: u8 = 1;
-pub const RESERVED_MEMORY_SIZE: u32 = (3 * 1024)
+pub const RESERVED_MEMORY_SIZE: u32 = 1024
     - 2
     - PQ_DEVID_CDI_SIZE
     - PQ_DEVID_PUB_KEY_DIGEST_SIZE
