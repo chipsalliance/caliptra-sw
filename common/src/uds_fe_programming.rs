@@ -216,7 +216,9 @@ impl UdsFeProgrammingFlow {
             let config = self.init_otp_config(soc_ifc);
             let otp_ctrl = DmaOtpCtrl::new(AxiAddr::from(config.fuse_controller_base_addr), dma);
 
-            let _ = otp_ctrl.with_regs_mut(|_| {
+            let mut otp_error = false;
+
+            let _ = otp_ctrl.with_regs_mut(|regs| {
                 // Helper function to check if DAI is idle using the configurable bit number
                 let is_dai_idle = || -> bool {
                     let status = dma.read_dword(AxiAddr::from(config.status_reg_addr));
@@ -260,6 +262,13 @@ impl UdsFeProgrammingFlow {
                     // Trigger the seed write command
                     dma.write_dword(AxiAddr::from(config.direct_access_cmd_reg_addr), 0b10);
                     // bit 1 = 1 for WR
+
+                    while !is_dai_idle() {}
+                    // ERR_CODE index 24 corresponds to STATUS.dai_error.
+                    if regs.err_code_rf().err_code_24().read().err_code() != 0 {
+                        otp_error = true;
+                        return Ok::<(), CaliptraError>(());
+                    }
                 }
 
                 // Trigger the partition digest operation
@@ -278,8 +287,16 @@ impl UdsFeProgrammingFlow {
                 // Poll the STATUS register until the DAI state returns to idle
                 while !is_dai_idle() {}
 
+                if regs.err_code_rf().err_code_24().read().err_code() != 0 {
+                    otp_error = true;
+                }
+
                 Ok::<(), CaliptraError>(())
             })?;
+
+            if otp_error {
+                Err(CaliptraError::UDS_FE_PROGRAMMING_OTP_ERROR)?;
+            }
 
             Ok(())
         };
