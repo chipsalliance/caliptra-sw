@@ -44,6 +44,12 @@ fn find_rom_info(rom: &[u8]) -> Option<RomInfo> {
 }
 
 pub fn get_fwinfo(model: &mut DefaultHwModel) -> FwInfoResp {
+    let info = get_fwinfo_allow_attestation_disabled(model);
+    assert_eq!(info.attestation_disabled, 0);
+    info
+}
+
+pub fn get_fwinfo_allow_attestation_disabled(model: &mut DefaultHwModel) -> FwInfoResp {
     let payload = MailboxReqHeader {
         chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::FW_INFO), &[]),
     };
@@ -65,7 +71,6 @@ pub fn get_fwinfo(model: &mut DefaultHwModel) -> FwInfoResp {
         info.hdr.fips_status,
         MailboxRespHeader::FIPS_STATUS_APPROVED
     );
-    assert_eq!(info.attestation_disabled, 0);
     info
 }
 

@@ -852,7 +852,11 @@ impl SetAuthManifestCmd {
 
         if !verify_only {
             let auth_manifest_digest = drivers.sha2_512_384.sha384_digest(manifest_buf)?.0;
-            drivers.persistent_data.get_mut().auth_manifest_digest = auth_manifest_digest;
+            {
+                let persistent_data = drivers.persistent_data.get_mut();
+                persistent_data.auth_manifest_digest = auth_manifest_digest;
+                persistent_data.auth_manifest_svn = auth_manifest_preamble.svn;
+            }
             // Store the SoC manifest SVN for use as the MCU RT current_svn
             // when creating the MCU RT DPE context during recovery boot or
             // hitless update.

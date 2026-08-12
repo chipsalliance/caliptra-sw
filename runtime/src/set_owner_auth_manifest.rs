@@ -435,6 +435,7 @@ impl SetOwnerAuthManifestCmd {
         // Record the digest of the full manifest buffer for attestation.
         persistent_data.owner_auth_manifest_digest =
             drivers.sha2_512_384.sha384_digest(manifest_buf)?.0;
+        persistent_data.owner_auth_manifest_svn = preamble.svn;
 
         Ok(())
     }

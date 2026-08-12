@@ -3,7 +3,7 @@
 use crate::{
     common::{assert_error, run_rt_test_pqc, RuntimeTestArgs, PQC_KEY_TYPE},
     test_authorize_and_stash::IMAGE_DIGEST1,
-    test_info::get_fwinfo,
+    test_info::{get_fwinfo, get_fwinfo_allow_attestation_disabled},
 };
 use caliptra_api::mailbox::ImageHashSource;
 use caliptra_auth_man_gen::{
@@ -14,6 +14,7 @@ use caliptra_auth_man_types::{
     AuthManifestPubKeysConfig, AuthorizationManifest, ImageMetadataFlags,
     AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT,
 };
+use caliptra_builder::ImageOptions;
 use caliptra_common::mailbox_api::{CommandId, MailboxReq, MailboxReqHeader, SetAuthManifestReq};
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{DefaultHwModel, DeviceLifecycle, HwModel, SecurityState};
@@ -385,14 +386,39 @@ fn test_set_auth_manifest_cmd_pqc_lms() {
 }
 
 #[test]
-fn test_set_auth_manifest_fw_info_digest() {
-    let mut model = run_rt_test_pqc(RuntimeTestArgs::default(), FwVerificationPqcKeyType::MLDSA);
+fn test_set_auth_manifest_fw_info() {
+    let mut security_state = SecurityState::default();
+    security_state.set_debug_locked(true);
+    security_state.set_device_lifecycle(DeviceLifecycle::Production);
+    let mut rt_args = RuntimeTestArgs {
+        security_state: Some(security_state),
+        ..Default::default()
+    };
+    rt_args.soc_manifest_svn = Some(2);
+    let subsystem_mode = !cfg!(feature = "fpga_realtime");
+    rt_args.subsystem_mode = subsystem_mode;
+    let mut image_options = ImageOptions {
+        fw_svn: 12,
+        pqc_key_type: FwVerificationPqcKeyType::MLDSA,
+        ..Default::default()
+    };
+    image_options.vendor_config.pl0_pauser = Some(0x1);
+    rt_args.test_image_options = Some(image_options);
+    let mut model = run_rt_test_pqc(rt_args, FwVerificationPqcKeyType::MLDSA);
     model.step_until_ready_for_runtime();
+
+    let info = get_fwinfo(&mut model);
+    assert_eq!(
+        info.soc_manifest_current_svn,
+        if subsystem_mode { 2 } else { 0 }
+    );
+    assert_eq!(info.soc_manifest_min_svn, 2);
+    assert_eq!(info.fw_svn, 12);
 
     let auth_manifest = create_auth_manifest(&AuthManifestBuilderCfg {
         manifest_flags: AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED,
         pqc_key_type: FwVerificationPqcKeyType::MLDSA,
-        ..Default::default()
+        svn: 3,
     });
     let buf = auth_manifest.as_bytes();
     let mut auth_manifest_slice = [0u8; SetAuthManifestReq::MAX_MAN_SIZE];
@@ -428,6 +454,15 @@ fn test_set_auth_manifest_fw_info_digest() {
         .collect();
 
     assert_eq!(info.authman_sha384_digest, authman_digest.as_slice());
+    assert_eq!(info.soc_manifest_current_svn, 3);
+    assert_eq!(info.soc_manifest_min_svn, 2);
+    assert_eq!(info.fw_svn, 12);
+
+    model.warm_reset_flow().unwrap();
+    let info = get_fwinfo_allow_attestation_disabled(&mut model);
+    assert_eq!(info.soc_manifest_current_svn, 3);
+    assert_eq!(info.soc_manifest_min_svn, 2);
+    assert_eq!(info.fw_svn, 12);
 }
 
 #[test]
