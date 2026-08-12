@@ -893,6 +893,7 @@ impl SetAuthManifestCmd {
             {
                 let persistent_data = drivers.persistent_data.get_mut();
                 persistent_data.fw.auth_manifest_digest = auth_manifest_digest;
+                persistent_data.fw.auth_manifest_svn = auth_manifest_preamble.svn;
                 persistent_data.fw.dpe.soc_manifest_svn = auth_manifest_preamble.svn;
             }
             // Store the SoC manifest SVN for use as the MCU RT current_svn
