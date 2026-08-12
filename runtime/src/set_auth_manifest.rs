@@ -15,7 +15,10 @@ Abstract:
 use core::cmp::min;
 use core::mem::size_of;
 
-use crate::{manifest::sorted_metadata_lists_overlap, Drivers, PauserPrivileges};
+use crate::{
+    drivers::CaliptraManagedDpeContext, manifest::sorted_metadata_lists_overlap, Drivers,
+    PauserPrivileges,
+};
 use caliptra_auth_man_types::{
     AuthManifestFlags, AuthManifestImageMetadata, AuthManifestImageMetadataCollection,
     AuthManifestPreamble, OwnerAuthManifestImageMetadataCollection,
@@ -38,6 +41,12 @@ use caliptra_image_types::{
 use memoffset::offset_of;
 use zerocopy::{FromBytes, IntoBytes};
 use zeroize::Zeroize;
+
+#[derive(Clone, Copy)]
+pub(crate) enum AuthManifestUpdateMode {
+    UpdateExisting,
+    CreateMissingDpeContexts,
+}
 
 pub struct SetAuthManifestCmd;
 impl SetAuthManifestCmd {
@@ -62,6 +71,69 @@ impl SetAuthManifestCmd {
             .ok_or(err)?
             .get(..len as usize)
             .ok_or(err)
+    }
+
+    fn digest_to_measurement(digest: &ImageDigest384) -> [u8; SHA384_DIGEST_BYTE_SIZE] {
+        Array4x12::from(digest).into()
+    }
+
+    fn update_soc_manifest_dpe_contexts(
+        drivers: &mut Drivers,
+        auth_manifest_preamble: &AuthManifestPreamble,
+        update_mode: AuthManifestUpdateMode,
+    ) -> CaliptraResult<()> {
+        if drivers
+            .persistent_data
+            .get()
+            .fw
+            .dpe
+            .attestation_disabled
+            .get()
+        {
+            return Ok(());
+        }
+
+        let create_if_missing = matches!(
+            update_mode,
+            AuthManifestUpdateMode::CreateMissingDpeContexts
+        );
+        let manifest_bytes = auth_manifest_preamble.as_bytes();
+        let vendor_range = AuthManifestPreamble::vendor_signed_data_range();
+        let vendor_measurement = Self::digest_to_measurement(&Self::sha384_digest(
+            &mut drivers.sha2_512_384,
+            manifest_bytes,
+            vendor_range.start,
+            vendor_range.len() as u32,
+        )?);
+        let owner_range = AuthManifestPreamble::owner_pub_keys_range();
+        let owner_measurement = Self::digest_to_measurement(&Self::sha384_digest(
+            &mut drivers.sha2_512_384,
+            manifest_bytes,
+            owner_range.start,
+            owner_range.len() as u32,
+        )?);
+        let pl0_pauser_locality = drivers
+            .persistent_data
+            .get()
+            .rom
+            .manifest1
+            .header
+            .pl0_pauser;
+
+        drivers.create_or_update_caliptra_managed_measurement(
+            CaliptraManagedDpeContext::Somv,
+            &vendor_measurement,
+            auth_manifest_preamble.svn,
+            pl0_pauser_locality,
+            create_if_missing,
+        )?;
+        drivers.create_or_update_caliptra_managed_measurement(
+            CaliptraManagedDpeContext::Somo,
+            &owner_measurement,
+            0,
+            pl0_pauser_locality,
+            create_if_missing,
+        )
     }
 
     pub(crate) fn ecc384_verify(
@@ -712,7 +784,12 @@ impl SetAuthManifestCmd {
                 .ok_or(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?
         };
 
-        Self::set_auth_manifest(drivers, manifest_buf, verify_only)?;
+        Self::set_auth_manifest(
+            drivers,
+            manifest_buf,
+            verify_only,
+            AuthManifestUpdateMode::UpdateExisting,
+        )?;
         Ok(0)
     }
 
@@ -720,6 +797,7 @@ impl SetAuthManifestCmd {
         drivers: &mut Drivers,
         manifest_buf: &[u8],
         verify_only: bool,
+        update_mode: AuthManifestUpdateMode,
     ) -> CaliptraResult<()> {
         let preamble_size = size_of::<AuthManifestPreamble>();
         let auth_manifest_preamble = {
@@ -749,11 +827,10 @@ impl SetAuthManifestCmd {
         //  - Provisioned    -> trust the fuse
         // ---------------------------------------------------------------------
 
-        let persistent_data = drivers.persistent_data.get_mut();
-
-        let manifest_pqc_key_type =
-            FwVerificationPqcKeyType::from_u8(persistent_data.rom.manifest1.pqc_key_type)
-                .ok_or(CaliptraError::RUNTIME_AUTH_MANIFEST_INVALID_PQC_KEY_TYPE)?;
+        let manifest_pqc_key_type = FwVerificationPqcKeyType::from_u8(
+            drivers.persistent_data.get().rom.manifest1.pqc_key_type,
+        )
+        .ok_or(CaliptraError::RUNTIME_AUTH_MANIFEST_INVALID_PQC_KEY_TYPE)?;
 
         let pqc_key_type = if drivers.soc_ifc.lifecycle() == Lifecycle::Unprovisioned {
             manifest_pqc_key_type
@@ -768,50 +845,61 @@ impl SetAuthManifestCmd {
 
             fuse_pqc_key_type
         };
-        let persistent_data = drivers.persistent_data.get_mut();
-        drivers.abr.with_mldsa87(|mut mldsa87| {
-            // Verify the vendor signed data (vendor public keys + flags).
-            Self::verify_vendor_signed_data(
-                auth_manifest_preamble,
-                &persistent_data.rom.manifest1.preamble,
-                &mut drivers.sha2_512_384,
-                &mut drivers.ecc384,
-                &mut drivers.sha256,
-                &mut mldsa87,
-                pqc_key_type,
-            )?;
 
-            // Verify the owner public keys.
-            Self::verify_owner_pub_keys(
-                auth_manifest_preamble,
-                &persistent_data.rom.manifest1.preamble,
-                &mut drivers.sha2_512_384,
-                &mut drivers.ecc384,
-                &mut drivers.sha256,
-                &mut mldsa87,
-                pqc_key_type,
-            )?;
+        {
+            let persistent_data = drivers.persistent_data.get_mut();
+            drivers.abr.with_mldsa87(|mut mldsa87| {
+                // Verify the vendor signed data (vendor public keys + flags).
+                Self::verify_vendor_signed_data(
+                    auth_manifest_preamble,
+                    &persistent_data.rom.manifest1.preamble,
+                    &mut drivers.sha2_512_384,
+                    &mut drivers.ecc384,
+                    &mut drivers.sha256,
+                    &mut mldsa87,
+                    pqc_key_type,
+                )?;
 
-            Self::process_image_metadata_col(
-                manifest_buf
-                    .get(preamble_size..)
-                    .ok_or(CaliptraError::RUNTIME_AUTH_MANIFEST_IMAGE_METADATA_LIST_INVALID_SIZE)?,
-                auth_manifest_preamble,
-                &mut persistent_data.fw.auth_manifest_image_metadata_col,
-                &persistent_data.fw.owner_auth_manifest_image_metadata_col,
-                &mut drivers.sha2_512_384,
-                &mut drivers.ecc384,
-                &mut drivers.sha256,
-                &mut mldsa87,
-                pqc_key_type,
-                verify_only,
-            )
-        })?;
+                // Verify the owner public keys.
+                Self::verify_owner_pub_keys(
+                    auth_manifest_preamble,
+                    &persistent_data.rom.manifest1.preamble,
+                    &mut drivers.sha2_512_384,
+                    &mut drivers.ecc384,
+                    &mut drivers.sha256,
+                    &mut mldsa87,
+                    pqc_key_type,
+                )?;
+
+                Self::process_image_metadata_col(
+                    manifest_buf.get(preamble_size..).ok_or(
+                        CaliptraError::RUNTIME_AUTH_MANIFEST_IMAGE_METADATA_LIST_INVALID_SIZE,
+                    )?,
+                    auth_manifest_preamble,
+                    &mut persistent_data.fw.auth_manifest_image_metadata_col,
+                    &persistent_data.fw.owner_auth_manifest_image_metadata_col,
+                    &mut drivers.sha2_512_384,
+                    &mut drivers.ecc384,
+                    &mut drivers.sha256,
+                    &mut mldsa87,
+                    pqc_key_type,
+                    verify_only,
+                )
+            })?;
+        }
 
         if !verify_only {
-            persistent_data.fw.auth_manifest_digest =
-                drivers.sha2_512_384.sha384_digest(manifest_buf)?.0;
-            persistent_data.fw.auth_manifest_svn = auth_manifest_preamble.svn;
+            let auth_manifest_digest = drivers.sha2_512_384.sha384_digest(manifest_buf)?.0;
+            {
+                let persistent_data = drivers.persistent_data.get_mut();
+                persistent_data.fw.auth_manifest_digest = auth_manifest_digest;
+                persistent_data.fw.auth_manifest_svn = auth_manifest_preamble.svn;
+                persistent_data.fw.dpe.soc_manifest_svn = auth_manifest_preamble.svn;
+            }
+            // Store the SoC manifest SVN for use as the MCU RT current_svn
+            // when creating the MCU RT DPE context during recovery boot or
+            // hitless update.
+            Self::update_soc_manifest_dpe_contexts(drivers, auth_manifest_preamble, update_mode)?;
         }
         Ok(())
     }

@@ -1,5 +1,6 @@
 // Licensed under the Apache-2.0 license
 
+use crate::test_set_auth_manifest::create_auth_manifest_with_metadata_with_svn;
 use anyhow::Context;
 use caliptra_api::{
     mailbox::{
@@ -7,6 +8,9 @@ use caliptra_api::{
         Request,
     },
     SocManager,
+};
+use caliptra_auth_man_types::{
+    AuthManifestImageMetadata, AuthManifestPreamble, AuthorizationManifest, ImageMetadataFlags,
 };
 use caliptra_builder::{
     firmware::{APP_WITH_UART_OCP_LOCK, APP_WITH_UART_OCP_LOCK_FPGA, FMC_WITH_UART},
@@ -39,6 +43,8 @@ use caliptra_hw_model::{
     Fuses, HwModel, ImageInfo, InitParams, ModelCallback, ModelError, SecurityState, StackInfo,
     StackRange, SubsystemInitParams,
 };
+use caliptra_image_crypto::OsslCrypto as Crypto;
+use caliptra_image_gen::{from_hw_format, ImageGeneratorCrypto};
 use caliptra_image_types::ImageBundle;
 use caliptra_runtime::CaliptraDpeProfile;
 pub use caliptra_test::{
@@ -56,6 +62,7 @@ use openssl::{
     x509::{X509Builder, X509},
     x509::{X509Name, X509NameBuilder},
 };
+use sha2::{Digest as Sha2DigestTrait, Sha384 as Sha384Hasher};
 use std::borrow::Cow;
 use std::io;
 use zerocopy::{FromZeros, IntoBytes, TryFromBytes};
@@ -85,6 +92,55 @@ pub const PQC_KEY_TYPE: [FwVerificationPqcKeyType; 2] = [
     FwVerificationPqcKeyType::LMS,
     FwVerificationPqcKeyType::MLDSA,
 ];
+
+/// PQC key type used by `run_rt_test*` (and therefore by the default SoC
+/// manifest delivered over the recovery interface) when a test does not pick
+/// one explicitly.
+pub const DEFAULT_PQC_KEY_TYPE: FwVerificationPqcKeyType = FwVerificationPqcKeyType::MLDSA;
+
+fn default_soc_manifest(pqc_key_type: FwVerificationPqcKeyType, svn: u32) -> AuthorizationManifest {
+    // generate a default SoC manifest if one is not provided in subsystem mode
+    const IMAGE_SOURCE_IN_REQUEST: u32 = 1;
+    let mut flags = ImageMetadataFlags(0);
+    flags.set_image_source(IMAGE_SOURCE_IN_REQUEST);
+    let crypto = Crypto::default();
+    let digest = from_hw_format(&crypto.sha384_digest(&DEFAULT_MCU_FW).unwrap());
+    let metadata = vec![AuthManifestImageMetadata {
+        fw_id: 2,
+        flags: flags.0,
+        digest,
+        ..Default::default()
+    }];
+    create_auth_manifest_with_metadata_with_svn(metadata, pqc_key_type, svn)
+}
+
+pub fn soc_manifest_measurements(manifest: &AuthorizationManifest) -> ([u8; 48], [u8; 48]) {
+    let preamble = manifest.preamble.as_bytes();
+    let vendor_range = AuthManifestPreamble::vendor_signed_data_range();
+    let owner_range = AuthManifestPreamble::owner_pub_keys_range();
+    (
+        Sha384Hasher::digest(&preamble[vendor_range.start as usize..vendor_range.end as usize])
+            .into(),
+        Sha384Hasher::digest(&preamble[owner_range.start as usize..owner_range.end as usize])
+            .into(),
+    )
+}
+
+pub fn default_soc_manifest_measurements(
+    pqc_key_type: FwVerificationPqcKeyType,
+    svn: u32,
+) -> ([u8; 48], [u8; 48]) {
+    let manifest = default_soc_manifest(pqc_key_type, svn);
+    soc_manifest_measurements(&manifest)
+}
+
+/// SOMV/SOMO measurements of the SoC manifest that `run_rt_test*` delivers over
+/// the recovery interface when the test does not supply one. Must track the key
+/// type that `run_rt_test_return_fw` defaults to, otherwise the expected DPE
+/// measurements will not match the ones Caliptra actually computed.
+pub fn default_rt_test_soc_manifest_measurements(svn: u32) -> ([u8; 48], [u8; 48]) {
+    default_soc_manifest_measurements(DEFAULT_PQC_KEY_TYPE, svn)
+}
 
 #[derive(Default)]
 pub struct RuntimeProductionArgs {
@@ -361,7 +417,7 @@ pub fn run_rt_test(args: RuntimeTestArgs) -> DefaultHwModel {
 }
 
 pub fn run_rt_test_return_fw(args: RuntimeTestArgs) -> (DefaultHwModel, ImageBundle) {
-    let key_type = args.key_type.unwrap_or(FwVerificationPqcKeyType::MLDSA);
+    let key_type = args.key_type.unwrap_or(DEFAULT_PQC_KEY_TYPE);
     run_rt_test_pqc_return_fw(args, key_type)
 }
 

@@ -14,9 +14,12 @@ Abstract:
 
 use crate::{
     activate_firmware::MCI_TOP_REG_RESET_REASON_OFFSET,
-    authorize_and_stash::AuthorizeAndStashCmd,
+    authorize_and_stash::{
+        AuthorizeAndStashCmd, IMAGE_AUTHORIZED_OWNER_ONLY, IMAGE_AUTHORIZED_VENDOR_OWNER,
+    },
     drivers::{McuFwStatus, McuResetReason},
-    Drivers, SetAuthManifestCmd, IMAGE_AUTHORIZED,
+    set_auth_manifest::AuthManifestUpdateMode,
+    Drivers, SetAuthManifestCmd,
 };
 use caliptra_auth_man_types::AuthorizationManifest;
 use caliptra_cfi_derive::cfi_impl_fn;
@@ -82,7 +85,12 @@ impl RecoveryFlow {
             buffer.as_bytes()
         };
 
-        if let Err(err) = SetAuthManifestCmd::set_auth_manifest(drivers, source, false) {
+        if let Err(err) = SetAuthManifestCmd::set_auth_manifest(
+            drivers,
+            source,
+            false,
+            AuthManifestUpdateMode::CreateMissingDpeContexts,
+        ) {
             let recovery_reason = DmaRecovery::recovery_reason_from_auth_manifest_error(err);
             Self::set_recovery_boot_failure(drivers, SOC_MANIFEST_INDEX, recovery_reason)?;
             return Err(err);
@@ -138,12 +146,14 @@ impl RecoveryFlow {
         let digest: [u8; 48] = digest.into();
         cprintln!("[rt] Verifying MCU digest: {}", HexBytes(&digest));
         // verify the digest
+        let soc_manifest_svn = drivers.persistent_data.get().fw.dpe.soc_manifest_svn;
         let auth_and_stash_req = AuthorizeAndStashReq {
             fw_id: [2, 0, 0, 0],
             measurement: digest,
             source: ImageHashSource::InRequest.into(),
             // We want to make sure this measurement is not skipped.
             flags: 0,
+            svn: soc_manifest_svn,
             ..Default::default()
         };
 
@@ -173,7 +183,9 @@ impl RecoveryFlow {
                 dma,
             );
 
-            if auth_result != IMAGE_AUTHORIZED {
+            if auth_result != IMAGE_AUTHORIZED_VENDOR_OWNER
+                && auth_result != IMAGE_AUTHORIZED_OWNER_ONLY
+            {
                 Self::set_recovery_boot_failure(
                     drivers,
                     MCU_FIRMWARE_INDEX,

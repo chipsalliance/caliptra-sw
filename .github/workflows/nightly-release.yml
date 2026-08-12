@@ -58,7 +58,7 @@ jobs:
           echo "Current ref $(git rev-parse HEAD) will receive tag ${TAG_BASE}${INDEX}-2.x after tests"
 
   sw-emulator:
-    name: sw-emulator Suite (${{ matrix.config.name }}, ${{ matrix.rng.name }}, ${{ matrix.log.name }})
+    name: sw-emulator Suite (${{ matrix.config.name }}, ${{ matrix.rng.name }}, ${{ matrix.log.name }}, HW ${{ matrix.hw-rev }})
     needs: find-latest-release-2-x
     if: needs.find-latest-release-2-x.outputs.create_release
     permissions:
@@ -77,11 +77,13 @@ jobs:
         log:
           - { name: "log", rom_logging: true }
           - { name: "nolog", rom_logging: false }
+        hw-rev: ["latest", "2.1"]
     with:
-      artifact-suffix: -sw-emulator-${{ matrix.config.suffix }}-${{ matrix.rng.name }}-${{ matrix.log.name }}
+      artifact-suffix: -sw-emulator-${{ matrix.config.suffix }}-${{ matrix.rng.name }}-${{ matrix.log.name }}-hw_${{ matrix.hw-rev }}
       extra-features: ${{ matrix.config.base_features }}${{ matrix.rng.extra }}
       rom-logging: ${{ matrix.log.rom_logging }}
       rom-version: ${{ matrix.config.rom }}
+      hw-revision: ${{ matrix.hw-rev }}
 
   fpga:
     name: FPGA Suite (${{ matrix.hw_config.name }}, ${{ matrix.rng.name }}, ${{ matrix.log.name }}, ${{ matrix.ocp_lock.name }})

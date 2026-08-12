@@ -15,12 +15,10 @@ Abstract:
 use core::mem::offset_of;
 
 use crate::authorize_and_stash::{self, AuthorizeAndStashCmd};
-use crate::drivers::{McuFwStatus, McuResetReason};
+use crate::drivers::{CaliptraManagedDpeContext, McuFwStatus, McuResetReason};
 use crate::Drivers;
 use crate::{manifest::find_metadata_entry, mutrefbytes};
-use caliptra_api::mailbox::{
-    ActivateFirmwareFlags, AuthAndStashFlags, AuthorizeAndStashReq, ImageHashSource,
-};
+use caliptra_api::mailbox::{ActivateFirmwareFlags, AuthorizeAndStashReq, ImageHashSource};
 use caliptra_auth_man_types::ImageMetadataFlags;
 use caliptra_common::mailbox_api::{ActivateFirmwareReq, ActivateFirmwareResp, MailboxRespHeader};
 use caliptra_drivers::dma::MCU_SRAM_OFFSET;
@@ -280,12 +278,12 @@ impl ActivateFirmwareCmd {
                 )
                 .map_err(|_| ())?;
 
-            // Verify MCU after loading
+            // Update MCU RT DPE context with new measurement.
+            // SVN stays the same as the recovery boot value.
             let auth_and_stash_req = AuthorizeAndStashReq {
                 fw_id: ActivateFirmwareReq::MCU_IMAGE_ID.to_le_bytes(),
                 measurement: [0; 48],
                 source: ImageHashSource::LoadAddress.into(),
-                flags: AuthAndStashFlags::SKIP_STASH.bits(),
                 image_size: mcu_image_size,
                 ..Default::default()
             };
@@ -297,17 +295,23 @@ impl ActivateFirmwareCmd {
                 .manifest1
                 .header
                 .pl0_pauser;
-            let authorization_result = AuthorizeAndStashCmd::authorize_and_stash(
-                drivers,
-                &auth_and_stash_req,
-                pl0_pauser_locality,
-            )
-            .map_err(|_| ())?;
+            let (authorization_result, measurement) =
+                AuthorizeAndStashCmd::authorize_image(drivers, &auth_and_stash_req)
+                    .map_err(|_| ())?;
 
             // Make sure the image was properly authorized.
-            if authorization_result != authorize_and_stash::IMAGE_AUTHORIZED {
+            if authorization_result != authorize_and_stash::IMAGE_AUTHORIZED_VENDOR_OWNER
+                && authorization_result != authorize_and_stash::IMAGE_AUTHORIZED_OWNER_ONLY
+            {
                 return Err(());
             }
+            drivers
+                .update_caliptra_managed_measurement(
+                    CaliptraManagedDpeContext::McuRt,
+                    &measurement,
+                    Some(pl0_pauser_locality),
+                )
+                .map_err(|_| ())?;
 
             drivers.persistent_data.get_mut().fw.mcu_firmware_loaded = McuFwStatus::Loaded.into();
         } else if mcu_activate_requested && initial_activate {
