@@ -19,6 +19,7 @@ coverage = ["dep:caliptra-coverage"]
 bitfield.workspace = true
 bit-vec.workspace = true
 caliptra-api-types.workspace = true
+caliptra-builder.workspace = true
 caliptra-emu-bus.workspace = true
 caliptra-emu-cpu.workspace = true
 caliptra-emu-periph.workspace = true
@@ -36,9 +37,10 @@ nix.workspace = true
 libc.workspace = true
 caliptra-coverage = { workspace = true, optional = true }
 caliptra-image-types.workspace = true
+inferno = "0.12.8"
+rustc-demangle = "0.1.28"
 
 [dev-dependencies]
-caliptra-builder.workspace = true
 caliptra-registers.workspace = true
 caliptra-test-harness-types.workspace = true
 nix.workspace = true

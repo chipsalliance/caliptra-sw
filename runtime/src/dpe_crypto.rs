@@ -683,15 +683,22 @@ impl crypto::Signer for DpeCrypto<'_> {
         }
     }
 
-    fn public_key(&mut self) -> Result<PubKey, CryptoError> {
+    fn public_key(&mut self, out: &mut PubKey) -> Result<(), CryptoError> {
         match &self.derived_key {
-            Some(DerivedKey::Ec((_, pub_key))) => Ok(PubKey::Ecdsa(pub_key.clone())),
+            Some(DerivedKey::Ec((_, pub_key))) => {
+                *out = PubKey::Ecdsa(pub_key.clone());
+                Ok(())
+            }
             #[cfg(feature = "mldsa_attestation")]
             Some(DerivedKey::Mldsa(seed)) => {
-                let mut pub_key = Mldsa87PubKey::default();
-                Mldsa87::pub_from_seed(seed, &mut pub_key, None)
+                let PubKey::Mldsa(MldsaPublicKey(bytes)) = out else {
+                    return Err(CryptoError::MismatchedAlgorithm);
+                };
+                let pub_key = Mldsa87PubKey::mut_from_bytes(bytes.as_mut_slice())
+                    .map_err(|_| CryptoError::Size)?;
+                Mldsa87::pub_from_seed(seed, pub_key, None)
                     .map_err(|e| CryptoError::CryptoLibError(u32::from(e)))?;
-                Ok(PubKey::Mldsa(MldsaPublicKey(*pub_key)))
+                Ok(())
             }
             _ => Err(CryptoError::CryptoLibError(4)),
         }

@@ -539,32 +539,42 @@ pub fn run_pqc_command_suite(
     ));
 
     // GET_PQ_CSR — header-only request; runs the full ML-DSA-87 keygen+sign+CSR path.
-    results.push((
-        "GET_PQ_CSR",
-        measure_hdr(sampler, model, CommandId::GET_PQ_CSR),
-    ));
+    {
+        model.reset_stack_sampler();
+        results.push((
+            "GET_PQ_CSR",
+            measure_hdr(sampler, model, CommandId::GET_PQ_CSR),
+        ));
+        model.gen_flamegraph("GET_PQ_CSR").unwrap();
+    }
 
     // CERTIFY_KEY_EXTENDED_MLDSA87 — certify the default DPE context under the
     // ML-DSA-87 (PQ.DevID) identity (leaf keygen + alias signing).
-    let certify_key_cmd = CertifyKeyMldsa87Cmd {
-        handle: ContextHandle::default(),
-        flags: CertifyKeyFlags::empty(),
-        format: CertifyKeyCommand::FORMAT_X509,
-        label: TEST_LABEL,
-    };
-    results.push((
-        "CERTIFY_KEY_EXTENDED_MLDSA87",
-        measure_req(
-            sampler,
-            model,
-            CommandId::CERTIFY_KEY_EXTENDED_MLDSA87,
-            MailboxReq::CertifyKeyExtendedMldsa87(CertifyKeyExtendedMldsa87Req {
-                hdr: MailboxReqHeader { chksum: 0 },
-                flags: CertifyKeyExtendedFlags::empty(),
-                certify_key_req: certify_key_cmd.as_bytes().try_into().unwrap(),
-            }),
-        ),
-    ));
+    {
+        let certify_key_cmd = CertifyKeyMldsa87Cmd {
+            handle: ContextHandle::default(),
+            flags: CertifyKeyFlags::empty(),
+            format: CertifyKeyCommand::FORMAT_X509,
+            label: TEST_LABEL,
+        };
+        model.reset_stack_sampler();
+        results.push((
+            "CERTIFY_KEY_EXTENDED_MLDSA87",
+            measure_req(
+                sampler,
+                model,
+                CommandId::CERTIFY_KEY_EXTENDED_MLDSA87,
+                MailboxReq::CertifyKeyExtendedMldsa87(CertifyKeyExtendedMldsa87Req {
+                    hdr: MailboxReqHeader { chksum: 0 },
+                    flags: CertifyKeyExtendedFlags::empty(),
+                    certify_key_req: certify_key_cmd.as_bytes().try_into().unwrap(),
+                }),
+            ),
+        ));
+        model
+            .gen_flamegraph("CERTIFY_KEY_EXTENDED_MLDSA87")
+            .unwrap();
+    }
 
     // MLDSA87_SIGNATURE_VERIFY — digest pulled from the SHA accelerator (same
     // pattern as ECDSA384_VERIFY / LMS_VERIFY). A real keypair+signature is used
@@ -583,6 +593,7 @@ pub fn run_pqc_command_suite(
         let mut req = Box::new(Mldsa87VerifyReq::default());
         req.pub_key = *pub_key;
         req.signature = *signature;
+        model.reset_stack_sampler();
         results.push((
             "MLDSA87_SIGNATURE_VERIFY",
             measure_req(
@@ -592,6 +603,7 @@ pub fn run_pqc_command_suite(
                 MailboxReq::Mldsa87Verify(*req),
             ),
         ));
+        model.gen_flamegraph("MLDSA87_SIGNATURE_VERIFY").unwrap();
     }
 
     // GET_PQ_CERT — assemble an ML-DSA-87 DER certificate from the caller's

@@ -64,6 +64,8 @@ pub struct RuntimeTestArgs<'a> {
     pub test_image_options: Option<ImageOptions>,
     pub init_params: Option<InitParams<'a>>,
     pub test_mfg_flags: Option<MfgFlags>,
+    pub sample_stack_traces: bool,
+    pub stack_sample_rate: Option<u64>,
 }
 
 pub fn run_rt_test_lms(args: RuntimeTestArgs, lms_verify: bool) -> DefaultHwModel {
@@ -340,6 +342,10 @@ pub fn run_rt_test_base(args: RuntimeTestArgs, lms_verify: bool) -> (DefaultHwMo
         opts
     });
 
+    let (image, elfs) =
+        caliptra_builder::build_image_artifacts(&FMC_WITH_UART, runtime_fwid, image_options)
+            .unwrap();
+
     let image_info = vec![
         ImageInfo::new(
             StackRange::new(ROM_STACK_ORG + ROM_STACK_SIZE, ROM_STACK_ORG),
@@ -360,12 +366,12 @@ pub fn run_rt_test_base(args: RuntimeTestArgs, lms_verify: bool) -> (DefaultHwMo
         None => InitParams {
             rom: &rom,
             stack_info: Some(StackInfo::new(image_info)),
+            sample_stack_traces: args.sample_stack_traces,
+            stack_sample_rate: args.stack_sample_rate,
+            elfs: Some(elfs),
             ..Default::default()
         },
     };
-
-    let image = caliptra_builder::build_and_sign_image(&FMC_WITH_UART, runtime_fwid, image_options)
-        .unwrap();
 
     let boot_flags = if let Some(flags) = args.test_mfg_flags {
         flags.bits()

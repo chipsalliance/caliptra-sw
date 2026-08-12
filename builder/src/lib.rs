@@ -522,11 +522,16 @@ impl Default for ImageOptions {
     }
 }
 
-pub fn build_and_sign_image(
+pub struct Elfs {
+    pub fmc: Arc<Vec<u8>>,
+    pub runtime: Arc<Vec<u8>>,
+}
+
+pub fn build_image_artifacts(
     fmc: &FwId<'static>,
     app: &FwId<'static>,
     opts: ImageOptions,
-) -> anyhow::Result<ImageBundle> {
+) -> anyhow::Result<(ImageBundle, Elfs)> {
     let fmc_elf = build_firmware_elf(fmc)?;
     let app_elf = build_firmware_elf(app)?;
     let gen = ImageGenerator::new(Crypto::default());
@@ -541,6 +546,21 @@ pub fn build_and_sign_image(
         vendor_config: opts.vendor_config,
         owner_config: opts.owner_config,
     })?;
+    Ok((
+        image,
+        Elfs {
+            fmc: fmc_elf,
+            runtime: app_elf,
+        },
+    ))
+}
+
+pub fn build_and_sign_image(
+    fmc: &FwId<'static>,
+    app: &FwId<'static>,
+    opts: ImageOptions,
+) -> anyhow::Result<ImageBundle> {
+    let (image, _) = build_image_artifacts(fmc, app, opts)?;
     Ok(image)
 }
 
