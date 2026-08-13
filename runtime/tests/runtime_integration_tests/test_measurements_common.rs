@@ -29,7 +29,7 @@ use caliptra_runtime::CaliptraDpeProfile;
 use dpe::{
     commands::{
         CertifyKeyCommand, CertifyKeyFlags, CertifyKeyP384Cmd, Command, DeriveContextCmd,
-        DeriveContextFlags, GetProfileCmd,
+        DeriveContextFlags, GetProfileCmd, SignFlags, SignP384Cmd,
     },
     context::ContextHandle,
     response::Response,
@@ -90,14 +90,23 @@ fn measure_req(
     measure_raw(sampler, model, u32::from(cmd_id), &bytes)
 }
 
+fn measure_dpe_profile(
+    sampler: &mut dyn CommandSampler,
+    model: &mut DefaultHwModel,
+    profile: CaliptraDpeProfile,
+    cmd: &mut Command,
+) -> u64 {
+    sampler.before(model);
+    let _ = execute_dpe_cmd(profile, model, cmd, DpeResult::Success);
+    sampler.after(model)
+}
+
 fn measure_dpe(
     sampler: &mut dyn CommandSampler,
     model: &mut DefaultHwModel,
     cmd: &mut Command,
 ) -> u64 {
-    sampler.before(model);
-    let _ = execute_dpe_cmd(PROFILE, model, cmd, DpeResult::Success);
-    sampler.after(model)
+    measure_dpe_profile(sampler, model, PROFILE, cmd)
 }
 
 /// Drive every runtime command through `sampler` in state-dependency order and
@@ -224,6 +233,18 @@ pub fn run_command_suite(
                 format: CertifyKeyCommand::FORMAT_X509,
             })),
         ),
+    ));
+    // INVOKE_DPE(Sign) — sign a digest with the default context. `roll_onetime`
+    // is a no-op on the default handle, so the default context survives.
+    let sign_cmd = SignP384Cmd {
+        handle: ContextHandle::default(),
+        label: TEST_LABEL,
+        flags: SignFlags::empty(),
+        digest: TEST_DIGEST,
+    };
+    results.push((
+        "INVOKE_DPE(Sign)",
+        measure_dpe(sampler, model, &mut Command::from(&sign_cmd)),
     ));
 
     // --- DPE context tagging ---
@@ -502,11 +523,237 @@ pub fn run_command_suite(
 /// these have side effects that break the standard suite (unlike `SHUTDOWN`), a
 /// caller should measure this suite *before* `run_command_suite`.
 ///
-/// Two `mldsa_attestation` commands are intentionally excluded: `INVOKE_DPE_MLDSA87`
-/// is a stub that unconditionally returns `RUNTIME_UNIMPLEMENTED_COMMAND`, and
-/// `SIGN_WITH_EXPORTED_MLDSA` cannot reach its ML-DSA sign path because nothing
-/// yet populates the exported ML-DSA CDI slot — both would only measure an early
-/// return, not a representative ML-DSA flow.
+/// Exercise the ML-DSA variant of every `INVOKE_DPE_MLDSA87` subcommand, returning
+/// one `("INVOKE_DPE_MLDSA87(<Subcommand>)", measurement)` per DPE `Command`.
+///
+/// Boots a DEDICATED model (rather than sharing the standard suite's) because the
+/// full set can't be sequenced in a shared model: DeriveContext (regular child)
+/// must retire the RT default context — the DPE "one default per locality" rule
+/// (`safe_to_make_child`) rejects any other regular child-derive — which the
+/// standard suite needs; and the standard suite's `DISABLE_ATTESTATION` clears PQC
+/// mode, which `INVOKE_DPE_MLDSA87` requires. A fresh model (attestation on,
+/// untouched default context) sidesteps both. Order: default-context commands
+/// (Sign/CertifyKey) first, simulation-context commands (InitCtx/DestroyCtx/
+/// RotateCtx) next, then DeriveContext retires the default to create a child from
+/// which UpdateContextMeasurement's parent-with-child tree is built.
+#[cfg(feature = "mldsa_attestation")]
+pub fn measure_mldsa_dpe_subcommands(sampler: &mut dyn CommandSampler) -> Vec<(&'static str, u64)> {
+    use crate::common::{
+        export_mldsa_cdi, populate_pq_cert, provision_pq_seed, run_pqc_rt_test, TEST_DIGEST_MLDSA,
+    };
+    use caliptra_common::mailbox_api::SignWithExportedMldsaReq;
+    use caliptra_drivers::MLDSA87_MU_BYTES;
+    use dpe::commands::{
+        CertifyKeyMldsa87Cmd, DestroyCtxCmd, GetCertificateChainCmd, InitCtxCmd, RotateCtxCmd,
+        RotateCtxFlags, SignMldsa87Cmd, UpdateContextMeasurementCmd,
+    };
+
+    const P: CaliptraDpeProfile = CaliptraDpeProfile::Mldsa;
+    const TCI_TYPE: u32 = 7;
+
+    // Dedicated model with the full ML-DSA provisioning the INVOKE_DPE_MLDSA87 path
+    // needs: enable PQC mode (SET_PQ_SEED) and populate the PQ cert chain
+    // (POPULATE_PQ_CERT) — the same sequence the test_invoke_dpe_mldsa tests use.
+    // A fresh model also keeps attestation on and the default context untouched, so
+    // DeriveContext can retire the default to build UpdateContextMeasurement's tree.
+    let mut owned_model = run_pqc_rt_test();
+    provision_pq_seed(&mut owned_model);
+    let _ = populate_pq_cert(&mut owned_model);
+    let model = &mut owned_model;
+
+    let mut results: Vec<(&'static str, u64)> = Vec::new();
+
+    // Run a setup command (unmeasured) and require success, returning its response.
+    fn setup(model: &mut DefaultHwModel, cmd: &mut Command) -> Response {
+        execute_dpe_cmd(P, model, cmd, DpeResult::Success).expect("DPE setup command failed")
+    }
+
+    // 1. GetProfile — stateless.
+    results.push((
+        "INVOKE_DPE_MLDSA87(GetProfile)",
+        measure_dpe_profile(sampler, model, P, &mut Command::GetProfile(&GetProfileCmd)),
+    ));
+
+    // 2. GetCertificateChain — stateless.
+    let chain_cmd = GetCertificateChainCmd {
+        offset: 0,
+        size: 2048,
+    };
+    results.push((
+        "INVOKE_DPE_MLDSA87(GetCertificateChain)",
+        measure_dpe_profile(
+            sampler,
+            model,
+            P,
+            &mut Command::GetCertificateChain(&chain_cmd),
+        ),
+    ));
+
+    // 3. Sign on the default context (before it is retired in step 8).
+    let sign_cmd = SignMldsa87Cmd {
+        handle: ContextHandle::default(),
+        label: TEST_LABEL,
+        flags: SignFlags::empty(),
+        digest: TEST_DIGEST_MLDSA,
+    };
+    results.push((
+        "INVOKE_DPE_MLDSA87(Sign)",
+        measure_dpe_profile(sampler, model, P, &mut Command::from(&sign_cmd)),
+    ));
+
+    // 4. CertifyKey / X509 on the default context.
+    let certify_cmd = CertifyKeyMldsa87Cmd {
+        handle: ContextHandle::default(),
+        flags: CertifyKeyFlags::empty(),
+        format: CertifyKeyCommand::FORMAT_X509,
+        label: TEST_LABEL,
+    };
+    results.push((
+        "INVOKE_DPE_MLDSA87(CertifyKey)",
+        measure_dpe_profile(sampler, model, P, &mut Command::from(&certify_cmd)),
+    ));
+
+    // 4b. SIGN_WITH_EXPORTED_MLDSA (data mode) — export an ML-DSA CDI first
+    //     (populates the exported-CDI slot; the export derives from the default
+    //     context, so this runs before the default is retired in step 8), then sign
+    //     a message. The handle is reused by 4c (signing does not consume it).
+    let exported_cdi = export_mldsa_cdi(model);
+    let mut sign_exported = Box::new(SignWithExportedMldsaReq::default());
+    sign_exported.exported_cdi_handle = exported_cdi;
+    const MSG: &[u8] = b"caliptra mldsa sign-with-exported measurement";
+    sign_exported.message[..MSG.len()].copy_from_slice(MSG);
+    sign_exported.message_size = MSG.len() as u32;
+    results.push((
+        "SIGN_WITH_EXPORTED_MLDSA(Data)",
+        measure_req(
+            sampler,
+            model,
+            CommandId::SIGN_WITH_EXPORTED_MLDSA,
+            MailboxReq::SignWithExportedMldsa(*sign_exported),
+        ),
+    ));
+
+    // 4c. SIGN_WITH_EXPORTED_MLDSA (external-mu mode) — same exported handle, but
+    //     the caller supplies mu directly (message[..MU] = mu, message_size = MU).
+    //     This exercises the sign_mu_deterministic variant of the sign path, which
+    //     the data mode above does not.
+    const MU: usize = MLDSA87_MU_BYTES;
+    let mut sign_exported_mu = Box::new(SignWithExportedMldsaReq::default());
+    sign_exported_mu.exported_cdi_handle = exported_cdi;
+    sign_exported_mu.sign_mode = SignWithExportedMldsaReq::SIGN_MODE_EXTERNAL_MU;
+    sign_exported_mu.message[..MU].copy_from_slice(&[0xA5u8; MU]);
+    sign_exported_mu.message_size = MU as u32;
+    results.push((
+        "SIGN_WITH_EXPORTED_MLDSA(ExternalMu)",
+        measure_req(
+            sampler,
+            model,
+            CommandId::SIGN_WITH_EXPORTED_MLDSA,
+            MailboxReq::SignWithExportedMldsa(*sign_exported_mu),
+        ),
+    ));
+
+    // 5. InitCtx (simulation) — creates a side context.
+    let init_measured = InitCtxCmd::new_simulation();
+    results.push((
+        "INVOKE_DPE_MLDSA87(InitCtx)",
+        measure_dpe_profile(sampler, model, P, &mut Command::InitCtx(&init_measured)),
+    ));
+
+    // 6. DestroyCtx against a throwaway simulation context.
+    {
+        let sim = InitCtxCmd::new_simulation();
+        let Response::InitCtx(r) = setup(model, &mut Command::InitCtx(&sim)) else {
+            panic!("DestroyCtx setup: unexpected InitCtx response");
+        };
+        let destroy_cmd = DestroyCtxCmd { handle: r.handle };
+        results.push((
+            "INVOKE_DPE_MLDSA87(DestroyCtx)",
+            measure_dpe_profile(sampler, model, P, &mut Command::DestroyCtx(&destroy_cmd)),
+        ));
+    }
+
+    // 7. RotateCtx against a throwaway simulation context.
+    {
+        let sim = InitCtxCmd::new_simulation();
+        let Response::InitCtx(r) = setup(model, &mut Command::InitCtx(&sim)) else {
+            panic!("RotateCtx setup: unexpected InitCtx response");
+        };
+        let rotate_cmd = RotateCtxCmd {
+            handle: r.handle,
+            flags: RotateCtxFlags::empty(),
+        };
+        results.push((
+            "INVOKE_DPE_MLDSA87(RotateCtx)",
+            measure_dpe_profile(sampler, model, P, &mut Command::RotateCtx(&rotate_cmd)),
+        ));
+    }
+
+    // 8. DeriveContext — the only way to create a regular child in a locality that
+    //    already has a default context is to retire that default (empty flags, no
+    //    RETAIN_PARENT). This consumes the RT default context, which is why the
+    //    whole suite runs last. Capture the child handle for step 9.
+    let derive_measured = DeriveContextCmd {
+        handle: ContextHandle::default(),
+        data: TciMeasurement([0u8; TCI_SIZE]),
+        flags: DeriveContextFlags::empty(),
+        tci_type: 1,
+        target_locality: 0,
+        ..Default::default()
+    };
+    sampler.before(model);
+    let derive_resp = execute_dpe_cmd(
+        P,
+        model,
+        &mut Command::DeriveContext(&derive_measured),
+        DpeResult::Success,
+    )
+    .expect("DeriveContext failed");
+    results.push(("INVOKE_DPE_MLDSA87(DeriveContext)", sampler.after(model)));
+    let Response::DeriveContext(dr) = derive_resp else {
+        panic!("DeriveContext: unexpected response");
+    };
+    let child_handle = dr.handle; // new non-default child; the default is now retired.
+
+    // 9. UpdateContextMeasurement — needs a non-default parent with an active child
+    //    of matching tci_type. With the default retired, derive a child from the
+    //    step-8 child (retaining it) to form that parent/child pair.
+    {
+        let derive = DeriveContextCmd {
+            handle: child_handle,
+            data: TciMeasurement([0u8; TCI_SIZE]),
+            flags: DeriveContextFlags::RETAIN_PARENT_CONTEXT,
+            tci_type: TCI_TYPE,
+            target_locality: 0,
+            ..Default::default()
+        };
+        let Response::DeriveContext(dr) = setup(model, &mut Command::DeriveContext(&derive)) else {
+            panic!("UpdateContextMeasurement setup: unexpected DeriveContext response");
+        };
+        let update_cmd = UpdateContextMeasurementCmd {
+            parent_handle: dr.parent_handle,
+            data: TciMeasurement([0u8; TCI_SIZE]),
+            reserved: 0,
+            tci_type: TCI_TYPE,
+            reserved_svn: 0,
+        };
+        results.push((
+            "INVOKE_DPE_MLDSA87(UpdateContextMeasurement)",
+            measure_dpe_profile(
+                sampler,
+                model,
+                P,
+                &mut Command::UpdateContextMeasurement(&update_cmd),
+            ),
+        ));
+    }
+
+    results
+}
+
+/// Every `mldsa_attestation` command is now exercised: each `INVOKE_DPE_MLDSA87`
+/// DPE subcommand plus `SIGN_WITH_EXPORTED_MLDSA` (which exports an ML-DSA CDI to
+/// populate the slot before signing) run via [`measure_mldsa_dpe_subcommands`].
 #[cfg(feature = "mldsa_attestation")]
 pub fn run_pqc_command_suite(
     model: &mut DefaultHwModel,
