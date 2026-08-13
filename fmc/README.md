@@ -515,4 +515,4 @@ Fake FMC should be used with the Fake ROM. Details can be found in the ROM readm
 - Current POR is for FIPS Crypto boundary to encompass all of Caliptra FW, including ROM, FMC, and Runtime. With this boundary, there is no need for any
   dedicated crypto module, and each layer of FW will include the library code it needs to access any required crypto functionality. In the future, if a more
   strict FIPS boundary is created, FMC will need to be changed to handle crypto operations differently. Depending on where it is implemented, it may or may not
-  have to initilize the FIPS Crypto module, and it may need to use a different calling convention.
+  have to initialize the FIPS Crypto module, and it may need to use a different calling convention.

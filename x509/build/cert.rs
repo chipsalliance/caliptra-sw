@@ -8,7 +8,7 @@ File Name:
 
 Abstract:
 
-    File contains generation of X509 Certificate To Be Singed (TBS) template that can be
+    File contains generation of X509 Certificate To Be Signed (TBS) template that can be
     substituted at firmware runtime.
 
 --*/
