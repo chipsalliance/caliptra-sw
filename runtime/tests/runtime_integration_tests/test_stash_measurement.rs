@@ -6,17 +6,22 @@ use caliptra_builder::{
     ImageOptions,
 };
 use caliptra_common::mailbox_api::{
-    CommandId, MailboxReq, MailboxReqHeader, StashMeasurementReq, StashMeasurementResp,
+    ActivateFirmwareReq, CommandId, MailboxReq, MailboxReqHeader, StashMeasurementReq,
+    StashMeasurementResp,
 };
+use caliptra_error::CaliptraError;
 use caliptra_hw_model::HwModel;
 use caliptra_runtime::RtBootStatus;
 use sha2::{Digest, Sha384};
 use zerocopy::{FromBytes, IntoBytes};
 
 use crate::common::{
-    calculate_cptra_config_init_vals_hash, default_rt_test_soc_manifest_measurements, run_rt_test,
-    RuntimeTestArgs, DEFAULT_MCU_FW,
+    assert_error, calculate_cptra_config_init_vals_hash, default_rt_test_soc_manifest_measurements,
+    run_rt_test, RuntimeTestArgs, DEFAULT_MCU_FW,
 };
+
+/// Firmware ID reserved for the Caliptra-managed MCU RT DPE context.
+const MCU_RT_RESERVED_FW_ID: [u8; 4] = ActivateFirmwareReq::MCU_IMAGE_ID.to_le_bytes();
 
 #[test]
 fn test_stash_measurement() {
@@ -173,4 +178,45 @@ fn test_pcr31_extended_upon_stash_measurement() {
     }
 
     assert_ne!(run_sequence(false), run_sequence(true));
+}
+
+/// Metadata `[2, 0, 0, 0]` is reserved for the Caliptra-managed MCU RT DPE
+/// context: it tags the measurement with the `MCFW` TCI type and re-points the
+/// cached MCU RT context index. `STASH_MEASUREMENT` performs no authorization,
+/// so it must reject the reserved ID rather than let the SoC forge the MCU RT
+/// measurement. (`AUTHORIZE_AND_STASH` may still use it, since that path
+/// verifies the measurement against the signed SoC manifest.)
+#[test]
+fn test_stash_measurement_reserved_mcu_fw_id_rejected() {
+    let runtime_test_args = RuntimeTestArgs {
+        test_image_options: Some(ImageOptions::default()),
+        ..Default::default()
+    };
+    let mut model = run_rt_test(runtime_test_args);
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    let mut cmd = MailboxReq::StashMeasurement(StashMeasurementReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        metadata: MCU_RT_RESERVED_FW_ID,
+        measurement: [0xAAu8; 48],
+        context: [0u8; 48],
+        svn: 0,
+    });
+    cmd.populate_chksum().unwrap();
+
+    let resp = model
+        .mailbox_execute(
+            u32::from(CommandId::STASH_MEASUREMENT),
+            cmd.as_bytes().unwrap(),
+        )
+        .unwrap_err();
+
+    assert_error(
+        &mut model,
+        CaliptraError::RUNTIME_STASH_MEASUREMENT_RESERVED_FW_ID,
+        resp,
+    );
 }

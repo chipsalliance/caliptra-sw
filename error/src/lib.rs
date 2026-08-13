@@ -1984,6 +1984,11 @@ impl CaliptraError {
             0x000E00AE,
             "Runtime Error: Owner auth manifest owner public key does not match firmware-image owner pub key"
         ),
+        (
+            RUNTIME_STASH_MEASUREMENT_RESERVED_FW_ID,
+            0x000E00B0,
+            "Runtime Error: Stash measurement firmware ID is reserved for Caliptra internal use"
+        ),
         // FMC Errors
         (FMC_GLOBAL_NMI, 0x000F0001, "FMC Error: Global NMI"),
         (
