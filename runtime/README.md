@@ -1043,6 +1043,195 @@ This allows the user to reallocate the 32 DPE contexts between PL0 and PL1. By d
 
 **Note**: 2 PL0 contexts are used by Caliptra itself during initialization.
 
+## PQC (ML-DSA-87) commands
+
+The following commands implement the `PQ.DevID` post-quantum identity retrofit described in [Software-based PQC features](https://github.com/chipsalliance/Caliptra/blob/main/doc/caliptra_1x/Caliptra.md#software-based-pqc-features-caliptra-13). All ML-DSA-87 cryptography is implemented in software; there is no hardware PQC accelerator on Caliptra 1.x silicon.
+The availability of these commands is advertised to the SoC via the `RT_MLDSA_ATTESTATION` bit in the [`CAPABILITIES`](#capabilities) output.
+
+### SET\_PQ\_SEED
+
+Delivers `PQ.DevID.Seed` from the SoC to Caliptra. Caliptra derives `PQ.DevID.CDI` from the seed via an HMAC-based KDF, derives the ML-DSA-87 `PQ.DevID` keypair, and caches the public key digest in persistent data.
+
+**Note**: This command is only available in the locality of the PL0 PAUSER.
+
+Command Code: `0x5051_5344` ("PQSD")
+
+*Table: `SET_PQ_SEED` input arguments*
+
+| **Name** | **Type**  | **Description**
+| -------- | --------- | ---------------
+| chksum   | u32       | Checksum over other input arguments, computed by the caller. Little endian.
+| seed     | u8[48]    | `PQ.DevID.Seed`. Per-device unique symmetric seed, provided by the SoC.
+
+*Table: `SET_PQ_SEED` output arguments*
+
+| **Name** | **Type** | **Description**
+| -------- | -------- | ---------------
+| chksum   | u32      | Checksum over other output arguments, computed by Caliptra. Little endian.
+| fips\_status | u32  | Indicates if the command is FIPS approved or an error.
+
+Deriving `PQ.DevID.CDI` and the ML-DSA-87 key material can exceed the default mailbox command watchdog budget; Runtime Firmware extends the watchdog for this command.
+
+### GET\_PQ\_CSR
+
+Returns a CSR for the `PQ.DevID` ML-DSA-87 public key, for collection during manufacturing/provisioning, mirroring [`GET_IDEVID_CSR`](#get_idevid_csr).
+
+Command Code: `0x5051_4353` ("PQCS")
+
+*Table: `GET_PQ_CSR` input arguments*
+
+| **Name** | **Type** | **Description**
+| -------- | -------- | ---------------
+| chksum   | u32      | Checksum over other input arguments, computed by the caller. Little endian.
+
+*Table: `GET_PQ_CSR` output arguments*
+
+| **Name**   | **Type**  | **Description**
+| --------   | --------- | ---------------
+| chksum     | u32       | Checksum over other output arguments, computed by Caliptra. Little endian.
+| fips\_status | u32     | Indicates if the command is FIPS approved or an error.
+| data\_size | u32       | Length in bytes of the valid data in the data field.
+| data       | u8[...]   | DER-encoded ML-DSA-87 `PQ.DevID` certificate signing request. Maximum size 12,800 bytes.
+
+### GET\_PQ\_INFO
+
+Returns the raw ML-DSA-87 `PQ.DevID` public key.
+
+Command Code: `0x5051_494E` ("PQIN")
+
+*Table: `GET_PQ_INFO` input arguments*
+
+| **Name** | **Type** | **Description**
+| -------- | -------- | ---------------
+| chksum   | u32      | Checksum over other input arguments, computed by the caller. Little endian.
+
+*Table: `GET_PQ_INFO` output arguments*
+
+| **Name**     | **Type**   | **Description**
+| --------     | ---------  | ---------------
+| chksum       | u32        | Checksum over other output arguments, computed by Caliptra. Little endian.
+| fips\_status | u32        | Indicates if the command is FIPS approved or an error.
+| pq\_pub\_key | u8[2592]   | Encoded ML-DSA-87 `PQ.DevID` public key (FIPS 204).
+
+### POPULATE\_PQ\_CERT
+
+Allows the SoC to provide a DER-encoded `PQ.DevID` certificate on every boot, once it has been issued by the vendor/owner PQC provisioning CA. Mirrors [`POPULATE_IDEV_CERT`](#populate_idev_cert).
+
+Command Code: `0x5050_5143` ("PPQC")
+
+*Table: `POPULATE_PQ_CERT` input arguments*
+
+| **Name**   | **Type** | **Description**
+| --------   | -------- | ---------------
+| chksum     | u32      | Checksum over other input arguments, computed by the caller. Little endian.
+| cert\_size | u32      | Size of the DER-encoded `PQ.DevID` certificate.
+| cert       | u8[...]  | DER-encoded `PQ.DevID` certificate.
+
+*Table: `POPULATE_PQ_CERT` output arguments*
+
+| **Name**     | **Type** | **Description**
+| --------     | -------- | ---------------
+| chksum       | u32      | Checksum over other output arguments, computed by Caliptra. Little endian.
+| fips\_status | u32      | Indicates if the command is FIPS approved or an error.
+
+### GET\_PQ\_CERT
+
+Reconstructs the `PQ.DevID` certificate previously installed via `POPULATE_PQ_CERT`. Mirrors [`GET_IDEV_CERT`](#get_idev_cert).
+
+Command Code: `0x4750_5143` ("GPQC")
+
+*Table: `GET_PQ_CERT` input arguments*
+
+| **Name**      | **Type** | **Description**
+| --------      | -------- | ---------------
+| chksum        | u32      | Checksum over other input arguments, computed by the caller. Little endian.
+| tbs\_size     | u32      | Size of the TBS.
+| tbs           | u8[...]  | TBS. Only bytes up to tbs_size are used.
+
+*Table: `GET_PQ_CERT` output arguments*
+
+| **Name**     | **Type** | **Description**
+| --------     | -------- | ---------------
+| chksum       | u32      | Checksum over other output arguments, computed by Caliptra. Little endian.
+| fips\_status | u32      | Indicates if the command is FIPS approved or an error.
+| cert\_size   | u32      | Length in bytes of the valid data in the cert field.
+| cert         | u8[...]  | DER-encoded `PQ.DevID` certificate.
+
+### INVOKE\_DPE\_MLDSA87
+
+Invokes a DPE command using the ML-DSA-87 crypto backend, mirroring [`INVOKE_DPE_COMMAND`](#invoke_dpe_command) but rooted in the ML-DSA-87 DPE profile.
+
+Command Code: `0x4D4C_4450` ("MLDP")
+
+*Table: `INVOKE_DPE_MLDSA87` input arguments*
+
+| **Name**    | **Type** | **Description**
+| --------    | -------- | ---------------
+| chksum      | u32      | Checksum over other input arguments, computed by the caller. Little endian.
+| data\_size  | u32      | Length in bytes of the valid data in the data field.
+| data        | u8[512]  | Encoded DPE command. Only bytes up to data_size are used.
+
+*Table: `INVOKE_DPE_MLDSA87` output arguments*
+
+| **Name**    | **Type**    | **Description**
+| --------    | ----------- | ---------------
+| chksum      | u32         | Checksum over other output arguments, computed by Caliptra. Little endian.
+| fips\_status | u32        | Indicates if the command is FIPS approved or an error.
+| data\_size  | u32         | Length in bytes of the valid data in the data field.
+| data        | u8[25168]   | Encoded DPE response. Only bytes up to data_size are used.
+
+### CERTIFY\_KEY\_EXTENDED\_MLDSA87
+
+The ML-DSA-87 counterpart to [`CERTIFY_KEY_EXTENDED`](#certify_key_extended): produces a DPE leaf certificate or CSR, signed with ML-DSA-87, containing custom extensions provided by the SoC.
+
+Command Code: `0x434B_454D` ("CKEM")
+
+*Table: `CERTIFY_KEY_EXTENDED_MLDSA87` input arguments*
+
+| **Name**          | **Type** | **Description**
+| --------          | -------- | ---------------
+| chksum            | u32      | Checksum over other input arguments, computed by the caller. Little endian.
+| flags             | u32      | Flags determining which custom extensions to include in the certificate. See [`CERTIFY_KEY_EXTENDED` input flags](#certify_key_extended).
+| certify\_key\_req | u8[72]   | Certify Key Request.
+
+*Table: `CERTIFY_KEY_EXTENDED_MLDSA87` output arguments*
+
+| **Name**            | **Type**  | **Description**
+| --------            | --------  | ---------------
+| chksum              | u32       | Checksum over other output arguments, computed by Caliptra. Little endian.
+| fips\_status        | u32       | Indicates if the command is FIPS approved or an error.
+| size                | u32       | Length in bytes of the valid data in the certify_key_resp field.
+| certify\_key\_resp  | u8[25152] | Certify Key Response.
+
+This command can take tens of millions of CPU cycles due to the software ML-DSA-87 implementation; see [Performance considerations](https://github.com/chipsalliance/Caliptra/blob/main/doc/caliptra_1x/Caliptra.md#performance-considerations).
+
+### SIGN\_WITH\_EXPORTED\_MLDSA
+
+The ML-DSA-87 counterpart to [`SIGN_WITH_EXPORTED_ECDSA`](#sign_with_exported_ecdsa): signs with an ML-DSA-87 key pair derived from a previously exported DPE CDI handle.
+
+**Note**: This command is only available in the locality of the PL0 PAUSER.
+
+*Table: `SIGN_WITH_EXPORTED_MLDSA` input arguments*
+
+| **Name**             | **Type** | **Description**
+| --------             | -------- | ---------------
+| chksum               | u32      | Checksum over other input arguments, computed by the caller. Little endian.
+| exported\_cdi\_handle | u8[32]  | The Exported CDI handle returned by the DPE `DeriveContext` command.
+| sign\_mode           | u32      | `0` (`SIGN_MODE_DATA`): `message[..message_size]` is the raw message to sign, and Caliptra computes `mu` internally. `1` (`SIGN_MODE_EXTERNAL_MU`): `message[..MU_SIZE]` is a caller-supplied external `mu`; `message_size` must equal `MU_SIZE`.
+| message\_size        | u32      | Length in bytes of the valid data in the message field.
+| message              | u8[1024] | Raw message (`SIGN_MODE_DATA`) or external `mu` (`SIGN_MODE_EXTERNAL_MU`). Only bytes up to message_size are used.
+
+*Table: `SIGN_WITH_EXPORTED_MLDSA` output arguments*
+
+| **Name**         | **Type**   | **Description**
+| --------         | ---------  | ---------------
+| chksum           | u32        | Checksum over other output arguments, computed by Caliptra. Little endian.
+| fips\_status     | u32        | Indicates if the command is FIPS approved or an error.
+| derived\_pubkey  | u8[2592]   | The ML-DSA-87 public key associated with the signing key.
+| signature        | u8[4627]   | The ML-DSA-87 signature.
+
+The `exported_cdi_handle` can be created by calling `DeriveContext` with the `export-cdi` and `create-certificate` flags, as with `SIGN_WITH_EXPORTED_ECDSA`.
+
 ## Checksum
 
 For every command except for FW_LOAD, the request and response feature a checksum. This
