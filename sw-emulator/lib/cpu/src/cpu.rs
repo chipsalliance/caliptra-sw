@@ -103,6 +103,26 @@ pub struct StackInfo {
     /// Stacks grow downward, so this is the high-water mark of stack usage.
     /// `None` means no stack-pointer activity has been observed yet.
     stack_watermark: Option<u32>,
+    /// When true, every time a new high-water mark is reached the `(pc, sp)` that
+    /// set it is appended to `watermark_events`, so the peak can be attributed to
+    /// the exact instructions (and thus functions) that grew the stack.
+    log_watermark: bool,
+    /// `(pc, sp)` for each new high-water mark since the last reset. Only the
+    /// deepest-so-far points are recorded, so this is bounded by the number of
+    /// frames on the deepest call path.
+    watermark_events: Vec<(u32, u32)>,
+    /// When true, every change to the stack pointer within a tracked image is
+    /// appended to `sp_events` — both decreases (frame allocation, prologue) and
+    /// increases (frame free, epilogue). Unlike `watermark_events`, which only
+    /// captures the monotonic descent to the single global minimum, this full
+    /// trace lets a post-processor reconstruct the live call stack at any instant
+    /// — so a sub-chain (e.g. ML-DSA sign) that is not the global deepest path
+    /// can still be attributed frame-by-frame.
+    log_sp_trace: bool,
+    /// `(pc, sp)` for every stack-pointer change since the last reset.
+    sp_events: Vec<(u32, u32)>,
+    /// Last stack pointer recorded into `sp_events`, used to drop no-op writes.
+    last_traced_sp: Option<u32>,
 }
 
 impl StackInfo {
@@ -114,18 +134,47 @@ impl StackInfo {
             max_stack_overflow: 0,
             has_overflowed: false,
             stack_watermark: None,
+            log_watermark: false,
+            watermark_events: Vec::new(),
+            log_sp_trace: false,
+            sp_events: Vec::new(),
+            last_traced_sp: None,
         }
     }
 
     /// Reset the high-water mark so a subsequent measurement window starts fresh.
     pub fn reset_min_sp(&mut self) {
         self.stack_watermark = None;
+        self.watermark_events.clear();
+        self.sp_events.clear();
+        self.last_traced_sp = None;
     }
 
     /// Fetch the lowest stack pointer observed since the last reset, or `None`
     /// if no stack-pointer activity has been observed within a tracked image.
     pub fn min_sp(&self) -> Option<u32> {
         self.stack_watermark
+    }
+
+    /// Enable recording of `(pc, sp)` for each new high-water mark.
+    pub fn enable_watermark_log(&mut self) {
+        self.log_watermark = true;
+    }
+
+    /// Drain the recorded high-water `(pc, sp)` events since the last reset.
+    pub fn take_watermark_events(&mut self) -> Vec<(u32, u32)> {
+        core::mem::take(&mut self.watermark_events)
+    }
+
+    /// Enable recording of every stack-pointer change (allocation and free).
+    pub fn enable_sp_trace(&mut self) {
+        self.log_sp_trace = true;
+    }
+
+    /// Drain the full `(pc, sp)` stack-pointer-change trace since the last reset.
+    pub fn take_sp_events(&mut self) -> Vec<(u32, u32)> {
+        self.last_traced_sp = None;
+        core::mem::take(&mut self.sp_events)
     }
 }
 
@@ -155,6 +204,15 @@ impl StackInfo {
                 // Record the high-water mark of stack usage for this window.
                 if self.stack_watermark.is_none_or(|min| stack_address < min) {
                     self.stack_watermark = Some(stack_address);
+                    if self.log_watermark {
+                        self.watermark_events.push((pc, stack_address));
+                    }
+                }
+                // Full trace: record every SP change (alloc *and* free), skipping
+                // no-op writes, so any call sub-chain can be reconstructed later.
+                if self.log_sp_trace && self.last_traced_sp != Some(stack_address) {
+                    self.sp_events.push((pc, stack_address));
+                    self.last_traced_sp = Some(stack_address);
                 }
                 if let Some(overflow_amount) = image.check_overflow(stack_address) {
                     self.max_stack_overflow = self.max_stack_overflow.max(overflow_amount);
@@ -435,6 +493,36 @@ impl<TBus: Bus> Cpu<TBus> {
     /// if stack tracking is disabled or no activity has been observed.
     pub fn stack_min_sp(&self) -> Option<u32> {
         self.stack_info.as_ref().and_then(StackInfo::min_sp)
+    }
+
+    /// Enable per-high-water-mark `(pc, sp)` logging, if stack tracking is on.
+    pub fn enable_stack_watermark_log(&mut self) {
+        if let Some(stack_info) = &mut self.stack_info {
+            stack_info.enable_watermark_log();
+        }
+    }
+
+    /// Drain the recorded high-water `(pc, sp)` events since the last reset.
+    pub fn take_stack_watermark_events(&mut self) -> Vec<(u32, u32)> {
+        self.stack_info
+            .as_mut()
+            .map(StackInfo::take_watermark_events)
+            .unwrap_or_default()
+    }
+
+    /// Enable full stack-pointer-change tracing, if stack tracking is on.
+    pub fn enable_stack_sp_trace(&mut self) {
+        if let Some(stack_info) = &mut self.stack_info {
+            stack_info.enable_sp_trace();
+        }
+    }
+
+    /// Drain the full `(pc, sp)` stack-pointer-change trace since the last reset.
+    pub fn take_stack_sp_events(&mut self) -> Vec<(u32, u32)> {
+        self.stack_info
+            .as_mut()
+            .map(StackInfo::take_sp_events)
+            .unwrap_or_default()
     }
 
     /// Read the RISCV CPU Program counter

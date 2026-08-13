@@ -124,6 +124,20 @@ impl ModelEmulated {
         self.cpu.stack_min_sp()
     }
 
+    /// Drain the `(pc, sp)` recorded for each new stack high-water mark since the
+    /// last reset. Empty unless `CALIPTRA_EMU_STACK_WATERMARK_LOG` was set when
+    /// the model was built.
+    pub fn take_stack_watermark_events(&mut self) -> Vec<(u32, u32)> {
+        self.cpu.take_stack_watermark_events()
+    }
+
+    /// Drain the full `(pc, sp)` stack-pointer-change trace (allocations and
+    /// frees) since the last reset. Empty unless `CALIPTRA_EMU_STACK_SP_TRACE`
+    /// was set when the model was built.
+    pub fn take_stack_sp_events(&mut self) -> Vec<(u32, u32)> {
+        self.cpu.take_stack_sp_events()
+    }
+
     /// Return the total number of simulated clock cycles elapsed since the
     /// model was created. Subtract two snapshots to measure the cost of a
     /// code region.
@@ -303,6 +317,17 @@ impl HwModel for ModelEmulated {
             let mut cpu = Cpu::new(BusLogger::new(root_bus), clock);
             if let Some(stack_info) = params.stack_info {
                 cpu.with_stack_info(stack_info);
+                // Opt-in, env-gated: record the (pc, sp) that set each stack
+                // high-water mark so the peak can be attributed to functions.
+                if std::env::var_os("CALIPTRA_EMU_STACK_WATERMARK_LOG").is_some() {
+                    cpu.enable_stack_watermark_log();
+                }
+                // Opt-in, env-gated: record every SP change so any call sub-chain
+                // (e.g. ML-DSA sign) can be reconstructed frame-by-frame, even when
+                // it is not the globally deepest path.
+                if std::env::var_os("CALIPTRA_EMU_STACK_SP_TRACE").is_some() {
+                    cpu.enable_stack_sp_trace();
+                }
             }
             if params.sample_stack_traces {
                 cpu.stack_sampler = Some(StackSampler::new(params.stack_sample_rate));

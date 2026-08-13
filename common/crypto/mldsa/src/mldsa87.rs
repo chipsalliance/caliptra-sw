@@ -54,6 +54,17 @@ const K_GAMMA_2: u32 = (K_PRIME - 1) / 32;
 const BETA: u32 = 120;
 const OMEGA: usize = 75;
 
+/// Number of ML-DSA-87 matrix A polynomials cached across the signing rejection
+/// loop. A is 8 rows x 7 columns = 56 polynomials and depends only on `rho`, so
+/// caching avoids re-expanding these via SHAKE128 on every iteration — the
+/// dominant per-iteration cost. Each cached polynomial is 24-bit packed (768
+/// bytes vs 1024 unpacked) and the cache lives on the sign stack.
+const A_CACHE_POLYS: usize = 50;
+/// Bytes per 24-bit-packed cached polynomial (256 coeffs * 3 bytes).
+const A_CACHE_POLY_BYTES: usize = K_DEGREE * 3;
+/// Total A-cache size in bytes.
+const A_CACHE_BYTES: usize = A_CACHE_POLYS * A_CACHE_POLY_BYTES;
+
 /* Fundamental types. */
 
 #[derive(Clone, Copy)]
@@ -658,9 +669,43 @@ fn expand_s1_or_s2_ntt_mul_scalar(
     scalar_mul_assign(out, rhs);
 }
 
+/// Pack a scalar's coefficients — each is `< K_PRIME < 2^23` — as little-endian
+/// 24-bit values, 3 bytes each. The top bit is always zero (1 wasted bit per
+/// coefficient), traded for a trivial byte-aligned encoding.
+fn scalar_pack_24(out: &mut [u8], s: &Scalar) {
+    for (coeff, chunk) in s.c.iter().zip(out.chunks_exact_mut(3)) {
+        chunk[0] = *coeff as u8;
+        chunk[1] = (*coeff >> 8) as u8;
+        chunk[2] = (*coeff >> 16) as u8;
+    }
+}
+
+/// Inverse of [`scalar_pack_24`].
+fn scalar_unpack_24(out: &mut Scalar, in_bytes: &[u8]) {
+    for (coeff, chunk) in out.c.iter_mut().zip(in_bytes.chunks_exact(3)) {
+        *coeff = (chunk[0] as u32) | ((chunk[1] as u32) << 8) | ((chunk[2] as u32) << 16);
+    }
+}
+
+/// Expand and 24-bit-pack the first `A_CACHE_POLYS` polynomials of matrix A once,
+/// in the same column-major `(j, i)` order [`matrix87_expand_mul_mask`] visits
+/// them, so the rejection loop can reuse them instead of re-running SHAKE128.
+fn matrix87_cache_expand(cache: &mut [u8; A_CACHE_BYTES], rho: &[u8; K_RHO_BYTES]) {
+    let mut derived_seed = [0u8; K_RHO_BYTES + 2];
+    derived_seed[..K_RHO_BYTES].copy_from_slice(rho);
+    let mut m = Scalar::default();
+    for (idx, slot) in cache.chunks_exact_mut(A_CACHE_POLY_BYTES).enumerate() {
+        derived_seed[K_RHO_BYTES] = (idx / 8) as u8; // column j
+        derived_seed[K_RHO_BYTES + 1] = (idx % 8) as u8; // row i
+        scalar_from_keccak_vartime(&mut m, &derived_seed);
+        scalar_pack_24(slot, &m);
+    }
+}
+
 fn matrix87_expand_mul_mask(
     out: &mut Vector8,
     rho: &[u8; K_RHO_BYTES],
+    a_cache: &[u8; A_CACHE_BYTES],
     rho_prime: &[u8; K_RHO_PRIME_BYTES],
     kappa: usize,
 ) {
@@ -680,9 +725,17 @@ fn matrix87_expand_mul_mask(
 
         for (i, out_scalar) in out.v.iter_mut().enumerate() {
             let mut m_ij = Scalar::default();
-            derived_seed[K_RHO_BYTES + 1] = i as u8;
-            derived_seed[K_RHO_BYTES] = j as u8;
-            scalar_from_keccak_vartime(&mut m_ij, &derived_seed);
+            let idx = j * 8 + i;
+            if idx < A_CACHE_POLYS {
+                scalar_unpack_24(
+                    &mut m_ij,
+                    &a_cache[idx * A_CACHE_POLY_BYTES..(idx + 1) * A_CACHE_POLY_BYTES],
+                );
+            } else {
+                derived_seed[K_RHO_BYTES + 1] = i as u8;
+                derived_seed[K_RHO_BYTES] = j as u8;
+                scalar_from_keccak_vartime(&mut m_ij, &derived_seed);
+            }
             scalar_mul_add_assign(out_scalar, &m_ij, &y_j);
         }
     }
@@ -971,10 +1024,16 @@ fn sign_internal_with_mu(
     shake256.absorb(mu);
     shake256.squeeze(&mut rho_prime);
 
+    // Expand the (rho-derived, kappa-independent) prefix of matrix A once and
+    // reuse it across every rejection-loop iteration instead of re-running
+    // SHAKE128 for it each time.
+    let mut a_cache = [0u8; A_CACHE_BYTES];
+    matrix87_cache_expand(&mut a_cache, &priv_key.rho);
+
     let mut kappa = 0;
     loop {
         let mut tmp = Vector8::default();
-        matrix87_expand_mul_mask(&mut tmp, &priv_key.rho, &rho_prime, kappa);
+        matrix87_expand_mul_mask(&mut tmp, &priv_key.rho, &a_cache, &rho_prime, kappa);
         vector8_inverse_ntt(&mut tmp);
 
         let mut c_tilde = [0u8; 2 * LAMBDA_BYTES];
