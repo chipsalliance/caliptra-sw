@@ -37,7 +37,7 @@ fn encode_length(val: &[u8]) -> usize {
     1
 }
 
-/// Compute len of DER encoding of an unsinged integer
+/// Compute len of DER encoding of an unsigned integer
 #[inline(never)]
 pub fn der_uint_len(val: &[u8]) -> usize {
     let encode_length = encode_length(val);
