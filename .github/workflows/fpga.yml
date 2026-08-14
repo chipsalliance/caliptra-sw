@@ -203,7 +203,7 @@ jobs:
       - name: Download bitstream
         run: |
           HW="${{ inputs.hw-version }}"
-          if [ "$HW" != "1.0" ]; then HW="latest"; fi
+          if [ "$HW" = "1.0" ]; then HW="hw1.0"; else HW="latest"; fi
           TRNG="itrng"
           if [ "${{ inputs.fpga-itrng }}" == "false" ]; then TRNG="etrng"; fi
           cargo xtask ci bitstream-downloader "hw/fpga/bitstream_manifests/core-${HW}-${TRNG}.toml"
