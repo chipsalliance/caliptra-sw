@@ -3145,18 +3145,15 @@ fn cert_test_with_custom_dates() {
                 ..Default::default()
             },
             BootParams {
+                // Latch gen_idev_id_csr before ROM runs; setting it after boot
+                // races ROM on the FPGA subsystem model.
+                initial_dbg_manuf_service_reg: MfgFlags::GENERATE_IDEVID_CSR.bits(),
                 ..Default::default()
             },
         )
         .unwrap();
 
         let mut output = vec![];
-
-        // Set gen_idev_id_csr to generate CSR.
-        let flags = MfgFlags::GENERATE_IDEVID_CSR;
-        hw.soc_ifc()
-            .cptra_dbg_manuf_service_reg()
-            .write(|_| flags.bits());
 
         // Download the CSR Envelope from the mailbox.
         let idevid_csr_envelop = helpers::get_csr_envelop(&mut hw).unwrap();
@@ -3226,18 +3223,15 @@ fn cert_test() {
                 ..Default::default()
             },
             BootParams {
+                // Latch gen_idev_id_csr before ROM runs; setting it after boot
+                // races ROM on the FPGA subsystem model.
+                initial_dbg_manuf_service_reg: MfgFlags::GENERATE_IDEVID_CSR.bits(),
                 ..Default::default()
             },
         )
         .unwrap();
 
         let mut output = vec![];
-
-        // Set gen_idev_id_csr to generate CSR.
-        let flags = MfgFlags::GENERATE_IDEVID_CSR;
-        hw.soc_ifc()
-            .cptra_dbg_manuf_service_reg()
-            .write(|_| flags.bits());
 
         // Download the CSR Envelope from the mailbox.
         let csr_envelop = helpers::get_csr_envelop(&mut hw).unwrap();
@@ -3305,18 +3299,15 @@ fn cert_test_with_ueid() {
                 ..Default::default()
             },
             BootParams {
+                // Latch gen_idev_id_csr before ROM runs; setting it after boot
+                // races ROM on the FPGA subsystem model.
+                initial_dbg_manuf_service_reg: MfgFlags::GENERATE_IDEVID_CSR.bits(),
                 ..Default::default()
             },
         )
         .unwrap();
 
         let mut output = vec![];
-
-        // Set gen_idev_id_csr to generate CSR.
-        let flags = MfgFlags::GENERATE_IDEVID_CSR;
-        hw.soc_ifc()
-            .cptra_dbg_manuf_service_reg()
-            .write(|_| flags.bits());
 
         // Download the CSR Envelope from the mailbox.
         let csr_envelop = helpers::get_csr_envelop(&mut hw).unwrap();
