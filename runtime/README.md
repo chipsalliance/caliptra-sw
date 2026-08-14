@@ -1036,6 +1036,10 @@ Command Code: `0x494E_464F` ("INFO")
 | image_manifest_pqc_type     | u32      | PQC key type from image manifest. **Only present in FW 2.0.2+ and 2.1.1+.**                                                                         |
 | vendor_ecc384_pub_key_index | u32      | Index of the vendor ECC public key used for verification. **Only present in FW 2.0.2+ and 2.1.1+.**                                                 |
 | vendor_pqc_pub_key_index    | u32      | Index of the vendor PQC public key used for verification. **Only present in FW 2.0.2+ and 2.1.1+.**                                                 |
+| soc_manifest_current_svn    | u32      | SVN of the authorization manifest accepted by `SET_AUTH_MANIFEST`, or zero if none has been accepted.                                              |
+| soc_manifest_min_svn        | u32      | Minimum SoC manifest SVN encoded in `FUSE_SOC_MANIFEST_SVN` and enforced by `SET_AUTH_MANIFEST` when anti-rollback checks are enabled.               |
+| owner_auth_manifest_current_svn | u32   | SVN of the owner authorization manifest accepted by `SET_OWNER_AUTH_MANIFEST`, or zero if none has been accepted.                                  |
+| owner_auth_manifest_min_svn | u32      | Minimum owner authorization manifest SVN encoded in `SS_STRAP_GENERIC[3][15:8]` and enforced by `SET_OWNER_AUTH_MANIFEST` when anti-rollback checks are enabled. |
 
 ### VERSION
 

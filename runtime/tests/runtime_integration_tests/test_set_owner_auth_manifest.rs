@@ -5,6 +5,7 @@
 
 use crate::common::{run_rt_test, RuntimeTestArgs};
 use crate::test_authorize_and_stash::{set_auth_manifest, FW_ID_1, IMAGE_DIGEST1};
+use crate::test_info::get_fwinfo;
 use crate::test_set_auth_manifest::create_auth_manifest_with_metadata_with_svn;
 use crate::test_update_reset::update_fw;
 use caliptra_api::{
@@ -351,6 +352,9 @@ fn test_set_owner_auth_manifest_svn_floor_uses_strap_bits_15_8() {
         ..Default::default()
     });
     model.step_until_ready_for_runtime();
+    let info = get_fwinfo(&mut model);
+    assert_eq!(info.owner_auth_manifest_current_svn, 0);
+    assert_eq!(info.owner_auth_manifest_min_svn, MIN_SVN);
 
     let below_floor = build_owner_manifest(
         vec![make_entry(OWNER_ONLY_FW_ID, OWNER_ONLY_DIGEST)],
@@ -363,12 +367,17 @@ fn test_set_owner_auth_manifest_svn_floor_uses_strap_bits_15_8() {
         matches!(err, ModelError::MailboxCmdFailed(code) if code == expected),
         "expected owner manifest SVN below minimum, got {err:?}",
     );
+    assert_eq!(get_fwinfo(&mut model).owner_auth_manifest_current_svn, 0);
 
     let at_floor = build_owner_manifest(
         vec![make_entry(OWNER_ONLY_FW_ID, OWNER_ONLY_DIGEST)],
         MIN_SVN,
     );
     send_set_owner_auth_manifest(&mut model, &at_floor);
+    assert_eq!(
+        get_fwinfo(&mut model).owner_auth_manifest_current_svn,
+        MIN_SVN
+    );
 }
 
 #[test]

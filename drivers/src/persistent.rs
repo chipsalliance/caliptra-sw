@@ -417,8 +417,11 @@ pub struct PersistentData {
     #[cfg(feature = "runtime")]
     pub auth_manifest_digest: [u32; SHA384_HASH_SIZE / 4],
     #[cfg(feature = "runtime")]
+    // Survives warm and update resets and is cleared on cold reset with the manifest metadata.
+    pub auth_manifest_svn: u32,
+    #[cfg(feature = "runtime")]
     reserved9: [u8; AUTH_MAN_IMAGE_METADATA_MAX_SIZE as usize
-        - (SHA384_HASH_SIZE + size_of::<AuthManifestImageMetadataCollection>())],
+        - (SHA384_HASH_SIZE + size_of::<AuthManifestImageMetadataCollection>() + size_of::<u32>())],
 
     #[cfg(not(feature = "runtime"))]
     pub auth_manifest_image_metadata_col: [u8; AUTH_MAN_PERSISTENT_DATA_SIZE as usize],
@@ -428,8 +431,12 @@ pub struct PersistentData {
     #[cfg(feature = "runtime")]
     pub owner_auth_manifest_digest: [u32; SHA384_HASH_SIZE / 4],
     #[cfg(feature = "runtime")]
+    pub owner_auth_manifest_svn: u32,
+    #[cfg(feature = "runtime")]
     reserved_owner_auth_manifest: [u8; OWNER_AUTH_MAN_IMAGE_METADATA_MAX_SIZE as usize
-        - (SHA384_HASH_SIZE + size_of::<OwnerAuthManifestImageMetadataCollection>())],
+        - (SHA384_HASH_SIZE
+            + size_of::<OwnerAuthManifestImageMetadataCollection>()
+            + size_of::<u32>())],
     #[cfg(feature = "runtime")]
     reserved_auth_manifests: [u8; (AUTH_MAN_PERSISTENT_DATA_SIZE
         - AUTH_MAN_IMAGE_METADATA_MAX_SIZE
