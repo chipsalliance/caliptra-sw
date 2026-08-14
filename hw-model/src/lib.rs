@@ -217,6 +217,9 @@ pub struct SubsystemInitParams<'a> {
     // Initial contents of the primary flash memory (for flash-based boot testing)
     pub primary_flash_initial_contents: Option<&'a [u8]>,
 
+    // Whether to use external I3C host controller.
+    pub use_external_i3c_host: bool,
+
     // Override the lifecycle state provisioned into OTP. When set, this
     // takes priority over the security_state-derived lifecycle mapping.
     pub lc_state: Option<LifecycleControllerState>,
@@ -240,6 +243,7 @@ impl Default for SubsystemInitParams<'_> {
             num_prod_dbg_unlock_pk_hashes: Default::default(),
             prod_dbg_unlock_pk_hashes_offset: Default::default(),
             primary_flash_initial_contents: None,
+            use_external_i3c_host: false,
             lc_state: None,
             use_strap_secrets: false,
             target_provisioning_stage: Default::default(),
@@ -1568,6 +1572,12 @@ pub trait HwModel: SocManager {
         soc_manifest: Option<&[u8]>,
         mcu_firmware: Option<&[u8]>,
     ) -> Result<(), ModelError>;
+
+    fn enable_external_i3c_upload_firmware_rri(&mut self) -> Result<(), ModelError> {
+        unimplemented!(
+            "Firmware upload from an external I3C host is only supported with the FPGA setup."
+        )
+    }
 
     /// Upload fw image to RRI.
     fn upload_firmware_rri(

@@ -7,7 +7,7 @@ use crate::api_types::{DeviceLifecycle, Fuses};
 use crate::bmc::Bmc;
 use crate::fpga_regs::{
     Control, FifoData, FifoRegs, FifoStatus, FlashControl, FlashCtrlRegs, FlashOpStatus,
-    ItrngFifoStatus, WrapperRegs,
+    ItrngFifoStatus, SpareI3cControlSts, WrapperRegs,
 };
 use crate::keys::{DEFAULT_LIFECYCLE_RAW_TOKENS, DEFAULT_MANUF_DEBUG_UNLOCK_RAW_TOKEN};
 use crate::mcu_boot_status::McuBootMilestones;
@@ -423,6 +423,8 @@ pub struct ModelFpgaSubsystem {
     pub secondary_flash: Vec<u8>,
     // whether or not to attempt flash boot instead of streaming boot
     pub flash_boot: bool,
+    // whether or not to use external I3C host instead of soft IP
+    pub use_external_i3c_host: bool,
     pub target_provisioning_stage: ProvisioningStage,
 
     // Saved init params needed for cold_reset re-initialization
@@ -1963,6 +1965,7 @@ impl HwModel for ModelFpgaSubsystem {
                 .ss_init_params
                 .primary_flash_initial_contents
                 .is_some(),
+            use_external_i3c_host: params.ss_init_params.use_external_i3c_host,
             target_provisioning_stage: params.ss_init_params.target_provisioning_stage,
 
             saved_input_wires,
@@ -1982,6 +1985,12 @@ impl HwModel for ModelFpgaSubsystem {
             saved_lc_state: params.ss_init_params.lc_state,
             saved_use_strap_secrets: params.ss_init_params.use_strap_secrets,
         };
+
+        if m.flash_boot && m.use_external_i3c_host {
+            eprintln!(
+                "Warning: `use_external_i3c_host` does not make sense when flash boot is enabled (`primary_flash_initial_contents` is some)."
+            );
+        }
 
         println!("AXI reset");
         m.axi_reset();
@@ -2230,6 +2239,8 @@ impl HwModel for ModelFpgaSubsystem {
                     );
                 }
             }
+        } else if self.use_external_i3c_host {
+            self.enable_external_i3c_upload_firmware_rri().unwrap();
         } else {
             self.upload_firmware_rri(
                 boot_params.fw_image.unwrap(),
@@ -2294,6 +2305,31 @@ impl HwModel for ModelFpgaSubsystem {
     fn subsystem_mode(&mut self) -> bool {
         // we only support subsystem mode
         true
+    }
+
+    fn enable_external_i3c_upload_firmware_rri(&mut self) -> Result<(), ModelError> {
+        println!("Wait for Caliptra I3C controller to come up.");
+        while !self.i3c_target_configured() {
+            self.step();
+        }
+        println!("Set mux to use external I3C host.");
+        self.wrapper
+            .regs()
+            .spare_i3c_control_sts
+            .modify(SpareI3cControlSts::UseExtI3cHost::SET);
+
+        // Call ROM callback before informing MCU ROM it can load firmware.
+        if let Some(cb) = self.rom_callback.take() {
+            cb(self);
+        }
+
+        // Notify MCU ROM it can start loading firmware.
+        let gpio = &self.wrapper.regs().mci_generic_input_wires[1];
+        let current = gpio.extract().get();
+        // MCU ROM will wait after reaching the mailbox for this bit before booting RT.
+        gpio.set(current | 1 << 31);
+
+        Ok(())
     }
 
     fn upload_firmware_rri(
