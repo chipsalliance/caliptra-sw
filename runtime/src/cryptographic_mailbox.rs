@@ -1045,6 +1045,10 @@ impl Commands {
             &mut drivers.trng,
             encrypted_cmk,
         )?;
+        let key_usage = CmKeyUsage::from(cmk.key_usage as u32);
+        if !matches!(key_usage, CmKeyUsage::Aes) {
+            Err(CaliptraError::RUNTIME_CMB_INVALID_KEY_USAGE_AND_SIZE)?;
+        }
         let (key, _) = LEArray4x8::ref_from_prefix(&cmk.key_material).unwrap();
         let iv: [u8; 16] = drivers.trng.generate()?.as_bytes()[..16]
             .try_into()
@@ -1157,6 +1161,10 @@ impl Commands {
             &mut drivers.trng,
             encrypted_cmk,
         )?;
+        let key_usage = CmKeyUsage::from(cmk.key_usage as u32);
+        if !matches!(key_usage, CmKeyUsage::Aes) {
+            Err(CaliptraError::RUNTIME_CMB_INVALID_KEY_USAGE_AND_SIZE)?;
+        }
         let (key, _) = LEArray4x8::ref_from_prefix(&cmk.key_material).unwrap();
         let resp = mutrefbytes::<CmAesResp>(resp)?;
         let iv = LEArray4x4::ref_from_bytes(&cmd.iv[..]).unwrap();
