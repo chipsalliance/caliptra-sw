@@ -2965,6 +2965,11 @@ impl CaliptraError {
             0xa006_0005,
             "UDS FE Zeroization Failed"
         ),
+        (
+            UDS_FE_PROGRAMMING_OTP_ERROR,
+            0xa006_0006,
+            "UDS FE Error: OTP programming operation failed"
+        ),
     ];
 }
 
