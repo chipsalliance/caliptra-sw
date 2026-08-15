@@ -284,6 +284,7 @@ impl FirmwareProcessor {
         let subsystem_mode = soc_ifc.subsystem_mode();
 
         cprintln!("[fwproc] Wait for Commands...");
+        soc_ifc.flow_status_set_ready_for_mb_processing();
         loop {
             // Random delay for CFI glitch protection.
             CfiCounter::delay();
