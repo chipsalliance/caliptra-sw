@@ -19,7 +19,8 @@ use caliptra_dpe::{
         GetProfileCmd, InitCtxCmd, RotateCtxCmd, RotateCtxFlags,
     },
     context::ContextHandle,
-    response::{DpeErrorCode, Response, SignResp},
+    error::DpeErrorCode,
+    response::{Response, SignResp},
 };
 use caliptra_drivers::CaliptraError;
 use caliptra_hw_model::{DefaultHwModel, HwModel, SecurityState};
@@ -511,7 +512,7 @@ fn test_invoke_dpe_export_cdi_with_non_critical_dice_extensions() {
             panic!("expected derive context resp!");
         };
         check_dice_extension_criticality(
-            &resp.new_certificate[..resp.certificate_size.try_into().unwrap()],
+            &resp.new_certificate[..resp.header.certificate_size.try_into().unwrap()],
             false,
         );
     }

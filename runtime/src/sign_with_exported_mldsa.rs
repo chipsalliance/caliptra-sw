@@ -8,12 +8,11 @@ use caliptra_common::cfi_check;
 use caliptra_common::mailbox_api::{
     MailboxRespHeader, MldsaSignType, SignWithExportedMldsaReq, SignWithExportedMldsaResp,
 };
-use caliptra_drivers::okref;
 use caliptra_error::{CaliptraError, CaliptraResult};
 
 use caliptra_dpe::MAX_EXPORTED_CDI_SIZE;
-use caliptra_dpe_crypto::ml_dsa::{MldsaPublicKey, MldsaSignature};
-use caliptra_dpe_crypto::{Crypto, Mu, PubKey, SignData, Signature};
+use caliptra_dpe_crypto::ml_dsa::{MldsaAlgorithm, MldsaPublicKey, MldsaSignature};
+use caliptra_dpe_crypto::{Crypto, Mu, PubKey, SignData, Signature, SignatureAlgorithm};
 use zerocopy::FromBytes;
 
 const PROFILE_DESC: &[u8] = b"Exported ML-DSA";
@@ -43,24 +42,28 @@ impl SignWithExportedMldsaCmd {
         let signer = key_pair
             .map_err(|_| CaliptraError::RUNTIME_SIGN_WITH_EXPORTED_MLDSA_KEY_DERIVIATION_FAILED)?;
 
-        let pub_key = signer.public_key();
-        let pub_key = okref(&pub_key)
-            .map_err(|_| CaliptraError::RUNTIME_SIGN_WITH_EXPORTED_MLDSA_KEY_DERIVIATION_FAILED)?;
+        {
+            let mut pub_key = PubKey::Mldsa(MldsaPublicKey([0u8; 2592]));
+            signer.public_key(&mut pub_key).map_err(|_| {
+                CaliptraError::RUNTIME_SIGN_WITH_EXPORTED_MLDSA_KEY_DERIVIATION_FAILED
+            })?;
+            let PubKey::Mldsa(MldsaPublicKey(pubkey_bytes)) = pub_key else {
+                return Err(CaliptraError::RUNTIME_SIGN_WITH_EXPORTED_MLDSA_INVALID_SIGNATURE);
+            };
+            resp.derived_pubkey.copy_from_slice(&pubkey_bytes);
+        }
 
-        let sig = signer.sign(data);
-        let sig = okref(&sig)
-            .map_err(|_| CaliptraError::RUNTIME_SIGN_WITH_EXPORTED_MLDSA_SIGNATURE_FAILED)?;
+        {
+            let mut sig = Signature::zeroed(SignatureAlgorithm::Mldsa(MldsaAlgorithm::Mldsa87));
+            signer
+                .sign(data, &mut sig)
+                .map_err(|_| CaliptraError::RUNTIME_SIGN_WITH_EXPORTED_MLDSA_SIGNATURE_FAILED)?;
+            let Signature::Mldsa(MldsaSignature(sig_bytes)) = sig else {
+                return Err(CaliptraError::RUNTIME_SIGN_WITH_EXPORTED_MLDSA_INVALID_SIGNATURE);
+            };
+            resp.signature.copy_from_slice(&sig_bytes);
+        }
 
-        let (
-            Signature::Mldsa(MldsaSignature(sig_bytes)),
-            PubKey::Mldsa(MldsaPublicKey(pubkey_bytes)),
-        ) = (sig, pub_key)
-        else {
-            return Err(CaliptraError::RUNTIME_SIGN_WITH_EXPORTED_MLDSA_INVALID_SIGNATURE);
-        };
-
-        resp.derived_pubkey.copy_from_slice(pubkey_bytes);
-        resp.signature.copy_from_slice(sig_bytes);
         resp.hdr = MailboxRespHeader::default();
 
         Ok(())
