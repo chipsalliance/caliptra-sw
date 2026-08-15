@@ -479,7 +479,14 @@ fn smoke_test() {
             hasher.update(&[fw_svn as u8]);
             hasher.update(&[image.manifest.header.vendor_ecc_pub_key_idx as u8]);
             hasher.update(&[image.manifest.header.vendor_pqc_pub_key_idx as u8]);
-            hasher.update(&[hw.subsystem_mode() as u8]);
+            if !matches!(
+                caliptra_builder::get_ci_rom_version(),
+                caliptra_builder::CiRomVersion::Rom2_1_0
+                    | caliptra_builder::CiRomVersion::Rom2_1_1
+                    | caliptra_builder::CiRomVersion::Rom2_1_2
+            ) {
+                hasher.update(&[hw.subsystem_mode() as u8]);
+            }
             let vendor_info_hash = hasher.finish();
 
             let fmc_expected_tcb_info = [

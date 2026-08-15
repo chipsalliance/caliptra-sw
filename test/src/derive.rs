@@ -784,29 +784,35 @@ impl Pcr0 {
             *value = sha384(&[value.as_slice(), buf].concat());
         };
 
-        extend(
-            &mut value,
-            &[
-                input.owner_pub_key_hash_in_fuses as u8,
-                input.anti_rollback_disable as u8,
-                input.vendor_ecc_pub_key_revocation,
-                input.vendor_lms_pub_key_revocation.to_le_bytes()[0],
-                input.vendor_lms_pub_key_revocation.to_le_bytes()[1],
-                input.vendor_lms_pub_key_revocation.to_le_bytes()[2],
-                input.vendor_lms_pub_key_revocation.to_le_bytes()[3],
-                input.vendor_mldsa_pub_key_revocation,
-                input.fw_fuse_svn,
-                input.soc_manifest_fuse_svn,
-                input.max_soc_manifest_fuse_svn,
-                input.pqc_key_type,
-                input.lifecycle,
-                input.debug_locked,
-                input.fw_svn,
-                input.vendor_ecc_pk_index,
-                input.vendor_pqc_pk_index,
-                input.subsystem_mode,
-            ],
-        );
+        let mut device_status = vec![
+            input.owner_pub_key_hash_in_fuses as u8,
+            input.anti_rollback_disable as u8,
+            input.vendor_ecc_pub_key_revocation,
+            input.vendor_lms_pub_key_revocation.to_le_bytes()[0],
+            input.vendor_lms_pub_key_revocation.to_le_bytes()[1],
+            input.vendor_lms_pub_key_revocation.to_le_bytes()[2],
+            input.vendor_lms_pub_key_revocation.to_le_bytes()[3],
+            input.vendor_mldsa_pub_key_revocation,
+            input.fw_fuse_svn,
+            input.soc_manifest_fuse_svn,
+            input.max_soc_manifest_fuse_svn,
+            input.pqc_key_type,
+            input.lifecycle,
+            input.debug_locked,
+            input.fw_svn,
+            input.vendor_ecc_pk_index,
+            input.vendor_pqc_pk_index,
+        ];
+        if !matches!(
+            caliptra_builder::get_ci_rom_version(),
+            caliptra_builder::CiRomVersion::Rom2_1_0
+                | caliptra_builder::CiRomVersion::Rom2_1_1
+                | caliptra_builder::CiRomVersion::Rom2_1_2
+        ) {
+            device_status.push(input.subsystem_mode);
+        }
+
+        extend(&mut value, &device_status);
         extend(
             &mut value,
             swap_word_bytes(&input.vendor_pub_key_hash).as_bytes(),
@@ -854,13 +860,28 @@ fn test_derive_pcr0() {
         vendor_pqc_pk_index: 8,
         subsystem_mode: 0,
     });
-    assert_eq!(
-        pcr0,
-        Pcr0([
-            3663688547, 292490323, 2989019511, 1238385844, 3324789810, 1099712823, 752274733,
-            1844697096, 3223280379, 1397148399, 1640486654, 1743252165
-        ])
-    )
+    if matches!(
+        caliptra_builder::get_ci_rom_version(),
+        caliptra_builder::CiRomVersion::Rom2_1_0
+            | caliptra_builder::CiRomVersion::Rom2_1_1
+            | caliptra_builder::CiRomVersion::Rom2_1_2
+    ) {
+        assert_eq!(
+            pcr0,
+            Pcr0([
+                105088857, 944151149, 2604353809, 791137423, 1712852176, 1628755509, 3990671566,
+                2052346331, 640093718, 3145303069, 2197324478, 520085314
+            ])
+        );
+    } else {
+        assert_eq!(
+            pcr0,
+            Pcr0([
+                3663688547, 292490323, 2989019511, 1238385844, 3324789810, 1099712823, 752274733,
+                1844697096, 3223280379, 1397148399, 1640486654, 1743252165
+            ])
+        );
+    }
 }
 
 pub struct PcrRtCurrentInput {

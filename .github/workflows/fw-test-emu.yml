@@ -69,6 +69,7 @@ jobs:
             case "${{ inputs.rom-version }}" in
               "2.1.0") export FIPS_TEST_ROM_EXP_VERSION="2_1_0" ;;
               "2.1.1") export FIPS_TEST_ROM_EXP_VERSION="2_1_1" ;;
+              "2.1.2") export FIPS_TEST_ROM_EXP_VERSION="2_1_2" ;;
               *) echo "Unknown rom-version ${{ inputs.rom-version }} for FIPS_TEST_ROM_EXP_VERSION"; exit 1 ;;
             esac
           fi
