@@ -335,6 +335,7 @@ fn test_get_cert_extension() {
     );
 }
 
+#[allow(clippy::result_large_err)]
 pub(crate) fn replace_sig<'a>(
     cert_der: &'a [u8],
     new_sig: &[u8],

@@ -171,7 +171,7 @@ impl<'a> MlKem1024<'a> {
         };
 
         // Wait for either the given condition or the error condition
-        wait::until(|| (condition() || err_condition()));
+        wait::until(|| condition() || err_condition());
 
         if err_condition() {
             // Clear the errors

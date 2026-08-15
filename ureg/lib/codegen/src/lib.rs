@@ -827,7 +827,7 @@ pub fn generate_code(block: &ValidatedRegisterBlock, options: Options) -> TokenS
                     /// Returns a register block that can be used to read
                     /// registers from this peripheral, but cannot write.
                     #[inline(always)]
-                    pub fn regs(&self) -> RegisterBlock<caliptra_ureg::RealMmio> {
+                    pub fn regs(&self) -> RegisterBlock<caliptra_ureg::RealMmio<'_>> {
                         RegisterBlock{
                             ptr: Self::PTR,
                             mmio: core::default::Default::default(),
@@ -837,7 +837,7 @@ pub fn generate_code(block: &ValidatedRegisterBlock, options: Options) -> TokenS
                     /// Return a register block that can be used to read and
                     /// write this peripheral's registers.
                     #[inline(always)]
-                    pub fn regs_mut(&mut self) -> RegisterBlock<caliptra_ureg::RealMmioMut> {
+                    pub fn regs_mut(&mut self) -> RegisterBlock<caliptra_ureg::RealMmioMut<'_>> {
                         RegisterBlock{
                             ptr: Self::PTR,
                             mmio: core::default::Default::default(),
@@ -917,6 +917,7 @@ pub fn generate_code(block: &ValidatedRegisterBlock, options: Options) -> TokenS
         #![allow(clippy::doc_lazy_continuation)]
         #![allow(clippy::erasing_op)]
         #![allow(clippy::identity_op)]
+        #![allow(clippy::zero_ptr)]
 
         #instance_type_tokens
 
@@ -992,7 +993,7 @@ fn generate_subblock_code(
                 /// Returns a register block that can be used to read
                 /// registers from this peripheral, but cannot write.
                 #[inline(always)]
-                pub fn regs(&self) -> RegisterBlock<caliptra_ureg::RealMmio> {
+                pub fn regs(&self) -> RegisterBlock<caliptra_ureg::RealMmio<'_>> {
                     RegisterBlock{
                         ptr: Self::PTR,
                         mmio: core::default::Default::default(),
@@ -1002,7 +1003,7 @@ fn generate_subblock_code(
                 /// Return a register block that can be used to read and
                 /// write this peripheral's registers.
                 #[inline(always)]
-                pub fn regs_mut(&mut self) -> RegisterBlock<caliptra_ureg::RealMmioMut> {
+                pub fn regs_mut(&mut self) -> RegisterBlock<caliptra_ureg::RealMmioMut<'_>> {
                     RegisterBlock{
                         ptr: Self::PTR,
                         mmio: core::default::Default::default(),

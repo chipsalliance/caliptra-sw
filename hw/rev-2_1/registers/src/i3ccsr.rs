@@ -5,6 +5,7 @@
 #![allow(clippy::doc_lazy_continuation)]
 #![allow(clippy::erasing_op)]
 #![allow(clippy::identity_op)]
+#![allow(clippy::zero_ptr)]
 /// A zero-sized type that represents ownership of this
 /// peripheral, used to get access to a Register lock. Most
 /// programs create one of these in unsafe code near the top of
@@ -28,7 +29,7 @@ impl I3ccsr {
     /// Returns a register block that can be used to read
     /// registers from this peripheral, but cannot write.
     #[inline(always)]
-    pub fn regs(&self) -> RegisterBlock<caliptra_ureg::RealMmio> {
+    pub fn regs(&self) -> RegisterBlock<caliptra_ureg::RealMmio<'_>> {
         RegisterBlock {
             ptr: Self::PTR,
             mmio: core::default::Default::default(),
@@ -37,7 +38,7 @@ impl I3ccsr {
     /// Return a register block that can be used to read and
     /// write this peripheral's registers.
     #[inline(always)]
-    pub fn regs_mut(&mut self) -> RegisterBlock<caliptra_ureg::RealMmioMut> {
+    pub fn regs_mut(&mut self) -> RegisterBlock<caliptra_ureg::RealMmioMut<'_>> {
         RegisterBlock {
             ptr: Self::PTR,
             mmio: core::default::Default::default(),
@@ -2053,7 +2054,7 @@ impl I3cbase {
     /// Returns a register block that can be used to read
     /// registers from this peripheral, but cannot write.
     #[inline(always)]
-    pub fn regs(&self) -> RegisterBlock<caliptra_ureg::RealMmio> {
+    pub fn regs(&self) -> RegisterBlock<caliptra_ureg::RealMmio<'_>> {
         RegisterBlock {
             ptr: Self::PTR,
             mmio: core::default::Default::default(),
@@ -2062,7 +2063,7 @@ impl I3cbase {
     /// Return a register block that can be used to read and
     /// write this peripheral's registers.
     #[inline(always)]
-    pub fn regs_mut(&mut self) -> RegisterBlock<caliptra_ureg::RealMmioMut> {
+    pub fn regs_mut(&mut self) -> RegisterBlock<caliptra_ureg::RealMmioMut<'_>> {
         RegisterBlock {
             ptr: Self::PTR,
             mmio: core::default::Default::default(),
@@ -2092,7 +2093,7 @@ impl Piocontrol {
     /// Returns a register block that can be used to read
     /// registers from this peripheral, but cannot write.
     #[inline(always)]
-    pub fn regs(&self) -> RegisterBlock<caliptra_ureg::RealMmio> {
+    pub fn regs(&self) -> RegisterBlock<caliptra_ureg::RealMmio<'_>> {
         RegisterBlock {
             ptr: Self::PTR,
             mmio: core::default::Default::default(),
@@ -2101,7 +2102,7 @@ impl Piocontrol {
     /// Return a register block that can be used to read and
     /// write this peripheral's registers.
     #[inline(always)]
-    pub fn regs_mut(&mut self) -> RegisterBlock<caliptra_ureg::RealMmioMut> {
+    pub fn regs_mut(&mut self) -> RegisterBlock<caliptra_ureg::RealMmioMut<'_>> {
         RegisterBlock {
             ptr: Self::PTR,
             mmio: core::default::Default::default(),
@@ -2131,7 +2132,7 @@ impl I3cEc {
     /// Returns a register block that can be used to read
     /// registers from this peripheral, but cannot write.
     #[inline(always)]
-    pub fn regs(&self) -> RegisterBlock<caliptra_ureg::RealMmio> {
+    pub fn regs(&self) -> RegisterBlock<caliptra_ureg::RealMmio<'_>> {
         RegisterBlock {
             ptr: Self::PTR,
             mmio: core::default::Default::default(),
@@ -2140,7 +2141,7 @@ impl I3cEc {
     /// Return a register block that can be used to read and
     /// write this peripheral's registers.
     #[inline(always)]
-    pub fn regs_mut(&mut self) -> RegisterBlock<caliptra_ureg::RealMmioMut> {
+    pub fn regs_mut(&mut self) -> RegisterBlock<caliptra_ureg::RealMmioMut<'_>> {
         RegisterBlock {
             ptr: Self::PTR,
             mmio: core::default::Default::default(),
@@ -2170,7 +2171,7 @@ impl Secfwrecoveryif {
     /// Returns a register block that can be used to read
     /// registers from this peripheral, but cannot write.
     #[inline(always)]
-    pub fn regs(&self) -> RegisterBlock<caliptra_ureg::RealMmio> {
+    pub fn regs(&self) -> RegisterBlock<caliptra_ureg::RealMmio<'_>> {
         RegisterBlock {
             ptr: Self::PTR,
             mmio: core::default::Default::default(),
@@ -2179,7 +2180,7 @@ impl Secfwrecoveryif {
     /// Return a register block that can be used to read and
     /// write this peripheral's registers.
     #[inline(always)]
-    pub fn regs_mut(&mut self) -> RegisterBlock<caliptra_ureg::RealMmioMut> {
+    pub fn regs_mut(&mut self) -> RegisterBlock<caliptra_ureg::RealMmioMut<'_>> {
         RegisterBlock {
             ptr: Self::PTR,
             mmio: core::default::Default::default(),

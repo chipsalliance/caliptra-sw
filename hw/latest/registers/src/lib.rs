@@ -6,6 +6,7 @@
 #![allow(clippy::doc_lazy_continuation)]
 #![allow(clippy::erasing_op)]
 #![allow(clippy::identity_op)]
+#![allow(clippy::zero_ptr)]
 pub mod regs {
     //! Types that represent the values held by registers.
     #[derive(Clone, Copy)]

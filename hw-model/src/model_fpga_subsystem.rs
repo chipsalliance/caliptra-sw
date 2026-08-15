@@ -557,10 +557,7 @@ impl ModelFpgaSubsystem {
         println!("Putting subsystem into reset");
         self.set_subsystem_reset(true);
 
-        // Declaring this vec! gets LLVM to emit a memcpy. Otherwise, writes
-        // to the FPGA block RAM fail with a SIGBUS fault.
-        let zeroed_otp = vec![0u8; OTP_SIZE];
-        self.otp_slice().copy_from_slice(&zeroed_otp);
+        self.write_otp_memory(&vec![0u8; OTP_SIZE]);
         self.init_otp_with_lc_override(Some(&security_state), lc_state)
             .expect("Failed to initialize OTP");
 
@@ -1496,7 +1493,7 @@ impl ModelFpgaSubsystem {
         security_state: Option<&SecurityState>,
         lc_state_override: Option<LifecycleControllerState>,
     ) -> Result<(), Box<dyn Error>> {
-        let mut otp_data = self.otp_slice().to_vec();
+        let mut otp_data = self.read_otp_memory();
         if !self.otp_init.is_empty() {
             // write the initial contents of the OTP memory
             println!("Initializing OTP with initialized data");
@@ -1697,9 +1694,30 @@ impl ModelFpgaSubsystem {
             otp_data[otp::CPTRA_CORE_SOC_MANIFEST_MAX_SVN_OFFSET] = self.fuses.soc_manifest_max_svn;
         }
 
-        self.otp_slice().copy_from_slice(&otp_data);
+        self.write_otp_memory(&otp_data);
 
         Ok(())
+    }
+
+    // The FPGA OTP backdoor only supports 32-bit MMIO accesses. Volatile word operations prevent
+    // LLVM from replacing these loops with byte or vectorized memory accesses.
+    fn read_otp_memory(&self) -> Vec<u8> {
+        let mut data = Vec::with_capacity(OTP_SIZE);
+        let otp_words = self.otp_mem_backdoor.cast::<u32>();
+        for index in 0..OTP_SIZE / core::mem::size_of::<u32>() {
+            let word = unsafe { otp_words.add(index).read_volatile() };
+            data.extend_from_slice(&word.to_ne_bytes());
+        }
+        data
+    }
+
+    fn write_otp_memory(&self, data: &[u8]) {
+        assert_eq!(data.len(), OTP_SIZE);
+        let otp_words = self.otp_mem_backdoor.cast::<u32>();
+        for (index, chunk) in data.chunks_exact(core::mem::size_of::<u32>()).enumerate() {
+            let word = u32::from_ne_bytes(chunk.try_into().unwrap());
+            unsafe { otp_words.add(index).write_volatile(word) };
+        }
     }
 
     pub fn otp_slice(&self) -> &mut [u8] {

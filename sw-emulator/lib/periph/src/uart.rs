@@ -67,7 +67,7 @@ impl Bus for Uart {
     /// # Error
     ///
     /// * `RvException` - Exception with cause `RvExceptionCause::LoadAccessFault`
-    ///                   or `RvExceptionCause::LoadAddrMisaligned`
+    ///   or `RvExceptionCause::LoadAddrMisaligned`
     fn read(&mut self, size: RvSize, addr: RvAddr) -> Result<RvData, BusError> {
         match (size, addr) {
             (RvSize::Byte, Uart::ADDR_BIT_RATE) => Ok(self.bit_rate as RvData),
@@ -89,7 +89,7 @@ impl Bus for Uart {
     /// # Error
     ///
     /// * `RvException` - Exception with cause `RvExceptionCause::StoreAccessFault`
-    ///                   or `RvExceptionCause::StoreAddrMisaligned`
+    ///   or `RvExceptionCause::StoreAddrMisaligned`
     fn write(&mut self, size: RvSize, addr: RvAddr, value: RvData) -> Result<(), BusError> {
         match (size, addr) {
             (RvSize::Byte, Uart::ADDR_BIT_RATE) => self.bit_rate = value as u8,
