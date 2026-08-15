@@ -27,6 +27,8 @@ use caliptra_dpe_crypto::{
     CdiManager, Crypto, CryptoError, CryptoSuite, Digest, DigestAlgorithm, DigestType, PubKey,
     SignData, SignDataAlgorithm, SignDataType, Signature, SignatureAlgorithm, SignatureType,
 };
+use caliptra_dpe_response_buffer::ResponseBufError;
+use caliptra_drivers::sha2_512_384::Sha2DigestOpTrait;
 use caliptra_drivers::{
     hmac_kdf, okref, sha2_512_384::DpeHasher, Array4x12, Ecc384, Ecc384PrivKeyIn, Ecc384PubKey,
     Ecc384Scalar, Ecc384Seed, ExportedCdiEntry, ExportedCdiHandles, Hmac, HmacMode, KeyId,
@@ -227,11 +229,15 @@ impl DpeCrypto<'_> {
         data: &SignData,
         priv_key: &KeyId,
         pub_key: &PubKey,
-    ) -> Result<Signature, CryptoError> {
+        out: &mut Signature,
+    ) -> Result<(), CryptoError> {
         let priv_key_args = KeyReadArgs::new(*priv_key);
         let ecc_priv_key = Ecc384PrivKeyIn::Key(priv_key_args);
 
         let PubKey::Ecdsa(EcdsaPubKey::Ecdsa384(EcdsaPub384 { x, y })) = pub_key else {
+            return Err(CryptoError::MismatchedAlgorithm);
+        };
+        let Signature::Ecdsa(EcdsaSignature::Ecdsa384(out_sig)) = out else {
             return Err(CryptoError::MismatchedAlgorithm);
         };
         let ecc_pub_key = Ecc384PubKey {
@@ -245,15 +251,28 @@ impl DpeCrypto<'_> {
             SignData::Raw(msg) => sha2_512_384
                 .sha384_digest(msg)
                 .map_err(|_| CryptoError::HashError(0))?,
+            SignData::ResponseBuffer(buf, range) => {
+                let mut op = sha2_512_384
+                    .sha384_digest_init()
+                    .map_err(|_| CryptoError::HashError(0))?;
+                buf.read_range(range.clone(), &mut |d| {
+                    op.update(d).map_err(|_| ResponseBufError::Overflow)
+                })
+                .map_err(|_| CryptoError::HashError(0))?;
+
+                let mut digest = Array4x12::default();
+                op.finalize(&mut digest)
+                    .map_err(|_| CryptoError::HashError(0))?;
+                digest
+            }
             _ => return Err(CryptoError::MismatchedAlgorithm),
         };
         let sig = ecc384
             .sign(ecc_priv_key, &ecc_pub_key, &digest, trng)
             .map_err(|e| CryptoError::CryptoLibError(u32::from(e)));
         let sig = okref(&sig)?;
-        Ok(Signature::Ecdsa(EcdsaSignature::Ecdsa384(
-            EcdsaSignature384::from_slice(&sig.r.into(), &sig.s.into()),
-        )))
+        *out_sig = EcdsaSignature384::from_slice(&sig.r.into(), &sig.s.into());
+        Ok(())
     }
 
     #[inline(never)]
@@ -263,11 +282,15 @@ impl DpeCrypto<'_> {
         data: &SignData,
         priv_key: &KeyId,
         pub_key: &PubKey,
-    ) -> Result<Signature, CryptoError> {
+        out: &mut Signature,
+    ) -> Result<(), CryptoError> {
         let priv_key_args = KeyReadArgs::new(*priv_key);
         let priv_key = Mldsa87Seed::Key(priv_key_args);
 
         let PubKey::Mldsa(MldsaPublicKey(pub_key)) = pub_key else {
+            return Err(CryptoError::MismatchedAlgorithm);
+        };
+        let Signature::Mldsa(MldsaSignature(out_sig)) = out else {
             return Err(CryptoError::MismatchedAlgorithm);
         };
         let pub_key = Mldsa87PubKey::from(pub_key);
@@ -285,9 +308,8 @@ impl DpeCrypto<'_> {
         };
         let sig = okref(&sig).map_err(|e| CryptoError::CryptoLibError(u32::from(e)))?;
 
-        let mut dpe_sig = [0u8; 4627];
-        dpe_sig.copy_from_slice(&sig.as_bytes()[..4627]);
-        Ok(Signature::Mldsa(MldsaSignature(dpe_sig)))
+        out_sig.copy_from_slice(&sig.as_bytes()[..4627]);
+        Ok(())
     }
 
     fn sign_helper(
@@ -297,14 +319,15 @@ impl DpeCrypto<'_> {
         data: &SignData,
         priv_key: &KeyId,
         pub_key: &PubKey,
-    ) -> Result<Signature, CryptoError> {
+        out: &mut Signature,
+    ) -> Result<(), CryptoError> {
         match signer {
             Signer::Ec(ecc384) => {
-                Self::sign_ec(ecc384, hasher.driver(), trng, data, priv_key, pub_key)
+                Self::sign_ec(ecc384, hasher.driver(), trng, data, priv_key, pub_key, out)
             }
             Signer::Mldsa(abr_reg) => {
                 let mut mldsa = Mldsa87::new(abr_reg);
-                Self::sign_mldsa(&mut mldsa, trng, data, priv_key, pub_key)
+                Self::sign_mldsa(&mut mldsa, trng, data, priv_key, pub_key, out)
             }
         }
     }
@@ -421,7 +444,7 @@ impl Crypto for DpeCrypto<'_> {
         Ok(self)
     }
 
-    fn sign_with_alias(&mut self, data: &SignData) -> Result<Signature, CryptoError> {
+    fn sign_with_alias(&mut self, data: &SignData, out: &mut Signature) -> Result<(), CryptoError> {
         Self::sign_helper(
             &mut self.signer,
             &mut self.hasher,
@@ -429,6 +452,7 @@ impl Crypto for DpeCrypto<'_> {
             data,
             &self.key_id_rt_priv_key,
             &self.rt_pub_key,
+            out,
         )
     }
 }
@@ -453,7 +477,7 @@ impl CdiManager for DpeCrypto<'_> {
 }
 
 impl caliptra_dpe_crypto::Signer for DpeCrypto<'_> {
-    fn sign(&mut self, data: &SignData) -> Result<Signature, CryptoError> {
+    fn sign(&mut self, data: &SignData, out: &mut Signature) -> Result<(), CryptoError> {
         let Some((priv_key, pub_key)) = &self.derived_key else {
             return Err(CryptoError::CryptoLibError(3));
         };
@@ -464,14 +488,28 @@ impl caliptra_dpe_crypto::Signer for DpeCrypto<'_> {
             data,
             priv_key,
             pub_key,
+            out,
         )
     }
 
-    fn public_key(&mut self) -> Result<PubKey, CryptoError> {
+    fn public_key(&mut self, out: &mut PubKey) -> Result<(), CryptoError> {
         let Some((_, pub_key)) = &self.derived_key else {
             return Err(CryptoError::CryptoLibError(4));
         };
-        Ok(pub_key.clone())
+        match (out, pub_key) {
+            (
+                PubKey::Ecdsa(EcdsaPubKey::Ecdsa384(out_pk)),
+                PubKey::Ecdsa(EcdsaPubKey::Ecdsa384(pk)),
+            ) => {
+                *out_pk = pk.clone();
+                Ok(())
+            }
+            (PubKey::Mldsa(MldsaPublicKey(out_pk)), PubKey::Mldsa(MldsaPublicKey(pk))) => {
+                out_pk.copy_from_slice(pk);
+                Ok(())
+            }
+            _ => Err(CryptoError::MismatchedAlgorithm),
+        }
     }
 }
 enum Signer<'a> {

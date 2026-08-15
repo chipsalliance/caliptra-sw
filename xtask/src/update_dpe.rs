@@ -39,6 +39,7 @@ fn update_cargo_toml(hash: &str) -> Result<()> {
             "caliptra-dpe",
             "caliptra-dpe-crypto",
             "caliptra-dpe-platform",
+            "caliptra-dpe-response-buffer",
         ] {
             if let Some(item) = dependencies.get_mut(dep) {
                 if let Some(table) = item.as_inline_table_mut() {

@@ -21,6 +21,7 @@ use caliptra_dpe_platform::{
     CertValidity, OtherName, Platform, PlatformError, SignerIdentifier, SubjectAltName, Ueid,
     MAX_CHUNK_SIZE, MAX_ISSUER_NAME_SIZE, MAX_KEY_IDENTIFIER_SIZE, MAX_OTHER_NAME_SIZE,
 };
+use caliptra_dpe_response_buffer::SliceResponseBuffer;
 use caliptra_drivers::cprintln;
 use caliptra_x509::{NotAfter, NotBefore};
 
@@ -111,7 +112,8 @@ impl Platform for DpePlatform<'_> {
     ) -> Result<usize, PlatformError> {
         const CN_ECC384: &[u8] = b"Caliptra 2.1 Ecc384 Rt Alias";
         const CN_MLDSA87: &[u8] = b"Caliptra 2.1 MlDsa87 Rt Alias";
-        let mut issuer_writer = CertWriter::new(out, self.profile.into(), true);
+        let mut resp_buf = SliceResponseBuffer::new(out);
+        let mut issuer_writer = CertWriter::new(&mut resp_buf, self.profile.into(), true);
 
         // Caliptra RDN SerialNumber field is always a Sha256 hash
         let mut serial = [0u8; 64];
@@ -129,7 +131,7 @@ impl Platform for DpePlatform<'_> {
         };
         let issuer_len = issuer_writer
             .encode_rdn(&name)
-            .map_err(|e| PlatformError::IssuerNameError(e.get_error_detail().unwrap_or(0)))?;
+            .map_err(|e| PlatformError::IssuerNameError(e.get_error_code()))?;
 
         Ok(issuer_len)
     }

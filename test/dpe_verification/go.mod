@@ -1,17 +1,14 @@
 module dpe
 
-go 1.24.0
-
-toolchain go1.24.13
+go 1.27.0
 
 require (
-	github.com/chipsalliance/caliptra-dpe/verification/client v0.0.0-20260612164846-3b036b495f2f
-	github.com/chipsalliance/caliptra-dpe/verification/testing v0.0.0-20260612164846-3b036b495f2f
+	github.com/chipsalliance/caliptra-dpe/verification/client v0.0.0-20260918212857-f2b7121b69aa
+	github.com/chipsalliance/caliptra-dpe/verification/testing v0.0.0-20260918212857-f2b7121b69aa
 )
 
 require (
-	github.com/chipsalliance/caliptra-dpe/verification/sim v0.0.0-20260612164846-3b036b495f2f // indirect
-	github.com/cloudflare/circl v1.6.1 // indirect
+	github.com/chipsalliance/caliptra-dpe/verification/sim v0.0.0-20260918212857-f2b7121b69aa // indirect
 	github.com/github/smimesign v0.2.0 // indirect
 	github.com/golang/protobuf v1.5.3 // indirect
 	github.com/google/go-configfs-tsm v0.2.2 // indirect
