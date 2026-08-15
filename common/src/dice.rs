@@ -280,8 +280,23 @@ pub fn gen_fmc_alias_vendor_device_info_hash(
         data_vault.cold_boot_fw_svn() as u8,
         data_vault.vendor_ecc_pk_index() as u8,
         data_vault.vendor_pqc_pk_index() as u8,
-        soc_ifc.subsystem_mode() as u8,
     ])?;
+
+    // Subsystem mode was added to vendor device info in ROM 2.1.3.
+    // For ROM, always include subsystem_mode.
+    // For post-ROM firmware (FMC/runtime), check ROM version for backward
+    // compatibility with older ROMs (2.1.0, 2.1.1, 2.1.2).
+    const ROM_VERSION_2_1_0: u16 = 0x1040;
+    const ROM_VERSION_2_1_1: u16 = 0x1041;
+    const ROM_VERSION_2_1_2: u16 = 0x1042;
+    let rom_with_subsystem_mode = !matches!(
+        soc_ifc.rom_fw_rev_id(),
+        ROM_VERSION_2_1_0 | ROM_VERSION_2_1_1 | ROM_VERSION_2_1_2
+    );
+    if cfg!(feature = "rom") || rom_with_subsystem_mode {
+        hasher.update(&[soc_ifc.subsystem_mode() as u8])?;
+    }
+
     hasher.finalize(&mut fuse_vendor_info_digest)?;
 
     Ok(fuse_vendor_info_digest.into())

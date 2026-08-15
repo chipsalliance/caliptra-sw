@@ -70,6 +70,7 @@ jobs:
         config:
           - { name: "2.1.0", rom: "2.1.0", suffix: "rom-2.1.0", base_features: "slow_tests" }
           - { name: "2.1.1", rom: "2.1.1", suffix: "rom-2.1.1", base_features: "slow_tests" }
+          - { name: "2.1.2", rom: "2.1.2", suffix: "rom-2.1.2", base_features: "slow_tests" }
           - { name: "latest", rom: "latest", suffix: "hw-latest", base_features: "slow_tests" }
         rng:
           - { name: "etrng", extra: "" }
@@ -98,6 +99,7 @@ jobs:
         hw_config:
           - { name: "rom-2.1.0", hw: "latest", rom: "2.1.0", suffix_prefix: "rom-2.1.0" }
           - { name: "rom-2.1.1", hw: "latest", rom: "2.1.1", suffix_prefix: "rom-2.1.1" }
+          - { name: "rom-2.1.2", hw: "latest", rom: "2.1.2", suffix_prefix: "rom-2.1.2" }
           - { name: "hw-latest", hw: "latest", rom: "latest", suffix_prefix: "latest" }
         rng:
           - { name: "itrng", fpga_itrng: true, extra: "slow_tests,itrng" }
@@ -129,6 +131,7 @@ jobs:
         hw_config:
           - { name: "rom-2.1.0", hw: "latest", rom: "2.1.0", suffix_prefix: "rom-2.1.0" }
           - { name: "rom-2.1.1", hw: "latest", rom: "2.1.1", suffix_prefix: "rom-2.1.1" }
+          - { name: "rom-2.1.2", hw: "latest", rom: "2.1.2", suffix_prefix: "rom-2.1.2" }
           - { name: "hw-latest", hw: "latest", rom: "latest", suffix_prefix: "latest" }
         rng:
           - { name: "itrng", fpga_itrng: true, extra: "slow_tests,itrng" }
