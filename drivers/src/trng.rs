@@ -107,10 +107,7 @@ impl Trng {
         }
 
         match self {
-            Self::Internal(csrng) => {
-                let a = csrng.generate12()?;
-                Ok((a[0], a[1], a[2], a[3]))
-            }
+            Self::Internal(csrng) => csrng.generate4(),
             Self::External(trng_ext) => trng_ext.generate4(),
             Self::MfgMode() => {
                 unsafe {
@@ -156,6 +153,12 @@ impl Trng {
             _ => unsafe {
                 cfi_panic_handler(CaliptraError::ROM_CFI_PANIC_UNEXPECTED_MATCH_BRANCH.into())
             },
+        }
+    }
+
+    pub fn disable_entropy_source(&mut self) {
+        if let Self::Internal(csrng) = self {
+            csrng.disable_entropy_source()
         }
     }
 }

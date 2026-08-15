@@ -1413,3 +1413,62 @@ fn test_dma_sha384() {
         run_driver_test(&firmware::driver_tests::DMA_SHA384);
     }
 }
+
+// ---------------------------------------------------------------------------
+// CSRNG reseed / power-saving tests
+//
+// TC-1..TC-5 run with normal good entropy.
+// TC-6 (health-check failure on reseed) needs bad entropy after startup.
+// ---------------------------------------------------------------------------
+
+/// TC-1..TC-5: reseed/counter/interval/disable tests with good entropy.
+/// Runs on all targets including FPGA itrng (TC-5 exercises auto-enable).
+#[test]
+fn test_csrng_reseed() {
+    let rom =
+        caliptra_builder::build_firmware_rom(&firmware::driver_tests::CSRNG_RESEED_TESTS).unwrap();
+
+    let mut model = caliptra_hw_model::new(
+        InitParams {
+            rom: &rom,
+            itrng_nibbles: Box::new(trng_nibbles()),
+            trng_mode: Some(TrngMode::Internal),
+            ..default_init_params()
+        },
+        BootParams::default(),
+    )
+    .unwrap();
+
+    model.step_until_exit_success().unwrap();
+}
+
+/// TC-6: injects a reseed failure via the CSRNG_RESEED_FAILURE FIPS hook
+/// (0x4D armed in `cptra_dbg_manuf_service_reg` before boot). Uses good
+/// entropy — the failure comes from the hook, not the TRNG — so it runs on
+/// every target including FPGA itrng.
+#[test]
+fn test_csrng_reseed_health_fail() {
+    let rom = caliptra_builder::build_firmware_rom(
+        &firmware::driver_tests::CSRNG_RESEED_HEALTH_FAIL_TESTS,
+    )
+    .unwrap();
+
+    const HOOK_CODE_OFFSET: u32 = 16;
+    const CSRNG_RESEED_FAILURE: u32 = 0x4D;
+
+    let mut model = caliptra_hw_model::new(
+        InitParams {
+            rom: &rom,
+            itrng_nibbles: Box::new(trng_nibbles()),
+            trng_mode: Some(TrngMode::Internal),
+            ..default_init_params()
+        },
+        BootParams {
+            initial_dbg_manuf_service_reg: CSRNG_RESEED_FAILURE << HOOK_CODE_OFFSET,
+            ..BootParams::default()
+        },
+    )
+    .unwrap();
+
+    model.step_until_exit_success().unwrap();
+}
