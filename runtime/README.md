@@ -1071,6 +1071,8 @@ Command Code: `0x5051_5344` ("PQSD")
 | fips\_status | u32  | Indicates if the command is FIPS approved or an error.
 
 Deriving `PQ.DevID.CDI` and the ML-DSA-87 key material can exceed the default mailbox command watchdog budget; Runtime Firmware extends the watchdog for this command.
+The production `PQ.DevID.Seed` must never be delivered while Caliptra is `DebugUnlocked`.
+Integrators may still call `SET_PQ_SEED` with a non-production seed while `DebugUnlocked` for local bring-up and debug.
 
 ### GET\_PQ\_CSR
 
