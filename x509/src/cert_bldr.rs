@@ -15,7 +15,6 @@ Abstract:
 
 use crate::{der_encode_len, der_encode_uint, der_uint_len};
 
-#[cfg(feature = "mldsa_attestation")]
 use caliptra_drivers::Mldsa87Signature;
 use zeroize::Zeroize;
 
@@ -29,7 +28,6 @@ const DER_SEQ_TAG: u8 = 0x30;
 const MAX_ECDSA384_SIG_LEN: usize = 108;
 
 /// MAX ML-DSA-87 signature DER length
-#[cfg(feature = "mldsa_attestation")]
 const MAX_MLDSA87_SIG_DER_LEN: usize = 4641;
 
 /// Trait for signature types
@@ -240,7 +238,6 @@ pub type Ecdsa384CsrBuilder<'a> = Ecdsa384CertBuilder<'a>;
 
 // ML-DSA-87 signatures use the shared `caliptra_drivers::Mldsa87Signature`
 // crypto type rather than an x509-local struct; only the DER encoding lives here.
-#[cfg(feature = "mldsa_attestation")]
 impl Signature<MAX_MLDSA87_SIG_DER_LEN> for Mldsa87Signature {
     fn to_der(&self, buf: &mut [u8; MAX_MLDSA87_SIG_DER_LEN]) -> Option<usize> {
         //
@@ -272,7 +269,5 @@ impl Signature<MAX_MLDSA87_SIG_DER_LEN> for Mldsa87Signature {
 }
 
 // Type alias for Ml-Dsa87 Certificate Builder
-#[cfg(feature = "mldsa_attestation")]
 pub type MlDsa87CertBuilder<'a> = CertBuilder<'a, Mldsa87Signature, MAX_MLDSA87_SIG_DER_LEN>;
-#[cfg(feature = "mldsa_attestation")]
 pub type MlDsa87CsrBuilder<'a> = MlDsa87CertBuilder<'a>;

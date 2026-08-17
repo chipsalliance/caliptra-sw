@@ -518,8 +518,8 @@ pub fn run_command_suite(
 /// precede `GET_PQ_CSR` and `CERTIFY_KEY_EXTENDED_MLDSA87` — otherwise both
 /// early-return before their maximal ML-DSA-87 keygen+sign flow. The remaining
 /// commands (`MLDSA87_SIGNATURE_VERIFY`, `GET_PQ_CERT`, `POPULATE_PQ_CERT`) do
-/// not depend on PQC-mode provisioning but are grouped here so every
-/// `mldsa_attestation`-gated command is measured in one place. Because none of
+/// not depend on PQC-mode provisioning but are grouped here so every ML-DSA-87
+/// command is measured in one place. Because none of
 /// these have side effects that break the standard suite (unlike `SHUTDOWN`), a
 /// caller should measure this suite *before* `run_command_suite`.
 ///
@@ -536,7 +536,6 @@ pub fn run_command_suite(
 /// (Sign/CertifyKey) first, simulation-context commands (InitCtx/DestroyCtx/
 /// RotateCtx) next, then DeriveContext retires the default to create a child from
 /// which UpdateContextMeasurement's parent-with-child tree is built.
-#[cfg(feature = "mldsa_attestation")]
 pub fn measure_mldsa_dpe_subcommands(sampler: &mut dyn CommandSampler) -> Vec<(&'static str, u64)> {
     use crate::common::{
         export_mldsa_cdi, populate_pq_cert, provision_pq_seed, run_pqc_rt_test, TEST_DIGEST_MLDSA,
@@ -751,10 +750,9 @@ pub fn measure_mldsa_dpe_subcommands(sampler: &mut dyn CommandSampler) -> Vec<(&
     results
 }
 
-/// Every `mldsa_attestation` command is now exercised: each `INVOKE_DPE_MLDSA87`
+/// Every ML-DSA-87 command is exercised: each `INVOKE_DPE_MLDSA87`
 /// DPE subcommand plus `SIGN_WITH_EXPORTED_MLDSA` (which exports an ML-DSA CDI to
 /// populate the slot before signing) run via [`measure_mldsa_dpe_subcommands`].
-#[cfg(feature = "mldsa_attestation")]
 pub fn run_pqc_command_suite(
     model: &mut DefaultHwModel,
     sampler: &mut dyn CommandSampler,

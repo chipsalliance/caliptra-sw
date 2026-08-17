@@ -19,13 +19,9 @@ pub use crate::fips::fips_self_test_cmd::SelfTestStatus;
 
 use crate::{
     dice, CaliptraDpeEnv, CaliptraDpeProfile, DisableAttestationCmd, DpePlatform, Mailbox,
-    CALIPTRA_LOCALITY, DPE_SUPPORT, MAX_CERT_CHAIN_SIZE, PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD,
-    PL0_PAUSER_FLAG, PL1_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD,
-};
-#[cfg(feature = "mldsa_attestation")]
-use {
-    crate::MAX_MLDSA_CERT_CHAIN_SIZE,
-    caliptra_drivers::{Mldsa87, Mldsa87PubKey, Mldsa87Seed},
+    CALIPTRA_LOCALITY, DPE_SUPPORT, MAX_CERT_CHAIN_SIZE, MAX_MLDSA_CERT_CHAIN_SIZE,
+    PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD, PL0_PAUSER_FLAG,
+    PL1_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD,
 };
 
 use arrayvec::ArrayVec;
@@ -43,8 +39,8 @@ use caliptra_drivers::{
     PersistentDataAccessor, Pic, ResetReason, Sha1, SocIfc,
 };
 use caliptra_drivers::{
-    hand_off::DataStore, FirmwareHandoffTable, Hmac384, PcrBank, Sha256, Sha256Alg,
-    Sha2_512_384Acc, Sha384, Trng,
+    hand_off::DataStore, FirmwareHandoffTable, Hmac384, Mldsa87, Mldsa87PubKey, Mldsa87Seed,
+    PcrBank, Sha256, Sha256Alg, Sha2_512_384Acc, Sha384, Trng,
 };
 use caliptra_image_types::ImageManifest;
 use caliptra_registers::el2_pic_ctrl::El2PicCtrl;
@@ -111,7 +107,6 @@ pub struct Drivers {
 
     pub cert_chain: ArrayVec<u8, MAX_CERT_CHAIN_SIZE>,
 
-    #[cfg(feature = "mldsa_attestation")]
     pub mldsa_cert_chain: ArrayVec<u8, MAX_MLDSA_CERT_CHAIN_SIZE>,
 
     #[cfg(feature = "fips_self_test")]
@@ -156,7 +151,6 @@ impl Drivers {
             #[cfg(feature = "fips_self_test")]
             self_test_status: SelfTestStatus::Idle,
             cert_chain: ArrayVec::new(),
-            #[cfg(feature = "mldsa_attestation")]
             mldsa_cert_chain: ArrayVec::new(),
             is_shutdown: false,
             dmtf_device_info: None,
@@ -898,7 +892,6 @@ impl Drivers {
         Ok(initialization_values_hash)
     }
 
-    #[cfg(feature = "mldsa_attestation")]
     #[inline(never)]
     pub(crate) fn derive_devid_seed(&mut self, seed: &mut Mldsa87Seed) -> CaliptraResult<()> {
         let pq_devid_cdi = self.persistent_data.get().pq_devid_cdi()?;
@@ -919,7 +912,6 @@ impl Drivers {
     /// mirrors the CERTIFY_KEY_EXTENDED_MLDSA87 budget (longest measurement
     /// ~400M cycles). A no-op unless the device is debug-locked (see
     /// `caliptra_common::wdt::start_wdt`).
-    #[cfg(feature = "mldsa_attestation")]
     pub(crate) fn extend_wdt_for_pqc(&mut self) {
         /// Extended command-watchdog budget, in cycles, for long-running
         /// ML-DSA-87 mailbox commands. Matches CERTIFY_KEY_EXTENDED_MLDSA87.
@@ -931,7 +923,6 @@ impl Drivers {
         );
     }
 
-    #[cfg(feature = "mldsa_attestation")]
     #[inline(never)]
     pub fn compute_mldsa_key_material(
         &mut self,
@@ -949,7 +940,6 @@ impl Drivers {
         Ok((seed, pub_key, digest))
     }
 
-    #[cfg(feature = "mldsa_attestation")]
     #[inline(never)]
     pub fn compute_subject_sn(&mut self, digest: &Digest, sn: &mut [u8]) -> CaliptraResult<()> {
         digest

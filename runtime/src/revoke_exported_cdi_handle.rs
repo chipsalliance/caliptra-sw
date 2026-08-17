@@ -56,7 +56,6 @@ impl RevokeExportedCdiHandleCmd {
 
         // An exported CDI handle may instead refer to an ML-DSA exported CDI,
         // which is held in its own single-entry slot in persistent data.
-        #[cfg(feature = "mldsa_attestation")]
         {
             let slot = &mut drivers.persistent_data.get_mut().mldsa_exported_cdi_slots;
             if constant_time_eq(&slot.handle, &cmd.exported_cdi_handle) && slot.active.get() {

@@ -60,8 +60,7 @@ enum mailbox_command {
     OP_REVOKE_EXPORTED_CDI_HANDLE    = 0x52564348, // "RVCH"
     OP_REALLOCATE_DPE_CONTEXT_LIMITS = 0x52435458, // "RCTX"
     OP_GET_PCR_LOG                   = 0x504C4F47, // "PLOG"
-    // PQC / ML-DSA-87 commands (mirror api/src/mailbox.rs `CommandId`,
-    // gated there behind the `mldsa_attestation` feature).
+    // PQC / ML-DSA-87 commands (mirror api/src/mailbox.rs `CommandId`).
     OP_GET_PQ_CERT                   = 0x47505143, // "GPQC"
     OP_POPULATE_PQ_CERT              = 0x50505143, // "PPQC"
     OP_SET_PQ_SEED                   = 0x50515344, // "PQSD"

@@ -15,12 +15,12 @@ caliptra-drivers = { workspace = true, features = ["runtime"] }
 caliptra-error = { workspace = true, default-features = false }
 caliptra-image-types = { workspace = true, default-features = false }
 caliptra-auth-man-types = { workspace = true, default-features = false }
-caliptra-kat.workspace = true
+caliptra-kat = { workspace = true, features = ["runtime"] }
 caliptra-lms-types.workspace = true
 caliptra-registers.workspace = true
 caliptra-shake.workspace = true
 caliptra-x509 = { workspace = true, default-features = false }
-dpe           = { workspace = true, features = ["arbitrary_max_handles"] }
+dpe           = { workspace = true, features = ["arbitrary_max_handles", "ml-dsa"] }
 dpe-runtime-1-2.workspace = true
 constant_time_eq.workspace = true
 crypto.workspace = true
@@ -61,14 +61,6 @@ x509-parser.workspace = true
 default = ["std", "cfi"]
 emu = ["caliptra_common/emu", "caliptra-drivers/emu"]
 itrng = ["caliptra-hw-model/itrng"]
-mldsa_attestation = [
-    "caliptra-api/mldsa_attestation",
-    "caliptra_common/mldsa_attestation",
-    "caliptra-drivers/mldsa_attestation",
-    "caliptra-kat/mldsa_attestation",
-    "caliptra-x509/mldsa_attestation",
-    "dpe/ml-dsa",
-]
 riscv = ["caliptra-cpu/riscv"]
 std = ["ufmt/std", "caliptra_common/std"]
 slow_tests = []

@@ -16,7 +16,6 @@ Abstract:
 mod authorize_and_stash;
 mod capabilities;
 mod certify_key_extended;
-#[cfg(feature = "mldsa_attestation")]
 mod certify_key_extended_mldsa;
 pub mod dice;
 mod disable;
@@ -26,9 +25,7 @@ mod drivers;
 pub mod fips;
 mod get_fmc_alias_csr;
 mod get_idev_csr;
-#[cfg(feature = "mldsa_attestation")]
 mod get_pq_csr;
-#[cfg(feature = "mldsa_attestation")]
 mod get_pq_info;
 pub mod handoff;
 mod hmac;
@@ -37,15 +34,12 @@ mod invoke_dpe;
 pub mod mbox_response_writer;
 mod pcr;
 mod populate_idev;
-#[cfg(feature = "mldsa_attestation")]
 mod populate_pq;
 mod reallocate_dpe_context_limits;
 mod revoke_exported_cdi_handle;
 mod set_auth_manifest;
-#[cfg(feature = "mldsa_attestation")]
 mod set_pq_seed;
 mod sign_with_exported_ecdsa;
-#[cfg(feature = "mldsa_attestation")]
 mod sign_with_exported_mldsa;
 mod stash_measurement;
 mod subject_alt_name;
@@ -59,32 +53,25 @@ use authorize_and_stash::AuthorizeAndStashCmd;
 use caliptra_cfi_lib::{
     cfi_assert, cfi_assert_bool, cfi_assert_eq, cfi_assert_ne, cfi_launder, CfiCounter,
 };
-#[cfg(feature = "mldsa_attestation")]
 use caliptra_drivers::sha384::DpeHasher;
 pub use drivers::{Drivers, PauserPrivileges};
 use mailbox::Mailbox;
 
 use crate::capabilities::CapabilitiesCmd;
 pub use crate::certify_key_extended::CertifyKeyExtendedCmd;
-#[cfg(feature = "mldsa_attestation")]
 pub use crate::certify_key_extended_mldsa::CertifyKeyExtendedMldsa87Cmd;
-#[cfg(feature = "mldsa_attestation")]
 pub use crate::get_pq_csr::GetPqCsrCmd;
-#[cfg(feature = "mldsa_attestation")]
 pub use crate::get_pq_info::GetPqInfoCmd;
 pub use crate::hmac::Hmac;
 pub use crate::invoke_dpe::CaliptraDpeProfile;
-#[cfg(feature = "mldsa_attestation")]
 pub use crate::invoke_dpe::InvokeDpeMldsa87Cmd;
 use crate::revoke_exported_cdi_handle::RevokeExportedCdiHandleCmd;
 use crate::sign_with_exported_ecdsa::SignWithExportedEcdsaCmd;
-#[cfg(feature = "mldsa_attestation")]
 use crate::sign_with_exported_mldsa::SignWithExportedMldsaCmd;
 pub use crate::subject_alt_name::AddSubjectAltNameCmd;
 pub use authorize_and_stash::{IMAGE_AUTHORIZED, IMAGE_HASH_MISMATCH, IMAGE_NOT_AUTHORIZED};
 pub use caliptra_common::fips::FipsVersionCmd;
 use crypto::CryptoSuite;
-#[cfg(feature = "mldsa_attestation")]
 use dice::PqCertCmd;
 pub use dice::{GetFmcAliasCertCmd, GetLdevCertCmd, IDevIdCertCmd};
 pub use disable::DisableAttestationCmd;
@@ -96,7 +83,6 @@ pub use fips::FipsShutdownCmd;
 pub use fips::{fips_self_test_cmd, fips_self_test_cmd::SelfTestStatus};
 use platform::{Platform, MAX_OTHER_NAME_SIZE};
 pub use populate_idev::PopulateIDevIdCertCmd;
-#[cfg(feature = "mldsa_attestation")]
 pub use populate_pq::PopulatePqCertCmd;
 
 pub use get_fmc_alias_csr::GetFmcAliasCsrCmd;
@@ -107,10 +93,8 @@ pub use mbox_response_writer::MboxResponseWriter;
 pub use pcr::{GetPcrLogCmd, IncrementPcrResetCounterCmd};
 pub use reallocate_dpe_context_limits::ReallocateDpeContextLimitsCmd;
 pub use set_auth_manifest::SetAuthManifestCmd;
-#[cfg(feature = "mldsa_attestation")]
 pub use set_pq_seed::SetPqSeedCmd;
 pub use stash_measurement::StashMeasurementCmd;
-#[cfg(feature = "mldsa_attestation")]
 pub use verify::Mldsa87VerifyCmd;
 pub use verify::{EcdsaVerifyCmd, LmsVerifyCmd};
 pub mod packet;
@@ -156,7 +140,6 @@ pub const MAX_CERT_CHAIN_SIZE: usize = 4096;
 
 // Consists of public key (2592 bytes), signature (4627 bytes), and
 // some additional room for the rest of the TBS.
-#[cfg(feature = "mldsa_attestation")]
 pub const MAX_MLDSA_CERT_CHAIN_SIZE: usize = 8192;
 
 pub const PL0_PAUSER_FLAG: u32 = 1;
@@ -225,7 +208,6 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
     match drivers.mbox.cmd() {
         CommandId::FIRMWARE_LOAD => return Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
         CommandId::GET_IDEV_CERT => IDevIdCertCmd::execute(drivers),
-        #[cfg(feature = "mldsa_attestation")]
         CommandId::GET_PQ_CERT => PqCertCmd::execute(drivers),
         CommandId::GET_IDEV_INFO => {
             copy_from_mbox(drivers, MailboxReqHeader::new_zeroed().as_mut_bytes())?;
@@ -235,7 +217,6 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         CommandId::INVOKE_DPE => InvokeDpeCmd::execute(drivers),
         CommandId::ECDSA384_VERIFY => EcdsaVerifyCmd::execute(drivers),
         CommandId::LMS_VERIFY => LmsVerifyCmd::execute(drivers),
-        #[cfg(feature = "mldsa_attestation")]
         CommandId::MLDSA87_SIGNATURE_VERIFY => Mldsa87VerifyCmd::execute(drivers),
         CommandId::EXTEND_PCR => ExtendPcrCmd::execute(drivers),
         CommandId::STASH_MEASUREMENT => StashMeasurementCmd::execute(drivers),
@@ -251,7 +232,6 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         CommandId::DPE_TAG_TCI => TagTciCmd::execute(drivers),
         CommandId::DPE_GET_TAGGED_TCI => GetTaggedTciCmd::execute(drivers),
         CommandId::POPULATE_IDEV_CERT => PopulateIDevIdCertCmd::execute(drivers),
-        #[cfg(feature = "mldsa_attestation")]
         CommandId::POPULATE_PQ_CERT => PopulatePqCertCmd::execute(drivers),
         CommandId::GET_FMC_ALIAS_CERT => GetFmcAliasCertCmd::execute(drivers),
         CommandId::GET_RT_ALIAS_CERT => GetRtAliasCertCmd::execute(drivers),
@@ -296,15 +276,10 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
             FipsShutdownCmd::execute(drivers)
         }
         CommandId::SET_AUTH_MANIFEST => SetAuthManifestCmd::execute(drivers),
-        #[cfg(feature = "mldsa_attestation")]
         CommandId::SET_PQ_SEED => SetPqSeedCmd::execute(drivers),
-        #[cfg(feature = "mldsa_attestation")]
         CommandId::INVOKE_DPE_MLDSA87 => InvokeDpeMldsa87Cmd::execute(drivers),
-        #[cfg(feature = "mldsa_attestation")]
         CommandId::GET_PQ_CSR => GetPqCsrCmd::execute(drivers),
-        #[cfg(feature = "mldsa_attestation")]
         CommandId::GET_PQ_INFO => GetPqInfoCmd::execute(drivers),
-        #[cfg(feature = "mldsa_attestation")]
         CommandId::CERTIFY_KEY_EXTENDED_MLDSA87 => CertifyKeyExtendedMldsa87Cmd::execute(drivers),
         CommandId::AUTHORIZE_AND_STASH => AuthorizeAndStashCmd::execute(drivers),
         CommandId::GET_IDEV_CSR => GetIdevCsrCmd::execute(drivers),
@@ -315,7 +290,6 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         }
         CommandId::SIGN_WITH_EXPORTED_ECDSA => SignWithExportedEcdsaCmd::execute(drivers),
         CommandId::REVOKE_EXPORTED_CDI_HANDLE => RevokeExportedCdiHandleCmd::execute(drivers),
-        #[cfg(feature = "mldsa_attestation")]
         CommandId::SIGN_WITH_EXPORTED_MLDSA => SignWithExportedMldsaCmd::execute(drivers),
         CommandId::REALLOCATE_DPE_CONTEXT_LIMITS => ReallocateDpeContextLimitsCmd::execute(drivers),
         _ => return Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
@@ -496,7 +470,6 @@ fn ec_dpe_env(
     })
 }
 
-#[cfg(feature = "mldsa_attestation")]
 #[inline(never)]
 fn mldsa_dpe_env(
     drivers: &mut Drivers,

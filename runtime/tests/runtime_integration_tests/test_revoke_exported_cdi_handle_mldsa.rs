@@ -1,7 +1,6 @@
 // Licensed under the Apache-2.0 license
 
 use caliptra_api::SocManager;
-use caliptra_builder::firmware::APP_MLDSA_ATTESTATION;
 use caliptra_common::mailbox_api::{
     CommandId, MailboxReq, MailboxReqHeader, RevokeExportedCdiHandleReq,
 };
@@ -73,7 +72,6 @@ fn test_revoke_exported_cdi_handle_mldsa_pl1_rejected() {
     image_opts.vendor_config.pl0_pauser = None;
 
     let mut model = run_rt_test(RuntimeTestArgs {
-        test_fwid: Some(&APP_MLDSA_ATTESTATION),
         test_image_options: Some(image_opts),
         ..Default::default()
     });

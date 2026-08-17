@@ -20,7 +20,6 @@
 //!   malformed inputs.
 
 use crate::common::{assert_error, run_rt_test, RuntimeTestArgs};
-use caliptra_builder::firmware::APP_MLDSA_ATTESTATION;
 use caliptra_common::checksum::calc_checksum;
 use caliptra_common::mailbox_api::{CommandId, MailboxReq, MailboxRespHeader, Mldsa87VerifyReq};
 use caliptra_hw_model::{HwModel, ShaAccMode};
@@ -121,10 +120,7 @@ fn boot_ready<T: HwModel>(model: &mut T) {
 /// path.
 #[test]
 fn test_mldsa87_verify_cmd() {
-    let mut model = run_rt_test(RuntimeTestArgs {
-        test_fwid: Some(&APP_MLDSA_ATTESTATION),
-        ..Default::default()
-    });
+    let mut model = run_rt_test(RuntimeTestArgs::default());
     boot_ready(&mut model);
 
     for seed in [&SEED_A, &SEED_B] {
@@ -145,10 +141,7 @@ fn test_mldsa87_verify_cmd() {
 /// with `RUNTIME_MLDSA87_VERIFY_FAILED` rather than crash or pass.
 #[test]
 fn test_mldsa87_verify_failure_tampered_signature() {
-    let mut model = run_rt_test(RuntimeTestArgs {
-        test_fwid: Some(&APP_MLDSA_ATTESTATION),
-        ..Default::default()
-    });
+    let mut model = run_rt_test(RuntimeTestArgs::default());
     boot_ready(&mut model);
 
     let (pk, mut sig) = keygen_and_sign(&SEED_A, MSG_1);
@@ -174,10 +167,7 @@ fn test_mldsa87_verify_failure_tampered_signature() {
 /// SHA-384 digest streamed into the accelerator) must fail.
 #[test]
 fn test_mldsa87_verify_failure_wrong_message() {
-    let mut model = run_rt_test(RuntimeTestArgs {
-        test_fwid: Some(&APP_MLDSA_ATTESTATION),
-        ..Default::default()
-    });
+    let mut model = run_rt_test(RuntimeTestArgs::default());
     boot_ready(&mut model);
 
     let (pk, sig) = keygen_and_sign(&SEED_A, MSG_1);
@@ -203,10 +193,7 @@ fn test_mldsa87_verify_failure_wrong_message() {
 /// fail.
 #[test]
 fn test_mldsa87_verify_failure_wrong_pub_key() {
-    let mut model = run_rt_test(RuntimeTestArgs {
-        test_fwid: Some(&APP_MLDSA_ATTESTATION),
-        ..Default::default()
-    });
+    let mut model = run_rt_test(RuntimeTestArgs::default());
     boot_ready(&mut model);
 
     let (_, sig_a) = keygen_and_sign(&SEED_A, MSG_1);
@@ -233,10 +220,7 @@ fn test_mldsa87_verify_failure_wrong_pub_key() {
 /// cryptographically meaningless" path.
 #[test]
 fn test_mldsa87_verify_failure_all_zero() {
-    let mut model = run_rt_test(RuntimeTestArgs {
-        test_fwid: Some(&APP_MLDSA_ATTESTATION),
-        ..Default::default()
-    });
+    let mut model = run_rt_test(RuntimeTestArgs::default());
     boot_ready(&mut model);
 
     let pk = [0u8; MLDSA87_PUBLIC_KEY_BYTES];
@@ -266,10 +250,7 @@ fn test_mldsa87_verify_failure_all_zero() {
 /// first; skipping that step must surface as `RUNTIME_INVALID_CHECKSUM`.
 #[test]
 fn test_mldsa87_verify_bad_chksum() {
-    let mut model = run_rt_test(RuntimeTestArgs {
-        test_fwid: Some(&APP_MLDSA_ATTESTATION),
-        ..Default::default()
-    });
+    let mut model = run_rt_test(RuntimeTestArgs::default());
     boot_ready(&mut model);
 
     let (pk, sig) = keygen_and_sign(&SEED_A, MSG_1);
@@ -304,10 +285,7 @@ fn test_mldsa87_verify_bad_chksum() {
 /// (see `test_mldsa87_verify_failure_all_zero`).
 #[test]
 fn test_mldsa87_verify_oversized_request() {
-    let mut model = run_rt_test(RuntimeTestArgs {
-        test_fwid: Some(&APP_MLDSA_ATTESTATION),
-        ..Default::default()
-    });
+    let mut model = run_rt_test(RuntimeTestArgs::default());
     boot_ready(&mut model);
 
     // One word larger than the request buffer trips the mailbox size guard.

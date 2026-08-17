@@ -179,7 +179,6 @@ fn test_attestation_disabled_flag_after_update_reset() {
 }
 
 #[test]
-#[cfg(feature = "mldsa_attestation")]
 fn test_disable_attestation_cmd_mldsa() {
     use crate::common::{get_pq_csr, mldsa_csr_public_key, provision_pq_seed, run_pqc_rt_test};
     use caliptra_common::mailbox_api::{CommandId, MailboxReqHeader, MailboxRespHeader};
@@ -222,7 +221,6 @@ fn test_disable_attestation_cmd_mldsa() {
 }
 
 #[test]
-#[cfg(feature = "mldsa_attestation")]
 fn test_disable_attestation_cmd_mldsa_rederive_pubkey() {
     use crate::common::{get_pq_csr, mldsa_csr_public_key, provision_pq_seed, run_pqc_rt_test};
     use caliptra_common::mailbox_api::{CommandId, MailboxReqHeader, MailboxRespHeader};
@@ -294,7 +292,6 @@ fn test_disable_attestation_cmd_mldsa_rederive_pubkey() {
 }
 
 #[test]
-#[cfg(feature = "mldsa_attestation")]
 fn test_set_pq_seed_after_disable_attestation_fails() {
     use crate::common::{assert_error, run_pqc_rt_test, PQ_SEED};
     use caliptra_common::mailbox_api::{

@@ -2,10 +2,9 @@
 
 use bitflags::bitflags;
 use caliptra_error::{CaliptraError, CaliptraResult};
-#[cfg(feature = "mldsa_attestation")]
-use caliptra_mldsa::{MLDSA87_MU_BYTES, MLDSA87_PRIVATE_SEED_BYTES};
-use caliptra_mldsa::{MLDSA87_PUBLIC_KEY_BYTES, MLDSA87_SIGNATURE_BYTES};
-#[cfg(feature = "mldsa_attestation")]
+use caliptra_mldsa::{
+    MLDSA87_MU_BYTES, MLDSA87_PRIVATE_SEED_BYTES, MLDSA87_PUBLIC_KEY_BYTES, MLDSA87_SIGNATURE_BYTES,
+};
 use core::mem::size_of;
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
 
@@ -14,7 +13,6 @@ use caliptra_registers::mbox;
 use ureg::MmioMut;
 
 /// PQ IDevID seed size in bytes for SET_PQ_SEED.
-#[cfg(feature = "mldsa_attestation")]
 pub const SET_PQ_SEED_SEED_SIZE: usize = MLDSA87_PRIVATE_SEED_BYTES;
 
 #[derive(PartialEq, Eq)]
@@ -22,11 +20,9 @@ pub struct CommandId(pub u32);
 impl CommandId {
     pub const FIRMWARE_LOAD: Self = Self(0x46574C44); // "FWLD"
     pub const GET_IDEV_CERT: Self = Self(0x49444543); // "IDEC"
-    #[cfg(feature = "mldsa_attestation")]
     pub const GET_PQ_CERT: Self = Self(0x47505143); // "GPQC"
     pub const GET_IDEV_INFO: Self = Self(0x49444549); // "IDEI"
     pub const POPULATE_IDEV_CERT: Self = Self(0x49444550); // "IDEP"
-    #[cfg(feature = "mldsa_attestation")]
     pub const POPULATE_PQ_CERT: Self = Self(0x50505143); // "PPQC"
     pub const GET_LDEV_CERT: Self = Self(0x4C444556); // "LDEV"
     pub const GET_FMC_ALIAS_CERT: Self = Self(0x43455246); // "CERF"
@@ -37,7 +33,6 @@ impl CommandId {
     pub const STASH_MEASUREMENT: Self = Self(0x4D454153); // "MEAS"
     pub const INVOKE_DPE: Self = Self(0x44504543); // "DPEC"
     pub const DISABLE_ATTESTATION: Self = Self(0x4453424C); // "DSBL"
-    #[cfg(feature = "mldsa_attestation")]
     pub const SET_PQ_SEED: Self = Self(0x5051_5344); // "PQSD"
     pub const FW_INFO: Self = Self(0x494E464F); // "INFO"
     pub const DPE_TAG_TCI: Self = Self(0x54514754); // "TAGT"
@@ -47,13 +42,9 @@ impl CommandId {
     pub const EXTEND_PCR: Self = Self(0x50435245); // "PCRE"
     pub const ADD_SUBJECT_ALT_NAME: Self = Self(0x414C544E); // "ALTN"
     pub const CERTIFY_KEY_EXTENDED: Self = Self(0x434B4558); // "CKEX"
-    #[cfg(feature = "mldsa_attestation")]
     pub const INVOKE_DPE_MLDSA87: Self = Self(0x4D4C4450); // "MLDP"
-    #[cfg(feature = "mldsa_attestation")]
     pub const GET_PQ_CSR: Self = Self(0x50514353); // "PQCS"
-    #[cfg(feature = "mldsa_attestation")]
     pub const GET_PQ_INFO: Self = Self(0x5051_494E); // "PQIN"
-    #[cfg(feature = "mldsa_attestation")]
     pub const CERTIFY_KEY_EXTENDED_MLDSA87: Self = Self(0x434B454D); // "CKEM"
 
     /// FIPS module commands.
@@ -88,7 +79,6 @@ impl CommandId {
     pub const REVOKE_EXPORTED_CDI_HANDLE: Self = Self(0x5256_4348); // "RVCH"
 
     // The sign with exported MLDSA command.
-    #[cfg(feature = "mldsa_attestation")]
     pub const SIGN_WITH_EXPORTED_MLDSA: Self = Self(0x5357_4D4C); // "SWML"
 
     // Get PCR log command.
@@ -193,20 +183,15 @@ pub enum MailboxResp {
     GetRtAliasCert(GetRtAliasCertResp),
     QuotePcrs(QuotePcrsResp),
     CertifyKeyExtended(CertifyKeyExtendedResp),
-    #[cfg(feature = "mldsa_attestation")]
     InvokeDpeMldsa87Command(InvokeDpeMldsa87Resp),
-    #[cfg(feature = "mldsa_attestation")]
     GetPqCsr(GetPqCsrResp),
-    #[cfg(feature = "mldsa_attestation")]
     GetPqInfo(GetPqInfoResp),
-    #[cfg(feature = "mldsa_attestation")]
     CertifyKeyExtendedMldsa87(CertifyKeyExtendedMldsa87Resp),
     AuthorizeAndStash(AuthorizeAndStashResp),
     GetIdevCsr(GetIdevCsrResp),
     GetFmcAliasCsr(GetFmcAliasCsrResp),
     SignWithExportedEcdsa(SignWithExportedEcdsaResp),
     RevokeExportedCdiHandle(RevokeExportedCdiHandleResp),
-    #[cfg(feature = "mldsa_attestation")]
     SignWithExportedMldsa(SignWithExportedMldsaResp),
     ReallocateDpeContextLimits(ReallocateDpeContextLimitsResp),
     GetPcrLog(GetPcrLogResp),
@@ -229,20 +214,15 @@ impl MailboxResp {
             MailboxResp::GetRtAliasCert(resp) => resp.as_bytes_partial(),
             MailboxResp::QuotePcrs(resp) => Ok(resp.as_bytes()),
             MailboxResp::CertifyKeyExtended(resp) => Ok(resp.as_bytes()),
-            #[cfg(feature = "mldsa_attestation")]
             MailboxResp::InvokeDpeMldsa87Command(resp) => resp.as_bytes_partial(),
-            #[cfg(feature = "mldsa_attestation")]
             MailboxResp::GetPqCsr(resp) => Ok(resp.as_bytes()),
-            #[cfg(feature = "mldsa_attestation")]
             MailboxResp::GetPqInfo(resp) => Ok(resp.as_bytes()),
-            #[cfg(feature = "mldsa_attestation")]
             MailboxResp::CertifyKeyExtendedMldsa87(resp) => Ok(resp.as_bytes()),
             MailboxResp::AuthorizeAndStash(resp) => Ok(resp.as_bytes()),
             MailboxResp::GetIdevCsr(resp) => Ok(resp.as_bytes()),
             MailboxResp::GetFmcAliasCsr(resp) => Ok(resp.as_bytes()),
             MailboxResp::SignWithExportedEcdsa(resp) => Ok(resp.as_bytes()),
             MailboxResp::RevokeExportedCdiHandle(resp) => Ok(resp.as_bytes()),
-            #[cfg(feature = "mldsa_attestation")]
             MailboxResp::SignWithExportedMldsa(resp) => Ok(resp.as_bytes()),
             MailboxResp::ReallocateDpeContextLimits(resp) => Ok(resp.as_bytes()),
             MailboxResp::GetPcrLog(resp) => Ok(resp.as_bytes()),
@@ -265,20 +245,15 @@ impl MailboxResp {
             MailboxResp::GetRtAliasCert(resp) => resp.as_bytes_partial_mut(),
             MailboxResp::QuotePcrs(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::CertifyKeyExtended(resp) => Ok(resp.as_mut_bytes()),
-            #[cfg(feature = "mldsa_attestation")]
             MailboxResp::InvokeDpeMldsa87Command(resp) => resp.as_bytes_partial_mut(),
-            #[cfg(feature = "mldsa_attestation")]
             MailboxResp::GetPqCsr(resp) => Ok(resp.as_mut_bytes()),
-            #[cfg(feature = "mldsa_attestation")]
             MailboxResp::GetPqInfo(resp) => Ok(resp.as_mut_bytes()),
-            #[cfg(feature = "mldsa_attestation")]
             MailboxResp::CertifyKeyExtendedMldsa87(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::AuthorizeAndStash(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::GetIdevCsr(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::GetFmcAliasCsr(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::SignWithExportedEcdsa(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::RevokeExportedCdiHandle(resp) => Ok(resp.as_mut_bytes()),
-            #[cfg(feature = "mldsa_attestation")]
             MailboxResp::SignWithExportedMldsa(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::ReallocateDpeContextLimits(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::GetPcrLog(resp) => Ok(resp.as_mut_bytes()),
@@ -329,10 +304,8 @@ pub enum MailboxReq {
     FipsVersion(MailboxReqHeader),
     FwInfo(MailboxReqHeader),
     PopulateIdevCert(PopulateIdevCertReq),
-    #[cfg(feature = "mldsa_attestation")]
     PopulatePqCert(PopulatePqCertReq),
     GetIdevCert(GetIdevCertReq),
-    #[cfg(feature = "mldsa_attestation")]
     GetPqCert(GetPqCertReq),
     TagTci(TagTciReq),
     GetTaggedTci(GetTaggedTciReq),
@@ -340,11 +313,8 @@ pub enum MailboxReq {
     GetRtAliasCert(GetRtAliasCertReq),
     IncrementPcrResetCounter(IncrementPcrResetCounterReq),
     QuotePcrs(QuotePcrsReq),
-    #[cfg(feature = "mldsa_attestation")]
     SetPqSeed(SetPqSeedReq),
-    #[cfg(feature = "mldsa_attestation")]
     InvokeDpeMldsa87Command(InvokeDpeMldsa87Req),
-    #[cfg(feature = "mldsa_attestation")]
     CertifyKeyExtendedMldsa87(CertifyKeyExtendedMldsa87Req),
     ExtendPcr(ExtendPcrReq),
     AddSubjectAltName(AddSubjectAltNameReq),
@@ -353,7 +323,6 @@ pub enum MailboxReq {
     AuthorizeAndStash(AuthorizeAndStashReq),
     SignWithExportedEcdsa(SignWithExportedEcdsaReq),
     RevokeExportedCdiHandle(RevokeExportedCdiHandleReq),
-    #[cfg(feature = "mldsa_attestation")]
     SignWithExportedMldsa(SignWithExportedMldsaReq),
     ReallocateDpeContextLimits(ReallocateDpeContextLimitsReq),
     GetPcrLog(MailboxReqHeader),
@@ -371,10 +340,8 @@ impl MailboxReq {
             MailboxReq::FwInfo(req) => Ok(req.as_bytes()),
             MailboxReq::GetLdevCert(req) => Ok(req.as_bytes()),
             MailboxReq::PopulateIdevCert(req) => req.as_bytes_partial(),
-            #[cfg(feature = "mldsa_attestation")]
             MailboxReq::PopulatePqCert(req) => req.as_bytes_partial(),
             MailboxReq::GetIdevCert(req) => req.as_bytes_partial(),
-            #[cfg(feature = "mldsa_attestation")]
             MailboxReq::GetPqCert(req) => req.as_bytes_partial(),
             MailboxReq::TagTci(req) => Ok(req.as_bytes()),
             MailboxReq::GetTaggedTci(req) => Ok(req.as_bytes()),
@@ -382,11 +349,8 @@ impl MailboxReq {
             MailboxReq::GetRtAliasCert(req) => Ok(req.as_bytes()),
             MailboxReq::IncrementPcrResetCounter(req) => Ok(req.as_bytes()),
             MailboxReq::QuotePcrs(req) => Ok(req.as_bytes()),
-            #[cfg(feature = "mldsa_attestation")]
             MailboxReq::SetPqSeed(req) => Ok(req.as_bytes()),
-            #[cfg(feature = "mldsa_attestation")]
             MailboxReq::InvokeDpeMldsa87Command(req) => req.as_bytes_partial(),
-            #[cfg(feature = "mldsa_attestation")]
             MailboxReq::CertifyKeyExtendedMldsa87(req) => Ok(req.as_bytes()),
             MailboxReq::ExtendPcr(req) => Ok(req.as_bytes()),
             MailboxReq::AddSubjectAltName(req) => req.as_bytes_partial(),
@@ -395,7 +359,6 @@ impl MailboxReq {
             MailboxReq::AuthorizeAndStash(req) => Ok(req.as_bytes()),
             MailboxReq::SignWithExportedEcdsa(req) => Ok(req.as_bytes()),
             MailboxReq::RevokeExportedCdiHandle(req) => Ok(req.as_bytes()),
-            #[cfg(feature = "mldsa_attestation")]
             MailboxReq::SignWithExportedMldsa(req) => req.as_bytes_partial(),
             MailboxReq::ReallocateDpeContextLimits(req) => Ok(req.as_bytes()),
             MailboxReq::GetPcrLog(req) => Ok(req.as_bytes()),
@@ -413,10 +376,8 @@ impl MailboxReq {
             MailboxReq::FipsVersion(req) => Ok(req.as_mut_bytes()),
             MailboxReq::FwInfo(req) => Ok(req.as_mut_bytes()),
             MailboxReq::PopulateIdevCert(req) => req.as_bytes_partial_mut(),
-            #[cfg(feature = "mldsa_attestation")]
             MailboxReq::PopulatePqCert(req) => req.as_bytes_partial_mut(),
             MailboxReq::GetIdevCert(req) => req.as_bytes_partial_mut(),
-            #[cfg(feature = "mldsa_attestation")]
             MailboxReq::GetPqCert(req) => req.as_bytes_partial_mut(),
             MailboxReq::TagTci(req) => Ok(req.as_mut_bytes()),
             MailboxReq::GetTaggedTci(req) => Ok(req.as_mut_bytes()),
@@ -424,11 +385,8 @@ impl MailboxReq {
             MailboxReq::GetRtAliasCert(req) => Ok(req.as_mut_bytes()),
             MailboxReq::IncrementPcrResetCounter(req) => Ok(req.as_mut_bytes()),
             MailboxReq::QuotePcrs(req) => Ok(req.as_mut_bytes()),
-            #[cfg(feature = "mldsa_attestation")]
             MailboxReq::SetPqSeed(req) => Ok(req.as_mut_bytes()),
-            #[cfg(feature = "mldsa_attestation")]
             MailboxReq::InvokeDpeMldsa87Command(req) => req.as_bytes_partial_mut(),
-            #[cfg(feature = "mldsa_attestation")]
             MailboxReq::CertifyKeyExtendedMldsa87(req) => Ok(req.as_mut_bytes()),
             MailboxReq::ExtendPcr(req) => Ok(req.as_mut_bytes()),
             MailboxReq::AddSubjectAltName(req) => req.as_bytes_partial_mut(),
@@ -437,7 +395,6 @@ impl MailboxReq {
             MailboxReq::AuthorizeAndStash(req) => Ok(req.as_mut_bytes()),
             MailboxReq::SignWithExportedEcdsa(req) => Ok(req.as_mut_bytes()),
             MailboxReq::RevokeExportedCdiHandle(req) => Ok(req.as_mut_bytes()),
-            #[cfg(feature = "mldsa_attestation")]
             MailboxReq::SignWithExportedMldsa(req) => req.as_bytes_partial_mut(),
             MailboxReq::ReallocateDpeContextLimits(req) => Ok(req.as_mut_bytes()),
             MailboxReq::GetPcrLog(req) => Ok(req.as_mut_bytes()),
@@ -455,10 +412,8 @@ impl MailboxReq {
             MailboxReq::FipsVersion(_) => CommandId::VERSION,
             MailboxReq::FwInfo(_) => CommandId::FW_INFO,
             MailboxReq::PopulateIdevCert(_) => CommandId::POPULATE_IDEV_CERT,
-            #[cfg(feature = "mldsa_attestation")]
             MailboxReq::PopulatePqCert(_) => CommandId::POPULATE_PQ_CERT,
             MailboxReq::GetIdevCert(_) => CommandId::GET_IDEV_CERT,
-            #[cfg(feature = "mldsa_attestation")]
             MailboxReq::GetPqCert(_) => CommandId::GET_PQ_CERT,
             MailboxReq::TagTci(_) => CommandId::DPE_TAG_TCI,
             MailboxReq::GetTaggedTci(_) => CommandId::DPE_GET_TAGGED_TCI,
@@ -466,11 +421,8 @@ impl MailboxReq {
             MailboxReq::GetRtAliasCert(_) => CommandId::GET_RT_ALIAS_CERT,
             MailboxReq::IncrementPcrResetCounter(_) => CommandId::INCREMENT_PCR_RESET_COUNTER,
             MailboxReq::QuotePcrs(_) => CommandId::QUOTE_PCRS,
-            #[cfg(feature = "mldsa_attestation")]
             MailboxReq::SetPqSeed(_) => CommandId::SET_PQ_SEED,
-            #[cfg(feature = "mldsa_attestation")]
             MailboxReq::InvokeDpeMldsa87Command(_) => CommandId::INVOKE_DPE_MLDSA87,
-            #[cfg(feature = "mldsa_attestation")]
             MailboxReq::CertifyKeyExtendedMldsa87(_) => CommandId::CERTIFY_KEY_EXTENDED_MLDSA87,
             MailboxReq::ExtendPcr(_) => CommandId::EXTEND_PCR,
             MailboxReq::AddSubjectAltName(_) => CommandId::ADD_SUBJECT_ALT_NAME,
@@ -479,7 +431,6 @@ impl MailboxReq {
             MailboxReq::AuthorizeAndStash(_) => CommandId::AUTHORIZE_AND_STASH,
             MailboxReq::SignWithExportedEcdsa(_) => CommandId::SIGN_WITH_EXPORTED_ECDSA,
             MailboxReq::RevokeExportedCdiHandle(_) => CommandId::REVOKE_EXPORTED_CDI_HANDLE,
-            #[cfg(feature = "mldsa_attestation")]
             MailboxReq::SignWithExportedMldsa(_) => CommandId::SIGN_WITH_EXPORTED_MLDSA,
             MailboxReq::ReallocateDpeContextLimits(_) => CommandId::REALLOCATE_DPE_CONTEXT_LIMITS,
             MailboxReq::GetPcrLog(_) => CommandId::GET_PCR_LOG,
@@ -598,7 +549,6 @@ impl Default for GetIdevCertResp {
 }
 
 // GET_PQ_CERT
-#[cfg(feature = "mldsa_attestation")]
 #[repr(C)]
 #[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
 pub struct GetPqCertReq {
@@ -608,7 +558,6 @@ pub struct GetPqCertReq {
     pub tbs: [u8; GetPqCertReq::DATA_MAX_SIZE], // variable length
     pub _pad: [u8; GetPqCertReq::PAD_LEN],
 }
-#[cfg(feature = "mldsa_attestation")]
 impl GetPqCertReq {
     // A GET_PQ_CERT response certificate is the DER SEQUENCE
     //   `{ tbs, signatureAlgorithm, signatureValue }`
@@ -659,7 +608,6 @@ impl GetPqCertReq {
         Ok(&mut self.as_mut_bytes()[..size_of::<Self>() - unused_byte_count])
     }
 }
-#[cfg(feature = "mldsa_attestation")]
 impl Default for GetPqCertReq {
     fn default() -> Self {
         Self {
@@ -672,7 +620,6 @@ impl Default for GetPqCertReq {
     }
 }
 
-#[cfg(feature = "mldsa_attestation")]
 #[repr(C)]
 #[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
 pub struct GetPqCertResp {
@@ -680,14 +627,11 @@ pub struct GetPqCertResp {
     pub cert_size: u32,
     pub cert: [u8; GetPqCertResp::DATA_MAX_SIZE], // variable length
 }
-#[cfg(feature = "mldsa_attestation")]
 impl GetPqCertResp {
     pub const DATA_MAX_SIZE: usize = 8192;
 }
-#[cfg(feature = "mldsa_attestation")]
 impl ResponseVarSize for GetPqCertResp {}
 
-#[cfg(feature = "mldsa_attestation")]
 impl Default for GetPqCertResp {
     fn default() -> Self {
         Self {
@@ -1180,7 +1124,6 @@ impl Default for PopulateIdevCertReq {
 
 // POPULATE_PQ_CERT
 // No command-specific output args
-#[cfg(feature = "mldsa_attestation")]
 #[repr(C)]
 #[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
 pub struct PopulatePqCertReq {
@@ -1188,7 +1131,6 @@ pub struct PopulatePqCertReq {
     pub cert_size: u32,
     pub cert: [u8; PopulatePqCertReq::MAX_CERT_SIZE], // variable length
 }
-#[cfg(feature = "mldsa_attestation")]
 impl PopulatePqCertReq {
     pub const MAX_CERT_SIZE: usize = 8192;
 
@@ -1208,7 +1150,6 @@ impl PopulatePqCertReq {
         Ok(&mut self.as_mut_bytes()[..size_of::<Self>() - unused_byte_count])
     }
 }
-#[cfg(feature = "mldsa_attestation")]
 impl Default for PopulatePqCertReq {
     fn default() -> Self {
         Self {
@@ -1290,7 +1231,6 @@ impl Request for QuotePcrsReq {
 }
 
 // SET_PQ_SEED
-#[cfg(feature = "mldsa_attestation")]
 #[repr(C)]
 #[derive(Default, Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
 pub struct SetPqSeedReq {
@@ -1298,18 +1238,15 @@ pub struct SetPqSeedReq {
     pub seed: [u8; SET_PQ_SEED_SEED_SIZE],
 }
 
-#[cfg(feature = "mldsa_attestation")]
 const _: () =
     assert!(size_of::<SetPqSeedReq>() == size_of::<MailboxReqHeader>() + SET_PQ_SEED_SEED_SIZE);
 
-#[cfg(feature = "mldsa_attestation")]
 impl Request for SetPqSeedReq {
     const ID: CommandId = CommandId::SET_PQ_SEED;
     type Resp = MailboxRespHeader;
 }
 
 // INVOKE_DPE_MLDSA87
-#[cfg(feature = "mldsa_attestation")]
 #[repr(C)]
 #[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
 pub struct InvokeDpeMldsa87Req {
@@ -1318,7 +1255,6 @@ pub struct InvokeDpeMldsa87Req {
     pub data: [u8; InvokeDpeMldsa87Req::DATA_MAX_SIZE], // variable length
 }
 
-#[cfg(feature = "mldsa_attestation")]
 impl InvokeDpeMldsa87Req {
     pub const DATA_MAX_SIZE: usize = 512;
 
@@ -1338,7 +1274,6 @@ impl InvokeDpeMldsa87Req {
         Ok(&mut self.as_mut_bytes()[..size_of::<Self>() - unused_byte_count])
     }
 }
-#[cfg(feature = "mldsa_attestation")]
 impl Default for InvokeDpeMldsa87Req {
     fn default() -> Self {
         Self {
@@ -1348,13 +1283,11 @@ impl Default for InvokeDpeMldsa87Req {
         }
     }
 }
-#[cfg(feature = "mldsa_attestation")]
 impl Request for InvokeDpeMldsa87Req {
     const ID: CommandId = CommandId::INVOKE_DPE_MLDSA87;
     type Resp = InvokeDpeMldsa87Resp;
 }
 
-#[cfg(feature = "mldsa_attestation")]
 #[repr(C)]
 #[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
 pub struct InvokeDpeMldsa87Resp {
@@ -1362,14 +1295,11 @@ pub struct InvokeDpeMldsa87Resp {
     pub data_size: u32,
     pub data: [u8; InvokeDpeMldsa87Resp::DATA_MAX_SIZE], // variable length
 }
-#[cfg(feature = "mldsa_attestation")]
 impl InvokeDpeMldsa87Resp {
     pub const DATA_MAX_SIZE: usize = 25168;
 }
-#[cfg(feature = "mldsa_attestation")]
 impl ResponseVarSize for InvokeDpeMldsa87Resp {}
 
-#[cfg(feature = "mldsa_attestation")]
 impl Default for InvokeDpeMldsa87Resp {
     fn default() -> Self {
         Self {
@@ -1381,20 +1311,17 @@ impl Default for InvokeDpeMldsa87Resp {
 }
 
 // GET_PQ_CSR
-#[cfg(feature = "mldsa_attestation")]
 #[repr(C)]
 #[derive(Default, Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
 pub struct GetPqCsrReq {
     pub hdr: MailboxReqHeader,
 }
 
-#[cfg(feature = "mldsa_attestation")]
 impl Request for GetPqCsrReq {
     const ID: CommandId = CommandId::GET_PQ_CSR;
     type Resp = GetPqCsrResp;
 }
 
-#[cfg(feature = "mldsa_attestation")]
 #[repr(C)]
 #[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
 pub struct GetPqCsrResp {
@@ -1402,14 +1329,11 @@ pub struct GetPqCsrResp {
     pub data_size: u32,
     pub data: [u8; Self::DATA_MAX_SIZE],
 }
-#[cfg(feature = "mldsa_attestation")]
 impl GetPqCsrResp {
     pub const DATA_MAX_SIZE: usize = 12800;
 }
-#[cfg(feature = "mldsa_attestation")]
 impl ResponseVarSize for GetPqCsrResp {}
 
-#[cfg(feature = "mldsa_attestation")]
 impl Default for GetPqCsrResp {
     fn default() -> Self {
         Self {
@@ -1422,30 +1346,25 @@ impl Default for GetPqCsrResp {
 
 // GET_PQ_INFO
 // No command-specific input args
-#[cfg(feature = "mldsa_attestation")]
 #[repr(C)]
 #[derive(Default, Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
 pub struct GetPqInfoReq {
     pub hdr: MailboxReqHeader,
 }
 
-#[cfg(feature = "mldsa_attestation")]
 impl Request for GetPqInfoReq {
     const ID: CommandId = CommandId::GET_PQ_INFO;
     type Resp = GetPqInfoResp;
 }
 
-#[cfg(feature = "mldsa_attestation")]
 #[repr(C)]
 #[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
 pub struct GetPqInfoResp {
     pub hdr: MailboxRespHeader,
     pub pq_pub_key: [u8; MLDSA87_PUBLIC_KEY_BYTES],
 }
-#[cfg(feature = "mldsa_attestation")]
 impl Response for GetPqInfoResp {}
 
-#[cfg(feature = "mldsa_attestation")]
 impl Default for GetPqInfoResp {
     fn default() -> Self {
         Self {
@@ -1456,7 +1375,6 @@ impl Default for GetPqInfoResp {
 }
 
 // CERTIFY_KEY_EXTENDED_MLDSA87
-#[cfg(feature = "mldsa_attestation")]
 #[repr(C)]
 #[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
 pub struct CertifyKeyExtendedMldsa87Req {
@@ -1464,17 +1382,14 @@ pub struct CertifyKeyExtendedMldsa87Req {
     pub flags: CertifyKeyExtendedFlags,
     pub certify_key_req: [u8; CertifyKeyExtendedMldsa87Req::CERTIFY_KEY_REQ_SIZE],
 }
-#[cfg(feature = "mldsa_attestation")]
 impl CertifyKeyExtendedMldsa87Req {
     pub const CERTIFY_KEY_REQ_SIZE: usize = 72;
 }
-#[cfg(feature = "mldsa_attestation")]
 impl Request for CertifyKeyExtendedMldsa87Req {
     const ID: CommandId = CommandId::CERTIFY_KEY_EXTENDED_MLDSA87;
     type Resp = CertifyKeyExtendedMldsa87Resp;
 }
 
-#[cfg(feature = "mldsa_attestation")]
 #[repr(C)]
 #[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
 pub struct CertifyKeyExtendedMldsa87Resp {
@@ -1482,14 +1397,11 @@ pub struct CertifyKeyExtendedMldsa87Resp {
     pub size: u32,
     pub certify_key_resp: [u8; CertifyKeyExtendedMldsa87Resp::CERTIFY_KEY_RESP_SIZE],
 }
-#[cfg(feature = "mldsa_attestation")]
 impl CertifyKeyExtendedMldsa87Resp {
     pub const CERTIFY_KEY_RESP_SIZE: usize = 25152;
 }
-#[cfg(feature = "mldsa_attestation")]
 impl Response for CertifyKeyExtendedMldsa87Resp {}
 
-#[cfg(feature = "mldsa_attestation")]
 impl Default for CertifyKeyExtendedMldsa87Resp {
     fn default() -> Self {
         Self {
@@ -1707,7 +1619,6 @@ pub struct RevokeExportedCdiHandleResp {
 //                               sign; the device computes mu internally.
 //   * `SIGN_MODE_EXTERNAL_MU` - `message[..MU_SIZE]` is a caller-supplied
 //                               external mu (`message_size` must equal MU_SIZE).
-#[cfg(feature = "mldsa_attestation")]
 #[repr(C)]
 #[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
 pub struct SignWithExportedMldsaReq {
@@ -1718,7 +1629,6 @@ pub struct SignWithExportedMldsaReq {
     pub message: [u8; Self::MAX_DATA_SIZE],
 }
 
-#[cfg(feature = "mldsa_attestation")]
 impl Default for SignWithExportedMldsaReq {
     fn default() -> Self {
         Self {
@@ -1731,7 +1641,6 @@ impl Default for SignWithExportedMldsaReq {
     }
 }
 
-#[cfg(feature = "mldsa_attestation")]
 impl SignWithExportedMldsaReq {
     pub const EXPORTED_CDI_MAX_SIZE: usize = 32;
     pub const MAX_DATA_SIZE: usize = 1024;
@@ -1762,13 +1671,11 @@ impl SignWithExportedMldsaReq {
     }
 }
 
-#[cfg(feature = "mldsa_attestation")]
 impl Request for SignWithExportedMldsaReq {
     const ID: CommandId = CommandId::SIGN_WITH_EXPORTED_MLDSA;
     type Resp = SignWithExportedMldsaResp;
 }
 
-#[cfg(feature = "mldsa_attestation")]
 #[repr(C)]
 #[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
 pub struct SignWithExportedMldsaResp {
@@ -1780,16 +1687,13 @@ pub struct SignWithExportedMldsaResp {
     pub reserved: [u8; 1],
 }
 
-#[cfg(feature = "mldsa_attestation")]
 impl SignWithExportedMldsaResp {
     pub const PUBKEY_SIZE: usize = MLDSA87_PUBLIC_KEY_BYTES;
     pub const SIG_SIZE: usize = MLDSA87_SIGNATURE_BYTES;
 }
 
-#[cfg(feature = "mldsa_attestation")]
 impl ResponseVarSize for SignWithExportedMldsaResp {}
 
-#[cfg(feature = "mldsa_attestation")]
 impl Default for SignWithExportedMldsaResp {
     fn default() -> Self {
         Self {

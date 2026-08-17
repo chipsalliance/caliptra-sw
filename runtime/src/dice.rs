@@ -13,30 +13,21 @@ Abstract:
 --*/
 
 use caliptra_common::mailbox_api::{
-    GetFmcAliasCertResp, GetIdevCertReq, GetIdevCertResp, GetLdevCertResp, GetRtAliasCertResp,
+    GetFmcAliasCertResp, GetIdevCertReq, GetIdevCertResp, GetLdevCertResp, GetPqCertReq,
+    GetPqCertResp, GetRtAliasCertResp,
 };
-#[cfg(feature = "mldsa_attestation")]
-use caliptra_common::mailbox_api::{GetPqCertReq, GetPqCertResp};
 
 use crate::Drivers;
 
-#[cfg(feature = "mldsa_attestation")]
-use caliptra_drivers::Mldsa87Signature;
 use caliptra_drivers::{
     hand_off::{DataStore, HandOffDataHandle},
-    CaliptraError, CaliptraResult, DataVault, Ecc384Scalar, Ecc384Signature, PersistentData,
+    hmac384_kdf, Array4x12, CaliptraError, CaliptraResult, DataVault, Ecc384Scalar,
+    Ecc384Signature, Hmac384, Mldsa87Seed, Mldsa87Signature, PersistentData, Trng,
+    MLDSA87_PRIVATE_SEED_BYTES,
 };
-#[cfg(feature = "mldsa_attestation")]
-use caliptra_x509::MlDsa87CertBuilder;
-use caliptra_x509::{Ecdsa384CertBuilder, Ecdsa384Signature};
+use caliptra_x509::{Ecdsa384CertBuilder, Ecdsa384Signature, MlDsa87CertBuilder};
 use zerocopy::{FromZeros, IntoBytes};
-#[cfg(feature = "mldsa_attestation")]
-use {
-    caliptra_drivers::{
-        hmac384_kdf, Array4x12, Hmac384, Mldsa87Seed, Trng, MLDSA87_PRIVATE_SEED_BYTES,
-    },
-    zeroize::Zeroizing,
-};
+use zeroize::Zeroizing;
 
 pub struct IDevIdCertCmd;
 impl IDevIdCertCmd {
@@ -70,9 +61,7 @@ impl IDevIdCertCmd {
     }
 }
 
-#[cfg(feature = "mldsa_attestation")]
 pub struct PqCertCmd;
-#[cfg(feature = "mldsa_attestation")]
 impl PqCertCmd {
     #[inline(never)]
     pub(crate) fn execute(drivers: &mut Drivers) -> CaliptraResult<()> {
@@ -322,7 +311,6 @@ fn cert_from_tbs_and_sig(
 /// the DevID CDI, so the CSR here matches the PQ.DevID identity used
 /// elsewhere in the runtime. The CDI is provisioned by SET_PQ_SEED and lives
 /// in persistent data.
-#[cfg(feature = "mldsa_attestation")]
 pub fn derive_devid_seed(
     cdi: &Array4x12,
     seed: &mut Mldsa87Seed,

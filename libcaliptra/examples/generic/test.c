@@ -1008,8 +1008,8 @@ int rt_test_all_commands(const test_info* info)
     }
 
     // Give the self test time to run. The runtime self test holds the mailbox
-    // lock while it runs; with mldsa_attestation enabled it also executes the
-    // software ML-DSA-87 KAT (key-gen + sign + verify), which is much slower
+    // lock while it runs, and it also executes the software ML-DSA-87 KAT
+    // (key-gen + sign + verify), which is much slower
     // than the hardware-accelerated KATs, so a fixed wait is fragile. Poll
     // SELF_TEST_GET_RESULTS (which returns MBX_BUSY while the lock is held)
     // until the self test releases the mailbox.

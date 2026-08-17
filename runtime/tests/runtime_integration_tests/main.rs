@@ -4,7 +4,6 @@ mod common;
 mod test_authorize_and_stash;
 mod test_boot;
 mod test_certify_key_extended;
-#[cfg(feature = "mldsa_attestation")]
 mod test_certify_key_extended_mldsa;
 mod test_certs;
 mod test_command_timing;
@@ -13,38 +12,28 @@ mod test_ecdsa;
 mod test_fips;
 mod test_get_fmc_alias_csr;
 mod test_get_idev_csr;
-#[cfg(feature = "mldsa_attestation")]
 mod test_get_pq_cert;
-#[cfg(feature = "mldsa_attestation")]
 mod test_get_pq_csr;
-#[cfg(feature = "mldsa_attestation")]
 mod test_get_pq_info;
 mod test_info;
 mod test_invoke_dpe;
-#[cfg(feature = "mldsa_attestation")]
 mod test_invoke_dpe_mldsa;
 mod test_lms;
 mod test_mailbox;
 mod test_measurements_common;
-#[cfg(feature = "mldsa_attestation")]
 mod test_mldsa_attestation_workflow;
-#[cfg(feature = "mldsa_attestation")]
 mod test_mldsa_verify;
 mod test_panic_missing;
 mod test_pauser_privilege_levels;
 mod test_pcr;
 mod test_populate_idev;
-#[cfg(feature = "mldsa_attestation")]
 mod test_populate_pq;
 mod test_reallocate_dpe_context_limits;
 mod test_revoke_exported_cdi_handle;
-#[cfg(feature = "mldsa_attestation")]
 mod test_revoke_exported_cdi_handle_mldsa;
 mod test_set_auth_manifest;
-#[cfg(feature = "mldsa_attestation")]
 mod test_set_pq_seed;
 mod test_sign_with_export_ecdsa;
-#[cfg(feature = "mldsa_attestation")]
 mod test_sign_with_exported_mldsa;
 mod test_stack_usage;
 mod test_stash_measurement;

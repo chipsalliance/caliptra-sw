@@ -37,7 +37,6 @@ mod kv_access;
 mod lms;
 mod mailbox;
 pub mod memory_layout;
-#[cfg(feature = "mldsa_attestation")]
 mod mldsa87;
 mod okref;
 mod pcr_bank;
@@ -84,7 +83,6 @@ pub use lms::{
     Sha256Digest, D_INTR, D_LEAF, D_MESG, D_PBLC,
 };
 pub use mailbox::{Mailbox, MailboxRecvTxn, MailboxSendTxn};
-#[cfg(feature = "mldsa_attestation")]
 pub use mldsa87::{
     Mldsa87, Mldsa87Mu, Mldsa87PrivKey, Mldsa87PubKey, Mldsa87Result, Mldsa87Seed,
     Mldsa87Signature, MLDSA87_MU_BYTES, MLDSA87_PRIVATE_KEY_BYTES, MLDSA87_PRIVATE_SEED_BYTES,
@@ -98,14 +96,13 @@ pub use persistent::fmc_alias_csr::FmcAliasCsr;
 #[cfg(feature = "runtime")]
 pub use persistent::{AuthManifestImageMetadataList, ExportedCdiEntry, ExportedCdiHandles};
 
-#[cfg(all(feature = "mldsa_attestation", feature = "runtime"))]
+#[cfg(feature = "runtime")]
 pub use persistent::MldsaExportedCdiEntry;
 pub use persistent::{
     FuseLogArray, IdevIdCsr, PcrLogArray, PersistentData, PersistentDataAccessor,
     StashMeasurementArray, FUSE_LOG_MAX_COUNT, MAX_FMC_ALIAS_CSR_SIZE, MAX_IDEVID_CSR_SIZE,
     MEASUREMENT_MAX_COUNT, MLDSA_EXPORTED_CDI_HANDLES_SIZE, PCR_LOG_MAX_COUNT,
 };
-#[cfg(feature = "mldsa_attestation")]
 pub use persistent::{PqDevIdCdi, PQ_DEVID_CDI_SIZE};
 pub use pic::{IntSource, Pic};
 pub use sha1::{Sha1, Sha1Digest, Sha1DigestOp};

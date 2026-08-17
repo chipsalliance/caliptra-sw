@@ -14,7 +14,6 @@ use caliptra_image_types::ZeroizeWithByteScrub;
 use dpe::{ExportedCdiHandle, State, U8Bool, MAX_HANDLES};
 use zerocopy::{FromZeros, IntoBytes, KnownLayout, TryFromBytes};
 use zeroize::Zeroize;
-#[cfg(feature = "mldsa_attestation")]
 use zeroize::Zeroizing;
 
 #[cfg(feature = "runtime")]
@@ -51,7 +50,6 @@ pub const DPE_PL_CONTEXT_LIMITS_SIZE: u32 = 2;
 pub const PQ_DEVID_CDI_SIZE: u32 = 48;
 pub const PQ_DEVID_PUB_KEY_DIGEST_SIZE: u32 = 32;
 pub const PQC_STATUS_FLAGS_SIZE: u32 = 1;
-#[cfg(feature = "mldsa_attestation")]
 pub const PQC_MODE_ENABLED_FLAG: u8 = 1;
 pub const RESERVED_MEMORY_SIZE: u32 = 1024
     - 2
@@ -100,7 +98,7 @@ impl Zeroize for ExportedCdiHandles {
     }
 }
 
-#[cfg(all(feature = "mldsa_attestation", feature = "runtime"))]
+#[cfg(feature = "runtime")]
 #[derive(Clone, FromZeros, IntoBytes, KnownLayout)]
 pub struct MldsaExportedCdiEntry {
     pub cdi: [u8; PQ_DEVID_CDI_SIZE as usize],
@@ -108,9 +106,9 @@ pub struct MldsaExportedCdiEntry {
     pub active: U8Bool,
 }
 
-#[cfg(all(feature = "mldsa_attestation", feature = "runtime"))]
+#[cfg(feature = "runtime")]
 impl ZeroizeWithByteScrub for MldsaExportedCdiEntry {}
-#[cfg(all(feature = "mldsa_attestation", feature = "runtime"))]
+#[cfg(feature = "runtime")]
 impl Zeroize for MldsaExportedCdiEntry {
     fn zeroize(&mut self) {
         self.zeroize_scrub();
@@ -118,14 +116,14 @@ impl Zeroize for MldsaExportedCdiEntry {
 }
 
 // When the struct is compiled, derive the size from it; otherwise use the hardcoded value.
-#[cfg(all(feature = "mldsa_attestation", feature = "runtime"))]
+#[cfg(feature = "runtime")]
 pub const MLDSA_EXPORTED_CDI_HANDLES_SIZE: u32 = size_of::<MldsaExportedCdiEntry>() as u32;
 pub const MLDSA_EXPORTED_CDI_HANDLES_SIZE_RAW: u32 = PQ_DEVID_CDI_SIZE + 32 + 1; // cdi + handle + active
-#[cfg(not(all(feature = "mldsa_attestation", feature = "runtime")))]
+#[cfg(not(feature = "runtime"))]
 pub const MLDSA_EXPORTED_CDI_HANDLES_SIZE: u32 = MLDSA_EXPORTED_CDI_HANDLES_SIZE_RAW; // cdi + handle + active
 
 // Verify the hardcoded formula used above matches the actual struct layout.
-#[cfg(all(feature = "mldsa_attestation", feature = "runtime"))]
+#[cfg(feature = "runtime")]
 const _: () =
     assert!(size_of::<MldsaExportedCdiEntry>() == MLDSA_EXPORTED_CDI_HANDLES_SIZE_RAW as usize);
 
@@ -366,9 +364,9 @@ pub struct PersistentData {
     pq_devid_pub_key_digest: [u8; PQ_DEVID_PUB_KEY_DIGEST_SIZE as usize],
     pqc_status_flags: u8,
 
-    #[cfg(all(feature = "mldsa_attestation", feature = "runtime"))]
+    #[cfg(feature = "runtime")]
     pub mldsa_exported_cdi_slots: MldsaExportedCdiEntry,
-    #[cfg(not(all(feature = "mldsa_attestation", feature = "runtime")))]
+    #[cfg(not(feature = "runtime"))]
     mldsa_exported_cdi_slots: [u8; MLDSA_EXPORTED_CDI_HANDLES_SIZE as usize],
 
     // Reserved memory for future objects.
@@ -385,7 +383,6 @@ impl Zeroize for PersistentData {
 }
 
 impl PersistentData {
-    #[cfg(feature = "mldsa_attestation")]
     pub fn pqc_mode_enabled(&self) -> bool {
         self.pqc_status_flags & PQC_MODE_ENABLED_FLAG != 0
     }
@@ -397,7 +394,6 @@ impl PersistentData {
     ///
     /// The copy is returned in a [`Zeroizing`] wrapper so the caller's transient
     /// copy of this secret is scrubbed when it goes out of scope.
-    #[cfg(feature = "mldsa_attestation")]
     pub fn pq_devid_cdi(&self) -> CaliptraResult<Zeroizing<PqDevIdCdi>> {
         self.pqc_mode_enabled()
             .then(|| Zeroizing::new(self.pq_devid_cdi))
@@ -406,7 +402,6 @@ impl PersistentData {
 
     /// Returns a copy of the SHA-256 hash of the PQ.DevID public key, if PQC mode
     /// has been enabled.
-    #[cfg(feature = "mldsa_attestation")]
     pub fn pq_devid_pub_key_digest(
         &self,
     ) -> CaliptraResult<[u8; PQ_DEVID_PUB_KEY_DIGEST_SIZE as usize]> {
@@ -419,7 +414,6 @@ impl PersistentData {
     /// the invariant that a readable CDI always has its status flag set. The CDI
     /// is write-once: attempting to overwrite an already-provisioned CDI returns
     /// `RUNTIME_SET_PQ_SEED_ALREADY_SET` and leaves the existing value intact.
-    #[cfg(feature = "mldsa_attestation")]
     pub fn set_pq_devid_cdi(&mut self, cdi: PqDevIdCdi) -> CaliptraResult<()> {
         #[cfg(feature = "runtime")]
         if self.attestation_disabled.get() {
@@ -435,7 +429,6 @@ impl PersistentData {
 
     /// When PQC mode is enabled, overwrites the PQ.DevID CDI with dummy bytes
     /// and zeroizes the exported ML-DSA CDI slots; otherwise, does nothing.
-    #[cfg(feature = "mldsa_attestation")]
     pub fn erase_pq_devid_cdi(&mut self, dummy_cdi: PqDevIdCdi) {
         if self.pqc_mode_enabled() {
             self.pq_devid_cdi = dummy_cdi;
@@ -443,7 +436,6 @@ impl PersistentData {
         }
     }
 
-    #[cfg(feature = "mldsa_attestation")]
     pub fn set_pq_devid_pub_key_digest(
         &mut self,
         digest: [u8; PQ_DEVID_PUB_KEY_DIGEST_SIZE as usize],

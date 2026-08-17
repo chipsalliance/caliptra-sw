@@ -293,8 +293,6 @@ fn test_certify_key_extended_mldsa87_dmtf_other_name_not_present() {
 
 #[test]
 fn test_certify_key_extended_mldsa87_cannot_be_called_from_pl1() {
-    use caliptra_builder::firmware::APP_MLDSA_ATTESTATION;
-
     // Designate pauser 0x2 as PL0 so we can provision the PQ seed (which is
     // also PL0-only) before switching to pauser 0x1 (PL1) for the actual test.
     // The PL1 check is inside certify_key_extended.rs::certify_key(), which is
@@ -303,7 +301,6 @@ fn test_certify_key_extended_mldsa87_cannot_be_called_from_pl1() {
     image_opts.vendor_config.pl0_pauser = Some(0x2);
 
     let mut model = run_rt_test(RuntimeTestArgs {
-        test_fwid: Some(&APP_MLDSA_ATTESTATION),
         test_image_options: Some(image_opts),
         ..Default::default()
     });
