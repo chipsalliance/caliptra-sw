@@ -15,15 +15,13 @@ Abstract:
 use crate::packet::copy_from_mbox;
 use crate::Drivers;
 use caliptra_cfi_derive::cfi_impl_fn;
-#[cfg(feature = "mldsa_attestation")]
-use caliptra_common::mailbox_api::Mldsa87VerifyReq;
-use caliptra_common::mailbox_api::{EcdsaVerifyReq, LmsVerifyReq, MailboxRespHeader};
+use caliptra_common::mailbox_api::{
+    EcdsaVerifyReq, LmsVerifyReq, MailboxRespHeader, Mldsa87VerifyReq,
+};
 use caliptra_drivers::{
     Array4x12, CaliptraError, CaliptraResult, Ecc384PubKey, Ecc384Result, Ecc384Scalar,
-    Ecc384Signature, LmsResult,
+    Ecc384Signature, LmsResult, Mldsa87, Mldsa87PubKey, Mldsa87Result, Mldsa87Signature,
 };
-#[cfg(feature = "mldsa_attestation")]
-use caliptra_drivers::{Mldsa87, Mldsa87PubKey, Mldsa87Result, Mldsa87Signature};
 use caliptra_lms_types::{
     LmotsAlgorithmType, LmotsSignature, LmsAlgorithmType, LmsPublicKey, LmsSignature,
 };
@@ -138,9 +136,7 @@ impl LmsVerifyCmd {
     }
 }
 
-#[cfg(feature = "mldsa_attestation")]
 pub struct Mldsa87VerifyCmd;
-#[cfg(feature = "mldsa_attestation")]
 impl Mldsa87VerifyCmd {
     #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]

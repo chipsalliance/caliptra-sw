@@ -116,7 +116,6 @@ impl Platform for DpePlatform<'_> {
         // the CN differs by profile.
         let caliptra_cn: &[u8] = match self.profile {
             CaliptraDpeProfile::Ecc384 => b"Caliptra 1.0 Rt Alias",
-            #[cfg(feature = "mldsa_attestation")]
             CaliptraDpeProfile::Mldsa => b"Caliptra 1.3 MlDsa87 PQDevID",
         };
         let mut issuer_buf = SliceResponseBuffer::new(out.as_mut_slice());

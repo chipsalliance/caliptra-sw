@@ -6,7 +6,6 @@ use caliptra_builder::{
     firmware::{APP_WITH_UART, APP_WITH_UART_FPGA, FMC_WITH_UART},
     FwId, ImageOptions,
 };
-#[cfg(feature = "mldsa_attestation")]
 use caliptra_common::mailbox_api::InvokeDpeMldsa87Req;
 use caliptra_common::{
     mailbox_api::{
@@ -48,7 +47,6 @@ pub const TEST_DIGEST: [u8; 48] = [
     27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48,
 ];
 
-#[cfg(feature = "mldsa_attestation")]
 pub const TEST_DIGEST_MLDSA: [u8; 64] = [
     1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26,
     27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50,
@@ -84,17 +82,12 @@ pub fn run_rt_test_return_fw(args: RuntimeTestArgs) -> (DefaultHwModel, ImageBun
     run_rt_test_base(args, false)
 }
 
-// Boot the ML-DSA attestation runtime image and wait until it is ready for
-// commands. Shared by the per-command PQC DPE integration tests.
-#[cfg(feature = "mldsa_attestation")]
+// Boot the runtime image and wait until it is ready for commands. Shared by
+// the per-command PQC DPE integration tests.
 pub fn run_pqc_rt_test() -> DefaultHwModel {
-    use caliptra_builder::firmware::APP_MLDSA_ATTESTATION;
     use caliptra_runtime::RtBootStatus;
 
-    let mut model = run_rt_test(RuntimeTestArgs {
-        test_fwid: Some(&APP_MLDSA_ATTESTATION),
-        ..Default::default()
-    });
+    let mut model = run_rt_test(RuntimeTestArgs::default());
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -103,11 +96,9 @@ pub fn run_pqc_rt_test() -> DefaultHwModel {
     model
 }
 
-#[cfg(feature = "mldsa_attestation")]
 pub const PQ_SEED: [u8; caliptra_common::mailbox_api::SET_PQ_SEED_SEED_SIZE] =
     [0x5a; caliptra_common::mailbox_api::SET_PQ_SEED_SEED_SIZE];
 
-#[cfg(feature = "mldsa_attestation")]
 pub fn provision_pq_seed(model: &mut DefaultHwModel) {
     use caliptra_common::mailbox_api::SetPqSeedReq;
 
@@ -123,7 +114,6 @@ pub fn provision_pq_seed(model: &mut DefaultHwModel) {
 
 /// Populate the ML-DSA PQ certificate (a prerequisite for exporting an ML-DSA
 /// CDI with a certificate). Returns the DER certificate that was populated.
-#[cfg(feature = "mldsa_attestation")]
 pub fn populate_pq_cert(model: &mut DefaultHwModel) -> Vec<u8> {
     use caliptra_common::mailbox_api::PopulatePqCertReq;
     use caliptra_drivers::Mldsa87Signature;
@@ -167,7 +157,6 @@ pub fn populate_pq_cert(model: &mut DefaultHwModel) -> Vec<u8> {
 /// | RETAIN_PARENT_CONTEXT}` and return the exported-CDI handle. Retaining the
 /// parent keeps the root context valid so multiple exports can run in one boot.
 /// An ML-DSA export requires SET_PQ_SEED (+ POPULATE_PQ_CERT) first.
-#[cfg(feature = "mldsa_attestation")]
 pub fn export_cdi_with_profile(
     model: &mut DefaultHwModel,
     profile: CaliptraDpeProfile,
@@ -202,23 +191,19 @@ pub fn export_cdi_with_profile(
 }
 
 /// Export the ML-DSA (PQ.DevID) CDI and return its handle.
-#[cfg(feature = "mldsa_attestation")]
 pub fn export_mldsa_cdi(model: &mut DefaultHwModel) -> [u8; 32] {
     export_cdi_with_profile(model, CaliptraDpeProfile::Mldsa)
 }
 
 /// Export the ECDSA (RT-alias) CDI and return its handle.
-#[cfg(feature = "mldsa_attestation")]
 pub fn export_ecdsa_cdi(model: &mut DefaultHwModel) -> [u8; 32] {
     export_cdi_with_profile(model, CaliptraDpeProfile::Ecc384)
 }
 
-#[cfg(feature = "mldsa_attestation")]
 pub fn get_pq_csr_checksum() -> u32 {
     caliptra_common::checksum::calc_checksum(u32::from(CommandId::GET_PQ_CSR), &[])
 }
 
-#[cfg(feature = "mldsa_attestation")]
 pub fn get_pq_csr(model: &mut DefaultHwModel) -> Vec<u8> {
     use caliptra_common::mailbox_api::GetPqCsrResp;
     use zerocopy::{FromBytes, IntoBytes};
@@ -234,7 +219,6 @@ pub fn get_pq_csr(model: &mut DefaultHwModel) -> Vec<u8> {
     csr_resp.data[..csr_resp.data_size as usize].to_vec()
 }
 
-#[cfg(feature = "mldsa_attestation")]
 pub fn mldsa_csr_public_key(csr_bytes: &[u8]) -> Vec<u8> {
     use openssl::pkey::Public;
     use openssl::pkey_ml_dsa::PKeyMlDsaParams;
@@ -249,7 +233,7 @@ pub fn mldsa_csr_public_key(csr_bytes: &[u8]) -> Vec<u8> {
         .to_vec()
 }
 
-// Boot the ML-DSA attestation runtime image **debug-locked** (Production
+// Boot the runtime image **debug-locked** (Production
 // lifecycle) so the firmware actually arms the per-command watchdog. The
 // runtime's `start_wdt` (runtime/src/lib.rs) is a no-op unless the device is
 // debug-locked, so the default (unlocked) test boots never enforce the WDT.
@@ -257,9 +241,7 @@ pub fn mldsa_csr_public_key(csr_bytes: &[u8]) -> Vec<u8> {
 //
 // WDT budget: `WdtTimeout::default()` = 20M cycles (WDT1), cascading to WDT2
 // (1 cycle) -> NMI -> `RUNTIME_GLOBAL_WDT_EXPIRED` fatal error.
-#[cfg(feature = "mldsa_attestation")]
 pub fn run_pqc_rt_test_wdt() -> DefaultHwModel {
-    use caliptra_builder::firmware::APP_MLDSA_ATTESTATION;
     use caliptra_hw_model::{DeviceLifecycle, SecurityState};
     use openssl::sha::sha384;
 
@@ -272,12 +254,9 @@ pub fn run_pqc_rt_test_wdt() -> DefaultHwModel {
     image_options.fmc_version = DEFAULT_FMC_VERSION;
     image_options.app_version = DEFAULT_APP_VERSION;
 
-    let image = caliptra_builder::build_and_sign_image(
-        &FMC_WITH_UART,
-        &APP_MLDSA_ATTESTATION,
-        image_options,
-    )
-    .unwrap();
+    let image =
+        caliptra_builder::build_and_sign_image(&FMC_WITH_UART, &APP_WITH_UART, image_options)
+            .unwrap();
 
     // Debug-locked (Production) boot verifies the image signature, so the fuses
     // must carry the vendor/owner public-key hashes of the signed image.
@@ -465,7 +444,6 @@ pub fn execute_dpe_cmd(
             data: cmd_data,
             data_size,
         }),
-        #[cfg(feature = "mldsa_attestation")]
         CaliptraDpeProfile::Mldsa => MailboxReq::InvokeDpeMldsa87Command(InvokeDpeMldsa87Req {
             hdr: MailboxReqHeader { chksum: 0 },
             data: cmd_data,
@@ -476,7 +454,6 @@ pub fn execute_dpe_cmd(
 
     let cmd_id = match profile {
         CaliptraDpeProfile::Ecc384 => CommandId::INVOKE_DPE,
-        #[cfg(feature = "mldsa_attestation")]
         CaliptraDpeProfile::Mldsa => CommandId::INVOKE_DPE_MLDSA87,
     };
     let resp = model.mailbox_execute(u32::from(cmd_id), mbox_cmd.as_bytes().unwrap());

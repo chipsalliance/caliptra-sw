@@ -31,7 +31,6 @@ impl DisableAttestationCmd {
         Self::zero_ecc384_cdi(drivers, key_id_rt_cdi)?;
         Self::zero_ecc384_cdi(drivers, KEY_ID_EXPORTED_DPE_CDI)?;
         Self::generate_dice_key(drivers)?;
-        #[cfg(feature = "mldsa_attestation")]
         Self::zero_pq_devid_cdi(drivers)?;
         drivers.persistent_data.get_mut().attestation_disabled = U8Bool::new(true);
         Ok(())
@@ -120,7 +119,6 @@ impl DisableAttestationCmd {
     /// # Arguments
     ///
     /// * `drivers` - Drivers
-    #[cfg(feature = "mldsa_attestation")]
     #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     fn zero_pq_devid_cdi(drivers: &mut Drivers) -> CaliptraResult<()> {
         let mut out = Array4x12::default();

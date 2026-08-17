@@ -22,12 +22,10 @@ pub mod tests {
         pkey::{PKey, Private},
         sha::{Sha1, Sha256},
     };
-    #[cfg(feature = "mldsa_attestation")]
     use openssl::{
         pkey::Public,
         pkey_ml_dsa::{PKeyMlDsaBuilder, PKeyMlDsaParams, Variant as MlDsaVariant},
     };
-    #[cfg(feature = "mldsa_attestation")]
     use rand::Rng;
 
     pub struct Ecc384AsymKey {
@@ -77,13 +75,11 @@ pub mod tests {
         }
     }
 
-    #[cfg(feature = "mldsa_attestation")]
     pub struct MlDsa87AsymKey {
         priv_key: PKey<Private>,
         pub_key: Vec<u8>,
     }
 
-    #[cfg(feature = "mldsa_attestation")]
     impl MlDsa87AsymKey {
         pub fn priv_key(&self) -> &PKey<Private> {
             &self.priv_key
@@ -113,7 +109,6 @@ pub mod tests {
         }
     }
 
-    #[cfg(feature = "mldsa_attestation")]
     impl Default for MlDsa87AsymKey {
         fn default() -> Self {
             let mut random_bytes: [u8; 32] = [0; 32];

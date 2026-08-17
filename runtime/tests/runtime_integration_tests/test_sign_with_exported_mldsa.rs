@@ -9,7 +9,6 @@
 //! that run before the CDI lookup.
 
 use caliptra_api::SocManager;
-use caliptra_builder::firmware::APP_MLDSA_ATTESTATION;
 use caliptra_common::checksum::calc_checksum;
 use caliptra_common::mailbox_api::{
     CommandId, MailboxReq, MailboxReqHeader, RevokeExportedCdiHandleReq, SignWithExportedMldsaReq,
@@ -343,7 +342,6 @@ fn test_sign_with_exported_mldsa_pl1_rejected() {
     image_opts.vendor_config.pl0_pauser = None;
 
     let mut model = run_rt_test(RuntimeTestArgs {
-        test_fwid: Some(&APP_MLDSA_ATTESTATION),
         test_image_options: Some(image_opts),
         ..Default::default()
     });

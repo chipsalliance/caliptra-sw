@@ -21,7 +21,6 @@ caliptra-image-types = { workspace = true, default-features = false }
 
 [features]
 default = []
-mldsa_attestation = []
 
 [dev-dependencies]
 caliptra-builder.workspace = true

@@ -1,7 +1,7 @@
 // Licensed under the Apache-2.0 license
 
 use caliptra_api::SocManager;
-use caliptra_builder::{firmware::APP_MLDSA_ATTESTATION, ImageOptions};
+use caliptra_builder::ImageOptions;
 use caliptra_common::checksum::calc_checksum;
 use caliptra_common::mailbox_api::{
     CommandId, MailboxReq, MailboxReqHeader, SetPqSeedReq, SET_PQ_SEED_SEED_SIZE,
@@ -15,10 +15,7 @@ use crate::common::{assert_error, run_rt_test, RuntimeTestArgs};
 
 #[test]
 fn test_set_pq_seed() {
-    let mut model = run_rt_test(RuntimeTestArgs {
-        test_fwid: Some(&APP_MLDSA_ATTESTATION),
-        ..Default::default()
-    });
+    let mut model = run_rt_test(RuntimeTestArgs::default());
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -36,10 +33,7 @@ fn test_set_pq_seed() {
 
 #[test]
 fn test_repeated_set_pq_seed_rejected() {
-    let mut model = run_rt_test(RuntimeTestArgs {
-        test_fwid: Some(&APP_MLDSA_ATTESTATION),
-        ..Default::default()
-    });
+    let mut model = run_rt_test(RuntimeTestArgs::default());
 
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
@@ -70,7 +64,6 @@ fn test_set_pq_seed_pl1_rejected() {
     image_opts.vendor_config.pl0_pauser = None;
 
     let mut model = run_rt_test(RuntimeTestArgs {
-        test_fwid: Some(&APP_MLDSA_ATTESTATION),
         test_image_options: Some(image_opts),
         ..Default::default()
     });
@@ -96,10 +89,7 @@ fn test_set_pq_seed_pl1_rejected() {
 
 #[test]
 fn test_set_pq_seed_attestation_disabled() {
-    let mut model = run_rt_test(RuntimeTestArgs {
-        test_fwid: Some(&APP_MLDSA_ATTESTATION),
-        ..Default::default()
-    });
+    let mut model = run_rt_test(RuntimeTestArgs::default());
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
     });

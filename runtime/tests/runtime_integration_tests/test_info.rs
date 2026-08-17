@@ -200,25 +200,5 @@ fn test_capabilities() {
     let capabilities_resp = CapabilitiesResp::read_from_bytes(resp.as_slice()).unwrap();
     let capabilities = Capabilities::try_from(capabilities_resp.capabilities.as_bytes()).unwrap();
     assert!(capabilities.contains(Capabilities::RT_BASE));
-    // The base (non-PQC) runtime image must not advertise ML-DSA attestation.
-    assert!(!capabilities.contains(Capabilities::RT_MLDSA_ATTESTATION));
-}
-
-#[cfg(feature = "mldsa_attestation")]
-#[test]
-fn test_capabilities_mldsa_attestation() {
-    use crate::common::run_pqc_rt_test;
-
-    let mut model = run_pqc_rt_test();
-    let payload = MailboxReqHeader {
-        chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::CAPABILITIES), &[]),
-    };
-    let resp = model
-        .mailbox_execute(u32::from(CommandId::CAPABILITIES), payload.as_bytes())
-        .unwrap()
-        .unwrap();
-    let capabilities_resp = CapabilitiesResp::read_from_bytes(resp.as_slice()).unwrap();
-    let capabilities = Capabilities::try_from(capabilities_resp.capabilities.as_bytes()).unwrap();
-    assert!(capabilities.contains(Capabilities::RT_BASE));
     assert!(capabilities.contains(Capabilities::RT_MLDSA_ATTESTATION));
 }

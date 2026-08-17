@@ -19,7 +19,7 @@
 
 use caliptra_api::SocManager;
 use caliptra_builder::{
-    firmware::{APP_MLDSA_ATTESTATION, FMC_WITH_UART},
+    firmware::{APP_WITH_UART, FMC_WITH_UART},
     ImageOptions,
 };
 use caliptra_common::mailbox_api::{
@@ -394,11 +394,10 @@ fn hitless_update_bumped_version(model: &mut DefaultHwModel) {
     opts.vendor_config.pl0_pauser = Some(0x1);
     opts.fmc_version = DEFAULT_FMC_VERSION;
     opts.app_version = DEFAULT_APP_VERSION + 1;
-    let image =
-        caliptra_builder::build_and_sign_image(&FMC_WITH_UART, &APP_MLDSA_ATTESTATION, opts)
-            .unwrap()
-            .to_bytes()
-            .unwrap();
+    let image = caliptra_builder::build_and_sign_image(&FMC_WITH_UART, &APP_WITH_UART, opts)
+        .unwrap()
+        .to_bytes()
+        .unwrap();
 
     model
         .mailbox_execute(u32::from(CommandId::FIRMWARE_LOAD), &image)

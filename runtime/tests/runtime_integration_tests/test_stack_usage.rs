@@ -14,9 +14,7 @@
 //! consumers, and the side-effecting `DISABLE_ATTESTATION` / `SHUTDOWN` run
 //! last.
 //!
-//! When built with `mldsa_attestation`, the test runs against the PQC-enabled
-//! firmware and additionally measures the ML-DSA-87 commands via
-//! `run_pqc_command_suite` (`SET_PQ_SEED`, `GET_PQ_CSR`,
+//! The ML-DSA-87 commands are measured via `run_pqc_command_suite` (`SET_PQ_SEED`, `GET_PQ_CSR`,
 //! `CERTIFY_KEY_EXTENDED_MLDSA87`, `MLDSA87_SIGNATURE_VERIFY`, `GET_PQ_CERT`,
 //! `POPULATE_PQ_CERT`). The order matters: `SET_PQ_SEED` provisions the PQ.DevID
 //! CDI and enables PQC mode, so running `GET_PQ_CSR` / `CERTIFY_KEY_EXTENDED_MLDSA87`
@@ -32,16 +30,13 @@
 )))]
 
 use crate::common::{run_rt_test, RuntimeTestArgs};
-use crate::test_measurements_common::{run_command_suite, CommandSampler};
+use crate::test_measurements_common::{
+    measure_mldsa_dpe_subcommands, run_command_suite, run_pqc_command_suite, CommandSampler,
+};
 use caliptra_api::SocManager;
 use caliptra_common::memory_layout::{STACK_ORG, STACK_SIZE};
 use caliptra_hw_model::{DefaultHwModel, HwModel};
 use caliptra_runtime::RtBootStatus;
-
-#[cfg(feature = "mldsa_attestation")]
-use crate::test_measurements_common::{measure_mldsa_dpe_subcommands, run_pqc_command_suite};
-#[cfg(feature = "mldsa_attestation")]
-use caliptra_builder::firmware::APP_MLDSA_ATTESTATION;
 
 /// Top of the runtime stack. The stack grows downward from here, so peak usage
 /// is `STACK_TOP - min_sp`.
@@ -100,12 +95,6 @@ impl CommandSampler for StackSampler {
 
 #[test]
 fn measure_runtime_command_stack_usage() {
-    #[cfg(feature = "mldsa_attestation")]
-    let mut model = run_rt_test(RuntimeTestArgs {
-        test_fwid: Some(&APP_MLDSA_ATTESTATION),
-        ..Default::default()
-    });
-    #[cfg(not(feature = "mldsa_attestation"))]
     let mut model = run_rt_test(RuntimeTestArgs::default());
 
     model.step_until(|m| {
@@ -116,7 +105,6 @@ fn measure_runtime_command_stack_usage() {
 
     // Measure the PQC commands first so GET_PQ_CSR / CERTIFY_KEY_EXTENDED_MLDSA87
     // run with PQC mode enabled and before the side-effecting suite tail.
-    #[cfg(feature = "mldsa_attestation")]
     results.extend(
         run_pqc_command_suite(&mut model, &mut StackSampler)
             .into_iter()
@@ -132,7 +120,6 @@ fn measure_runtime_command_stack_usage() {
     // The ML-DSA INVOKE_DPE subcommands are measured against their own dedicated
     // model (see measure_mldsa_dpe_subcommands): the full set can't be sequenced in
     // this shared model (default-context retirement + DISABLE_ATTESTATION conflicts).
-    #[cfg(feature = "mldsa_attestation")]
     results.extend(
         measure_mldsa_dpe_subcommands(&mut StackSampler)
             .into_iter()

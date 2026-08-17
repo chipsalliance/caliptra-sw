@@ -28,7 +28,6 @@ impl CapabilitiesCmd {
         let mut capabilities = Capabilities::default();
         capabilities |= Capabilities::RT_BASE;
 
-        #[cfg(feature = "mldsa_attestation")]
         {
             capabilities |= Capabilities::RT_MLDSA_ATTESTATION;
         }

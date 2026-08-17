@@ -19,9 +19,7 @@ use caliptra_common::mailbox_api::{
 };
 use caliptra_dpe_response_buffer::{OffsetResponseBuffer, ResponseBuffer};
 use caliptra_drivers::{CaliptraError, CaliptraResult};
-#[cfg(feature = "mldsa_attestation")]
-use dpe::commands::CertifyKeyMldsa87Cmd;
-use dpe::commands::{CertifyKeyP384Cmd, Command};
+use dpe::commands::{CertifyKeyMldsa87Cmd, CertifyKeyP384Cmd, Command};
 use zerocopy::{FromBytes, FromZeros, IntoBytes};
 
 pub struct CertifyKeyExtendedCmd;
@@ -64,7 +62,6 @@ impl CertifyKeyExtendedCmd {
                 CertifyKeyP384Cmd::ref_from_bytes(certify_key_req)
                     .map_err(|_| CaliptraError::RUNTIME_DPE_COMMAND_DESERIALIZATION_FAILED)?,
             ),
-            #[cfg(feature = "mldsa_attestation")]
             CaliptraDpeProfile::Mldsa => Command::from(
                 CertifyKeyMldsa87Cmd::ref_from_bytes(certify_key_req)
                     .map_err(|_| CaliptraError::RUNTIME_DPE_COMMAND_DESERIALIZATION_FAILED)?,

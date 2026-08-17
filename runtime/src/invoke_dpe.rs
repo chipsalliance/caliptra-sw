@@ -14,10 +14,12 @@ Abstract:
 
 use caliptra_dpe_response_buffer::{OffsetResponseBuffer, ResponseBuffer};
 
-use crate::{ec_dpe_env, Drivers, MboxResponseWriter, PauserPrivileges};
+use crate::{ec_dpe_env, mldsa_dpe_env, Drivers, MboxResponseWriter, PauserPrivileges};
 use arrayvec::ArrayVec;
 use caliptra_cfi_derive::{cfi_impl_fn, cfi_mod_fn};
-use caliptra_common::mailbox_api::{InvokeDpeReq, MailboxRespHeader, MailboxRespHeaderVarSize};
+use caliptra_common::mailbox_api::{
+    InvokeDpeMldsa87Req, InvokeDpeReq, MailboxRespHeader, MailboxRespHeaderVarSize,
+};
 use caliptra_drivers::{CaliptraError, CaliptraResult};
 use dpe::{
     commands::{
@@ -34,13 +36,10 @@ use dpe_runtime_1_2::commands::DeriveContextCmd as DeriveContextCmdV1;
 use platform::MAX_OTHER_NAME_SIZE;
 use ufmt::derive::uDebug;
 use zerocopy::{FromBytes, FromZeros, IntoBytes};
-#[cfg(feature = "mldsa_attestation")]
-use {crate::mldsa_dpe_env, caliptra_common::mailbox_api::InvokeDpeMldsa87Req};
 
 #[derive(uDebug, Debug, Copy, Clone, PartialEq, Eq)]
 pub enum CaliptraDpeProfile {
     Ecc384,
-    #[cfg(feature = "mldsa_attestation")]
     Mldsa,
 }
 
@@ -48,7 +47,6 @@ impl From<CaliptraDpeProfile> for DpeProfile {
     fn from(profile: CaliptraDpeProfile) -> Self {
         match profile {
             CaliptraDpeProfile::Ecc384 => DpeProfile::P384Sha384,
-            #[cfg(feature = "mldsa_attestation")]
             CaliptraDpeProfile::Mldsa => DpeProfile::Mldsa87,
         }
     }
@@ -84,7 +82,6 @@ pub fn invoke_dpe_cmd(
     // PQ.DevID), but the state and command execution are shared.
     let mut env = match profile {
         CaliptraDpeProfile::Ecc384 => ec_dpe_env(drivers, dmtf_device_info, ueid),
-        #[cfg(feature = "mldsa_attestation")]
         CaliptraDpeProfile::Mldsa => mldsa_dpe_env(drivers, dmtf_device_info, ueid),
     };
     let env = match env.as_mut() {
@@ -99,10 +96,8 @@ pub fn invoke_dpe_cmd(
     command.execute_serialized(dpe, env, locality, out)
 }
 
-#[cfg(feature = "mldsa_attestation")]
 pub struct InvokeDpeMldsa87Cmd;
 
-#[cfg(feature = "mldsa_attestation")]
 impl InvokeDpeMldsa87Cmd {
     #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]

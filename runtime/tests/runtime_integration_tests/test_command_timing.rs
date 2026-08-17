@@ -11,9 +11,7 @@
 //! so that state builders (auth manifest, exported CDI, tagged contexts) run
 //! before their consumers.
 //!
-//! When built with `mldsa_attestation`, the test runs against the PQC-enabled
-//! firmware and additionally measures the ML-DSA-87 commands via
-//! `run_pqc_command_suite` (`SET_PQ_SEED`, `GET_PQ_CSR`,
+//! The ML-DSA-87 commands are measured via `run_pqc_command_suite` (`SET_PQ_SEED`, `GET_PQ_CSR`,
 //! `CERTIFY_KEY_EXTENDED_MLDSA87`, `MLDSA87_SIGNATURE_VERIFY`, `GET_PQ_CERT`,
 //! `POPULATE_PQ_CERT`) and every ML-DSA-87 `INVOKE_DPE` subcommand via
 //! `measure_mldsa_dpe_subcommands` (InitCtx, DeriveContext, CertifyKey, Sign,
@@ -26,15 +24,12 @@
 #![cfg(not(any(feature = "verilator", feature = "fpga_realtime")))]
 
 use crate::common::{run_rt_test, RuntimeTestArgs};
-use crate::test_measurements_common::{run_command_suite, CommandSampler};
+use crate::test_measurements_common::{
+    measure_mldsa_dpe_subcommands, run_command_suite, run_pqc_command_suite, CommandSampler,
+};
 use caliptra_api::SocManager;
 use caliptra_hw_model::{DefaultHwModel, HwModel};
 use caliptra_runtime::RtBootStatus;
-
-#[cfg(feature = "mldsa_attestation")]
-use crate::test_measurements_common::{measure_mldsa_dpe_subcommands, run_pqc_command_suite};
-#[cfg(feature = "mldsa_attestation")]
-use caliptra_builder::firmware::APP_MLDSA_ATTESTATION;
 
 struct CycleSampler {
     start: u64,
@@ -54,19 +49,11 @@ fn test_args(
     sample_stack_traces: bool,
     stack_sample_rate: Option<u64>,
 ) -> RuntimeTestArgs<'static> {
-    #[allow(unused_mut)]
-    let mut arg = RuntimeTestArgs {
+    RuntimeTestArgs {
         sample_stack_traces,
         stack_sample_rate,
         ..RuntimeTestArgs::default()
-    };
-
-    #[cfg(feature = "mldsa_attestation")]
-    {
-        arg.test_fwid = Some(&APP_MLDSA_ATTESTATION);
     }
-
-    arg
 }
 
 fn measure_timing(args: RuntimeTestArgs) {
@@ -81,7 +68,6 @@ fn measure_timing(args: RuntimeTestArgs) {
     // Measure the PQC commands first so they run before the side-effecting
     // commands (DISABLE_ATTESTATION/SHUTDOWN) at the tail of the standard suite,
     // and so GET_PQ_CSR / CERTIFY_KEY_EXTENDED_MLDSA87 run with PQC mode enabled.
-    #[cfg(feature = "mldsa_attestation")]
     results.extend(run_pqc_command_suite(
         &mut model,
         &mut CycleSampler { start: 0 },
@@ -95,7 +81,6 @@ fn measure_timing(args: RuntimeTestArgs) {
     // The ML-DSA INVOKE_DPE subcommands are measured against their own dedicated
     // model (see measure_mldsa_dpe_subcommands): the full set can't be sequenced in
     // this shared model (default-context retirement + DISABLE_ATTESTATION conflicts).
-    #[cfg(feature = "mldsa_attestation")]
     results.extend(measure_mldsa_dpe_subcommands(&mut CycleSampler {
         start: 0,
     }));
@@ -144,9 +129,8 @@ fn measure_runtime_command_timing_and_sample_stack_traces() {
 ///
 /// Marked `#[ignore]`: this runs the full keygen+sign path 50 times and is a
 /// profiling aid, not a pass/fail gate. Run with:
-///   cargo test -p caliptra-runtime --features mldsa_attestation \
+///   cargo test -p caliptra-runtime \
 ///     measure_certify_key_mldsa_timing_distribution -- --ignored --nocapture
-#[cfg(feature = "mldsa_attestation")]
 #[test]
 #[ignore = "50x CERTIFY_KEY_EXTENDED_MLDSA87 profiling run; invoke with --ignored"]
 fn measure_certify_key_mldsa_timing_distribution() {
@@ -160,7 +144,6 @@ fn measure_certify_key_mldsa_timing_distribution() {
 
 /// Compute and print summary statistics (mean, sample std dev, spread,
 /// percentiles) over a set of cycle-count samples, and assert none are zero.
-#[cfg(feature = "mldsa_attestation")]
 fn print_timing_stats(title: &str, samples: &[u64]) {
     let n = samples.len();
     assert!(n > 1, "need at least 2 samples");
@@ -206,7 +189,6 @@ fn print_timing_stats(title: &str, samples: &[u64]) {
 
 /// Global progress counter shared by the CERTIFY_KEY sampling workers. Reset by
 /// each test before spawning its workers.
-#[cfg(feature = "mldsa_attestation")]
 static CERTIFY_DONE: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
 
 /// Same distribution as `measure_certify_key_mldsa_timing_distribution`, but
@@ -214,7 +196,6 @@ static CERTIFY_DONE: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicU
 /// (each over a disjoint label range) and combining them. The firmware-build
 /// cache is process-global and thread-safe (each worker reads the same cached
 /// ELF), so the workers share one build and only the emulation runs in parallel.
-#[cfg(feature = "mldsa_attestation")]
 #[test]
 #[ignore = "1000x CERTIFY_KEY_EXTENDED_MLDSA87 across parallel emulators; invoke with --ignored"]
 fn measure_certify_key_mldsa_timing_distribution_1000() {
@@ -232,7 +213,7 @@ fn measure_certify_key_mldsa_timing_distribution_1000() {
 
     // Warm the thread-safe, process-global firmware build cache once so the
     // workers read the cached ELF rather than racing to build it.
-    let _ = caliptra_builder::build_firmware_elf(&APP_MLDSA_ATTESTATION);
+    let _ = caliptra_builder::build_firmware_elf(&caliptra_builder::firmware::APP_WITH_UART);
 
     let handles: Vec<_> = (0..workers)
         .map(|w| std::thread::spawn(move || sample_certify_worker(w * per, per, total)))
@@ -247,7 +228,6 @@ fn measure_certify_key_mldsa_timing_distribution_1000() {
 
 /// Boot one emulator, provision PQC, and time `count` CERTIFY_KEY calls whose
 /// labels start at `label_start`. Returns the per-call cycle counts.
-#[cfg(feature = "mldsa_attestation")]
 fn sample_certify_worker(label_start: usize, count: usize, total: usize) -> Vec<u64> {
     use caliptra_common::mailbox_api::{
         CertifyKeyExtendedFlags, CertifyKeyExtendedMldsa87Req, CommandId, MailboxReq,
@@ -260,10 +240,7 @@ fn sample_certify_worker(label_start: usize, count: usize, total: usize) -> Vec<
     use std::sync::atomic::Ordering;
     use zerocopy::IntoBytes;
 
-    let mut model = run_rt_test(RuntimeTestArgs {
-        test_fwid: Some(&APP_MLDSA_ATTESTATION),
-        ..Default::default()
-    });
+    let mut model = run_rt_test(RuntimeTestArgs::default());
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
     });
