@@ -1092,8 +1092,8 @@ Command Code: `0x5051_4353` ("PQCS")
 | --------   | --------- | ---------------
 | chksum     | u32       | Checksum over other output arguments, computed by Caliptra. Little endian.
 | fips\_status | u32     | Indicates if the command is FIPS approved or an error.
-| data\_size | u32       | Length in bytes of the valid data in the data field.
-| data       | u8[...]   | DER-encoded ML-DSA-87 `PQ.DevID` certificate signing request. Maximum size 12,800 bytes.
+| data\_size | u32       | Length in bytes of the valid data in the data field, with a maximum of 12800.
+| data       | u8[12800] | DER-encoded ML-DSA-87 `PQ.DevID` certificate signing request.
 
 ### GET\_PQ\_INFO
 
@@ -1126,8 +1126,8 @@ Command Code: `0x5050_5143` ("PPQC")
 | **Name**   | **Type** | **Description**
 | --------   | -------- | ---------------
 | chksum     | u32      | Checksum over other input arguments, computed by the caller. Little endian.
-| cert\_size | u32      | Size of the DER-encoded `PQ.DevID` certificate.
-| cert       | u8[...]  | DER-encoded `PQ.DevID` certificate.
+| cert\_size | u32      | Size of the DER-encoded `PQ.DevID` certificate, with a maximum of 8192.
+| cert       | u8[8192] | DER-encoded `PQ.DevID` certificate.
 
 *Table: `POPULATE_PQ_CERT` output arguments*
 
@@ -1147,8 +1147,8 @@ Command Code: `0x4750_5143` ("GPQC")
 | **Name**      | **Type** | **Description**
 | --------      | -------- | ---------------
 | chksum        | u32      | Checksum over other input arguments, computed by the caller. Little endian.
-| tbs\_size     | u32      | Size of the TBS.
-| tbs           | u8[...]  | TBS. Only bytes up to tbs_size are used.
+| tbs\_size     | u32      | Size of the TBS, with a maximum of 3543.
+| tbs           | u8[3543] | TBS. Only bytes up to tbs_size are used.
 
 *Table: `GET_PQ_CERT` output arguments*
 
@@ -1156,8 +1156,8 @@ Command Code: `0x4750_5143` ("GPQC")
 | --------     | -------- | ---------------
 | chksum       | u32      | Checksum over other output arguments, computed by Caliptra. Little endian.
 | fips\_status | u32      | Indicates if the command is FIPS approved or an error.
-| cert\_size   | u32      | Length in bytes of the valid data in the cert field.
-| cert         | u8[...]  | DER-encoded `PQ.DevID` certificate.
+| cert\_size   | u32      | Length in bytes of the valid data in the cert field, with a maximum of 8192.
+| cert         | u8[8192] | DER-encoded `PQ.DevID` certificate.
 
 ### INVOKE\_DPE\_MLDSA87
 
