@@ -22,6 +22,10 @@ on:
       runner:
         default: '["ubuntu-22.04"]'
         type: string
+      test-filter:
+        default: ""
+        type: string
+        description: "nextest -E filter expression; empty means run all tests"
 
 jobs:
   build_and_test:
@@ -89,7 +93,8 @@ jobs:
           cargo-nextest nextest run \
             --features="${{ inputs.extra-features }}" \
             --no-fail-fast \
-            --profile=nightly
+            --profile=nightly \
+            ${{ inputs.test-filter != '' && format('-E ''{0}''', inputs.test-filter) || '' }}
 
       - name: 'Upload test results'
         uses: actions/upload-artifact@v4
