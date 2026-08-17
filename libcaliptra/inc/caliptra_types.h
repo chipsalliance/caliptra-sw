@@ -654,6 +654,7 @@ struct caliptra_invoke_dpe_req
     };
 };
 
+#define INVOKE_DPE_DATA_MAX_SIZE 512
 struct caliptra_invoke_dpe_resp
 {
     struct caliptra_resp_header cpl;
@@ -670,7 +671,7 @@ struct caliptra_invoke_dpe_resp
         struct dpe_rotate_context_handle_response rotate_context_handle_resp;
         struct dpe_destroy_context_response destroy_context_resp;
         struct dpe_get_certificate_chain_response get_certificate_chain_resp;
-        uint8_t data[0];
+        uint8_t data[INVOKE_DPE_DATA_MAX_SIZE];
     };
 };
 
