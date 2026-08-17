@@ -1138,17 +1138,18 @@ Command Code: `0x5050_5143` ("PPQC")
 
 ### GET\_PQ\_CERT
 
-Reconstructs the `PQ.DevID` certificate previously installed via `POPULATE_PQ_CERT`. Mirrors [`GET_IDEV_CERT`](#get_idev_cert).
+Given a caller-supplied TBS and ML-DSA-87 signature over that TBS, DER-assembles and returns the resulting `PQ.DevID` certificate. Stateless: it does not read the certificate buffer populated by `POPULATE_PQ_CERT`. Mirrors [`GET_IDEV_CERT`](#get_idev_cert).
 
 Command Code: `0x4750_5143` ("GPQC")
 
 *Table: `GET_PQ_CERT` input arguments*
 
-| **Name**      | **Type** | **Description**
-| --------      | -------- | ---------------
-| chksum        | u32      | Checksum over other input arguments, computed by the caller. Little endian.
-| tbs\_size     | u32      | Size of the TBS, with a maximum of 3543.
-| tbs           | u8[3543] | TBS. Only bytes up to tbs_size are used.
+| **Name**      | **Type**    | **Description**
+| --------      | --------    | ---------------
+| chksum        | u32         | Checksum over other input arguments, computed by the caller. Little endian.
+| tbs\_size     | u32         | Size of the TBS, with a maximum of 3543.
+| signature     | u8[4627]    | ML-DSA-87 signature (FIPS 204) over the TBS, supplied by the caller. Not verified or computed by Caliptra; used as-is to assemble the certificate's `signatureValue`.
+| tbs           | u8[3543]    | TBS. Only bytes up to tbs_size are used.
 
 *Table: `GET_PQ_CERT` output arguments*
 
