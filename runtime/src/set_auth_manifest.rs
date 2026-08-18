@@ -363,16 +363,9 @@ impl SetAuthManifestCmd {
             .get_mut(..metadata_size)
             .ok_or(CaliptraError::RUNTIME_AUTH_MANIFEST_IMAGE_METADATA_LIST_INVALID_SIZE)?;
 
-        let entry_count = u32::from_le_bytes(
-            buf.get(..size_of::<u32>())
-                .ok_or(
-                    CaliptraError::RUNTIME_AUTH_MANIFEST_IMAGE_METADATA_LIST_INVALID_ENTRY_COUNT,
-                )?
-                .try_into()
-                .map_err(|_| {
-                    CaliptraError::RUNTIME_AUTH_MANIFEST_IMAGE_METADATA_LIST_INVALID_ENTRY_COUNT
-                })?,
-        );
+        let (entry_count, _) = u32::read_from_prefix(buf).map_err(|_| {
+            CaliptraError::RUNTIME_AUTH_MANIFEST_IMAGE_METADATA_LIST_INVALID_ENTRY_COUNT
+        })?;
 
         if entry_count == 0 || entry_count > AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT as u32 {
             return Err(
