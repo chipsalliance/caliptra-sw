@@ -68,12 +68,21 @@ pub const MCU_FW_SIZE: usize = 0x200;
 pub const SOC_FW_SIZE: usize = 256;
 const MCU_TCI_TAG: u32 = u32::from_be_bytes(*b"MCFW");
 
-/// Create non-returning RISC-V firmware from `jal x0, 0` instructions encoded
-/// in the big-endian word order expected by the MCI MMIO window.
+/// Create non-returning RISC-V firmware from a byte-swap-invariant word whose
+/// first halfword is `c.j 0` (`0xa001`).
 fn mcu_test_firmware() -> Vec<u8> {
-    const LOOP_INSTRUCTION: [u8; 4] = [0x00, 0x00, 0x00, 0x6f];
+    const LOOP_INSTRUCTION: [u8; 4] = [0x01, 0xa0, 0xa0, 0x01];
 
     LOOP_INSTRUCTION.repeat(MCU_FW_SIZE / LOOP_INSTRUCTION.len())
+}
+
+#[test]
+fn test_mcu_test_firmware_encoding() {
+    for word in mcu_test_firmware().chunks_exact(4) {
+        let word: [u8; 4] = word.try_into().unwrap();
+        assert_eq!(word, [word[3], word[2], word[1], word[0]]);
+        assert_eq!(u16::from_le_bytes([word[0], word[1]]), 0xa001);
+    }
 }
 
 #[derive(Debug, Clone)]
