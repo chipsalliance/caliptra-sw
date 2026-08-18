@@ -64,11 +64,13 @@ fn test_device_status_mode(subsystem_mode: bool, expected_mode: u8) {
 }
 
 #[test]
+#[cfg_attr(any(feature = "fpga_realtime", feature = "fpga_subsystem"), ignore)]
 fn test_device_status_mode_passive() {
     test_device_status_mode(false, DEVICE_STATUS_MODE_PASSIVE);
 }
 
 #[test]
+#[cfg_attr(any(feature = "fpga_realtime", feature = "fpga_subsystem"), ignore)]
 fn test_device_status_mode_subsystem() {
     test_device_status_mode(true, DEVICE_STATUS_MODE_SUBSYSTEM);
 }
