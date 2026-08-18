@@ -263,13 +263,8 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
     if drivers.soc_ifc.subsystem_mode()
         && CommandId::from(cmd_id) == CommandId::EXTERNAL_MAILBOX_CMD
     {
-        match drivers.caller_privilege_level() {
-            // EXTERNAL_MAILBOX_CMD MUST only be called from PL0
-            PauserPrivileges::PL0 => (),
-            PauserPrivileges::PL1 => {
-                return Err(CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL);
-            }
-        }
+        // EXTERNAL_MAILBOX_CMD MUST only be called from PL0
+        drivers.ensure_pl0()?;
         let external_cmd = ExternalMailboxCmdReq::ref_from_bytes(cmd_bytes)
             .map_err(|_| CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
 
@@ -394,7 +389,13 @@ fn execute_command(
         }),
         CommandId::EXTEND_PCR => ExtendPcrCmd::execute(drivers, cmd_bytes),
         CommandId::STASH_MEASUREMENT => StashMeasurementCmd::execute(drivers, cmd_bytes, resp),
-        CommandId::DISABLE_ATTESTATION => DisableAttestationCmd::execute(drivers),
+        CommandId::DISABLE_ATTESTATION => {
+            // Restrict to PL0. The check lives here rather than in
+            // DisableAttestationCmd::execute because the reset/error paths call
+            // execute() directly, outside of any mailbox command.
+            drivers.ensure_pl0()?;
+            DisableAttestationCmd::execute(drivers)
+        }
         CommandId::AUTHORIZE_AND_STASH => AuthorizeAndStashCmd::execute(drivers, cmd_bytes, resp),
         CommandId::CAPABILITIES => CapabilitiesCmd::execute(drivers, resp),
         CommandId::FW_INFO => FwInfoCmd::execute(drivers, resp),

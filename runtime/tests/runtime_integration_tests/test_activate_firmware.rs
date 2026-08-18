@@ -787,3 +787,49 @@ fn test_activate_mcu_fw_digest_mismatch() {
         ))
     );
 }
+
+#[cfg_attr(feature = "fpga_realtime", ignore)]
+#[test]
+fn test_activate_firmware_cannot_be_called_from_pl1() {
+    // Boot with no PL0 pauser so that every caller is PL1. No auth manifest is
+    // loaded: the privilege check is the first thing ACTIVATE_FIRMWARE does, so
+    // a PL1 caller must be rejected before any request parsing or manifest
+    // lookup. A PL0 caller would instead get past the check and fail later with
+    // RUNTIME_MAILBOX_INVALID_PARAMS.
+    let mut image_opts = caliptra_builder::ImageOptions::default();
+    image_opts.vendor_config.pl0_pauser = None;
+
+    let mut model = run_rt_test(RuntimeTestArgs {
+        subsystem_mode: true,
+        test_image_options: Some(image_opts),
+        ..Default::default()
+    });
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read()
+            == u32::from(caliptra_runtime::RtBootStatus::RtReadyForCommands)
+    });
+
+    let mut activate_cmd = MailboxReq::ActivateFirmware(ActivateFirmwareReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        fw_id_count: 1,
+        mcu_fw_image_size: MCU_FW_SIZE as u32,
+        fw_ids: {
+            let mut arr = [0u32; 128];
+            arr[0] = MCU_FW_ID_1;
+            arr
+        },
+        flags: 0,
+    });
+    activate_cmd.populate_chksum().unwrap();
+
+    assert_eq!(
+        model.mailbox_execute(
+            u32::from(CommandId::ACTIVATE_FIRMWARE),
+            activate_cmd.as_bytes().unwrap(),
+        ),
+        Err(ModelError::MailboxCmdFailed(
+            CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL.into()
+        ))
+    );
+}
