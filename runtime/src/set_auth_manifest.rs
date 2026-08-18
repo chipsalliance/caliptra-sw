@@ -341,7 +341,7 @@ impl SetAuthManifestCmd {
     }
 
     fn process_image_metadata_col(
-        cmd_buf: &[u8],
+        cmd_buf: &mut [u8],
         auth_manifest_preamble: &AuthManifestPreamble,
         metadata_persistent: &mut AuthManifestImageMetadataCollection,
         sha384: &mut Sha384,
@@ -360,23 +360,21 @@ impl SetAuthManifestCmd {
 
         // Resize the buffer to the metadata size.
         let buf = cmd_buf
-            .get(..metadata_size)
+            .get_mut(..metadata_size)
             .ok_or(CaliptraError::RUNTIME_AUTH_MANIFEST_IMAGE_METADATA_LIST_INVALID_SIZE)?;
 
-        // Typecast the mailbox buffer to the image metadata collection.
-        let metadata_mailbox =
-            unsafe { &mut *(buf.as_ptr() as *mut AuthManifestImageMetadataCollection) };
+        let (entry_count, _) = u32::read_from_prefix(buf).map_err(|_| {
+            CaliptraError::RUNTIME_AUTH_MANIFEST_IMAGE_METADATA_LIST_INVALID_ENTRY_COUNT
+        })?;
 
-        if metadata_mailbox.entry_count == 0
-            || metadata_mailbox.entry_count > AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT as u32
-        {
-            Err(CaliptraError::RUNTIME_AUTH_MANIFEST_IMAGE_METADATA_LIST_INVALID_ENTRY_COUNT)?;
+        if entry_count == 0 || entry_count > AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT as u32 {
+            return Err(
+                CaliptraError::RUNTIME_AUTH_MANIFEST_IMAGE_METADATA_LIST_INVALID_ENTRY_COUNT,
+            );
         }
-
         // Check if the buffer contains the entry count and all the image metadata entries specified by the entry count.
         if buf.len()
-            < (size_of::<u32>()
-                + metadata_mailbox.entry_count as usize * size_of::<AuthManifestImageMetadata>())
+            < (size_of::<u32>() + entry_count as usize * size_of::<AuthManifestImageMetadata>())
         {
             Err(CaliptraError::RUNTIME_AUTH_MANIFEST_IMAGE_METADATA_LIST_INVALID_SIZE)?;
         }
@@ -400,10 +398,16 @@ impl SetAuthManifestCmd {
             soc_ifc,
         )?;
 
-        // Sort the image metadata list by firmware ID in place. Also check for duplicate firmware IDs.        let slice =
-        let slice =
-            &mut metadata_mailbox.image_metadata_list[..metadata_mailbox.entry_count as usize];
+        let (_, entries) = buf
+            .split_at_mut_checked(size_of::<u32>())
+            .ok_or(CaliptraError::RUNTIME_AUTH_MANIFEST_IMAGE_METADATA_LIST_INVALID_SIZE)?;
+        let (slice, _) = <[AuthManifestImageMetadata]>::mut_from_prefix_with_elems(
+            entries,
+            entry_count as usize,
+        )
+        .map_err(|_| CaliptraError::RUNTIME_AUTH_MANIFEST_IMAGE_METADATA_LIST_INVALID_SIZE)?;
 
+        // Sort the image metadata list by firmware ID in place. Also check for duplicate firmware IDs.
         Self::sort_and_check_duplicate_fwid(slice)?;
 
         // Clear the previous image metadata collection.
@@ -456,15 +460,15 @@ impl SetAuthManifestCmd {
 
         let manifest_buf = req
             .manifest
-            .get(..manifest_size)
+            .get_mut(..manifest_size)
             .ok_or(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
 
         let preamble_size = size_of::<AuthManifestPreamble>();
-        let auth_manifest_preamble = {
-            let err = CaliptraError::RUNTIME_AUTH_MANIFEST_PREAMBLE_SIZE_LT_MIN;
-            let bytes = manifest_buf.get(..preamble_size).ok_or(err)?;
-            AuthManifestPreamble::ref_from_bytes(bytes).map_err(|_| err)?
-        };
+        let (preamble, manifest_data) = manifest_buf
+            .split_at_mut_checked(preamble_size)
+            .ok_or(CaliptraError::RUNTIME_AUTH_MANIFEST_PREAMBLE_SIZE_LT_MIN)?;
+        let auth_manifest_preamble = AuthManifestPreamble::ref_from_bytes(preamble)
+            .map_err(|_| CaliptraError::RUNTIME_AUTH_MANIFEST_PREAMBLE_SIZE_LT_MIN)?;
 
         // Check if the preamble has the required marker.
         if auth_manifest_preamble.marker != AUTH_MANIFEST_MARKER {
@@ -498,9 +502,7 @@ impl SetAuthManifestCmd {
         )?;
 
         Self::process_image_metadata_col(
-            manifest_buf
-                .get(preamble_size..)
-                .ok_or(CaliptraError::RUNTIME_AUTH_MANIFEST_IMAGE_METADATA_LIST_INVALID_SIZE)?,
+            manifest_data,
             auth_manifest_preamble,
             &mut persistent_data.auth_manifest_image_metadata_col,
             &mut drivers.sha384,
