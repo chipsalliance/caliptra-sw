@@ -77,6 +77,7 @@ spki.workspace = true
 cms.workspace = true
 rand.workspace = true
 wycheproof.workspace = true
+wycheproof-mlkem.workspace = true
 x509-parser.workspace = true
 x509-cert.workspace = true
 asn1.workspace = true
