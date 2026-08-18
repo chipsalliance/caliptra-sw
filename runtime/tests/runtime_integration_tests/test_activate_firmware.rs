@@ -68,14 +68,12 @@ pub const MCU_FW_SIZE: usize = 0x200;
 pub const SOC_FW_SIZE: usize = 256;
 const MCU_TCI_TAG: u32 = u32::from_be_bytes(*b"MCFW");
 
-/// Create a valid RISC-V firmware image that won't crash with an illegal
-/// instruction exception on real FPGA hardware. Uses `0x37` repeated, which
-/// encodes as `LUI x6, 0x37373` — a valid, harmless RISC-V instruction.
-/// The single-byte pattern is byte-swap invariant, which is required because
-/// `write_payload_to_mcu_sram` applies a BE byte swap when writing to MCU
-/// SRAM via the MCI MMIO window.
+/// Create non-returning RISC-V firmware from `jal x0, 0` instructions encoded
+/// in the big-endian word order expected by the MCI MMIO window.
 fn mcu_test_firmware() -> Vec<u8> {
-    vec![0x37u8; MCU_FW_SIZE]
+    const LOOP_INSTRUCTION: [u8; 4] = [0x00, 0x00, 0x00, 0x6f];
+
+    LOOP_INSTRUCTION.repeat(MCU_FW_SIZE / LOOP_INSTRUCTION.len())
 }
 
 #[derive(Debug, Clone)]
