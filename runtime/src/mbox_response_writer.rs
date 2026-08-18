@@ -126,6 +126,10 @@ impl ResponseBuffer for MboxResponseWriter {
         range: core::ops::Range<usize>,
         f: &mut dyn FnMut(&[u8]) -> Result<(), ResponseBufError>,
     ) -> Result<(), ResponseBufError> {
+        if range.end > Self::SIZE {
+            return Err(ResponseBufError::Overflow);
+        }
+
         let mut pos = range.start;
         while pos < range.end {
             let word_offset = pos & !3;
@@ -244,6 +248,28 @@ mod tests {
         let (mut w, _buf) = make_writer();
         w.write_at(0, &[1, 2, 3, 4, 5, 6, 7, 8]).unwrap();
         assert_eq!(collect(&w, 1..7), [2, 3, 4, 5, 6, 7]);
+    }
+
+    // A range ending past the SRAM window is rejected rather than read.  The
+    // backing store is exactly MBOX_SIZE bytes, so without the bound this read
+    // would run off the end of it.
+    #[test]
+    fn read_range_past_end_rejected() {
+        let (w, _buf) = make_writer();
+        let size = memory_layout::MBOX_SIZE as usize;
+        assert_eq!(
+            w.read_range(size - 4..size + 4, &mut |_| Ok(())),
+            Err(ResponseBufError::Overflow)
+        );
+    }
+
+    // The final in-window byte is still readable: the bound is exclusive.
+    #[test]
+    fn read_range_to_end_allowed() {
+        let (mut w, _buf) = make_writer();
+        let size = memory_layout::MBOX_SIZE as usize;
+        w.write_at(size - 4, &[1, 2, 3, 4]).unwrap();
+        assert_eq!(collect(&w, size - 4..size), [1, 2, 3, 4]);
     }
 
     // clear zeroes previously-written data.
