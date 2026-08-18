@@ -1134,6 +1134,11 @@ int caliptra_invoke_dpe_command(struct caliptra_invoke_dpe_req *req, struct cali
         return INVALID_PARAMS;
     }
 
+    if (req->data_size > INVOKE_DPE_DATA_MAX_SIZE)
+    {
+        return INVALID_PARAMS;
+    }
+
     // While it will likely cause no harm, there's no sense in writing more
     // to the FIFO than is absolutely required. This command can have a variable
     // data buffer.
