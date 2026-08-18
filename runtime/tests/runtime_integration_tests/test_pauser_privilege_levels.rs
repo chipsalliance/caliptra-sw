@@ -4,14 +4,15 @@ use caliptra_api::{
     mailbox::{RevokeExportedCdiHandleReq, SignWithExportedEcdsaReq},
     SocManager,
 };
+use caliptra_auth_man_types::AuthManifestFlags;
 use caliptra_builder::{
     build_firmware_elf,
     firmware::{APP_WITH_UART, FMC_WITH_UART},
     ImageOptions,
 };
 use caliptra_common::mailbox_api::{
-    CertifyKeyExtendedFlags, CertifyKeyExtendedReq, CommandId, MailboxReq, MailboxReqHeader,
-    PopulateIdevCertReq, StashMeasurementReq,
+    CertifyKeyExtendedFlags, CertifyKeyExtendedReq, CommandId, FwInfoResp, MailboxReq,
+    MailboxReqHeader, PopulateIdevCertReq, SetAuthManifestReq, StashMeasurementReq,
 };
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{BootParams, Fuses, HwModel, InitParams, SecurityState};
@@ -33,11 +34,13 @@ use dpe::{
     tci::TciMeasurement,
     TCI_SIZE,
 };
-use zerocopy::IntoBytes;
+use zerocopy::{FromBytes, IntoBytes};
 
 use crate::common::{
-    assert_error, execute_dpe_cmd, run_rt_test, DpeResult, RuntimeTestArgs, TEST_LABEL,
+    assert_error, execute_dpe_cmd, run_rt_test, run_rt_test_lms, DpeResult, RuntimeTestArgs,
+    TEST_LABEL,
 };
+use crate::test_set_auth_manifest::create_auth_manifest;
 
 const DATA: TciMeasurement = TciMeasurement([0u8; TCI_SIZE]);
 const PROFILE: CaliptraDpeProfile = CaliptraDpeProfile::Ecc384;
@@ -809,4 +812,91 @@ fn test_user_not_pl0() {
         DpeResult::MboxCmdFailure(CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL),
     );
     assert!(resp.is_none());
+}
+
+#[test]
+fn test_disable_attestation_cannot_be_called_from_pl1() {
+    let mut image_opts = ImageOptions::default();
+    image_opts.vendor_config.pl0_pauser = None;
+
+    let args = RuntimeTestArgs {
+        test_image_options: Some(image_opts),
+        ..Default::default()
+    };
+    let mut model = run_rt_test(args);
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    let payload = MailboxReqHeader {
+        chksum: caliptra_common::checksum::calc_checksum(
+            u32::from(CommandId::DISABLE_ATTESTATION),
+            &[],
+        ),
+    };
+    let resp = model
+        .mailbox_execute(
+            u32::from(CommandId::DISABLE_ATTESTATION),
+            payload.as_bytes(),
+        )
+        .unwrap_err();
+    assert_error(
+        &mut model,
+        CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL,
+        resp,
+    );
+
+    // Attestation must still be enabled after the rejected command.
+    let payload = MailboxReqHeader {
+        chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::FW_INFO), &[]),
+    };
+    let resp = model
+        .mailbox_execute(u32::from(CommandId::FW_INFO), payload.as_bytes())
+        .unwrap()
+        .unwrap();
+    let info = FwInfoResp::read_from_bytes(resp.as_slice()).unwrap();
+    assert_eq!(info.attestation_disabled, 0);
+}
+
+#[test]
+fn test_set_auth_manifest_cannot_be_called_from_pl1() {
+    let mut image_opts = ImageOptions::default();
+    image_opts.vendor_config.pl0_pauser = None;
+
+    let args = RuntimeTestArgs {
+        test_image_options: Some(image_opts),
+        ..Default::default()
+    };
+    let mut model = run_rt_test_lms(args, true);
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    // Use an otherwise-valid manifest so the rejection can only come from the
+    // privilege check, not from manifest validation.
+    let auth_manifest = create_auth_manifest(AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED);
+    let buf = auth_manifest.as_bytes();
+    let mut auth_manifest_slice = [0u8; SetAuthManifestReq::MAX_MAN_SIZE];
+    auth_manifest_slice[..buf.len()].copy_from_slice(buf);
+
+    let mut set_auth_manifest_cmd = MailboxReq::SetAuthManifest(SetAuthManifestReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        manifest_size: buf.len() as u32,
+        manifest: auth_manifest_slice,
+    });
+    set_auth_manifest_cmd.populate_chksum().unwrap();
+
+    let resp = model
+        .mailbox_execute(
+            u32::from(CommandId::SET_AUTH_MANIFEST),
+            set_auth_manifest_cmd.as_bytes().unwrap(),
+        )
+        .unwrap_err();
+    assert_error(
+        &mut model,
+        CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL,
+        resp,
+    );
 }
