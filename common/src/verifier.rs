@@ -429,6 +429,16 @@ impl ImageVerificationEnv for &mut FirmwareImageVerificationEnv<'_, '_, '_> {
         self.data_vault.fmc_tci().into()
     }
 
+    // Get FMC load address from the cold boot
+    fn get_cold_reset_fmc_load_addr(&self) -> u32 {
+        self.persistent_data.rom.manifest1.fmc.load_addr
+    }
+
+    // Get FMC size from the cold boot
+    fn get_cold_reset_fmc_size(&self) -> u32 {
+        self.persistent_data.rom.manifest1.fmc.size
+    }
+
     // Get firmware fuse SVN
     fn fw_fuse_svn(&self) -> u32 {
         self.soc_ifc.fuse_bank().fw_fuse_svn()

@@ -2005,17 +2005,18 @@ fn test_toc_fmc_range_incorrect_order() {
         };
         let (mut hw, mut image_bundle) =
             helpers::build_hw_model_and_image_bundle(fuses, image_options);
-        let fmc_new_offset = image_bundle.manifest.runtime.offset;
-        let fmc_new_size = image_bundle.manifest.runtime.size;
-        let runtime_new_offset = image_bundle.manifest.fmc.offset;
-        let runtime_new_size = image_bundle.manifest.fmc.size;
+        // Keep fmc.offset valid (= IMAGE_MANIFEST_BYTE_SIZE). Place runtime
+        // entirely before FMC in the bundle (offset=0, small size) so the
+        // ranges don't overlap but fmc.end > runtime.start → INCORRECT_ORDER.
+        let fmc_new_offset = image_bundle.manifest.fmc.offset;
+        let fmc_new_size = image_bundle.manifest.fmc.size;
 
         let image = update_fmc_runtime_ranges(
             &mut image_bundle,
             fmc_new_offset,
             fmc_new_size,
-            runtime_new_offset,
-            runtime_new_size,
+            0,   // runtime before FMC in bundle
+            100, // small enough that runtime.end < fmc.offset
         );
         helpers::assert_fatal_fw_load(
             &mut hw,
@@ -2027,6 +2028,46 @@ fn test_toc_fmc_range_incorrect_order() {
         assert_eq!(
             hw.soc_ifc().cptra_boot_status().read(),
             u32::from(FwProcessorManifestLoadComplete)
+        );
+    }
+}
+
+#[test]
+fn test_fmc_offset_invalid_gap() {
+    for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
+        let image_options = ImageOptions {
+            pqc_key_type: *pqc_key_type,
+            ..Default::default()
+        };
+        let fuses = Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
+            ..Default::default()
+        };
+        let (mut hw, mut image_bundle) =
+            helpers::build_hw_model_and_image_bundle(fuses, image_options);
+
+        // Shift both offsets forward to introduce a gap after the manifest.
+        let gap_size: u32 = 0x100;
+        image_bundle.manifest.fmc.offset += gap_size;
+        image_bundle.manifest.runtime.offset += gap_size;
+
+        let gen = ImageGenerator::new(Crypto::default());
+        image_bundle.manifest.header.toc_digest = gen
+            .toc_digest(&image_bundle.manifest.fmc, &image_bundle.manifest.runtime)
+            .unwrap();
+        update_header(&mut image_bundle);
+
+        // Physically insert the gap between the manifest and FMC.
+        let mut image = image_bundle.manifest.as_bytes().to_vec();
+        image.extend(vec![0u8; gap_size as usize]);
+        image.extend_from_slice(&image_bundle.fmc);
+        image.extend_from_slice(&image_bundle.runtime);
+
+        helpers::assert_fatal_fw_load(
+            &mut hw,
+            *pqc_key_type,
+            &image,
+            CaliptraError::IMAGE_VERIFIER_ERR_FMC_OFFSET_INVALID,
         );
     }
 }
