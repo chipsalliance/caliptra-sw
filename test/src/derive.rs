@@ -358,6 +358,7 @@ pub struct Pcr0Input {
     pub pqc_vendor_pub_key_index: u32,
     pub pqc_key_type: u32,
     pub subsystem_mode: bool,
+    pub include_subsystem_mode: bool,
 }
 impl Pcr0Input {}
 
@@ -370,21 +371,24 @@ impl Pcr0 {
             *value = sha384(&[value.as_slice(), buf].concat());
         };
 
-        extend(
-            &mut value,
-            &[
-                input.security_state.device_lifecycle() as u8,
-                input.security_state.debug_locked() as u8,
-                input.fuse_anti_rollback_disable as u8,
-                input.ecc_vendor_pub_key_index as u8,
-                input.cold_boot_fw_svn as u8,
-                input.fw_fuse_svn as u8,
-                input.pqc_vendor_pub_key_index as u8,
-                input.pqc_key_type as u8,
-                input.owner_pub_key_hash_from_fuses as u8,
-                input.subsystem_mode as u8,
-            ],
-        );
+        let device_status = [
+            input.security_state.device_lifecycle() as u8,
+            input.security_state.debug_locked() as u8,
+            input.fuse_anti_rollback_disable as u8,
+            input.ecc_vendor_pub_key_index as u8,
+            input.cold_boot_fw_svn as u8,
+            input.fw_fuse_svn as u8,
+            input.pqc_vendor_pub_key_index as u8,
+            input.pqc_key_type as u8,
+            input.owner_pub_key_hash_from_fuses as u8,
+            input.subsystem_mode as u8,
+        ];
+        let device_status_len = if input.include_subsystem_mode {
+            device_status.len()
+        } else {
+            device_status.len() - 1
+        };
+        extend(&mut value, &device_status[..device_status_len]);
         extend(
             &mut value,
             swap_word_bytes(&input.vendor_pub_key_hash).as_bytes(),
@@ -427,6 +431,7 @@ fn test_derive_pcr0() {
         pqc_vendor_pub_key_index: u32::MAX,
         pqc_key_type: FwVerificationPqcKeyType::LMS as u32,
         subsystem_mode: false,
+        include_subsystem_mode: true,
     });
     assert_eq!(
         pcr0,
