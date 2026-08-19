@@ -3,7 +3,7 @@
 //! Flash image builder for creating flash images in the MCU ROM format.
 //!
 //! The flash image format consists of:
-//! - A [`FlashHeader`] with magic number "FLSH", version, image count, and checksum
+//! - A [`FlashHeader`] with version, image count, and checksum
 //! - An array of [`ImageHeader`] entries describing each image
 //! - The image data itself, padded to 256-byte alignment
 //!
@@ -14,19 +14,16 @@ use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
 pub const CALIPTRA_FMC_RT_IDENTIFIER: u32 = 0x0000_0000;
 pub const SOC_MANIFEST_IDENTIFIER: u32 = 0x0000_0001;
 pub const MCU_RT_IDENTIFIER: u32 = 0x0000_0002;
+pub const MAX_FILENAME_LEN: usize = 64;
+pub const HEADER_VERSION: u16 = 0x0003;
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, FromBytes, IntoBytes, Immutable, KnownLayout)]
 pub struct FlashHeader {
-    pub magic: [u8; 4],
     pub version: u16,
     pub image_count: u16,
     pub image_headers_offset: u32,
     pub header_checksum: u32,
-}
-
-impl FlashHeader {
-    pub const HEADER_VERSION: u16 = 0x0001;
 }
 
 #[repr(C)]
@@ -35,6 +32,7 @@ pub struct ImageHeader {
     pub identifier: u32,
     pub offset: u32,
     pub size: u32,
+    pub filename: [u8; MAX_FILENAME_LEN],
     pub image_checksum: u32,
     pub image_header_checksum: u32,
 }
@@ -94,6 +92,7 @@ pub fn build_flash_image_bytes(
                 identifier: *id,
                 offset: current_offset,
                 size: data.len() as u32,
+                filename: [0u8; MAX_FILENAME_LEN],
                 image_checksum,
                 image_header_checksum: 0,
             };
@@ -108,8 +107,7 @@ pub fn build_flash_image_bytes(
 
     // Build flash header
     let mut flash_header = FlashHeader {
-        magic: *b"FLSH",
-        version: FlashHeader::HEADER_VERSION,
+        version: HEADER_VERSION,
         image_count: images.len() as u16,
         image_headers_offset: header_size as u32,
         header_checksum: 0,
@@ -152,9 +150,12 @@ mod tests {
 
         // Parse and verify the header
         let header = FlashHeader::read_from_prefix(&image).unwrap().0;
-        assert_eq!(&header.magic, b"FLSH");
-        assert_eq!(header.version, FlashHeader::HEADER_VERSION);
+        assert_eq!(header.version, HEADER_VERSION);
         assert_eq!(header.image_count, 3);
+        assert_eq!(
+            header.image_headers_offset,
+            core::mem::size_of::<FlashHeader>() as u32
+        );
 
         // Verify header checksum
         let checksum_offset = core::mem::offset_of!(FlashHeader, header_checksum);
@@ -168,6 +169,7 @@ mod tests {
         for i in 0..3 {
             let off = hdr_offset + i * hdr_size;
             let img_hdr = ImageHeader::read_from_prefix(&image[off..]).unwrap().0;
+            assert_eq!(img_hdr.filename, [0u8; MAX_FILENAME_LEN]);
 
             // Verify image header checksum
             let ih_checksum_offset = core::mem::offset_of!(ImageHeader, image_header_checksum);
@@ -194,6 +196,9 @@ mod tests {
         assert_eq!(hdr0.identifier, CALIPTRA_FMC_RT_IDENTIFIER);
         assert_eq!(hdr1.identifier, SOC_MANIFEST_IDENTIFIER);
         assert_eq!(hdr2.identifier, MCU_RT_IDENTIFIER);
+        assert_eq!(hdr0.offset as usize, hdr_offset + 3 * hdr_size);
+        assert_eq!(hdr1.offset, hdr0.offset + hdr0.size);
+        assert_eq!(hdr2.offset, hdr1.offset + hdr1.size);
 
         // Verify sizes are padded to 256
         assert_eq!(hdr0.size, 256); // 100 -> 256
