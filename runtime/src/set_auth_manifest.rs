@@ -449,6 +449,8 @@ impl SetAuthManifestCmd {
     #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn execute(drivers: &mut Drivers) -> CaliptraResult<()> {
+        drivers.ensure_pl0()?;
+
         let mut req = SetAuthManifestReq::new_zeroed();
         copy_from_mbox(drivers, req.as_mut_bytes())?;
 

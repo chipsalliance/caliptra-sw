@@ -222,6 +222,7 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         CommandId::STASH_MEASUREMENT => StashMeasurementCmd::execute(drivers),
         CommandId::DISABLE_ATTESTATION => {
             copy_from_mbox(drivers, MailboxReqHeader::new_zeroed().as_mut_bytes())?;
+            drivers.ensure_pl0()?;
             DisableAttestationCmd::execute(drivers)?;
             copy_to_mbox(drivers, MailboxRespHeader::default().as_mut_bytes())
         }
