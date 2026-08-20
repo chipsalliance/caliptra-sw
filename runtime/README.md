@@ -173,6 +173,74 @@ Relevant registers:
 * CPTRA\_FW\_ERROR\_NON\_FATAL: Status code of mailbox command. Any result
   other than `SUCCESS` signifies a mailbox command failure.
 
+### Mailbox command privilege levels
+
+Mailbox commands maintain the PL information of their caller and can allow or
+disallow clients from invoking a call based on their PL level.  Callers are
+classified as PL0 or PL1 by comparing the mailbox PAUSER against the `pl0_pauser`
+field of the signed firmware image header; see [PAUSER privilege levels](#pauser-privilege-levels).
+
+A command marked `PL0` is rejected outright for PL1 callers. A command marked
+`PL0 or PL1` is available to every caller. `INVOKE_DPE_COMMAND` and
+`INVOKE_DPE_MLDSA87` are available to both levels, but restrict a subset of the
+DPE commands they carry to PL0.
+
+If the PL0 PAUSER flag is not set in the firmware image header, no caller is
+PL0, so every PL0 command is unavailable for that firmware image. Independently
+of privilege level, commands from the reserved PAUSER are rejected outright.
+
+Privilege level is not the only caller-dependent restriction. Commands that
+operate on DPE contexts are also scoped by locality, and PAUSER maps 1:1 to
+locality, so a caller can generally only reach the contexts it created. The
+`PL0-only functionality` column below calls out where that matters.
+
+*Table: Mailbox command privilege levels*
+
+| **Command**                      | **Privilege Level** | **PL0-only functionality**
+| -----------                      | ------------------- | --------------------------
+| `CALIPTRA_FW_LOAD`               | PL0 or PL1          |
+| `CAPABILITIES`                   | PL0 or PL1          |
+| `GET_IDEV_CERT`                  | PL0 or PL1          |
+| `POPULATE_IDEV_CERT`             | PL0                 | Entire command
+| `GET_IDEV_INFO`                  | PL0 or PL1          |
+| `GET_LDEV_CERT`                  | PL0 or PL1          |
+| `GET_FMC_ALIAS_CERT`             | PL0 or PL1          |
+| `GET_RT_ALIAS_CERT`              | PL0 or PL1          |
+| `ECDSA384_SIGNATURE_VERIFY`      | PL0 or PL1          |
+| `LMS_SIGNATURE_VERIFY`           | PL0 or PL1          |
+| `MLDSA87_SIGNATURE_VERIFY`       | PL0 or PL1          |
+| `STASH_MEASUREMENT`              | PL0                 | Entire command
+| `DISABLE_ATTESTATION`            | PL0                 | Entire command
+| `INVOKE_DPE_COMMAND`             | PL0 or PL1          | `CertifyKey` with `format=X509`; `DeriveContext` with the `export-cdi` flag; `DeriveContext` with `change-locality` targeting the PL0 PAUSER
+| `QUOTE_PCRS`                     | PL0 or PL1          |
+| `EXTEND_PCR`                     | PL0 or PL1          |
+| `GET_PCR_LOG`                    | PL0 or PL1          |
+| `INCREMENT_PCR_RESET_COUNTER`    | PL0 or PL1          |
+| `DPE_TAG_TCI`                    | PL0 or PL1          | Tags only contexts in the caller's own locality, so PL1 cannot tag a PL0 context (and vice versa)
+| `DPE_GET_TAGGED_TCI`             | PL0 or PL1          | Looks up by tag only; either level can read any tagged TCI
+| `FW_INFO`                        | PL0 or PL1          |
+| `VERSION`                        | PL0 or PL1          |
+| `SELF_TEST_START`                | PL0 or PL1          |
+| `SELF_TEST_GET_RESULTS`          | PL0 or PL1          |
+| `SHUTDOWN`                       | PL0 or PL1          |
+| `ADD_SUBJECT_ALT_NAME`           | PL0 or PL1          |
+| `CERTIFY_KEY_EXTENDED`           | PL0                 | Entire command
+| `SET_AUTH_MANIFEST`              | PL0                 | Entire command
+| `AUTHORIZE_AND_STASH`            | PL0 or PL1          | Stashing the measurement. A PL1 caller must set the `SKIP_STASH` flag; otherwise an authorized image fails when the measurement is stashed into DPE
+| `GET_IDEVID_CSR`                 | PL0 or PL1          |
+| `GET_FMC_ALIAS_CSR`              | PL0 or PL1          |
+| `SIGN_WITH_EXPORTED_ECDSA`       | PL0                 | Entire command
+| `REVOKE_EXPORTED_CDI_HANDLE`     | PL0                 | Entire command
+| `REALLOCATE_DPE_CONTEXT_LIMITS`  | PL0                 | Entire command
+| `SET_PQ_SEED`                    | PL0                 | Entire command
+| `GET_PQ_CSR`                     | PL0 or PL1          |
+| `GET_PQ_INFO`                    | PL0 or PL1          |
+| `POPULATE_PQ_CERT`               | PL0                 | Entire command
+| `GET_PQ_CERT`                    | PL0 or PL1          |
+| `INVOKE_DPE_MLDSA87`             | PL0 or PL1          | Same DPE command restrictions as `INVOKE_DPE_COMMAND`
+| `CERTIFY_KEY_EXTENDED_MLDSA87`   | PL0                 | Entire command
+| `SIGN_WITH_EXPORTED_MLDSA`       | PL0                 | Entire command
+
 ### CALIPTRA\_FW\_LOAD
 
 The `CALIPTRA_FW_LOAD` command is handled by both ROM and Runtime Firmware.
@@ -190,6 +258,8 @@ impactless updates. For more information, see [Runtime Firmware updates](#runtim
 
 Command Code: `0x4657_4C44` ("FWLD")
 
+Privilege Level: PL0 or PL1
+
 *Table: `CALIPTRA_FW_LOAD` input arguments*
 
 | **Name**  | **Type**      | **Description**
@@ -203,6 +273,8 @@ Command Code: `0x4657_4C44` ("FWLD")
 Exposes a command to retrieve firmware capabilities
 
 Command Code: `0x4341_5053` ("CAPS")
+
+Privilege Level: PL0 or PL1
 
 *Table: `CAPABILITIES` input arguments*
 
@@ -223,6 +295,8 @@ Command Code: `0x4341_5053` ("CAPS")
 Exposes a command to reconstruct the IDEVID CERT.
 
 Command Code: `0x4944_4543` ("IDEC")
+
+Privilege Level: PL0 or PL1
 
 *Table: `GET_IDEV_CERT` input arguments*
 
@@ -251,6 +325,8 @@ to the start of the certificate chain.
 
 Command Code: `0x4944_4550` ("IDEP")
 
+Privilege Level: PL0
+
 *Table: `POPULATE_IDEV_CERT` input arguments*
 
 | **Name**     | **Type**      | **Description**
@@ -271,6 +347,8 @@ Command Code: `0x4944_4550` ("IDEP")
 Exposes a command to get an IDEVID public key.
 
 Command Code: `0x4944_4549` ("IDEI")
+
+Privilege Level: PL0 or PL1
 
 *Table: `GET_IDEV_INFO` input arguments*
 
@@ -293,6 +371,8 @@ Exposes a command to get an LDevID certificate signed by IDevID.
 
 Command Code: `0x4C44_4556` ("LDEV")
 
+Privilege Level: PL0 or PL1
+
 *Table: `GET_LDEV_CERT` input arguments*
 
 | **Name**  | **Type**      | **Description**
@@ -314,6 +394,8 @@ Exposes a command to get an FMC alias certificate signed by LDevID.
 
 Command Code: `0x4345_5246` ("CERF")
 
+Privilege Level: PL0 or PL1
+
 *Table: `GET_FMC_ALIAS_CERT` input arguments*
 
 | **Name**  | **Type**      | **Description**
@@ -334,6 +416,8 @@ Command Code: `0x4345_5246` ("CERF")
 Exposes a command to get a Runtime alias certificate signed by the FMC alias.
 
 Command Code: `0x4345_5252` ("CERR")
+
+Privilege Level: PL0 or PL1
 
 *Table: `GET_RT_ALIAS_CERT` input arguments*
 
@@ -359,6 +443,8 @@ In the event of an invalid signature, the mailbox command will report CMD_FAILUR
 and the cause will be logged as a non-fatal error.
 
 Command Code: `0x5349_4756` ("SIGV")
+
+Privilege Level: PL0 or PL1
 
 *Table: `ECDSA384_SIGNATURE_VERIFY` input arguments*
 
@@ -396,6 +482,8 @@ The supported parameter set is limited to those used for the caliptra image sign
 | h                     | 15        | Height of the tree
 
 Command Code: `0x4C4D_5356` ("LMSV")
+
+Privilege Level: PL0 or PL1
 
 *Table: `LMS_SIGNATURE_VERIFY` input arguments*
 
@@ -436,6 +524,8 @@ In the event of an invalid signature, the mailbox command will report
 
 Command Code: `0x4D44_5356` ("MDSV")
 
+Privilege Level: PL0 or PL1
+
 *Table: `MLDSA87_SIGNATURE_VERIFY` input arguments*
 
 | **Name**     | **Type**  | **Description**
@@ -459,9 +549,10 @@ callers who update infrequently and cannot tolerate a changing DPE API surface.
 * Call the DPE DeriveContext command with the DefaultContext in the locality of
   the PL0 PAUSER.
 * Extend the measurement into PCR31 (`PCR_ID_STASH_MEASUREMENT`).
-* **Note**: This command can only be called in the locality of the PL0 PAUSER. 
 
 Command Code: `0x4D45_4153` ("MEAS")
+
+Privilege Level: PL0
 
 *Table: `STASH_MEASUREMENT` input arguments*
 
@@ -498,6 +589,8 @@ to re-enable attestation.
 
 Command Code: `0x4453_424C` ("DSBL")
 
+Privilege Level: PL0
+
 *Table: `DISABLE_ATTESTATION` input arguments*
 
 | **Name**  | **Type**      | **Description**
@@ -516,6 +609,8 @@ Command Code: `0x4453_424C` ("DSBL")
 Invokes a serialized DPE command.
 
 Command Code: `0x4450_4543` ("DPEC")
+
+Privilege Level: PL0 or PL1; a subset of DPE commands requires PL0 (see [Mailbox command privilege levels](#mailbox-command-privilege-levels))
 
 *Table: `INVOKE_DPE_COMMAND` input arguments*
 
@@ -540,6 +635,8 @@ Generates a signed quote over all Caliptra hardware PCRs that are using the Cali
 All PCR values are hashed together with the nonce to produce the quote.
 
 Command Code: `0x5043_5251` ("PCRQ")
+
+Privilege Level: PL0 or PL1
 
 *Table: `QUOTE_PCRS` input arguments*
 
@@ -569,6 +666,8 @@ Extends a Caliptra hardware PCR.
 
 Command Code: `0x5043_5245` ("PCRE")
 
+Privilege Level: PL0 or PL1
+
 *Table: `EXTEND_PCR` input arguments*
 
 | **Name**     | **Type**      | **Description**
@@ -584,6 +683,10 @@ Command Code: `0x5043_5245` ("PCRE")
 | chksum        | u32      | Checksum over other output arguments, computed by Caliptra. Little endian.
 | fips\_status  | u32      | Indicates if the command is FIPS approved or an error.
 
+PCRs 0-3 (the FMC/RT current and journey PCRs) and PCR31 (the stash-measurement
+PCR) are reserved for Caliptra's own use and cannot be extended through this
+command by any caller; requests targeting them fail with `RUNTIME_PCR_RESERVED`.
+
 Note that extensions made into Caliptra's PCRs are _not_ appended to Caliptra's internal PCR log.
 
 ### GET\_PCR\_LOG
@@ -591,6 +694,8 @@ Note that extensions made into Caliptra's PCRs are _not_ appended to Caliptra's 
 Gets Caliptra's internal PCR log.
 
 Command Code: `0x504C_4F47` ("PLOG")
+
+Privilege Level: PL0 or PL1
 
 *Table: `GET_PCR_LOG` input arguments*
 
@@ -619,6 +724,8 @@ Increments the reset counter for a PCR.
 
 Command Code: `0x5043_5252` ("PCRR")
 
+Privilege Level: PL0 or PL1
+
 *Table: `INCREMENT_PCR_RESET_COUNTER` input arguments*
 
 | **Name**     | **Type**      | **Description**
@@ -638,6 +745,8 @@ Command Code: `0x5043_5252` ("PCRR")
 Associates a unique tag with a DPE context.
 
 Command Code: `0x5451_4754` ("TAGT")
+
+Privilege Level: PL0 or PL1; tags only contexts in the caller's own locality
 
 *Table: `DPE_TAG_TCI` input arguments*
 
@@ -659,6 +768,8 @@ Command Code: `0x5451_4754` ("TAGT")
 Retrieves the TCI measurements corresponding to the tagged DPE context.
 
 Command Code: `0x4754_4744` ("GTGD")
+
+Privilege Level: PL0 or PL1; not locality-scoped, either level can read any tagged TCI
 
 *Table: `DPE_GET_TAGGED_TCI` input arguments*
 
@@ -683,6 +794,8 @@ Retrieves information about the current Runtime Firmware, FMC, and ROM.
 NOTE: Additional fields and info may be appended to the response in subsequent FW versions.
 
 Command Code: `0x494E_464F` ("INFO")
+
+Privilege Level: PL0 or PL1
 
 *Table: `FW_INFO` input arguments*
 
@@ -715,6 +828,8 @@ FIPS command to get version info for the module
 
 Command Code: `0x4650_5652` ("FPVR")
 
+Privilege Level: PL0 or PL1
+
 Table: `VERSION` input arguments
 
 | **Name**     | **Type**  | **Description**
@@ -737,6 +852,8 @@ FIPS command to start the self tests
 
 Command Code: `0x4650_4C54`
 
+Privilege Level: PL0 or PL1
+
 Table: `SELF_TEST_START` input arguments
 
 | **Name**     | **Type**  | **Description**
@@ -756,6 +873,8 @@ FIPS command to get the results of the self tests. Mailbox command will return a
 
 Command Code: `0x4650_4C67`
 
+Privilege Level: PL0 or PL1
+
 Table: `SELF_TEST_GET_RESULTS` input arguments
 
 | **Name**     | **Type**  | **Description**
@@ -774,6 +893,8 @@ Table: `SELF_TEST_GET_RESULTS` output arguments
 FIPS command to zeroize and shut down the module
 
 Command Code: `0x4650_5344` ("FPSD")
+
+Privilege Level: PL0 or PL1
 
 Table: `SHUTDOWN` input arguments
 
@@ -798,6 +919,8 @@ DMTF otherName subject alternative name extension until reset.
 
 Command Code: `0x414C_544E` ("ALTN")
 
+Privilege Level: PL0 or PL1
+
 *Table: `ADD_SUBJECT_ALT_NAME` input arguments*
 
 | **Name**                  | **Type** | **Description**
@@ -818,6 +941,8 @@ Command Code: `0x414C_544E` ("ALTN")
 Produces a DPE leaf certificate or CSR containing custom extensions provided by the SoC.
 
 Command Code: `0x434B_4558` ("CKEX")
+
+Privilege Level: PL0
 
 *Table: `CERTIFY_KEY_EXTENDED` input arguments*
 
@@ -844,6 +969,8 @@ Command Code: `0x434B_4558` ("CKEX")
 ### SET\_AUTH\_MANIFEST
 
 Command Code: `0x4154_4D4E` ("ATMN")
+
+Privilege Level: PL0
 
 *Table: `SET_AUTH_MANIFEST` input arguments*
 
@@ -905,6 +1032,8 @@ Command Code: `0x4154_4D4E` ("ATMN")
 
 Command Code: `0x4154_5348` ("ATSH")
 
+Privilege Level: PL0 or PL1; stashing the measurement requires PL0, so a PL1 caller must set the `SKIP_STASH` flag
+
 *Table: `AUTHORIZE_AND_STASH` input arguments*
 
 | **Name**    | **Type** | **Description** |
@@ -934,6 +1063,8 @@ Command Code: `0x4154_5348` ("ATSH")
 
 Command Code: `0x4944_4352` ("IDCR")
 
+Privilege Level: PL0 or PL1
+
 *Table: `GET_IDEVID_CSR` input arguments*
 
 | **Name**      | **Type** | **Description**
@@ -961,6 +1092,8 @@ When the `mfg_flag_gen_idev_id_csr` flag has been set, the SoC **MUST** wait for
 
 Command Code: `0x464D_4352` ("FMCR")
 
+Privilege Level: PL0 or PL1
+
 *Table: `GET_FMC_ALIAS_CSR` input arguments*
 
 | **Name**      | **Type** | **Description**
@@ -980,7 +1113,7 @@ The FMC Alias CSR is generated unconditionally on every cold boot.
 
 Command Code: `0x5357_4545` ("SWEE")
 
-**Note**: This command is only available in the locality of the PL0 PAUSER. 
+Privilege Level: PL0
 
 *Table: `SIGN_WITH_EXPORTED_ECDSA` input arguments*
 
@@ -1004,7 +1137,7 @@ The `exported_cdi_handle` can be created by calling `DeriveContext` with the `ex
 
 Command Code: `5256_4348` ("RVCH")
 
-**Note**: This command is only available in the locality of the PL0 PAUSER. 
+Privilege Level: PL0
 
 *Table: `REVOKE_EXPORTED_CDI_HANDLE` input arguments*
 
@@ -1022,7 +1155,7 @@ has been revoked, a new exported CDI handle can be created by calling `DeriveCon
 
 Command Code: '5243_5458` ("RCTX")
 
-**Note**: This command is only available in the locality of the PL0 PAUSER. 
+Privilege Level: PL0
 
 *Table: `REALLOCATE_DPE_CONTEXT_LIMITS` input arguments*
 
@@ -1052,9 +1185,9 @@ The availability of these commands is advertised to the SoC via the `RT_MLDSA_AT
 
 Delivers `PQ.DevID.Seed` from the SoC to Caliptra. Caliptra derives `PQ.DevID.CDI` from the seed via an HMAC-based KDF, derives the ML-DSA-87 `PQ.DevID` keypair, and caches the public key digest in persistent data.
 
-**Note**: This command is only available in the locality of the PL0 PAUSER.
-
 Command Code: `0x5051_5344` ("PQSD")
+
+Privilege Level: PL0
 
 *Table: `SET_PQ_SEED` input arguments*
 
@@ -1080,6 +1213,8 @@ Returns a CSR for the `PQ.DevID` ML-DSA-87 public key, for collection during man
 
 Command Code: `0x5051_4353` ("PQCS")
 
+Privilege Level: PL0 or PL1
+
 *Table: `GET_PQ_CSR` input arguments*
 
 | **Name** | **Type** | **Description**
@@ -1101,6 +1236,8 @@ Returns the raw ML-DSA-87 `PQ.DevID` public key.
 
 Command Code: `0x5051_494E` ("PQIN")
 
+Privilege Level: PL0 or PL1
+
 *Table: `GET_PQ_INFO` input arguments*
 
 | **Name** | **Type** | **Description**
@@ -1120,6 +1257,8 @@ Command Code: `0x5051_494E` ("PQIN")
 Allows the SoC to provide a DER-encoded `PQ.DevID` certificate on every boot, once it has been issued by the vendor/owner PQC provisioning CA. Mirrors [`POPULATE_IDEV_CERT`](#populate_idev_cert).
 
 Command Code: `0x5050_5143` ("PPQC")
+
+Privilege Level: PL0
 
 *Table: `POPULATE_PQ_CERT` input arguments*
 
@@ -1141,6 +1280,8 @@ Command Code: `0x5050_5143` ("PPQC")
 Given a caller-supplied TBS and ML-DSA-87 signature over that TBS, DER-assembles and returns the resulting `PQ.DevID` certificate. Stateless: it does not read the certificate buffer populated by `POPULATE_PQ_CERT`. Mirrors [`GET_IDEV_CERT`](#get_idev_cert).
 
 Command Code: `0x4750_5143` ("GPQC")
+
+Privilege Level: PL0 or PL1
 
 *Table: `GET_PQ_CERT` input arguments*
 
@@ -1166,6 +1307,8 @@ Invokes a DPE command using the ML-DSA-87 crypto backend, mirroring [`INVOKE_DPE
 
 Command Code: `0x4D4C_4450` ("MLDP")
 
+Privilege Level: PL0 or PL1; a subset of DPE commands requires PL0 (see [Mailbox command privilege levels](#mailbox-command-privilege-levels))
+
 *Table: `INVOKE_DPE_MLDSA87` input arguments*
 
 | **Name**    | **Type** | **Description**
@@ -1188,6 +1331,8 @@ Command Code: `0x4D4C_4450` ("MLDP")
 The ML-DSA-87 counterpart to [`CERTIFY_KEY_EXTENDED`](#certify_key_extended): produces a DPE leaf certificate or CSR, signed with ML-DSA-87, containing custom extensions provided by the SoC.
 
 Command Code: `0x434B_454D` ("CKEM")
+
+Privilege Level: PL0
 
 *Table: `CERTIFY_KEY_EXTENDED_MLDSA87` input arguments*
 
@@ -1212,7 +1357,9 @@ This command can take tens of millions of CPU cycles due to the software ML-DSA-
 
 The ML-DSA-87 counterpart to [`SIGN_WITH_EXPORTED_ECDSA`](#sign_with_exported_ecdsa): signs with an ML-DSA-87 key pair derived from a previously exported DPE CDI handle.
 
-**Note**: This command is only available in the locality of the PL0 PAUSER.
+Command Code: `0x5357_4D4C` ("SWML")
+
+Privilege Level: PL0
 
 *Table: `SIGN_WITH_EXPORTED_MLDSA` input arguments*
 
@@ -1322,8 +1469,9 @@ Caliptra models PAUSER callers to its mailbox as having 1 of 2 privilege levels:
 * PL0 - High privilege. Only 1 PAUSER in the SoC may be at PL0. The PL0 PAUSER
   is denoted in the signed Caliptra firmware image. The PL0 PAUSER may call any
   supported DPE commands. Only PL0 can use the CertifyKey command. Success of the
-  CertifyKey command signifies to the caller that it is at PL0. Only PL0 can use
-  the POPULATE\_IDEV\_CERT mailbox command.
+  CertifyKey command signifies to the caller that it is at PL0. A number of
+  mailbox commands are also restricted to PL0; see
+  [Mailbox command privilege levels](#mailbox-command-privilege-levels).
 * PL1 - Restricted privilege. All other PAUSERs in the SoC are PL1. Caliptra
   SHALL fail any calls to the DPE CertifyKey with format=X509 by PL1 callers.
   PL1 callers should use the CSR format instead.
