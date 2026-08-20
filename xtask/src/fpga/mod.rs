@@ -22,6 +22,7 @@ pub struct BuildArgs<'a> {
 
 pub struct BuildTestArgs<'a> {
     pub package_filter: &'a Option<String>,
+    pub flash_boot: &'a bool,
 }
 pub struct TestArgs<'a> {
     pub test_filter: &'a Option<String>,
@@ -74,6 +75,9 @@ pub enum Fpga {
         /// Uses a `cargo-nextest` package filter-set, e.g. `package(caliptra-rom)`.
         #[arg(long)]
         package_filter: Option<String>,
+        /// Enable the flash-boot feature
+        #[arg(long, default_value_t = true, action = clap::ArgAction::Set)]
+        flash_boot: bool,
     },
     /// Run FPGA tests
     Test {
@@ -119,13 +123,17 @@ pub fn fpga_entry(args: &Fpga) -> Result<()> {
         Fpga::BuildTest {
             target_host,
             package_filter,
+            flash_boot,
         } => {
             println!("Building FPGA tests");
             let config = Configuration::from_cmd(target_host)?;
             config
                 .executor()
                 .set_target_host(target_host)
-                .build_test(&BuildTestArgs { package_filter })?;
+                .build_test(&BuildTestArgs {
+                    package_filter,
+                    flash_boot,
+                })?;
         }
         Fpga::Bootstrap {
             target_host,
