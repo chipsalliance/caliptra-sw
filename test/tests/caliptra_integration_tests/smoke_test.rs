@@ -3,7 +3,7 @@ use caliptra_api::mailbox::AlgorithmType;
 use caliptra_api::soc_mgr::SocManager;
 use caliptra_api_types::{DeviceLifecycle, Fuses};
 use caliptra_builder::firmware::{APP_WITH_UART, FMC_WITH_UART};
-use caliptra_builder::{firmware, ImageOptions};
+use caliptra_builder::{firmware, CiRomVersion, ImageOptions};
 use caliptra_common::mailbox_api::{
     GetFmcAliasEcc384CertReq, GetFmcAliasEccCsrReq, GetFmcAliasMlDsa87CertReq,
     GetFmcAliasMldsaCsrReq, GetLdevEcc384CertReq, GetLdevMldsa87CertReq, GetRtAliasEcc384CertReq,
@@ -63,6 +63,13 @@ const ROM_LATEST_TEST_PARAMS: RomTestParams = RomTestParams {
 
 fn get_rom_test_params() -> RomTestParams<'static> {
     ROM_LATEST_TEST_PARAMS
+}
+
+fn device_status_includes_subsystem_mode() -> bool {
+    match caliptra_builder::get_ci_rom_version() {
+        CiRomVersion::Rom2_0_0 | CiRomVersion::Rom2_0_1 | CiRomVersion::Rom2_0_2 => false,
+        CiRomVersion::Latest => true,
+    }
 }
 
 #[track_caller]
@@ -423,18 +430,24 @@ fn smoke_test() {
 
             let owner_pk_in_fuses = (fuses.owner_pk_hash != [0u32; 12]) && !hw.subsystem_mode();
 
-            let mut hasher = Sha384::new();
-            hasher.update(&[security_state.device_lifecycle() as u8]);
-            hasher.update(&[security_state.debug_locked() as u8]);
-            hasher.update(&[fuses.anti_rollback_disable as u8]);
-            hasher.update(/*vendor_ecc_pk_index=*/ &[0u8]); // No keys are revoked
-            hasher.update(&[image.manifest.header.vendor_pqc_pub_key_idx as u8]);
-            hasher.update(&[image.manifest.pqc_key_type]);
-            hasher.update(&[owner_pk_in_fuses as u8]);
-            hasher.update(&[hw.subsystem_mode() as u8]);
-            hasher.update(vendor_pk_desc_hash.as_bytes());
-            hasher.update(&owner_pk_hash);
-            let device_info_hash = hasher.finish();
+            let include_subsystem_mode = device_status_includes_subsystem_mode();
+            let calculate_device_info_hash = |include_subsystem_mode: bool| {
+                let mut hasher = Sha384::new();
+                hasher.update(&[security_state.device_lifecycle() as u8]);
+                hasher.update(&[security_state.debug_locked() as u8]);
+                hasher.update(&[fuses.anti_rollback_disable as u8]);
+                hasher.update(/*vendor_ecc_pk_index=*/ &[0u8]); // No keys are revoked
+                hasher.update(&[image.manifest.header.vendor_pqc_pub_key_idx as u8]);
+                hasher.update(&[image.manifest.pqc_key_type]);
+                hasher.update(&[owner_pk_in_fuses as u8]);
+                if include_subsystem_mode {
+                    hasher.update(&[hw.subsystem_mode() as u8]);
+                }
+                hasher.update(vendor_pk_desc_hash.as_bytes());
+                hasher.update(&owner_pk_hash);
+                hasher.finish()
+            };
+            let device_info_hash = calculate_device_info_hash(include_subsystem_mode);
 
             let fmc_expected_tcb_info = [
                 DiceTcbInfo {
@@ -488,6 +501,7 @@ fn smoke_test() {
                     pqc_vendor_pub_key_index: image.manifest.header.vendor_pqc_pub_key_idx,
                     pqc_key_type: *pqc_key_type as u32,
                     subsystem_mode: hw.subsystem_mode(),
+                    include_subsystem_mode,
                 }),
                 &expected_ldevid_key,
             );
@@ -626,6 +640,10 @@ fn smoke_test() {
                 );
             }
 
+            let mut fmc_csr_expected_tcb_info = fmc_expected_tcb_info;
+            fmc_csr_expected_tcb_info[0].fwids[0].digest =
+                calculate_device_info_hash(true).to_vec();
+
             // Get FMC Alias CSR so we can verify it
             let fmc_alias_csr_resp = match algorithm_type {
                 AlgorithmType::Ecc384 => hw
@@ -648,8 +666,7 @@ fn smoke_test() {
             // Validate TCB info
             let dice_tcb_info = DiceTcbInfo::find_multiple_in_csr(fmc_alias_csr_der).unwrap();
 
-            // Use the same expected TCB info from FMC Alias cert
-            assert_eq!(dice_tcb_info, fmc_expected_tcb_info);
+            assert_eq!(dice_tcb_info, fmc_csr_expected_tcb_info);
 
             // Use the same expected public key from FMC Alias cert
             match algorithm_type {
