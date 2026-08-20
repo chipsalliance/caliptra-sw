@@ -47,7 +47,6 @@ on:
         default: true
         type: boolean
 
-
 jobs:
   check_cache:
     runs-on: ubuntu-22.04
@@ -86,7 +85,7 @@ jobs:
     env:
       # Change this to a new random value if you suspect the cache is corrupted
       CACHE_BUSTER: 9ff0db8889e8
-      CALIPTRA_MCU_COMMIT: ${{ inputs.mcu-commit || '7328113c31713b3ff3da89de7901b8393dafff3c' }}
+      CALIPTRA_MCU_COMMIT: ${{ inputs.mcu-commit || 'a8b5eb8cf8ef98279988237e58f3ed9ade0072f5' }}
 
     steps:
       - name: Checkout repo

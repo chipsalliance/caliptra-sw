@@ -355,11 +355,10 @@ fn test_populate_idev_cannot_be_called_from_pl1() {
 #[test]
 fn test_stash_measurement_cannot_be_called_from_pl1() {
     for pqc_key_type in PQC_KEY_TYPE.iter() {
-        let mut image_opts = ImageOptions {
+        let image_opts = ImageOptions {
             pqc_key_type: *pqc_key_type,
             ..Default::default()
         };
-        image_opts.vendor_config.pl0_pauser = None;
 
         let args = RuntimeTestArgs {
             test_image_options: Some(image_opts),
@@ -370,6 +369,7 @@ fn test_stash_measurement_cannot_be_called_from_pl1() {
         model.step_until(|m| {
             m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
         });
+        model.set_axi_user(2);
 
         let mut cmd = MailboxReq::StashMeasurement(StashMeasurementReq::default());
         cmd.populate_chksum().unwrap();

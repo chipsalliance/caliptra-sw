@@ -112,7 +112,6 @@ fn test_pcr31_extended_upon_stash_measurement() {
             ..Default::default()
         };
         let runtime_test_args = RuntimeTestArgs {
-            test_fwid: Some(crate::test_update_reset::mbox_test_image()),
             test_image_options: Some(image_options.clone()),
             ..Default::default()
         };
