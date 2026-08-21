@@ -484,4 +484,8 @@ impl ImageVerificationEnv for &mut FakeRomImageVerificationEnv<'_, '_, '_> {
     fn dot_owner_pk_hash(&self) -> Option<&ImageDigest384> {
         None
     }
+
+    fn ss_debug_intent(&self) -> bool {
+        self.soc_ifc.ss_debug_intent()
+    }
 }

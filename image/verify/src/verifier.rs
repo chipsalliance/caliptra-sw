@@ -126,6 +126,11 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         let toc_info = self.verify_header(header, header_info);
         let toc_info = okref(&toc_info)?;
 
+        // Debug images are only accepted when subsystem Debug Intent is asserted.
+        if (header.flags & IMAGE_FLAGS_DEBUG_IMAGE) != 0 && !self.env.ss_debug_intent() {
+            Err(CaliptraError::IMAGE_VERIFIER_ERR_DEBUG_IMAGE_NOT_ALLOWED)?;
+        }
+
         // Verify TOC
         let image_info = self.verify_toc(manifest, toc_info, img_bundle_sz);
         let image_info = okref(&image_info)?;
@@ -1486,6 +1491,104 @@ mod tests {
         );
     }
 
+    fn manifest_for_debug_image_test(debug_image: bool) -> ImageManifest {
+        let mut manifest = ImageManifest {
+            marker: MANIFEST_MARKER,
+            size: core::mem::size_of::<ImageManifest>() as u32,
+            pqc_key_type: FwVerificationPqcKeyType::MLDSA as u8,
+            ..Default::default()
+        };
+        manifest.preamble.vendor_pub_key_info.ecc_key_descriptor = ImageEccKeyDescriptor {
+            version: KEY_DESCRIPTOR_VERSION,
+            key_hash_count: 1,
+            reserved: 0,
+            key_hash: ImageEccKeyHashes::default(),
+        };
+        manifest.preamble.vendor_pub_key_info.pqc_key_descriptor = ImagePqcKeyDescriptor {
+            version: KEY_DESCRIPTOR_VERSION,
+            key_type: FwVerificationPqcKeyType::MLDSA as u8,
+            key_hash_count: 1,
+            key_hash: ImagePqcKeyHashes::default(),
+        };
+        manifest.preamble.vendor_ecc_active_pub_key = VENDOR_ECC_PUBKEY;
+        manifest.preamble.vendor_sigs.ecc_sig = VENDOR_ECC_SIG;
+        manifest.preamble.owner_pub_keys.ecc_pub_key = OWNER_ECC_PUBKEY;
+        manifest.preamble.owner_sigs.ecc_sig = OWNER_ECC_SIG;
+        if debug_image {
+            manifest.header.flags |= IMAGE_FLAGS_DEBUG_IMAGE;
+        }
+        manifest
+    }
+
+    #[test]
+    fn test_debug_image_rejected_without_debug_intent() {
+        let test_env = TestEnv {
+            verify_result: true,
+            verify_pqc_result: true,
+            ss_debug_intent: false,
+            ..Default::default()
+        };
+        let mut verifier = ImageVerifier::new(test_env);
+        let manifest = manifest_for_debug_image_test(true);
+        let result = verifier.verify(&manifest, manifest.size, ResetReason::ColdReset);
+        assert_eq!(
+            result.err(),
+            Some(CaliptraError::IMAGE_VERIFIER_ERR_DEBUG_IMAGE_NOT_ALLOWED)
+        );
+    }
+
+    #[test]
+    fn test_debug_image_allowed_with_debug_intent() {
+        let test_env = TestEnv {
+            verify_result: true,
+            verify_pqc_result: true,
+            ss_debug_intent: true,
+            ..Default::default()
+        };
+        let mut verifier = ImageVerifier::new(test_env);
+        let manifest = manifest_for_debug_image_test(true);
+        let result = verifier.verify(&manifest, manifest.size, ResetReason::ColdReset);
+        // Continues past the Debug Intent gate; later TOC checks fail on this stub manifest.
+        assert!(matches!(
+            result,
+            Err(e) if e != CaliptraError::IMAGE_VERIFIER_ERR_DEBUG_IMAGE_NOT_ALLOWED
+        ));
+    }
+
+    #[test]
+    fn test_non_debug_image_allowed_without_debug_intent() {
+        let test_env = TestEnv {
+            verify_result: true,
+            verify_pqc_result: true,
+            ss_debug_intent: false,
+            ..Default::default()
+        };
+        let mut verifier = ImageVerifier::new(test_env);
+        let manifest = manifest_for_debug_image_test(false);
+        let result = verifier.verify(&manifest, manifest.size, ResetReason::ColdReset);
+        assert!(matches!(
+            result,
+            Err(e) if e != CaliptraError::IMAGE_VERIFIER_ERR_DEBUG_IMAGE_NOT_ALLOWED
+        ));
+    }
+
+    #[test]
+    fn test_non_debug_image_allowed_with_debug_intent() {
+        let test_env = TestEnv {
+            verify_result: true,
+            verify_pqc_result: true,
+            ss_debug_intent: true,
+            ..Default::default()
+        };
+        let mut verifier = ImageVerifier::new(test_env);
+        let manifest = manifest_for_debug_image_test(false);
+        let result = verifier.verify(&manifest, manifest.size, ResetReason::ColdReset);
+        assert!(matches!(
+            result,
+            Err(e) if e != CaliptraError::IMAGE_VERIFIER_ERR_DEBUG_IMAGE_NOT_ALLOWED
+        ));
+    }
+
     #[test]
     fn test_preamble_vendor_pubkey_info_digest() {
         let preamble = ImagePreamble::default();
@@ -2331,6 +2434,7 @@ mod tests {
         owner_pub_key_digest: ImageDigest384,
         lifecycle: Lifecycle,
         pqc_key_type: FwVerificationPqcKeyType,
+        ss_debug_intent: bool,
     }
 
     impl Default for TestEnv {
@@ -2347,6 +2451,7 @@ mod tests {
                 owner_pub_key_digest: ImageDigest384::default(),
                 lifecycle: Lifecycle::Unprovisioned,
                 pqc_key_type: FwVerificationPqcKeyType::MLDSA,
+                ss_debug_intent: false,
             }
         }
     }
@@ -2480,6 +2585,10 @@ mod tests {
 
         fn dot_owner_pk_hash(&self) -> Option<&ImageDigest384> {
             Some(&self.owner_pub_key_digest)
+        }
+
+        fn ss_debug_intent(&self) -> bool {
+            self.ss_debug_intent
         }
     }
 }
