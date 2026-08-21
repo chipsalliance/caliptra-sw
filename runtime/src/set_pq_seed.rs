@@ -30,14 +30,16 @@ impl SetPqSeedCmd {
         drivers.ensure_pl0()?;
 
         let mut cmd = SetPqSeedReq::new_zeroed();
-        crate::packet::copy_from_mbox(drivers, cmd.as_mut_bytes())?;
+        crate::packet::copy_from_mbox(drivers, cmd.as_mut_bytes())
+            .inspect_err(|_| cmd.seed.zeroize())?;
 
         // Deriving the PQ.DevID CDI and computing the ML-DSA-87 key material
         // below exceeds the default 20M-cycle command watchdog budget; extend it.
         drivers.extend_wdt_for_pqc();
 
         let mut out = Zeroizing::new(Array4x12::default());
-        Self::derive_pq_devid_cdi(drivers, &cmd.seed, &mut out)?;
+        Self::derive_pq_devid_cdi(drivers, &cmd.seed, &mut out)
+            .inspect_err(|_| cmd.seed.zeroize())?;
 
         drivers
             .persistent_data
