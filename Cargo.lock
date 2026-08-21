@@ -6189,8 +6189,11 @@ name = "xtask"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "caliptra-auth-man-gen",
  "caliptra-bitstream-downloader",
  "caliptra-builder",
+ "caliptra-image-crypto",
+ "caliptra-image-types",
  "caliptra-size-history",
  "clap",
  "hex",
@@ -6203,6 +6206,7 @@ dependencies = [
  "simple_logger",
  "tokio",
  "toml_edit 0.22.27",
+ "zerocopy",
  "zip",
 ]
 
