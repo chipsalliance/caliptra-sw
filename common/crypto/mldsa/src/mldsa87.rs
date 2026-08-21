@@ -4,6 +4,7 @@ use crate::ct::{ct_ge, ct_if, ct_lt};
 use caliptra_dpe_response_buffer::{ResponseBufError, ResponseBuffer};
 use caliptra_shake::{Shake128, Shake256};
 use core::convert::TryInto;
+use zeroize::{Zeroize, ZeroizeOnDrop};
 
 /* Public API Constants */
 pub const MLDSA87_PRIVATE_SEED_BYTES: usize = 32;
@@ -67,7 +68,7 @@ const A_CACHE_BYTES: usize = A_CACHE_POLYS * A_CACHE_POLY_BYTES;
 
 /* Fundamental types. */
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Zeroize)]
 pub struct Scalar {
     pub c: [u32; K_DEGREE],
 }
@@ -80,18 +81,19 @@ impl Default for Scalar {
     }
 }
 
-#[derive(Default, Clone, Copy)]
+#[derive(Default, Clone, Copy, Zeroize)]
 pub struct Vector8 {
     pub v: [Scalar; 8],
 }
 
-#[derive(Default, Clone, Copy)]
+#[derive(Default, Clone, Copy, Zeroize)]
 pub struct Vector7 {
     pub v: [Scalar; 7],
 }
 
 /* Complex types. */
 
+#[derive(Zeroize, ZeroizeOnDrop)]
 pub struct PrivateKey {
     pub rho: [u8; K_RHO_BYTES],
     pub k: [u8; K_K_BYTES],
@@ -902,6 +904,7 @@ fn generate_key_internal(
     vector7_ntt(s1_ntt);
 
     matrix87_expand_mul(&mut priv_key.t0_ntt, rho.try_into().unwrap(), s1_ntt);
+    // s1 is cleared by overwriting it with s2, therefore we do not need to zeroize.
     vector8_inverse_ntt(&mut priv_key.t0_ntt);
 
     state = KeygenState::V8(Vector8::default());
@@ -919,6 +922,8 @@ fn generate_key_internal(
     }
 
     vector8_add_assign(&mut priv_key.t0_ntt, s2_ntt);
+    // s2 is secret and dead from here; see the s1 scrub above.
+    s2_ntt.zeroize();
 
     state = KeygenState::V8(Vector8::default());
     let t1 = match &mut state {
@@ -960,6 +965,9 @@ fn generate_key_internal(
             pub_key_hash.copy_from_slice(&tr);
         }
     }
+
+    augmented_entropy.zeroize();
+    expanded_seed.zeroize();
 }
 
 /// FIPS 204 `BitPack` of one polynomial, LSB-first, `bits` per coefficient.
@@ -1084,6 +1092,8 @@ fn sign_internal_with_mu(
                 [2 * LAMBDA_BYTES + i * 640..2 * LAMBDA_BYTES + (i + 1) * 640];
             scalar_encode_signed_20_19(out_slice, &z_i);
         }
+        // Copy of rho_prime; dead from here, and this runs per rejection iteration.
+        mask_seed.zeroize();
 
         let mut r0_max = 0u32;
         let mut ct0_max = 0u32;
@@ -1138,8 +1148,11 @@ fn sign_internal_with_mu(
             .try_into()
             .unwrap();
         hint_bit_pack(hint_out, &tmp);
-        return;
+        break;
     }
+
+    // rho_prime derives every mask y; with a published signature it recovers s1.
+    rho_prime.zeroize();
 }
 
 fn verify_internal_with_mu(
@@ -1518,6 +1531,38 @@ pub fn mldsa87_sign_mu_deterministic_from_sk(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// `PrivateKey` carries `ZeroizeOnDrop` so expanded ML-DSA private key material
+    /// does not outlive a keygen/sign scope on the DCCM stack. Guards both halves of
+    /// that: the `Zeroize` impl actually clears every field, and the type still
+    /// satisfies `ZeroizeOnDrop` (so the drop glue is wired up).
+    #[test]
+    fn test_private_key_zeroize() {
+        fn assert_zeroize_on_drop<T: ZeroizeOnDrop>() {}
+        assert_zeroize_on_drop::<PrivateKey>();
+
+        let mut priv_key = PrivateKey {
+            rho: [0xAA; K_RHO_BYTES],
+            k: [0xBB; K_K_BYTES],
+            sigma: [0xCC; K_SIGMA_BYTES],
+            t0_ntt: Vector8 {
+                v: [Scalar {
+                    c: [0xDDDD_DDDD; K_DEGREE],
+                }; 8],
+            },
+        };
+
+        priv_key.zeroize();
+
+        assert!(priv_key.rho.iter().all(|&b| b == 0));
+        assert!(priv_key.k.iter().all(|&b| b == 0));
+        assert!(priv_key.sigma.iter().all(|&b| b == 0));
+        assert!(priv_key
+            .t0_ntt
+            .v
+            .iter()
+            .all(|s| s.c.iter().all(|&c| c == 0)));
+    }
 
     #[test]
     fn test_mldsa87_keygen() {

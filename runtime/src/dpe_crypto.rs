@@ -496,10 +496,11 @@ impl Crypto for DpeCrypto<'_> {
                 }
 
                 let mldsa_cdi = self.derive_cdi_inner_mldsa(measurement, info)?;
-                let cdi_bytes = <[u8; PQ_DEVID_CDI_SIZE as usize]>::from(*mldsa_cdi);
+                let cdi_bytes =
+                    Zeroizing::new(<[u8; PQ_DEVID_CDI_SIZE as usize]>::from(*mldsa_cdi));
                 // The borrow will be trivially true since we entered this branch of the match.
                 if let Signer::Mldsa { exported_cdi_slot } = &mut self.signer {
-                    exported_cdi_slot.cdi = cdi_bytes;
+                    exported_cdi_slot.cdi = *cdi_bytes;
                     exported_cdi_slot.handle = exported_cdi_handle;
                     exported_cdi_slot.active = U8Bool::new(true);
                 }
@@ -627,11 +628,11 @@ impl CdiManager for DpeCrypto<'_> {
                 // Copy CDI bytes to the stack so we can release the borrow on self.cdi
                 // before calling derive_key_pair_mldsa which needs &mut self.
                 let cdi_bytes = match &self.cdi {
-                    Some(Cdi::Mldsa(b)) => **b,
+                    Some(Cdi::Mldsa(b)) => Zeroizing::new(**b),
                     _ => return Err(CryptoError::CryptoLibError(1)),
                 };
                 let mut seed = Mldsa87Seed::default();
-                self.derive_key_pair_mldsa((&cdi_bytes).into(), label, info, &mut seed)?;
+                self.derive_key_pair_mldsa((&*cdi_bytes).into(), label, info, &mut seed)?;
                 self.derived_key = Some(DerivedKey::Mldsa(seed));
             }
         };
