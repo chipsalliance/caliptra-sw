@@ -44,6 +44,19 @@ fn test_boot() {
 }
 
 #[test]
+#[ignore]
+#[cfg(all(feature = "fpga_subsystem", not(feature = "flash-boot")))]
+fn test_boot_external_i3c_host() {
+    let mut args = RuntimeTestArgs {
+        use_external_i3c_host: true,
+        ..Default::default()
+    };
+    let mut model = run_rt_test(args);
+    // Waits until MCU FW is loaded.
+    model.step_until(|m| (m.soc_ifc().ss_generic_fw_exec_ctrl().at(0).read() & (1 << 2)) != 0);
+}
+
+#[test]
 /// This test differs from the drivers' test_persistent() in that it is ran with the "runtime" flag so
 /// it allows us to test conditionally compiled runtime-only persistent data that ROM/FMC may have corrupted.
 fn test_persistent_data() {
