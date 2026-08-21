@@ -952,6 +952,7 @@ dependencies = [
  "hex",
  "serde_json",
  "zerocopy",
+ "zeroize",
 ]
 
 [[package]]

@@ -18,6 +18,7 @@ use caliptra_common::mailbox_api::{MailboxRespHeader, SetPqSeedReq, SET_PQ_SEED_
 use caliptra_drivers::{hmac384_kdf, Array4x12, CaliptraError, CaliptraResult};
 use crypto::{Digest, Sha256};
 use zerocopy::{FromZeros, IntoBytes};
+use zeroize::{Zeroize, Zeroizing};
 
 pub struct SetPqSeedCmd;
 
@@ -35,13 +36,16 @@ impl SetPqSeedCmd {
         // below exceeds the default 20M-cycle command watchdog budget; extend it.
         drivers.extend_wdt_for_pqc();
 
-        let mut out = Array4x12::default();
+        let mut out = Zeroizing::new(Array4x12::default());
         Self::derive_pq_devid_cdi(drivers, &cmd.seed, &mut out)?;
 
         drivers
             .persistent_data
             .get_mut()
-            .set_pq_devid_cdi(out.into())?;
+            .set_pq_devid_cdi((*out).into())?;
+
+        // The request buffer still holds the caller-supplied seed.
+        cmd.seed.zeroize();
 
         // Calculate the digest of the PQ.DevID public key and cache it
         // in the persistent data to avoid repeated key generation passes
@@ -63,15 +67,17 @@ impl SetPqSeedCmd {
         seed: &[u8; SET_PQ_SEED_SEED_SIZE],
         out: &mut Array4x12,
     ) -> CaliptraResult<()> {
-        let mut buf = [0u8; core::mem::size_of::<Array4x12>()];
+        let mut buf = Zeroizing::new([0u8; core::mem::size_of::<Array4x12>()]);
 
         buf.get_mut(..SET_PQ_SEED_SEED_SIZE)
             .ok_or(CaliptraError::RUNTIME_MLDSA87_DEVID_SEED_TOO_LARGE)?
             .copy_from_slice(seed);
 
+        let key = Zeroizing::new(Array4x12::from(&*buf));
+
         hmac384_kdf(
             &mut drivers.hmac384,
-            (&Array4x12::from(&buf)).into(),
+            (&*key).into(),
             b"pq_devid_cdi",
             None,
             &mut drivers.trng,
