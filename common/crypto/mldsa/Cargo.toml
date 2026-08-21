@@ -9,6 +9,7 @@ edition = "2021"
 caliptra-dpe-response-buffer.workspace = true
 caliptra-shake.workspace = true
 zerocopy.workspace = true
+zeroize.workspace = true
 
 [dev-dependencies]
 hex = {workspace = true}
