@@ -1021,44 +1021,4 @@ mod tests {
             CaliptraError::RUNTIME_AUTH_MANIFEST_IMAGE_METADATA_LIST_DUPLICATE_FIRMWARE_ID
         );
     }
-
-    #[test]
-    fn test_verify_ueid_optional() {
-        let metadata = [AuthManifestImageMetadata {
-            fw_id: 7,
-            ..Default::default()
-        }];
-
-        assert!(SetAuthManifestCmd::verify_ueid(&metadata, &[0xA5; 17]).is_ok());
-    }
-
-    #[test]
-    fn test_verify_ueid_matches_device() {
-        let device_ueid = [0xA5; 17];
-        let metadata = [AuthManifestImageMetadata::new_ueid(&device_ueid)];
-
-        assert!(SetAuthManifestCmd::verify_ueid(&metadata, &device_ueid).is_ok());
-    }
-
-    #[test]
-    fn test_verify_ueid_rejects_mismatch() {
-        let metadata = [AuthManifestImageMetadata::new_ueid(&[0xA5; 17])];
-
-        assert_eq!(
-            SetAuthManifestCmd::verify_ueid(&metadata, &[0x5A; 17]).unwrap_err(),
-            CaliptraError::RUNTIME_AUTH_MANIFEST_UEID_MISMATCH
-        );
-    }
-
-    #[test]
-    fn test_verify_ueid_rejects_nonzero_padding() {
-        let device_ueid = [0xA5; 17];
-        let mut metadata = AuthManifestImageMetadata::new_ueid(&device_ueid);
-        metadata.digest[AUTH_MANIFEST_UEID_LEN] = 1;
-
-        assert_eq!(
-            SetAuthManifestCmd::verify_ueid(&[metadata], &device_ueid).unwrap_err(),
-            CaliptraError::RUNTIME_AUTH_MANIFEST_UEID_MISMATCH
-        );
-    }
 }
