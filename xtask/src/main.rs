@@ -120,6 +120,15 @@ pub enum BuildCommands {
     Runtime,
     TestFw,
     All,
+    /// Build OCP recovery images (Caliptra bundle, SoC manifest, MCU firmware)
+    RecoveryImages {
+        /// Directory to output the recovery binary artifacts
+        #[arg(short, long, default_value = "target")]
+        out_dir: PathBuf,
+        /// PQC key type (1 for MLDSA, 3 for LMS)
+        #[arg(long, default_value_t = 1)]
+        pqc_key_type: u32,
+    },
 }
 
 pub static PROJECT_ROOT: LazyLock<PathBuf> = LazyLock::new(|| {
@@ -182,6 +191,22 @@ fn main() {
             BuildCommands::Runtime => build::build_runtime(),
             BuildCommands::TestFw => build::build_driver_test_fw(),
             BuildCommands::All => build::build_all(),
+            BuildCommands::RecoveryImages {
+                out_dir,
+                pqc_key_type,
+            } => match pqc_key_type {
+                1 => build::build_ocp_recovery_images(
+                    out_dir,
+                    caliptra_image_types::FwVerificationPqcKeyType::MLDSA,
+                ),
+                3 => build::build_ocp_recovery_images(
+                    out_dir,
+                    caliptra_image_types::FwVerificationPqcKeyType::LMS,
+                ),
+                _ => Err(anyhow::anyhow!(
+                    "--pqc-key-type must be 1 (MLDSA) or 3 (LMS)"
+                )),
+            },
         },
     };
     result.unwrap_or_else(|e| {
