@@ -49,6 +49,7 @@ mod get_algorithms;
 mod get_hpke_pubkey;
 mod get_status;
 mod initialize_mek_secret;
+mod load_kat_mek;
 mod load_mek;
 mod mix_mpk;
 mod rewrap_mpk;
@@ -61,6 +62,7 @@ pub use derive_mek::DeriveMekCmd;
 pub use get_algorithms::GetAlgorithmsCmd;
 pub use get_status::GetStatusCmd;
 pub use initialize_mek_secret::InitializeMekSecretCmd;
+pub use load_kat_mek::LoadKatMekCmd;
 pub use load_mek::LoadMekCmd;
 pub use mix_mpk::MixMpkCmd;
 pub use unload_mek::UnloadMekCmd;
@@ -1529,6 +1531,7 @@ pub fn command_handler(
         CommandId::OCP_LOCK_CLEAR_KEY_CACHE => ClearKeyCacheCmd::execute(drivers, cmd_bytes, resp),
         CommandId::OCP_LOCK_UNLOAD_MEK => UnloadMekCmd::execute(drivers, cmd_bytes, resp),
         CommandId::OCP_LOCK_LOAD_MEK => LoadMekCmd::execute(drivers, cmd_bytes, resp),
+        CommandId::OCP_LOCK_LOAD_KAT_MEK => LoadKatMekCmd::execute(drivers, cmd_bytes, resp),
         _ => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
     }
 }

@@ -4,11 +4,11 @@ Licensed under the Apache-2.0 license.
 
 File Name:
 
-    load_mek.rs
+    load_kat_mek.rs
 
 Abstract:
 
-    File contains LOAD_MEK mailbox command.
+    File contains LOAD_KAT_MEK mailbox command.
 
 --*/
 
@@ -16,15 +16,37 @@ use crate::mutrefbytes;
 use crate::Drivers;
 #[cfg(feature = "cfi")]
 use caliptra_cfi_derive::cfi_impl_fn;
-use caliptra_common::keyids::ocp_lock::KEY_ID_MEK;
-use caliptra_common::mailbox_api::{MailboxRespHeader, OcpLockLoadMekReq, OcpLockLoadMekResp};
+use caliptra_common::mailbox_api::{
+    MailboxRespHeader, OcpLockLoadKatMekReq, OcpLockLoadKatMekResp,
+    OCP_LOCK_ENCRYPTION_ENGINE_MAX_MEK_SIZE,
+};
 use caliptra_drivers::{CaliptraError, CaliptraResult, DmaEncryptionEngine};
 use zerocopy::FromBytes;
 
 use super::timeout_to_mtime;
 
-pub struct LoadMekCmd;
-impl LoadMekCmd {
+/// MEK for KAT support. The value is fixed in the OCP L.O.C.K. specification
+const KAT_MEK: [u32; OCP_LOCK_ENCRYPTION_ENGINE_MAX_MEK_SIZE / size_of::<u32>()] = [
+    0x0000_0000,
+    0x0000_0000,
+    0x0000_0000,
+    0x0000_0000,
+    0x1111_1111,
+    0x1111_1111,
+    0x1111_1111,
+    0x1111_1111,
+    0x2222_2222,
+    0x2222_2222,
+    0x2222_2222,
+    0x2222_2222,
+    0x3333_3333,
+    0x3333_3333,
+    0x3333_3333,
+    0x3333_3333,
+];
+
+pub struct LoadKatMekCmd;
+impl LoadKatMekCmd {
     #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn execute(
@@ -32,11 +54,11 @@ impl LoadMekCmd {
         cmd_bytes: &[u8],
         resp: &mut [u8],
     ) -> CaliptraResult<usize> {
-        if cmd_bytes.len() != size_of::<OcpLockLoadMekReq>() {
+        if cmd_bytes.len() != size_of::<OcpLockLoadKatMekReq>() {
             Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
         }
 
-        let cmd = OcpLockLoadMekReq::ref_from_bytes(cmd_bytes)
+        let cmd = OcpLockLoadKatMekReq::ref_from_bytes(cmd_bytes)
             .map_err(|_| CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
         let soc_ifc = &mut drivers.soc_ifc;
 
@@ -59,24 +81,11 @@ impl LoadMekCmd {
         // Write AUX
         dma_encryption_engine.write_aux(&cmd.aux_metadata);
 
-        // Handle MEK generation
-        let wrapped_mek = (&cmd.wrapped_mek).try_into()?;
-        drivers.ocp_lock_context.load_mek_into_key_vault(
-            &mut drivers.aes,
-            &mut drivers.trng,
-            &mut drivers.hmac,
-            &mut drivers.key_vault,
-            &wrapped_mek,
-        )?;
+        // Write Known MEK
+        dma_encryption_engine.write_kat_mek(&KAT_MEK, soc_ifc.ocp_lock_get_key_size())?;
 
-        // Write MEK
-        dma_encryption_engine
-            .release_mek_from_key_vault(soc_ifc.ocp_lock_get_key_size(), || {
-                drivers.key_vault.erase_key(KEY_ID_MEK)
-            })?;
-
-        // Write Load command
-        dma_encryption_engine.execute_load_command();
+        // Write Load KAT test key command
+        dma_encryption_engine.execute_load_kat_command();
 
         // Wait the execution to be done
         let result = dma_encryption_engine.wait_done(soc_ifc, cmd_mtimeout)?;
@@ -91,9 +100,9 @@ impl LoadMekCmd {
         };
 
         // Populate response
-        let resp = mutrefbytes::<OcpLockLoadMekResp>(resp)?;
+        let resp = mutrefbytes::<OcpLockLoadKatMekResp>(resp)?;
         resp.hdr = MailboxRespHeader::default();
 
-        Ok(core::mem::size_of::<OcpLockLoadMekResp>())
+        Ok(core::mem::size_of::<OcpLockLoadKatMekResp>())
     }
 }
