@@ -1784,6 +1784,11 @@ impl CaliptraError {
             "OCP LOCK Error: LOCKED MPK is not valid"
         ),
         (
+            RUNTIME_OCP_LOCK_MEK_INVALID_XTS_KEY,
+            0x000E00B1,
+            "OCP LOCK Error: MEK is invalid XTS key"
+        ),
+        (
             RUNTIME_INVALID_ROM_PERSISTENT_DATA_MARKER,
             0x000E007A,
             "Runtime Error: Invalid ROM persistent data marker"
