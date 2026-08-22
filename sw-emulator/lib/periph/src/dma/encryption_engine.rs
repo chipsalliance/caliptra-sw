@@ -43,6 +43,7 @@ register_bitfields! [
             LOAD_MEK = 1,
             UNLOAD_MEK = 2,
             ZEROIZE = 3,
+            LOAD_KAT_MEK = 4,
         ],
         ERR OFFSET(16) NUMBITS(4) [
             NO_ERROR = 0,
@@ -81,6 +82,7 @@ impl TryFrom<u32> for Control::CMD::Value {
             0x1 => Ok(Control::CMD::Value::LOAD_MEK),
             0x2 => Ok(Control::CMD::Value::UNLOAD_MEK),
             0x3 => Ok(Control::CMD::Value::ZEROIZE),
+            0x4 => Ok(Control::CMD::Value::LOAD_KAT_MEK),
             _ => Err(()),
         }
     }
@@ -160,7 +162,7 @@ impl StateMachineContext for Context {
             Err(())
         } else {
             match Control::CMD::Value::try_from(self.command) {
-                Ok(Control::CMD::Value::LOAD_MEK) => {
+                Ok(Control::CMD::Value::LOAD_MEK) | Ok(Control::CMD::Value::LOAD_KAT_MEK) => {
                     if self.key_cache.len() >= KEY_CACHE_SIZE {
                         self.error = Control::ERR::Value::VENDOR_SPECIFIC_KEY_CACHE_FULL;
                     } else if let std::collections::hash_map::Entry::Vacant(e) =
@@ -563,6 +565,34 @@ mod tests {
         // Check if the MEK is not loaded
         let entry_count = ee.state_machine.context.key_cache.len();
         assert_eq!(entry_count, 1);
+    }
+
+    #[test]
+    fn test_encryption_engine_load_kat_mek_success() {
+        let mut ee = EncryptionEngine::new();
+
+        // Write (METD, AUX, MEK) into SFRs. Just like LOAD_MEK, the MEK bytes
+        // come from whatever was DMA'd into the SFR beforehand.
+        write_test_mek_entry(&mut ee);
+
+        // Execute "Load KAT MEK" command
+        let result = execute_command(&mut ee, Control::CMD::Value::LOAD_KAT_MEK as u32);
+        assert_eq!(result, Ok(()));
+
+        // Wait until the execution is done and check CTRL SFR
+        wait_done(&mut ee).unwrap();
+        assert_ctrl_eq!(
+            ee,
+            Control::RDY::READY + Control::DONE::DONE + Control::CMD::LOAD_KAT_MEK
+        );
+
+        // Clear SFRs
+        clear(&mut ee);
+        assert_ctrl_eq!(ee, Control::RDY::READY);
+
+        // Check that the SFR-written MEK was cached, same as LOAD_MEK would do
+        let entry = ee.state_machine.context.key_cache.get(&TEST_METD).unwrap();
+        assert_eq!(entry.1, TEST_MEK);
     }
 
     #[test]
