@@ -1095,6 +1095,11 @@ fn sign_internal_with_mu(
         // Copy of rho_prime; dead from here, and this runs per rejection iteration.
         mask_seed.zeroize();
 
+        if ct_ge(z_max, GAMMA1.wrapping_sub(BETA)) != 0 {
+            kappa += 7;
+            continue;
+        }
+
         let mut r0_max = 0u32;
         let mut ct0_max = 0u32;
         let mut h_ones = 0usize;
@@ -1133,8 +1138,7 @@ fn sign_internal_with_mu(
             h_ones += scalar_count_ones(&tmp.v[i]);
         }
 
-        if (ct_ge(z_max, GAMMA1.wrapping_sub(BETA))
-            | ct_ge(r0_max, K_GAMMA_2.wrapping_sub(BETA))
+        if (ct_ge(r0_max, K_GAMMA_2.wrapping_sub(BETA))
             | ct_ge(ct0_max, K_GAMMA_2)
             | ct_lt(OMEGA as u32, h_ones as u32))
             != 0
