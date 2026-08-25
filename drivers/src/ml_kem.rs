@@ -58,7 +58,7 @@ const DECAPS: u32 = 3;
 const KEYGEN_DECAPS: u32 = 4;
 
 /// ML-KEM-1024 Seeds
-#[derive(Debug, Copy, Clone)]
+#[derive(Copy, Clone)]
 pub enum MlKem1024Seeds<'a> {
     /// Array pair (seed_d, seed_z)
     Arrays(&'a MlKem1024Seed, &'a MlKem1024Seed),
@@ -82,7 +82,7 @@ impl From<KeyReadArgs> for MlKem1024Seeds<'_> {
 }
 
 /// ML-KEM-1024 Message source
-#[derive(Debug, Copy, Clone)]
+#[derive(Copy, Clone)]
 pub enum MlKem1024MessageSource<'a> {
     /// Array
     Array(&'a MlKem1024Message),
@@ -106,7 +106,6 @@ impl From<KeyReadArgs> for MlKem1024MessageSource<'_> {
 }
 
 /// ML-KEM-1024 Shared Key output
-#[derive(Debug)]
 pub enum MlKem1024SharedKeyOut<'a> {
     /// Array
     Array(&'a mut MlKem1024SharedKey),
@@ -231,12 +230,15 @@ impl<'a> MlKem1024<'a> {
 
         // Copy keys
         let encaps_key = MlKem1024EncapsKey::read_from_reg(mlkem.mlkem_encaps_key());
-        let decaps_key = MlKem1024DecapsKey::read_from_reg(mlkem.mlkem_decaps_key());
+        let mut decaps_key = MlKem1024DecapsKey::read_from_reg(mlkem.mlkem_decaps_key());
 
         // Clear the keygen hardware state before PCT operations.
         mlkem.mlkem_ctrl().write(|w| w.zeroize(true));
 
-        self.pct(&encaps_key, &decaps_key, kv_seeds, seeds, pct_kv)?;
+        if let Err(err) = self.pct(&encaps_key, &decaps_key, kv_seeds, seeds, pct_kv) {
+            decaps_key.zeroize();
+            return Err(err);
+        }
 
         Ok((encaps_key, decaps_key))
     }
