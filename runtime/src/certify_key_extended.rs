@@ -14,6 +14,7 @@ Abstract:
 
 use crate::{invoke_dpe::invoke_dpe_cmd, CaliptraDpeProfile, Drivers, MboxResponseWriter};
 use arrayvec::ArrayVec;
+use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_common::mailbox_api::{
     CertifyKeyExtendedFlags, CertifyKeyExtendedReq, MailboxRespHeader, MailboxRespHeaderVarSize,
 };
@@ -24,6 +25,7 @@ use zerocopy::{FromBytes, FromZeros, IntoBytes};
 
 pub struct CertifyKeyExtendedCmd;
 impl CertifyKeyExtendedCmd {
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn execute(drivers: &mut Drivers) -> CaliptraResult<()> {
         let mut cmd = CertifyKeyExtendedReq::new_zeroed();
@@ -37,6 +39,7 @@ impl CertifyKeyExtendedCmd {
     }
 
     /// CERTIFY_KEY_EXTENDED logic generic to the cryptographic algorithm in use.
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     pub(crate) fn certify_key(
         drivers: &mut Drivers,
         flags: CertifyKeyExtendedFlags,
