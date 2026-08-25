@@ -1368,9 +1368,7 @@ int caliptra_set_pq_seed(struct caliptra_set_pq_seed_req *req, bool async)
         return INVALID_PARAMS;
     }
 
-    struct caliptra_resp_header resp_hdr = {};
-
-    CREATE_PARCEL(p, OP_SET_PQ_SEED, req, &resp_hdr);
+    CREATE_PARCEL(p, OP_SET_PQ_SEED, req, &g_resp_hdr);
 
     return pack_and_execute_command(&p, async);
 }
@@ -1447,16 +1445,14 @@ int caliptra_populate_pq_cert(struct caliptra_populate_pq_cert_req *req, bool as
         return INVALID_PARAMS;
     }
 
-    struct caliptra_resp_header resp_hdr = {};
-
     uint32_t actual_bytes = sizeof(caliptra_checksum) + sizeof(uint32_t) + req->cert_size;
 
     struct parcel p = {
         .command   = OP_POPULATE_PQ_CERT,
         .tx_buffer = (uint8_t*)req,
         .tx_bytes  = actual_bytes,
-        .rx_buffer = (uint8_t*)&resp_hdr,
-        .rx_bytes  = sizeof(resp_hdr),
+        .rx_buffer = (uint8_t*)&g_resp_hdr,
+        .rx_bytes  = sizeof(g_resp_hdr),
     };
 
     return pack_and_execute_command(&p, async);
