@@ -47,12 +47,18 @@ pub const AUTH_MAN_IMAGE_METADATA_MAX_SIZE: u32 = 7 * 1024;
 pub const IDEVID_CSR_SIZE: u32 = 1024;
 pub const FMC_ALIAS_CSR_SIZE: u32 = 1024;
 pub const DPE_PL_CONTEXT_LIMITS_SIZE: u32 = 2;
+pub const DPE_PL_CONTEXT_LIMITS_PADDING_SIZE: u32 = 2;
+pub const PERSISTENT_DATA_MARKER_SIZE: u32 = 4;
+pub const PERSISTENT_DATA_VERSION_SIZE: u32 = 4;
 pub const PQ_DEVID_CDI_SIZE: u32 = 48;
 pub const PQ_DEVID_PUB_KEY_DIGEST_SIZE: u32 = 32;
 pub const PQC_STATUS_FLAGS_SIZE: u32 = 1;
 pub const PQC_MODE_ENABLED_FLAG: u8 = 1;
 pub const RESERVED_MEMORY_SIZE: u32 = 1024
-    - 2
+    - DPE_PL_CONTEXT_LIMITS_SIZE
+    - DPE_PL_CONTEXT_LIMITS_PADDING_SIZE
+    - PERSISTENT_DATA_MARKER_SIZE
+    - PERSISTENT_DATA_VERSION_SIZE
     - PQ_DEVID_CDI_SIZE
     - PQ_DEVID_PUB_KEY_DIGEST_SIZE
     - PQC_STATUS_FLAGS_SIZE
@@ -356,6 +362,10 @@ pub struct PersistentData {
 
     pub dpe_pl0_context_limit: u8,
     pub dpe_pl1_context_limit: u8,
+    pub dpe_pl_context_limits_padding: [u8; DPE_PL_CONTEXT_LIMITS_PADDING_SIZE as usize],
+
+    pub marker: u32,
+    pub version: u32,
 
     // Always private: the PQ.DevID CDI must only be reached through
     // `pq_devid_cdi()`, which hands out a reference exclusively once the seed
@@ -383,6 +393,9 @@ impl Zeroize for PersistentData {
 }
 
 impl PersistentData {
+    pub const MAGIC: u32 = u32::from_be_bytes(*b"FWPD");
+    pub const VERSION: u32 = 1;
+
     pub fn pqc_mode_enabled(&self) -> bool {
         self.pqc_status_flags & PQC_MODE_ENABLED_FLAG != 0
     }
@@ -540,7 +553,20 @@ impl PersistentData {
                 memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
             );
 
-            persistent_data_offset += DPE_PL_CONTEXT_LIMITS_SIZE;
+            persistent_data_offset +=
+                DPE_PL_CONTEXT_LIMITS_SIZE + DPE_PL_CONTEXT_LIMITS_PADDING_SIZE;
+            assert_eq!(
+                addr_of!((*P).marker) as u32,
+                memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
+            );
+
+            persistent_data_offset += PERSISTENT_DATA_VERSION_SIZE;
+            assert_eq!(
+                addr_of!((*P).version) as u32,
+                memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
+            );
+
+            persistent_data_offset += PERSISTENT_DATA_MARKER_SIZE;
             assert_eq!(
                 addr_of!((*P).pq_devid_cdi) as u32,
                 memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
@@ -642,11 +668,66 @@ unsafe fn ref_mut_from_addr<'a, T: TryFromBytes>(addr: u32) -> &'a mut T {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use core::mem::offset_of;
 
     #[test]
     fn test_layout() {
         // NOTE: It's not good enough to test this from the host; we also need
         // to call assert_matches_layout() in a risc-v test.
         PersistentData::assert_matches_layout();
+    }
+
+    #[test]
+    fn test_fw_persistent_data_size() {
+        let expected_size = memory_layout::PERSISTENT_DATA_SIZE as usize;
+        if size_of::<PersistentData>() != expected_size {
+            panic!(
+                "PersistentData size has changed from {} to {}. If this is intentional, update \
+                the expected_size in this test and CONSIDER BUMPING THE VERSION NUMBER",
+                expected_size,
+                size_of::<PersistentData>()
+            );
+        }
+    }
+
+    #[test]
+    #[rustfmt::skip]
+    fn test_fw_persistent_data_offsets() {
+        let actual_expected = [
+            (offset_of!(PersistentData, manifest1), 0, "manifest1"),
+            (offset_of!(PersistentData, manifest2), 6144, "manifest2"),
+            (offset_of!(PersistentData, fht), 12288, "fht"),
+            (offset_of!(PersistentData, ldevid_tbs), 14336, "ldevid_tbs"),
+            (offset_of!(PersistentData, fmcalias_tbs), 15360, "fmcalias_tbs"),
+            (offset_of!(PersistentData, rtalias_tbs), 16384, "rtalias_tbs"),
+            (offset_of!(PersistentData, pcr_log), 17408, "pcr_log"),
+            (offset_of!(PersistentData, measurement_log), 18432, "measurement_log"),
+            (offset_of!(PersistentData, fuse_log), 19456, "fuse_log"),
+            (offset_of!(PersistentData, dpe), 20480, "dpe"),
+            (offset_of!(PersistentData, pcr_reset), 25600, "pcr_reset"),
+            (offset_of!(PersistentData, auth_manifest_image_metadata_col), 26624, "auth_manifest_image_metadata_col"),
+            (offset_of!(PersistentData, idevid_csr), 33792, "idevid_csr"),
+            (offset_of!(PersistentData, fmc_alias_csr), 34816, "fmc_alias_csr"),
+            (offset_of!(PersistentData, dpe_pl0_context_limit), 35840, "dpe_pl0_context_limit"),
+            (offset_of!(PersistentData, dpe_pl1_context_limit), 35841, "dpe_pl1_context_limit"),
+            (offset_of!(PersistentData, marker), 35844, "marker"),
+            (offset_of!(PersistentData, version), 35848, "version"),
+            (offset_of!(PersistentData, pq_devid_cdi), 35852, "pq_devid_cdi"),
+            (offset_of!(PersistentData, pq_devid_pub_key_digest), 35900, "pq_devid_pub_key_digest"),
+            (offset_of!(PersistentData, pqc_status_flags), 35932, "pqc_status_flags"),
+            (offset_of!(PersistentData, mldsa_exported_cdi_slots), 35933, "mldsa_exported_cdi_slots"),
+            (offset_of!(PersistentData, reserved_memory), 36014, "reserved_memory"),
+        ];
+
+        for (actual, expected, name) in actual_expected {
+            if actual != expected {
+                panic!(
+                    "PersistentData offset for {} has changed from {} to {}. If this is \
+                    intentional, update the expected values in this test and CONSIDER BUMPING THE \
+                    VERSION NUMBER",
+                    name, expected, actual
+                );
+            }
+        }
     }
 }

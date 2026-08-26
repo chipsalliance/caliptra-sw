@@ -1338,6 +1338,16 @@ impl CaliptraError {
             0x000E0071,
             "Runtime Error: Invalid PQ.DevID Public Key Hash"
         ),
+        (
+            RUNTIME_INVALID_FW_PERSISTENT_DATA_MARKER,
+            0x000E0072,
+            "Runtime Error: Invalid FW persistent data marker"
+        ),
+        (
+            RUNTIME_INVALID_FW_PERSISTENT_DATA_VERSION,
+            0x000E0073,
+            "Runtime Error: Invalid FW persistent data version"
+        ),
         // FMC Errors
         (FMC_GLOBAL_NMI, 0x000F0001, "FMC Error: Global NMI"),
         (
@@ -1416,6 +1426,16 @@ impl CaliptraError {
         ),
         (FMC_ALIAS_CSR_OVERFLOW, 0x000F0013, "FMC Alias CSR Overflow"),
         (FMC_REGENERATE_FMC_KEY_PAIR_FAILED, 0x000F0014, "FMC Error: Regenerating FMC Key Pair Failed"),
+        (
+            FMC_INVALID_FW_PERSISTENT_DATA_MARKER,
+            0x000F0015,
+            "FMC Error: Invalid FW persistent data marker"
+        ),
+        (
+            FMC_INVALID_FW_PERSISTENT_DATA_VERSION,
+            0x000F0016,
+            "FMC Error: Invalid FW persistent data version"
+        ),
         (
             DRIVER_TRNG_EXT_TIMEOUT,
             0x00100001,

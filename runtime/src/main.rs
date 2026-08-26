@@ -20,6 +20,7 @@ core::arch::global_asm!(include_str!("ext_intr.S"));
 use caliptra_cfi_lib::CfiCounter;
 use caliptra_common::{cprintln, handle_fatal_error};
 use caliptra_cpu::{log_trap_record, TrapRecord};
+use caliptra_drivers::PersistentData;
 use caliptra_error::CaliptraError;
 use caliptra_registers::soc_ifc::SocIfcReg;
 use caliptra_runtime::Drivers;
@@ -71,6 +72,15 @@ pub extern "C" fn entry_point() -> ! {
         CfiCounter::reset(&mut entropy_gen);
     } else {
         cprintln!("[state] CFI Disabled");
+    }
+
+    // Check persistent data is valid
+    let pdata = drivers.persistent_data.get();
+    if pdata.marker != PersistentData::MAGIC {
+        handle_fatal_error(CaliptraError::RUNTIME_INVALID_FW_PERSISTENT_DATA_MARKER.into());
+    }
+    if pdata.version != PersistentData::VERSION {
+        handle_fatal_error(CaliptraError::RUNTIME_INVALID_FW_PERSISTENT_DATA_VERSION.into());
     }
 
     drivers.run_reset_flow().unwrap_or_else(|e| {
