@@ -824,13 +824,7 @@ impl Commands {
 
         let plaintext = &cmd.plaintext[..cmd.plaintext_size as usize];
 
-        let encrypted_cmk = EncryptedCmk::ref_from_bytes(&cmd.cmk.0[..])
-            .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
-        let cmk = drivers.cryptographic_mailbox.decrypt_cmk(
-            &mut drivers.aes,
-            &mut drivers.trng,
-            encrypted_cmk,
-        )?;
+        let cmk = Self::decrypt_aes_key(drivers, &cmd.cmk)?;
         let key = &cmk.key_material[..32].try_into().unwrap();
         let iv = drivers.trng.generate()?.as_bytes()[..16]
             .try_into()
@@ -940,13 +934,7 @@ impl Commands {
         }
         let ciphertext = &cmd.ciphertext[..cmd.ciphertext_size as usize];
 
-        let encrypted_cmk = EncryptedCmk::ref_from_bytes(&cmd.cmk.0[..])
-            .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
-        let cmk = drivers.cryptographic_mailbox.decrypt_cmk(
-            &mut drivers.aes,
-            &mut drivers.trng,
-            encrypted_cmk,
-        )?;
+        let cmk = Self::decrypt_aes_key(drivers, &cmd.cmk)?;
         let key = &cmk.key_material[..32].try_into().unwrap();
         let resp = mutrefbytes::<CmAesResp>(resp)?;
         let unencrypted_context = match mode {
@@ -1653,6 +1641,21 @@ impl Commands {
         resp.hdr = MailboxRespHeader::default();
         resp.output = transmute!(encrypted_cmk);
         Ok(core::mem::size_of::<CmEcdhFinishResp>())
+    }
+
+    #[inline(never)]
+    fn decrypt_aes_key(drivers: &mut Drivers, cmk: &MailboxCmk) -> CaliptraResult<UnencryptedCmk> {
+        let encrypted_cmk = EncryptedCmk::ref_from_bytes(&cmk.0[..])
+            .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+        let cmk = drivers.cryptographic_mailbox.decrypt_cmk(
+            &mut drivers.aes,
+            &mut drivers.trng,
+            encrypted_cmk,
+        )?;
+        if cmk.key_usage != CmKeyUsage::Aes as u8 {
+            return Err(CaliptraError::RUNTIME_CMB_INVALID_KEY_USAGE_AND_SIZE);
+        }
+        Ok(cmk)
     }
 
     fn decrypt_hmac_key(drivers: &mut Drivers, cmk: &MailboxCmk) -> CaliptraResult<UnencryptedCmk> {
