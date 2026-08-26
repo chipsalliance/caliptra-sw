@@ -1110,6 +1110,67 @@ fn test_aes_gcm_spdm_mode() {
     assert_eq!(check_plaintext, plaintext);
 }
 
+#[test]
+fn test_aes_cbc_ctr_encrypt_init_rejects_non_aes_key() {
+    let mut model = run_rt_test(RuntimeTestArgs::default());
+    model.step_until_ready_for_runtime();
+
+    let hmac_cmk = import_key(&mut model, &[0x42u8; 48], CmKeyUsage::Hmac);
+
+    for mode in [CmAesMode::Cbc, CmAesMode::Ctr] {
+        let mut req = MailboxReq::CmAesEncryptInit(CmAesEncryptInitReq {
+            hdr: MailboxReqHeader::default(),
+            cmk: hmac_cmk.clone(),
+            mode: mode as u32,
+            plaintext_size: 16,
+            plaintext: [0; MAX_CMB_DATA_SIZE],
+        });
+        req.populate_chksum().unwrap();
+        let err = model
+            .mailbox_execute(
+                u32::from(CommandId::CM_AES_ENCRYPT_INIT),
+                req.as_bytes().unwrap(),
+            )
+            .expect_err("Should have failed with non-AES key");
+        assert_error(
+            &mut model,
+            caliptra_drivers::CaliptraError::RUNTIME_CMB_INVALID_KEY_USAGE_AND_SIZE,
+            err,
+        );
+    }
+}
+
+#[test]
+fn test_aes_cbc_ctr_decrypt_init_rejects_non_aes_key() {
+    let mut model = run_rt_test(RuntimeTestArgs::default());
+    model.step_until_ready_for_runtime();
+
+    let hmac_cmk = import_key(&mut model, &[0x42u8; 48], CmKeyUsage::Hmac);
+
+    for mode in [CmAesMode::Cbc, CmAesMode::Ctr] {
+        let mut req = MailboxReq::CmAesDecryptInit(CmAesDecryptInitReq {
+            hdr: MailboxReqHeader::default(),
+            cmk: hmac_cmk.clone(),
+            mode: mode as u32,
+            iv: [0; 16],
+            ciphertext_size: 16,
+            ciphertext: [0; MAX_CMB_DATA_SIZE],
+        });
+        req.populate_chksum().unwrap();
+        let err = model
+            .mailbox_execute(
+                u32::from(CommandId::CM_AES_DECRYPT_INIT),
+                req.as_bytes().unwrap(),
+            )
+            .expect_err("Should have failed with non-AES key");
+        assert_error(
+            &mut model,
+            caliptra_drivers::CaliptraError::RUNTIME_CMB_INVALID_KEY_USAGE_AND_SIZE,
+            err,
+        );
+    }
+}
+
 // Random encrypt and decrypt CBC stress test.
 #[test]
 fn test_aes_cbc_random_encrypt_decrypt() {
