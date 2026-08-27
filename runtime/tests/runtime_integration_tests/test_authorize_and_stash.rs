@@ -1,6 +1,9 @@
 // Licensed under the Apache-2.0 license
 
-use crate::common::{calculate_cptra_config_init_vals_hash, run_rt_test, RuntimeTestArgs};
+use crate::common::{
+    calculate_cptra_config_init_vals_hash, default_rt_test_soc_manifest_measurements, run_rt_test,
+    soc_manifest_measurements, RuntimeTestArgs,
+};
 use crate::test_set_auth_manifest::{
     create_auth_manifest, create_auth_manifest_with_metadata, AuthManifestBuilderCfg,
 };
@@ -15,7 +18,7 @@ use caliptra_common::mailbox_api::{
     AuthorizeAndStashReq, AuthorizeAndStashResp, CommandId, GetTaggedTciReq, GetTaggedTciResp,
     ImageHashSource, MailboxReq, MailboxReqHeader, SetAuthManifestReq, TagTciReq,
 };
-use caliptra_hw_model::{DefaultHwModel, HwModel};
+use caliptra_hw_model::{DefaultHwModel, HwModel, ModelError};
 use caliptra_image_types::FwVerificationPqcKeyType;
 use caliptra_runtime::{IMAGE_AUTHORIZED, IMAGE_HASH_MISMATCH, IMAGE_NOT_AUTHORIZED};
 use sha2::{Digest, Sha384};
@@ -57,6 +60,16 @@ pub const TEST_SRAM_BASE: Addr64 = Addr64 {
     hi: 0x0000_0000,
 };
 
+/// The SoC manifest installed by `set_auth_manifest(None)`. Tests that compute
+/// expected DPE SOMV/SOMO measurements must use this same manifest.
+pub fn default_set_auth_manifest() -> AuthorizationManifest {
+    create_auth_manifest(&AuthManifestBuilderCfg {
+        manifest_flags: AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED,
+        pqc_key_type: crate::common::DEFAULT_PQC_KEY_TYPE,
+        svn: 1,
+    })
+}
+
 pub fn set_auth_manifest(auth_manifest: Option<AuthorizationManifest>) -> DefaultHwModel {
     let runtime_args = RuntimeTestArgs {
         test_image_options: Some(ImageOptions::default()),
@@ -66,15 +79,7 @@ pub fn set_auth_manifest(auth_manifest: Option<AuthorizationManifest>) -> Defaul
     let mut model = run_rt_test(runtime_args);
     model.step_until_ready_for_runtime();
 
-    let auth_manifest = if let Some(auth_manifest) = auth_manifest {
-        auth_manifest
-    } else {
-        create_auth_manifest(&AuthManifestBuilderCfg {
-            manifest_flags: AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED,
-            pqc_key_type: FwVerificationPqcKeyType::MLDSA,
-            svn: 1,
-        })
-    };
+    let auth_manifest = auth_manifest.unwrap_or_else(default_set_auth_manifest);
 
     let buf = auth_manifest.as_bytes();
     let mut auth_manifest_slice = [0u8; SetAuthManifestReq::MAX_MAN_SIZE];
@@ -120,15 +125,7 @@ pub fn set_auth_manifest_with_test_sram(
 
     model.step_until_ready_for_runtime();
 
-    let auth_manifest = if let Some(auth_manifest) = auth_manifest {
-        auth_manifest
-    } else {
-        create_auth_manifest(&AuthManifestBuilderCfg {
-            manifest_flags: AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED,
-            pqc_key_type: FwVerificationPqcKeyType::MLDSA,
-            svn: 1,
-        })
-    };
+    let auth_manifest = auth_manifest.unwrap_or_else(default_set_auth_manifest);
 
     let buf = auth_manifest.as_bytes();
     let mut auth_manifest_slice = [0u8; SetAuthManifestReq::MAX_MAN_SIZE];
@@ -210,12 +207,15 @@ fn test_authorize_and_stash_cmd_deny_authorization() {
     hasher.update(rt_current_pcr);
     hasher.update(cptra_config_init_vals_hash);
     if model.subsystem_mode() {
+        let (somv_measurement, somo_measurement) = default_rt_test_soc_manifest_measurements(0);
+        hasher.update(somv_measurement);
+        hasher.update(somo_measurement);
         let mut mcu_hasher = Sha384::new();
         mcu_hasher.update(crate::common::DEFAULT_MCU_FW);
         hasher.update(mcu_hasher.finalize());
         // MCU ROM stashes field_entropy_state measurement
         let mut fe_hasher = Sha384::new();
-        fe_hasher.update([0u8; 48]);
+        fe_hasher.update(0u32.to_le_bytes());
         hasher.update(fe_hasher.finalize());
     }
     let expected_measurement_hash = hasher.finalize();
@@ -277,12 +277,18 @@ fn test_authorize_and_stash_cmd_success() {
     hasher.update(rt_current_pcr);
     hasher.update(cptra_config_init_vals_hash);
     if model.subsystem_mode() {
+        // SET_AUTH_MANIFEST above replaced the SOMV/SOMO contexts created from
+        // the SoC manifest delivered over recovery, so measure that manifest.
+        let (somv_measurement, somo_measurement) =
+            soc_manifest_measurements(&default_set_auth_manifest());
+        hasher.update(somv_measurement);
+        hasher.update(somo_measurement);
         let mut mcu_hasher = Sha384::new();
         mcu_hasher.update(crate::common::DEFAULT_MCU_FW);
         hasher.update(mcu_hasher.finalize());
         // MCU ROM stashes field_entropy_state measurement
         let mut fe_hasher = Sha384::new();
-        fe_hasher.update([0u8; 48]);
+        fe_hasher.update(0u32.to_le_bytes());
         hasher.update(fe_hasher.finalize());
     }
     hasher.update(IMAGE_DIGEST1);
@@ -1682,5 +1688,65 @@ fn test_verify_invalid_manifest() {
         .expect("We should have received a response");
 
     let authorize_and_stash_resp = AuthorizeAndStashResp::read_from_bytes(resp.as_slice()).unwrap();
+    assert_eq!(authorize_and_stash_resp.auth_req_result, IMAGE_AUTHORIZED);
+}
+
+#[test]
+fn test_authorize_and_stash_pl1_without_skip_stash_fails() {
+    let mut model = set_auth_manifest(None);
+
+    // Switch to a non-PL0 pauser (AXI user 2 is not the pl0_pauser).
+    model.set_axi_user(2);
+
+    let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        fw_id: FW_ID_1,
+        measurement: IMAGE_DIGEST1,
+        source: ImageHashSource::InRequest as u32,
+        flags: 0, // SKIP_STASH not set
+        ..Default::default()
+    });
+    authorize_and_stash_cmd.populate_chksum().unwrap();
+
+    let result = model.mailbox_execute(
+        u32::from(CommandId::AUTHORIZE_AND_STASH),
+        authorize_and_stash_cmd.as_bytes().unwrap(),
+    );
+
+    assert_eq!(
+        result.unwrap_err(),
+        ModelError::MailboxCmdFailed(
+            caliptra_error::CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL.into()
+        )
+    );
+}
+
+#[test]
+fn test_authorize_and_stash_pl1_with_skip_stash_success() {
+    let mut model = set_auth_manifest(None);
+
+    // Switch to a non-PL0 pauser (AXI user 2 is not the pl0_pauser).
+    model.set_axi_user(2);
+
+    let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        fw_id: FW_ID_1,
+        measurement: IMAGE_DIGEST1,
+        source: ImageHashSource::InRequest as u32,
+        flags: 1, // SKIP_STASH is set
+        ..Default::default()
+    });
+    authorize_and_stash_cmd.populate_chksum().unwrap();
+
+    let result = model
+        .mailbox_execute(
+            u32::from(CommandId::AUTHORIZE_AND_STASH),
+            authorize_and_stash_cmd.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .expect("We should ahe received a response");
+
+    let authorize_and_stash_resp =
+        AuthorizeAndStashResp::read_from_bytes(result.as_slice()).unwrap();
     assert_eq!(authorize_and_stash_resp.auth_req_result, IMAGE_AUTHORIZED);
 }

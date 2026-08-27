@@ -18,7 +18,7 @@ use caliptra_builder::{
 };
 use caliptra_common::mailbox_api::{
     CertifyKeyExtendedEcc384Req, CertifyKeyExtendedFlags, CommandId, MailboxReq, MailboxReqHeader,
-    PopulateIdevEcc384CertReq, SetAuthManifestReq, StashMeasurementReq,
+    PopulateIdevEcc384CertReq, SetAuthManifestReq, SetOwnerAuthManifestReq, StashMeasurementReq,
 };
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{BootParams, Fuses, HwModel, InitParams, SecurityState};
@@ -45,6 +45,7 @@ use crate::common::{
     assert_error, execute_dpe_cmd, run_rt_test, run_rt_test_pqc, DpeResult, RuntimeTestArgs,
     TEST_LABEL,
 };
+use crate::test_info::get_fwinfo;
 
 #[test]
 fn test_pl0_derive_context_dpe_context_thresholds() {
@@ -72,12 +73,10 @@ fn test_pl0_derive_context_dpe_context_thresholds() {
     let mut handle = rotate_ctx_resp.handle;
 
     // Call DeriveContext with PL0 enough times to breach the threshold on the last iteration.
-    // 2 PL0 contexts are used by default by Caliptra. When we initialize DPE, we measure mailbox valid pausers in pl0_pauser's locality.
-    // The RT Journey measurement also is counted against PL0's limit. Thus, we can call derive child
-    // from PL0 exactly 14 times, and the last iteration of this loop, is expected to throw a threshold reached error.
+    // Caliptra-owned PL0 contexts consume part of the PL0 threshold before mailbox commands run.
     let num_iterations = if model.subsystem_mode() {
-        // Subsystem uses contexts for the MCU FW and field entropy state
-        PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD - 3
+        // Subsystem uses contexts for SOMV, SOMO, MCU FW, and field entropy state.
+        PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD - 5
     } else {
         PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD - 1
     };
@@ -200,9 +199,9 @@ fn test_pl0_init_ctx_dpe_context_thresholds() {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
     });
 
-    // 2 PL0 contexts are used by Caliptra
+    // Caliptra-owned PL0 contexts consume part of the PL0 threshold before mailbox commands run.
     let num_iterations = if model.subsystem_mode() {
-        PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD - 3
+        PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD - 5
     } else {
         PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD - 1
     };
@@ -374,11 +373,10 @@ fn test_populate_idev_cannot_be_called_from_pl1() {
 #[test]
 fn test_stash_measurement_cannot_be_called_from_pl1() {
     for pqc_key_type in PQC_KEY_TYPE.iter() {
-        let mut image_opts = ImageOptions {
+        let image_opts = ImageOptions {
             pqc_key_type: *pqc_key_type,
             ..Default::default()
         };
-        image_opts.vendor_config.pl0_pauser = None;
 
         let args = RuntimeTestArgs {
             test_image_options: Some(image_opts),
@@ -389,6 +387,7 @@ fn test_stash_measurement_cannot_be_called_from_pl1() {
         model.step_until(|m| {
             m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
         });
+        model.set_axi_user(2);
 
         let mut cmd = MailboxReq::StashMeasurement(StashMeasurementReq::default());
         cmd.populate_chksum().unwrap();
@@ -740,10 +739,10 @@ fn test_stash_measurement_pl_context_thresholds() {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
     });
 
-    // Root node and RT journey (which is technically the Caliptra locality) count as PL0
-    // In subsystem mode, the MCU FW and field entropy state are also measured into PL0 contexts.
+    // Root node and RT journey (which is technically the Caliptra locality) count as PL0.
+    // In subsystem mode, SOMV, SOMO, MCU FW, and field entropy state also use PL0 contexts.
     let num_iterations = if model.subsystem_mode() {
-        PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD - 4
+        PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD - 6
     } else {
         PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD - 2
     };
@@ -789,12 +788,11 @@ fn test_measurement_log_pl_context_threshold() {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
     });
 
-    // Upload (PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD - 1) measurements to measurement log
-    // Since 2 measurements taken by Caliptra upon startup, this will cause
-    // the PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD to be breached.
+    // Upload enough measurements to the measurement log to breach the PL0 DPE context threshold
+    // after accounting for Caliptra-owned startup contexts.
     let invocations = if model.subsystem_mode() {
-        // MCU uses extra DPE contexts for MCU FW and field entropy state
-        PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD - 3
+        // SOMV, SOMO, MCU FW, and field entropy state use extra DPE contexts.
+        PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD - 5
     } else {
         PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD - 1
     };
@@ -1141,4 +1139,82 @@ fn test_aes_gcm_decrypt_dma_cannot_be_called_from_pl1() {
         CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL,
         resp,
     );
+}
+
+#[test]
+fn test_set_owner_auth_manifest_cannot_be_called_from_pl1() {
+    for pqc_key_type in PQC_KEY_TYPE.iter() {
+        let mut image_opts = ImageOptions {
+            pqc_key_type: *pqc_key_type,
+            ..Default::default()
+        };
+        image_opts.vendor_config.pl0_pauser = None;
+
+        let args = RuntimeTestArgs {
+            test_image_options: Some(image_opts),
+            ..Default::default()
+        };
+        let mut model = run_rt_test_pqc(args, *pqc_key_type);
+
+        model.step_until(|m| {
+            m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+        });
+
+        let mut cmd = MailboxReq::SetOwnerAuthManifest(SetOwnerAuthManifestReq {
+            hdr: MailboxReqHeader { chksum: 0 },
+            manifest_size: 0,
+            manifest: [0u8; SetOwnerAuthManifestReq::MAX_MAN_SIZE],
+        });
+        cmd.populate_chksum().unwrap();
+
+        let resp = model
+            .mailbox_execute(
+                u32::from(CommandId::SET_OWNER_AUTH_MANIFEST),
+                cmd.as_bytes().unwrap(),
+            )
+            .unwrap_err();
+        assert_error(
+            &mut model,
+            CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL,
+            resp,
+        );
+    }
+}
+
+#[test]
+fn test_disable_attestation_cannot_be_called_from_pl1() {
+    let mut image_opts = ImageOptions::default();
+    image_opts.vendor_config.pl0_pauser = None;
+
+    let args = RuntimeTestArgs {
+        test_image_options: Some(image_opts),
+        ..Default::default()
+    };
+    let mut model = run_rt_test(args);
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    let payload = MailboxReqHeader {
+        chksum: caliptra_common::checksum::calc_checksum(
+            u32::from(CommandId::DISABLE_ATTESTATION),
+            &[],
+        ),
+    };
+    let resp = model
+        .mailbox_execute(
+            u32::from(CommandId::DISABLE_ATTESTATION),
+            payload.as_bytes(),
+        )
+        .unwrap_err();
+    assert_error(
+        &mut model,
+        CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL,
+        resp,
+    );
+
+    // The rejected command must not have zeroized any CDIs: attestation is
+    // still enabled. get_fwinfo() asserts attestation_disabled == 0.
+    get_fwinfo(&mut model);
 }

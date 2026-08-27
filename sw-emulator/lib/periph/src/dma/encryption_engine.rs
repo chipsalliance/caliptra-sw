@@ -88,7 +88,7 @@ impl TryFrom<u32> for Control::CMD::Value {
 
 statemachine! {
     transitions: {
-        *Idle + Initialize / initalize_encryption_engine = Initializing,
+        *Idle + Initialize / initialize_encryption_engine = Initializing,
         Idle + InitFail / handle_fatal_error = Fatal,
         Initializing + InitSuccess = Ready,
         Ready + WriteCommandExecution / handle_execute = Processing,
@@ -139,7 +139,7 @@ impl Context {
 }
 
 impl StateMachineContext for Context {
-    fn initalize_encryption_engine(&mut self) -> Result<(), ()> {
+    fn initialize_encryption_engine(&mut self) -> Result<(), ()> {
         if self.raise_fatal_error_flag {
             Err(())
         } else {

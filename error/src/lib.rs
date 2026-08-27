@@ -1819,12 +1819,12 @@ impl CaliptraError {
             "Runtime Error: Attested CSR COSE Sign1 encoding error"
         ),
         (
-             RUNTIME_AUTH_MANIFEST_INVALID_PQC_KEY_TYPE_IN_FUSE,
+            RUNTIME_AUTH_MANIFEST_INVALID_PQC_KEY_TYPE_IN_FUSE,
             0x000E008A,
             "Runtime Error: Auth manifest invalid PQC key type in fuse"
         ),
         (
-             RUNTIME_AUTH_MANIFEST_INVALID_PQC_KEY_TYPE,
+            RUNTIME_AUTH_MANIFEST_INVALID_PQC_KEY_TYPE,
             0x000E008B,
             "Runtime Error: Auth manifest invalid PQC key type"
         ),
@@ -1854,14 +1854,14 @@ impl CaliptraError {
             "Runtime Error: CM AES GCM decrypt DMA requires subsystem mode"
         ),
         (
-            RUNTIME_CCIV_CONTEXT_NOT_FOUND,
+            RUNTIME_DPE_CONTEXT_NOT_FOUND,
             0x000E0093,
-            "Runtime Error: CCIV context not found"
+            "Runtime Error: DPE context not found"
         ),
         (
-            RUNTIME_MULTIPLE_CCIV_CONTEXTS_FOUND,
+            RUNTIME_MULTIPLE_DPE_CONTEXTS_FOUND,
             0x000E0094,
-            "Runtime Error: Multiple CCIV contexts found"
+            "Runtime Error: Multiple DPE contexts found"
         ),
         (
             RUNTIME_DISABLE_ATTESTATION_FAILED_WARM_RESET,
@@ -1983,6 +1983,11 @@ impl CaliptraError {
             RUNTIME_OWNER_AUTH_MANIFEST_OWNER_PUB_KEY_MISMATCH,
             0x000E00AE,
             "Runtime Error: Owner auth manifest owner public key does not match firmware-image owner pub key"
+        ),
+        (
+            RUNTIME_STASH_MEASUREMENT_RESERVED_FW_ID,
+            0x000E00B0,
+            "Runtime Error: Stash measurement firmware ID is reserved for Caliptra internal use"
         ),
         // FMC Errors
         (FMC_GLOBAL_NMI, 0x000F0001, "FMC Error: Global NMI"),

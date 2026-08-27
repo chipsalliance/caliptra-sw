@@ -12,7 +12,10 @@ fpga_subsystem = []
 [dependencies]
 anyhow.workspace = true
 bitstream-downloader.workspace = true
+caliptra-auth-man-gen.workspace = true
 caliptra-builder.workspace = true
+caliptra-image-crypto.workspace = true
+caliptra-image-types.workspace = true
 clap.workspace = true
 hex = "0.4"
 log.workspace = true
@@ -25,4 +28,5 @@ simple_logger.workspace = true
 size-history.workspace = true
 tokio = { version = "1.49.0", features = ["rt", "macros"] }
 toml_edit.workspace = true
+zerocopy.workspace = true
 zip = { version = "0.6", default-features = false, features = ["deflate"] }

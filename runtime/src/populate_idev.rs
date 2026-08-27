@@ -16,7 +16,7 @@ use caliptra_common::mailbox_api::{PopulateIdevEcc384CertReq, PopulateIdevMldsa8
 use caliptra_error::{CaliptraError, CaliptraResult};
 use zerocopy::IntoBytes;
 
-use crate::{Drivers, PauserPrivileges};
+use crate::Drivers;
 
 pub struct PopulateIDevIdEcc384CertCmd;
 impl PopulateIDevIdEcc384CertCmd {
@@ -38,9 +38,7 @@ impl PopulateIDevIdEcc384CertCmd {
         }
 
         // PL1 cannot call this mailbox command
-        if drivers.caller_privilege_level() != PauserPrivileges::PL0 {
-            return Err(CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL);
-        }
+        drivers.ensure_pl0()?;
 
         // Avoid stack allocation by reusing the existing ArrayVec in-place.
         // Instead of creating a temporary ArrayVec, we shift existing content
@@ -117,9 +115,7 @@ impl PopulateIDevIdMldsa87CertCmd {
         }
 
         // PL1 cannot call this mailbox command
-        if drivers.caller_privilege_level() != PauserPrivileges::PL0 {
-            return Err(CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL);
-        }
+        drivers.ensure_pl0()?;
 
         // Avoid stack allocation by reusing the existing ArrayVec in-place.
         // Instead of creating a temporary ArrayVec, we shift existing content

@@ -7,8 +7,8 @@ use caliptra_auth_man_types::AuthManifestImageMetadata;
 use caliptra_auth_man_types::{Addr64, ImageMetadataFlags};
 use caliptra_common::checksum::calc_checksum;
 use caliptra_common::mailbox_api::{
-    AuthorizeAndStashReq, AuthorizeAndStashResp, CommandId, ImageHashSource, MailboxReq,
-    MailboxReqHeader,
+    AuthorizeAndStashReq, AuthorizeAndStashResp, CommandId, GetTaggedTciReq, GetTaggedTciResp,
+    ImageHashSource, MailboxReq, MailboxReqHeader, TagTciReq,
 };
 use caliptra_hw_model::{DefaultHwModel, HwModel, InitParams, ModelError};
 use caliptra_kat::CaliptraError;
@@ -51,6 +51,7 @@ pub const SOC_STAGING_OFFSET: usize = 0x500;
 // hitless-update reset.
 pub const MCU_FW_SIZE: usize = 0x200;
 pub const SOC_FW_SIZE: usize = 256;
+const MCU_TCI_TAG: u32 = u32::from_be_bytes(*b"MCFW");
 
 /// Create a valid RISC-V firmware image that won't crash with an illegal
 /// instruction exception on real FPGA hardware. Uses `0x37` repeated, which
@@ -235,18 +236,76 @@ fn send_activate_firmware_cmd(
     model.finish_mailbox_execute()
 }
 
+#[cfg_attr(feature = "fpga_subsystem", allow(dead_code))]
+fn tag_and_get_mcu_tci(model: &mut DefaultHwModel) -> GetTaggedTciResp {
+    let mut tag_cmd = MailboxReq::TagTci(TagTciReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        handle: [0u8; 16],
+        tag: MCU_TCI_TAG,
+    });
+    tag_cmd.populate_chksum().unwrap();
+    model
+        .mailbox_execute(
+            u32::from(CommandId::DPE_TAG_TCI),
+            tag_cmd.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .expect("We should have received a response");
+
+    get_mcu_tci(model)
+}
+
+#[cfg_attr(feature = "fpga_subsystem", allow(dead_code))]
+fn get_mcu_tci(model: &mut DefaultHwModel) -> GetTaggedTciResp {
+    let mut get_cmd = MailboxReq::GetTaggedTci(GetTaggedTciReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        tag: MCU_TCI_TAG,
+    });
+    get_cmd.populate_chksum().unwrap();
+    let resp = model
+        .mailbox_execute(
+            u32::from(CommandId::DPE_GET_TAGGED_TCI),
+            get_cmd.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .expect("We should have received a response");
+
+    GetTaggedTciResp::read_from_bytes(resp.as_slice()).unwrap()
+}
+
 #[cfg_attr(feature = "fpga_realtime", ignore)]
 #[test]
 fn test_activate_mcu_fw_success() {
+    let mcu_contents = mcu_test_firmware();
+    #[cfg(not(feature = "fpga_subsystem"))]
+    let mcu_digest: [u8; 48] = {
+        let mut hasher = Sha384::new();
+        hasher.update(&mcu_contents);
+        hasher.finalize().into()
+    };
+
     let mcu_image = Image {
         fw_id: MCU_FW_ID_1,
         staging_offset: MCU_STAGING_OFFSET,
         load_offset: MCU_LOAD_OFFSET,
-        contents: mcu_test_firmware(),
+        contents: mcu_contents,
         exec_bit: 2,
     };
 
     let mut model = load_and_authorize_fw(&[mcu_image]);
+
+    // The MCU firmware DPE context is located by tagging the DPE default
+    // context. That only works when Caliptra's measurement of the MCU firmware
+    // is the last context derived. On the subsystem FPGA, MCU ROM stashes the
+    // field entropy state after Caliptra measures the MCU firmware, so the
+    // field entropy context is the default one and the MCU firmware context
+    // cannot be reached by handle.
+    #[cfg(not(feature = "fpga_subsystem"))]
+    let initial_mcu_tci = {
+        let initial_mcu_tci = tag_and_get_mcu_tci(&mut model);
+        assert_eq!(initial_mcu_tci.tci_current, mcu_digest);
+        initial_mcu_tci
+    };
 
     // Send ActivateFirmware command
     let mut activate_cmd = MailboxReq::ActivateFirmware(ActivateFirmwareReq {
@@ -264,9 +323,19 @@ fn test_activate_mcu_fw_success() {
     send_activate_firmware_cmd(&mut model, activate_cmd, true)
         .unwrap()
         .expect("We should have received a response");
+
+    #[cfg(not(feature = "fpga_subsystem"))]
+    {
+        let updated_mcu_tci = get_mcu_tci(&mut model);
+        assert_eq!(updated_mcu_tci.tci_current, mcu_digest);
+        assert_eq!(
+            updated_mcu_tci.tci_cumulative,
+            initial_mcu_tci.tci_cumulative
+        );
+    }
 }
 
-#[cfg_attr(feature = "fpga_realtime", ignore)]
+#[cfg_attr(any(feature = "fpga_realtime", feature = "fpga_subsystem"), ignore)]
 #[test]
 fn test_activate_mcu_soc_fw_success() {
     let mcu_image = Image {
@@ -715,6 +784,52 @@ fn test_activate_mcu_fw_digest_mismatch() {
         send_activate_firmware_cmd(&mut model, activate_cmd, true),
         Err(ModelError::MailboxCmdFailed(
             CaliptraError::IMAGE_VERIFIER_ACTIVATION_FAILED.into()
+        ))
+    );
+}
+
+#[cfg_attr(feature = "fpga_realtime", ignore)]
+#[test]
+fn test_activate_firmware_cannot_be_called_from_pl1() {
+    // Boot with no PL0 pauser so that every caller is PL1. No auth manifest is
+    // loaded: the privilege check is the first thing ACTIVATE_FIRMWARE does, so
+    // a PL1 caller must be rejected before any request parsing or manifest
+    // lookup. A PL0 caller would instead get past the check and fail later with
+    // RUNTIME_MAILBOX_INVALID_PARAMS.
+    let mut image_opts = caliptra_builder::ImageOptions::default();
+    image_opts.vendor_config.pl0_pauser = None;
+
+    let mut model = run_rt_test(RuntimeTestArgs {
+        subsystem_mode: true,
+        test_image_options: Some(image_opts),
+        ..Default::default()
+    });
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read()
+            == u32::from(caliptra_runtime::RtBootStatus::RtReadyForCommands)
+    });
+
+    let mut activate_cmd = MailboxReq::ActivateFirmware(ActivateFirmwareReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        fw_id_count: 1,
+        mcu_fw_image_size: MCU_FW_SIZE as u32,
+        fw_ids: {
+            let mut arr = [0u32; 128];
+            arr[0] = MCU_FW_ID_1;
+            arr
+        },
+        flags: 0,
+    });
+    activate_cmd.populate_chksum().unwrap();
+
+    assert_eq!(
+        model.mailbox_execute(
+            u32::from(CommandId::ACTIVATE_FIRMWARE),
+            activate_cmd.as_bytes().unwrap(),
+        ),
+        Err(ModelError::MailboxCmdFailed(
+            CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL.into()
         ))
     );
 }

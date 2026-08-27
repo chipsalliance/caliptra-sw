@@ -1993,6 +1993,10 @@ pub struct FwInfoResp {
     pub image_manifest_pqc_type: u32,
     pub vendor_ecc384_pub_key_index: u32,
     pub vendor_pqc_pub_key_index: u32,
+    pub soc_manifest_current_svn: u32,
+    pub soc_manifest_min_svn: u32,
+    pub owner_auth_manifest_current_svn: u32,
+    pub owner_auth_manifest_min_svn: u32,
 }
 
 // CAPABILITIES
@@ -2136,12 +2140,23 @@ pub struct GetTaggedTciReq {
     pub hdr: MailboxReqHeader,
     pub tag: u32,
 }
+/// Response to `DPE_GET_TAGGED_TCI`.
+///
+/// Fields are appended only; never insert, reorder, resize or remove a published
+/// field, since callers rely on the offsets of the ones already here.
+///
+/// Appending still changes the response length and therefore its checksum, so a
+/// caller built against an older layout cannot parse a response from newer
+/// firmware. As with `FW_INFO`, this command assumes the caller and firmware are
+/// updated in lockstep.
 #[repr(C)]
 #[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
 pub struct GetTaggedTciResp {
     pub hdr: MailboxRespHeader,
     pub tci_cumulative: [u8; 48],
     pub tci_current: [u8; 48],
+    /// Security Version Number of the tagged DPE context.
+    pub svn: u32,
 }
 
 // INCREMENT_PCR_RESET_COUNTER request

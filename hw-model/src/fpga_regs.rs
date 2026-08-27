@@ -69,6 +69,13 @@ register_bitfields! {
     pub FlashCtrlRegwen [
         EN OFFSET(0) NUMBITS(1) [],
     ],
+    pub SpareI3cControlSts [
+        UseSpareI3cCore OFFSET(0) NUMBITS(1) [],
+        IrqO OFFSET(1) NUMBITS(1) [],
+        RecoveryPayloadAvailableO OFFSET(2) NUMBITS(1) [],
+        RecoveryImageActivatedO OFFSET(3) NUMBITS(1) [],
+        UseExtI3cHost OFFSET(31) NUMBITS(1) [],
+    ],
 }
 
 register_structs! {
@@ -129,7 +136,8 @@ register_structs! {
         (0x144 => pub ss_external_staging_area_base_addr: ReadOnly<u32>),
         (0x148 => pub cptra_ss_mcu_ext_int: ReadWrite<u32>),
         (0x14c => pub cptr_ss_raw_unlock_token_hash: [ReadWrite<u32>; 4]),
-        (0x15c => _reserved1),
+        (0x15c => pub spare_i3c_control_sts: ReadWrite<u32, SpareI3cControlSts::Register>),
+        (0x160 => _reserved1),
         (0x200 => pub ocp_lock_key_release_reg: [ReadWrite<u32>; 16]),
         (0x240 => @END),
     }

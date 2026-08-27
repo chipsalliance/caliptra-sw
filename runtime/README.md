@@ -1137,6 +1137,10 @@ Command Code: `0x5451_4754` ("TAGT")
 
 Retrieves the TCI measurements corresponding to the tagged DPE context.
 
+NOTE: Additional fields and info may be appended to the response in subsequent FW
+versions. Appending changes the response length and therefore its checksum, so
+the caller and firmware are expected to be updated in lockstep.
+
 Command Code: `0x4754_4744` ("GTGD")
 
 *Table: `DPE_GET_TAGGED_TCI` input arguments*
@@ -1154,6 +1158,7 @@ Command Code: `0x4754_4744` ("GTGD")
 | fips\_status     | u32       | Indicates if the command is FIPS approved or an error.
 | tci\_cumulative  | u8[48]    | Hash of all of the input data provided to the context.
 | tci\_current     | u8[48]    | Most recent measurement made into the context.
+| svn              | u32       | Security Version Number of the tagged DPE context.
 
 ### FW\_INFO
 
@@ -1193,6 +1198,10 @@ Command Code: `0x494E_464F` ("INFO")
 | image_manifest_pqc_type     | u32      | PQC key type from image manifest. **Only present in FW 2.0.2+ and 2.1.1+.**                                                                         |
 | vendor_ecc384_pub_key_index | u32      | Index of the vendor ECC public key used for verification. **Only present in FW 2.0.2+ and 2.1.1+.**                                                 |
 | vendor_pqc_pub_key_index    | u32      | Index of the vendor PQC public key used for verification. **Only present in FW 2.0.2+ and 2.1.1+.**                                                 |
+| soc_manifest_current_svn    | u32      | SVN of the authorization manifest accepted by `SET_AUTH_MANIFEST`, or zero if none has been accepted.                                              |
+| soc_manifest_min_svn        | u32      | Minimum SoC manifest SVN encoded in `FUSE_SOC_MANIFEST_SVN` and enforced by `SET_AUTH_MANIFEST` when anti-rollback checks are enabled.               |
+| owner_auth_manifest_current_svn | u32   | SVN of the owner authorization manifest accepted by `SET_OWNER_AUTH_MANIFEST`, or zero if none has been accepted.                                  |
+| owner_auth_manifest_min_svn | u32      | Minimum owner authorization manifest SVN encoded in `SS_STRAP_GENERIC[3][15:8]` and enforced by `SET_OWNER_AUTH_MANIFEST` when anti-rollback checks are enabled. |
 
 ### VERSION
 
@@ -1520,7 +1529,7 @@ Command Code: `0x4154_5348` ("ATSH")
 | context     | u8[48]   | Context field for `svn`; e.g., a hash of the public key that authenticated the SVN. |
 | svn         | u32      | The version of the image |
 | flags       | u32      | See AUTHORIZE_AND_STASH_FLAGS below |
-| source      | u32      | This field identifies the source of the digest to be used to compare with the SoC's<br />SHA digest in the SoC Manifest<br /><br />Values<br />1 - InRequest - Use the hash in the 'measurement' field of this command<br /><br />3 - LoadAddress - The image located in the `ImageLoadAddress` will be streamed to the SHA Accelerator to <br />               retrieve the digest that will be used for authorization.<br />4 - ImageStagingAddress - The image located in the `StagingAddress` will be streamed to the SHA Accelerator to<br />               retrieve the digest that will be used for authorization |
+| source      | u32      | This field identifies the source of the digest to be used to compare with the SoC's<br />SHA digest in the SoC Manifest<br /><br />Values<br />1 - InRequest - Use the hash in the 'measurement' field of this command<br /><br />2 - LoadAddress - The image located in the `ImageLoadAddress` will be streamed to the SHA Accelerator to <br />               retrieve the digest that will be used for authorization.<br />3 - ImageStagingAddress - The image located in the `StagingAddress` will be streamed to the SHA Accelerator to<br />               retrieve the digest that will be used for authorization |
 | image_size   | u32      | The size of the image to hash. Only valid if source is `ImageLoadAddress` or `StagingAddress` |
 
 *Table: `AUTHORIZE_AND_STASH_FLAGS` input flags*
@@ -1537,7 +1546,11 @@ Command Code: `0x4154_5348` ("ATSH")
 
 ### GET_IMAGE_INFO
 
-The MCU uses this command to retrieve the Image Metadata Entry defined in the SoC Manifest given by an index to the Image Metadata Collection (IMC).
+The MCU uses this command to retrieve the active Image Metadata Entry for a
+firmware ID. The Runtime searches the vendor + owner Image Metadata Collection
+first, then the owner-only collection installed by
+[`SET_OWNER_AUTH_MANIFEST`](#set_owner_auth_manifest). Active firmware IDs are
+unique across the collections, so the response is unambiguous.
 
 Command Code: `0x494D_4530` ("IME0")
 

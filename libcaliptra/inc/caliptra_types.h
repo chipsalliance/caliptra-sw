@@ -220,6 +220,10 @@ struct caliptra_fw_info_resp
     uint32_t image_manifest_pqc_type;
     uint32_t vendor_ecc384_pub_key_index;
     uint32_t vendor_pqc_pub_key_index;
+    uint32_t soc_manifest_current_svn;
+    uint32_t soc_manifest_min_svn;
+    uint32_t owner_auth_manifest_current_svn;
+    uint32_t owner_auth_manifest_min_svn;
 };
 
 struct caliptra_dpe_tag_tci_req
@@ -240,6 +244,7 @@ struct caliptra_get_tagged_tci_resp
     struct caliptra_resp_header hdr;
     uint8_t tci_cumulative[48];
     uint8_t tci_current[48];
+    uint32_t svn;
 };
 
 struct caliptra_increment_pcr_reset_counter_req

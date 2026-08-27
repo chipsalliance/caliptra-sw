@@ -327,6 +327,9 @@ impl SetOwnerAuthManifestCmd {
     #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<usize> {
+        // Restrict to PL0
+        drivers.ensure_pl0()?;
+
         let manifest_size: usize = {
             let err = CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS;
             let offset = offset_of!(SetOwnerAuthManifestReq, manifest_size);
@@ -442,6 +445,7 @@ impl SetOwnerAuthManifestCmd {
         // Record the digest of the full manifest buffer for attestation.
         persistent_data.fw.owner_auth_manifest_digest =
             drivers.sha2_512_384.sha384_digest(manifest_buf)?.0;
+        persistent_data.fw.owner_auth_manifest_svn = preamble.svn;
 
         Ok(())
     }

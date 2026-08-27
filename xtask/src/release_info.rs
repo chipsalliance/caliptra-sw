@@ -295,6 +295,22 @@ struct FwInfo {
     svn: u32,
 }
 
+/// Hex-encodes a TOC entry digest in standard SHA384 byte order.
+///
+/// `ImageTocEntry::digest` is an `ImageDigest` (`[u32; 12]`) serialized
+/// little-endian, so each 4-byte group in the manifest is the byte-reverse of
+/// the corresponding SHA384 word. Devices report the digest word-swapped (see
+/// the `swap_word_bytes` FWID assertions in `smoke_test.rs`), so swap here to
+/// match what shows up in the FMC/RT alias certificates.
+fn encode_toc_digest(raw: &[u8]) -> String {
+    let mut std_order = [0u8; TOC_DIGEST_SIZE];
+    for (word_std, word_raw) in std_order.chunks_exact_mut(4).zip(raw.chunks_exact(4)) {
+        word_std.copy_from_slice(word_raw);
+        word_std.reverse();
+    }
+    hex::encode(std_order)
+}
+
 fn parse_fw_bundle(data: &[u8]) -> Result<FwInfo> {
     if data.len() < 8 {
         bail!("FW bundle too small");
@@ -315,10 +331,10 @@ fn parse_fw_bundle(data: &[u8]) -> Result<FwInfo> {
         bail!("Unexpected TOC IDs: FMC={fmc_id}, RT={rt_id} (expected 1, 2)");
     }
 
-    let fmc_digest = hex::encode(
+    let fmc_digest = encode_toc_digest(
         &data[fmc_off + TOC_DIGEST_OFFSET..fmc_off + TOC_DIGEST_OFFSET + TOC_DIGEST_SIZE],
     );
-    let rt_digest = hex::encode(
+    let rt_digest = encode_toc_digest(
         &data[rt_off + TOC_DIGEST_OFFSET..rt_off + TOC_DIGEST_OFFSET + TOC_DIGEST_SIZE],
     );
 
@@ -762,6 +778,43 @@ pub fn run(release_name: Option<&str>, markdown: bool, build: bool) -> Result<()
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The TOC digest is an `ImageDigest` (`[u32; 12]`) serialized LE, so the
+    /// printed value must byte-swap each word back into SHA384 order.
+    #[test]
+    fn fw_digests_are_word_swapped() {
+        let mut manifest = vec![0u8; 1024];
+        manifest[0..4].copy_from_slice(&MANIFEST_MARKER_1X.to_le_bytes());
+        manifest[4..8].copy_from_slice(&1024u32.to_le_bytes());
+
+        let fmc_off = 1024 - 2 * TOC_ENTRY_SIZE;
+        let rt_off = 1024 - TOC_ENTRY_SIZE;
+        manifest[fmc_off..fmc_off + 4].copy_from_slice(&1u32.to_le_bytes());
+        manifest[rt_off..rt_off + 4].copy_from_slice(&2u32.to_le_bytes());
+
+        let fmc_raw: Vec<u8> = (0..TOC_DIGEST_SIZE as u8).collect();
+        let rt_raw: Vec<u8> = (0..TOC_DIGEST_SIZE as u8).rev().collect();
+        manifest[fmc_off + TOC_DIGEST_OFFSET..fmc_off + TOC_DIGEST_OFFSET + TOC_DIGEST_SIZE]
+            .copy_from_slice(&fmc_raw);
+        manifest[rt_off + TOC_DIGEST_OFFSET..rt_off + TOC_DIGEST_OFFSET + TOC_DIGEST_SIZE]
+            .copy_from_slice(&rt_raw);
+
+        let info = parse_fw_bundle(&manifest).unwrap();
+        let expected_fmc = "0302010007060504\
+                            0b0a09080f0e0d0c\
+                            1312111017161514\
+                            1b1a19181f1e1d1c\
+                            2322212027262524\
+                            2b2a29282f2e2d2c";
+        let expected_rt = "2c2d2e2f28292a2b\
+                           2425262720212223\
+                           1c1d1e1f18191a1b\
+                           1415161710111213\
+                           0c0d0e0f08090a0b\
+                           0405060700010203";
+        assert_eq!(info.fmc_digest, expected_fmc);
+        assert_eq!(info.rt_digest, expected_rt);
+    }
 
     #[test]
     fn rtl_compat_rom() {

@@ -13,6 +13,7 @@ Abstract:
 --*/
 
 use crate::manifest::{find_metadata_entry, find_owner_metadata_entry};
+use crate::stash_measurement::CaliptraManagedContextAccess;
 use crate::{mutrefbytes, Drivers, PauserPrivileges, StashMeasurementCmd};
 use caliptra_auth_man_types::ImageMetadataFlags;
 use caliptra_cfi_derive::cfi_impl_fn;
@@ -56,16 +57,17 @@ impl AuthorizeAndStashCmd {
         resp: &mut [u8],
     ) -> CaliptraResult<usize> {
         let caller_privilege_level = drivers.caller_privilege_level();
-        match caller_privilege_level {
-            // Only PL0 can call STASH_MEASUREMENT
-            PauserPrivileges::PL0 => (),
-            PauserPrivileges::PL1 => {
-                return Err(CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL);
-            }
-        }
         let locality = drivers.mbox.id();
 
         if let Ok(cmd) = AuthorizeAndStashReq::ref_from_bytes(cmd_args) {
+            let auth_and_stash_flags: AuthAndStashFlags = cmd.flags.into();
+            // PL1 callers may only use AUTHORIZE_AND_STASH with SKIP_STASH set;
+            // stashing into DPE requires PL0.
+            if caller_privilege_level == PauserPrivileges::PL1
+                && !auth_and_stash_flags.contains(AuthAndStashFlags::SKIP_STASH)
+            {
+                return Err(CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL);
+            }
             let resp = mutrefbytes::<AuthorizeAndStashResp>(resp)?;
             resp.hdr = MailboxRespHeader::default();
             resp.auth_req_result = Self::authorize_and_stash(drivers, cmd, locality)?;
@@ -82,11 +84,50 @@ impl AuthorizeAndStashCmd {
         cmd: &AuthorizeAndStashReq,
         locality: u32,
     ) -> CaliptraResult<u32> {
+        let (auth_result, stash_measurement) = Self::authorize_image(drivers, cmd)?;
+
+        // Stash the measurement if the image is authorized (vendor+owner
+        // or owner-only).
+        let flags: AuthAndStashFlags = cmd.flags.into();
+        if (auth_result == IMAGE_AUTHORIZED_VENDOR_OWNER
+            || auth_result == IMAGE_AUTHORIZED_OWNER_ONLY)
+            && !flags.contains(AuthAndStashFlags::SKIP_STASH)
+        {
+            let dpe_result = StashMeasurementCmd::stash_measurement(
+                drivers,
+                &cmd.fw_id,
+                &stash_measurement,
+                cmd.svn,
+                drivers.caller_privilege_level(),
+                locality,
+                // Only reachable once `authorize_image` matched this image
+                // against the signed SoC manifest, so the measurement is
+                // verified even when the request came from the mailbox.
+                CaliptraManagedContextAccess::Allowed,
+            )?;
+            if dpe_result != DpeErrorCode::NoError {
+                drivers
+                    .soc_ifc
+                    .set_fw_extended_error(dpe_result.get_error_code());
+
+                Err(CaliptraError::RUNTIME_AUTH_AND_STASH_MEASUREMENT_DPE_ERROR)?;
+            }
+        }
+
+        Ok(auth_result)
+    }
+
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
+    #[inline(never)]
+    pub(crate) fn authorize_image(
+        drivers: &mut Drivers,
+        cmd: &AuthorizeAndStashReq,
+    ) -> CaliptraResult<(u32, [u8; 48])> {
         let source = ImageHashSource::from(cmd.source);
         if source == ImageHashSource::Invalid {
             Err(CaliptraError::RUNTIME_AUTH_AND_STASH_UNSUPPORTED_IMAGE_SOURCE)?;
         }
-        // Check if firmware id is present in the image metadata entry collection.
+
         let persistent_data = drivers.persistent_data.get();
         let dma_image = DmaRecovery::new(
             drivers.soc_ifc.recovery_interface_base_addr().into(),
@@ -100,7 +141,6 @@ impl AuthorizeAndStashCmd {
 
         let cmd_fw_id = u32::from_le_bytes(cmd.fw_id);
         let mut stash_measurement = cmd.measurement;
-        let auth_and_stash_flags: AuthAndStashFlags = cmd.flags.into();
         let (metadata_entry, success_code) =
             if let Some(entry) = find_metadata_entry(auth_manifest_image_metadata_col, cmd_fw_id) {
                 (entry, IMAGE_AUTHORIZED_VENDOR_OWNER)
@@ -109,7 +149,7 @@ impl AuthorizeAndStashCmd {
             {
                 (entry, IMAGE_AUTHORIZED_OWNER_ONLY)
             } else {
-                return Ok(IMAGE_NOT_AUTHORIZED);
+                return Ok((IMAGE_NOT_AUTHORIZED, stash_measurement));
             };
 
         // If 'ignore_auth_check' is set, then skip the image digest comparison and authorize the image.
@@ -161,29 +201,7 @@ impl AuthorizeAndStashCmd {
         } else {
             IMAGE_NOT_AUTHORIZED
         };
-        // Stash the measurement if the image is authorized (vendor+owner
-        // or owner-only).
-        if (auth_result == IMAGE_AUTHORIZED_VENDOR_OWNER
-            || auth_result == IMAGE_AUTHORIZED_OWNER_ONLY)
-            && !auth_and_stash_flags.contains(AuthAndStashFlags::SKIP_STASH)
-        {
-            let dpe_result = StashMeasurementCmd::stash_measurement(
-                drivers,
-                &cmd.fw_id,
-                &stash_measurement,
-                cmd.svn,
-                drivers.caller_privilege_level(),
-                locality,
-            )?;
-            if dpe_result != DpeErrorCode::NoError {
-                drivers
-                    .soc_ifc
-                    .set_fw_extended_error(dpe_result.get_error_code());
 
-                Err(CaliptraError::RUNTIME_AUTH_AND_STASH_MEASUREMENT_DPE_ERROR)?;
-            }
-        }
-
-        Ok(auth_result)
+        Ok((auth_result, stash_measurement))
     }
 }
