@@ -81,6 +81,10 @@ pub extern "C" fn entry_point() -> ! {
     if env.persistent_data.get().fht.is_valid() {
         // Set FHT fields and jump to RT for val-FMC for now
         if cfg!(feature = "fake-fmc") {
+            let pdata = env.persistent_data.get_mut();
+            pdata.marker = caliptra_drivers::PersistentData::MAGIC;
+            pdata.version = caliptra_drivers::PersistentData::VERSION;
+
             env.persistent_data.get_mut().fht.rt_cdi_kv_hdl =
                 HandOffDataHandle::from(DataStore::KeyVaultSlot(KEY_ID_RT_CDI));
             env.persistent_data.get_mut().fht.rt_priv_key_kv_hdl =
