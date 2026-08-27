@@ -36,3 +36,7 @@ junit.xml
 
 # FPGA Bitstream file
 **/*.pdi
+
+# Mjolnir
+tools/mjolnir/results/
+tools/mjolnir/workspace/
