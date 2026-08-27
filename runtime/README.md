@@ -928,7 +928,7 @@ mailbox header will be found at the given address.
 - This command is only available in subsystem mode, as DMA is only available in subsystem.
 - This command is only available for MCU.
 
-Command Code: `0x4450_4543` ("DPEC")
+Command Code: `0x4450_454D` ("DPEM")
 
 *Table: `INVOKE_DPE_MLDSA87` input arguments*
 
@@ -2084,7 +2084,7 @@ Signs the SHA384 hash of the message with the ECDSA-384 key.
 
 The signature consists of its `r` and `s` values described in [FIPS 186-5](https://csrc.nist.gov/pubs/fips/186-5/final) encoded in big-endian byte order.
 
-Command Code: `0x434D_5D53` ("CMES")
+Command Code: `0x434D_4553` ("CMES")
 
 *Table: `CM_ECDSA_SIGN` input arguments*
 | **Name** | **Type**     | **Description**   |
@@ -2207,7 +2207,7 @@ CTR mode supports input of any size up to the maximum cryptographic mailbox size
 
 The CMK must have been created for AES usage.
 
-Command Code: `0x434D_4349` ("CMCI")
+Command Code: `0x434D_4149` ("CMAI")
 
 *Table: `CM_AES_ENCRYPT_INIT` input arguments*
 | **Name**       | **Type**           | **Description**                       |
@@ -2255,7 +2255,7 @@ The context MUST be passed in from `CM_AES_ENCRYPT_INIT` or `CM_AES_ENCRYPT_UPDA
 For CBC, the size must be a multiple of 16 bytes.
 CTR mode supports input of any size up to the maximum cryptographic mailbox size.
 
-Command Code: `0x434D_4355` ("CMCU")
+Command Code: `0x434D_4155` ("CMAU")
 
 *Table: `CM_AES_ENCRYPT_UPDATE` input arguments*
 | **Name**       | **Type**           | **Description**  |
@@ -2322,7 +2322,7 @@ The context MUST be passed in from `CM_AES_DECRYPT_INIT` or `CM_AES_DECRYPT_UPDA
 For CBC, the size must be a multiple of 16 bytes.
 CTR mode supports input of any size up to the maximum cryptographic mailbox size.
 
-Command Code: `0x434D_4155` ("CMAU")
+Command Code: `0x434D_4156` ("CMAV")
 
 *Table: `CM_AES_DECRYPT_UPDATE` input arguments*
 | **Name**        | **Type**            | **Description**  |
@@ -2526,7 +2526,7 @@ Command Code: `0x434D_4449` ("CMDI")
 
 The encrypted and authenticated context's internal structure will be the same as for encryption.
 
-### CM_AES_SPDM_GCM_DECRYPT_INIT
+### CM_AES_GCM_SPDM_DECRYPT_INIT
 
 Starts an AES-256-GCM decryption computation in SPDM mode.
 
