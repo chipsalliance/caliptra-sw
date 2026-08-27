@@ -37,6 +37,7 @@ void hwmod_init(struct caliptra_buffer rom, const test_info* info) {
   // slice::from_raw_parts can panic when the pointer is NULL
     uint8_t empty[0];
     struct caliptra_model_init_params params = {
+        .hw_version = CALIPTRA_HW_VERSION_2_1,
         .rom = rom,
         .dccm = {.data = empty, .len = 0},
         .iccm = {.data = empty, .len = 0},

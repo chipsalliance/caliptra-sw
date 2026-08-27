@@ -457,9 +457,11 @@ fn smoke_test() {
                 String::from_utf8_lossy(&fmc_alias_cert.to_text().unwrap())
             );
 
+            let owner_pk_in_fuses = (fuses.owner_pk_hash != [0u32; 12]) && !hw.subsystem_mode();
+
             let mut hasher = Sha384::new();
             hasher.update(&owner_pk_hash);
-            hasher.update(&[(fuses.owner_pk_hash != [0u32; 12]) as u8]);
+            hasher.update(&[owner_pk_in_fuses as u8]);
             hasher.update(&[fuses.anti_rollback_disable as u8]);
             hasher.update(&[fuses.fuse_ecc_revocation as u8]);
             hasher.update(&fuses.fuse_lms_revocation.to_le_bytes());
@@ -477,6 +479,14 @@ fn smoke_test() {
             hasher.update(&[fw_svn as u8]);
             hasher.update(&[image.manifest.header.vendor_ecc_pub_key_idx as u8]);
             hasher.update(&[image.manifest.header.vendor_pqc_pub_key_idx as u8]);
+            if !matches!(
+                caliptra_builder::get_ci_rom_version(),
+                caliptra_builder::CiRomVersion::Rom2_1_0
+                    | caliptra_builder::CiRomVersion::Rom2_1_1
+                    | caliptra_builder::CiRomVersion::Rom2_1_2
+            ) {
+                hasher.update(&[hw.subsystem_mode() as u8]);
+            }
             let vendor_info_hash = hasher.finish();
 
             let fmc_expected_tcb_info = [
@@ -529,7 +539,7 @@ fn smoke_test() {
                 &Pcr0::derive(&Pcr0Input {
                     fmc_digest: image.manifest.fmc.digest,
                     owner_pub_key_hash: owner_pk_hash_words,
-                    owner_pub_key_hash_in_fuses: fuses.owner_pk_hash != [0u32; 12],
+                    owner_pub_key_hash_in_fuses: owner_pk_in_fuses,
                     anti_rollback_disable: fuses.anti_rollback_disable,
                     vendor_ecc_pub_key_revocation: fuses.fuse_ecc_revocation as u8,
                     vendor_lms_pub_key_revocation: fuses.fuse_lms_revocation,
@@ -544,6 +554,7 @@ fn smoke_test() {
                     fw_svn: fw_svn as u8,
                     vendor_ecc_pk_index: image.manifest.header.vendor_ecc_pub_key_idx as u8,
                     vendor_pqc_pk_index: image.manifest.header.vendor_pqc_pub_key_idx as u8,
+                    subsystem_mode: hw.subsystem_mode() as u8,
                 }),
                 &expected_ldevid_key,
             );
@@ -1377,7 +1388,7 @@ fn smoke_test_flash_boot() {
     use caliptra_hw_model::flash_image::build_flash_image_bytes;
     use caliptra_hw_model::SubsystemInitParams;
 
-    let pqc_key_type = FwVerificationPqcKeyType::LMS;
+    let pqc_key_type = FwVerificationPqcKeyType::MLDSA;
     let fw_svn = 1;
 
     let rom = caliptra_builder::rom_for_fw_integration_tests_fpga(true).unwrap();

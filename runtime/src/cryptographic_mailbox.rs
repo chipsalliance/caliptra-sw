@@ -1039,13 +1039,7 @@ impl Commands {
 
         let plaintext = &cmd.plaintext[..cmd.plaintext_size as usize];
 
-        let encrypted_cmk = EncryptedCmk::ref_from_bytes(&cmd.cmk.0[..])
-            .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
-        let cmk = drivers.cryptographic_mailbox.decrypt_cmk(
-            &mut drivers.aes,
-            &mut drivers.trng,
-            encrypted_cmk,
-        )?;
+        let cmk = Self::decrypt_aes_key(drivers, &cmd.cmk)?;
         let (key, _) = LEArray4x8::ref_from_prefix(&cmk.key_material).unwrap();
         let iv: [u8; 16] = drivers.trng.generate()?.as_bytes()[..16]
             .try_into()
@@ -1151,13 +1145,7 @@ impl Commands {
         }
         let ciphertext = &cmd.ciphertext[..cmd.ciphertext_size as usize];
 
-        let encrypted_cmk = EncryptedCmk::ref_from_bytes(&cmd.cmk.0[..])
-            .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
-        let cmk = drivers.cryptographic_mailbox.decrypt_cmk(
-            &mut drivers.aes,
-            &mut drivers.trng,
-            encrypted_cmk,
-        )?;
+        let cmk = Self::decrypt_aes_key(drivers, &cmd.cmk)?;
         let (key, _) = LEArray4x8::ref_from_prefix(&cmk.key_material).unwrap();
         let resp = mutrefbytes::<CmAesResp>(resp)?;
         let iv = LEArray4x4::ref_from_bytes(&cmd.iv[..]).unwrap();
@@ -1840,6 +1828,21 @@ impl Commands {
         resp.hdr = MailboxRespHeader::default();
         resp.output = transmute!(encrypted_cmk);
         Ok(core::mem::size_of::<CmEcdhFinishResp>())
+    }
+
+    #[inline(never)]
+    fn decrypt_aes_key(drivers: &mut Drivers, cmk: &MailboxCmk) -> CaliptraResult<UnencryptedCmk> {
+        let encrypted_cmk = EncryptedCmk::ref_from_bytes(&cmk.0[..])
+            .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+        let cmk = drivers.cryptographic_mailbox.decrypt_cmk(
+            &mut drivers.aes,
+            &mut drivers.trng,
+            encrypted_cmk,
+        )?;
+        if cmk.key_usage != CmKeyUsage::Aes as u8 {
+            return Err(CaliptraError::RUNTIME_CMB_INVALID_KEY_USAGE_AND_SIZE);
+        }
+        Ok(cmk)
     }
 
     fn decrypt_hmac_key(drivers: &mut Drivers, cmk: &MailboxCmk) -> CaliptraResult<UnencryptedCmk> {
@@ -2824,20 +2827,8 @@ impl Commands {
         }
         let aad = &cmd.aad[..cmd.aad_length as usize];
 
-        // Decrypt the CMK
-        let encrypted_cmk = EncryptedCmk::ref_from_bytes(&cmd.cmk.0[..])
-            .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
-        let cmk = drivers.cryptographic_mailbox.decrypt_cmk(
-            &mut drivers.aes,
-            &mut drivers.trng,
-            encrypted_cmk,
-        )?;
-
-        // Validate key usage - must be AES key
-        let key_usage = CmKeyUsage::from(cmk.key_usage as u32);
-        if !matches!(key_usage, CmKeyUsage::Aes) {
-            Err(CaliptraError::RUNTIME_CMB_INVALID_KEY_USAGE_AND_SIZE)?;
-        }
+        // Decrypt the CMK and validate key usage
+        let cmk = Self::decrypt_aes_key(drivers, &cmd.cmk)?;
 
         // Get the AXI address
         let axi_addr = AxiAddr {
@@ -2911,7 +2902,7 @@ impl Commands {
         // Compute and verify the GCM tag
         let computed_tag = drivers.aes.compute_tag(aad.len(), length as usize)?;
         let expected_tag: LEArray4x4 = LEArray4x4::new(cmd.tag);
-        let tag_verified = computed_tag.as_bytes() == expected_tag.as_bytes();
+        let tag_verified = constant_time_eq(computed_tag.as_bytes(), expected_tag.as_bytes());
 
         // Build response
         let resp = mutrefbytes::<CmAesGcmDecryptDmaResp>(resp)?;

@@ -20,12 +20,12 @@ caliptra-coverage.workspace = true
 caliptra-drivers = { workspace = true, features = ["fips-test-hooks"] }
 caliptra-dpe.workspace = true
 caliptra-hw-model-types.workspace = true
-caliptra-hw-model.workspace = true
+caliptra-hw-model = { workspace = true, features = ["coverage"] }
 caliptra-image-crypto.workspace = true
 caliptra-image-elf.workspace = true
 caliptra-image-fake-keys.workspace = true
 caliptra-image-gen.workspace = true
-caliptra-image-types.workspace = true
+caliptra-image-types = { workspace = true, features = ["cfi"] }
 caliptra-image-verify = { workspace = true, default-features = false }
 caliptra-runtime = { workspace = true, default-features = false }
 caliptra-common = { workspace = true, default-features = false }

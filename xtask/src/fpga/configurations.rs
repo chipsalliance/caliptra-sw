@@ -272,8 +272,12 @@ impl<'a> ActionHandler<'a> for CoreOnSubsystem {
 
     fn build_test(&self, args: &'a BuildTestArgs<'a>) -> Result<()> {
         let mut container = build_base_container_command()?;
+        let mut features = vec!["fpga_subsystem", "itrng", "ocp-lock"];
+        if *args.flash_boot {
+            features.push("flash-boot");
+        }
         let cmd = NextestArchiveCommand::new("/work-dir")
-            .features(&["fpga_subsystem", "itrng", "ocp-lock", "flash-boot"])
+            .features(&features)
             .package_filter(args.package_filter.as_deref())
             .build();
 

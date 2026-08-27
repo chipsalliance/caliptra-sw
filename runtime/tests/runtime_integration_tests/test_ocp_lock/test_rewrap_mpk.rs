@@ -139,7 +139,61 @@ fn test_rewrap_invalid_hpke_key() {
     validate_ocp_lock_response(&mut model, response, |response, _| {
         assert_eq!(
             response.unwrap_err(),
-            ModelError::MailboxCmdFailed(CaliptraError::RUNTIME_DRIVER_AES_INVALID_TAG.into(),)
+            ModelError::MailboxCmdFailed(CaliptraError::RUNTIME_DRIVER_HPKE_OPEN_FAILED.into(),)
+        );
+    });
+}
+
+#[cfg_attr(feature = "fpga_realtime", ignore)]
+#[test]
+fn test_rewrap_invalid_locked_mpk() {
+    let mut model = boot_ocp_lock_runtime(OcpLockBootParams {
+        hek_available: true,
+        force_ocp_lock_en: true,
+        ..Default::default()
+    });
+
+    let endorsed_handle = get_validated_hpke_handle(&mut model).unwrap();
+
+    let info = [0xDE; 256];
+    let metadata = [0xFE; OCP_LOCK_WRAPPED_KEY_MAX_METADATA_LEN];
+    let access_key = [0xAE; 32];
+    let cmd = create_generate_mpk_req(&endorsed_handle, &info, &metadata, &access_key);
+
+    let response = model.mailbox_execute(
+        CommandId::OCP_LOCK_GENERATE_MPK.into(),
+        cmd.as_bytes().unwrap(),
+    );
+
+    let mut wrapped_key = validate_ocp_lock_response(&mut model, response, |response, _| {
+        let response = response.unwrap().unwrap();
+        let response = OcpLockGenerateMpkResp::ref_from_bytes(response.as_bytes()).unwrap();
+        response.wrapped_mek.clone()
+    })
+    .unwrap();
+
+    let new_access_key = [0xCD; 32];
+
+    // Corrupt locked MPK ciphertext/tag
+    wrapped_key.ciphertext_and_auth_tag[0] ^= 0xFF;
+
+    let cmd = create_rewrap_mpk_req(
+        &endorsed_handle,
+        &info,
+        &metadata,
+        &access_key,
+        &new_access_key,
+        &wrapped_key,
+    );
+    let response = model.mailbox_execute(
+        CommandId::OCP_LOCK_REWRAP_MPK.into(),
+        cmd.as_bytes().unwrap(),
+    );
+
+    validate_ocp_lock_response(&mut model, response, |response, _| {
+        assert_eq!(
+            response.unwrap_err(),
+            ModelError::MailboxCmdFailed(CaliptraError::RUNTIME_OCP_LOCK_LOCKED_MPK_INVALID.into(),)
         );
     });
 }

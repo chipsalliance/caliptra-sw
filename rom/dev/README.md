@@ -76,6 +76,27 @@ Following are the main FUSE & Architectural Registers used by the Caliptra ROM f
 | :------------------------------ | :------------|  :----------------------------------------------------- |
 | CPTRA_OWNER_PK_HASH             | 384          | Owner ECC and LMS or MLDSA Public Key Hash. Stored as `[u32; 12]` — see [Public key hash byte ordering](#public-key-hash-byte-ordering-dword-reversal). |
 
+### Subsystem Generic Strap Allocation
+
+The following table is the allocation registry for `SS_STRAP_GENERIC[0..3]` fields consumed by Caliptra firmware. New uses must be assigned to a reserved, non-overlapping range and added to this table. These subsystem straps are sampled at reset, may be overwritten by the SoC before `CPTRA_FUSE_WR_DONE`, and are locked when `CPTRA_FUSE_WR_DONE` is set.
+
+| Register | Field/Bits | Allocation | Consumer |
+| :------- | :--------- | :--------- | :------- |
+| `SS_STRAP_GENERIC[0]` | `[15:0]` | Offset of the OTP controller `STATUS` register from `SS_OTP_FC_BASE_ADDR`. | ROM UDS and Field Entropy programming |
+| `SS_STRAP_GENERIC[0]` | `[31:16]` | Bit index of the DAI idle indicator in the OTP controller `STATUS` register. | ROM UDS and Field Entropy programming |
+| `SS_STRAP_GENERIC[1]` | `[15:0]` | Offset of the OTP controller `DIRECT_ACCESS_CMD` register from `SS_OTP_FC_BASE_ADDR`. | ROM UDS and Field Entropy programming |
+| `SS_STRAP_GENERIC[1]` | `[31:16]` | Reserved. | — |
+| `SS_STRAP_GENERIC[2]` | `[15:0]` | Entropy-source health-test window size. Zero selects the default value of 1024. | ROM entropy-source initialization |
+| `SS_STRAP_GENERIC[2]` | `[16]` | Entropy-source single-bit mode enable. | ROM entropy-source initialization |
+| `SS_STRAP_GENERIC[2]` | `[18:17]` | Entropy-source single-bit lane selector. | ROM entropy-source initialization |
+| `SS_STRAP_GENERIC[2]` | `[30:19]` | Reserved. | — |
+| `SS_STRAP_GENERIC[2]` | `[31]` | Entropy-source conditioning bypass enable. | ROM entropy-source initialization |
+| `SS_STRAP_GENERIC[3]` | `[0]` | Stable Owner Key enable. | ROM stable-key derivation and Runtime cryptographic mailbox |
+| `SS_STRAP_GENERIC[3]` | `[1]` | Wait for device reset before fatal-error reporting. | ROM fatal-error handling |
+| `SS_STRAP_GENERIC[3]` | `[7:2]` | Reserved. | — |
+| `SS_STRAP_GENERIC[3]` | `[15:8]` | Owner Authorization Manifest minimum SVN, encoded as an unsigned integer. | Runtime owner authorization manifest verification |
+| `SS_STRAP_GENERIC[3]` | `[31:16]` | Reserved. | — |
+
 ### Entropy Source Configuration Registers
 
 The ROM configures the entropy source (CSRNG) during initialization using the following registers:
@@ -114,6 +135,10 @@ When the feature is available, ROM derives the Stable Owner Root Key during the 
 4. ROM write-locks `KEY_ID_STABLE_OWNER` and erases the temporary `KEY_ID_HEK_SEED` slot.
 
 If subsystem mode is not active, the strap is clear, or OCP LOCK is enabled, ROM skips this derivation and `CM_DERIVE_STABLE_KEY` with `key_type = OwnerKey` is unavailable.
+
+The following diagram summarizes the ROM-populated stable roots, including IDevID, LDevID, and the optional Owner root:
+
+![Stable Root Key Derivation](doc/svg/stable-root-derivation.svg)
 
 For a comprehensive overview of the SOC interface registers, please refer to the following link::
 https://chipsalliance.github.io/caliptra-rtl/main/external-regs/?p=caliptra_top_reg.generic_and_fuse_reg
@@ -552,11 +577,9 @@ Initial Device ID Layer is used to generate Manufacturer CDI & Private Keys. Thi
 
     `Result = mldsa87_verify(IDevIdPubKeyMldsa, IDevIdTbsDigestMldsa, IDevIdCertSigMldsa)`
 
-10. Generate the MACs over the tbs digests as follows:
+10. Generate the CSR envelope MAC. The MAC is computed over the CSR envelope bytes up to, but not including, the CSR MAC field:
 
-    `IDevIdTbsEcdsaMac = hmac_mac(VendorSecretKvSlot, b"idevid_ecc_csr", IDevIdTbsDigestEcdsa, HmacMode::Hmac384)`
-
-    `IDevIdTbsMldsaMac = hmac512_mac(VendorSecretKvSlot, b"idevid_mldsa_csr",IDevIdTbsDigestMldsa, HmacMode::Hmac512)`
+    `IDevIdCsrMac = hmac512_mac(HmacKey::CsrMode(), Marker || Size || EccCsrSize || EccCsr || MldsaCsrSize || MldsaCsr, HmacMode::Hmac512)`
 
 11. Upload the CSR(s) to mailbox and wait for JTAG to read the CSR out of the mailbox. Format of the CSR payload is documented below:
 
@@ -567,11 +590,11 @@ Initial Device ID Layer is used to generate Manufacturer CDI & Private Keys. Thi
 | Field          | Size (bytes) | Description                                                                                     |
 |----------------|--------------|-------------------------------------------------------------------------------------------------|
 | Marker         | 4            | Magic Number marking the start of the CSR payload. The value must be 0x435352 (‘CSR’ in ASCII). |
-| Size           | 4            | Size of the entire CSR payload.                                                                 |
+| Size           | 4            | Size of the entire CSR payload. Current size is 8784 bytes.                                      |
 | ECC CSR Size   | 4            | Size of the ECC CSR in bytes.                                                                   |
 | ECC CSR        | 512          | ECC CSR buffer. Actual CSR size is indicated by 'ECC CSR Size'.                                 |
 | MLDSA CSR Size | 4            | Size of the MLDSA CSR in bytes.                                                                 |
-| MLDSA CSR      | 7680         | MLDSA CSR bytes. Actual CSR size is indicated by 'MLDSA CSR Size'.                              |
+| MLDSA CSR      | 8192         | MLDSA CSR bytes. Actual CSR size is indicated by 'MLDSA CSR Size'.                              |
 | CSR MAC        | 64           | HMAC-512 MAC, computed over the envelope bytes up to but not including this field.       |
 
 **Post-conditions:**
@@ -938,7 +961,7 @@ ROM supports two commands for firmware download in SUBSYSTEM mode:
 9. Set RI `RECOVERY_STATUS` register `Device Recovery Status` field to 0x2 (`Booting recovery image`).
 10. Validate the image per the [Image Validation Process](#firmware-image-validation-process).
 11. Reset the `RECOVERY_CTRL` register `Activate Recovery Image` field by writing 0x1.
-12. If the validation is succesful, set the `DEVICE_STATUS` register `Device Status` field to 0x5 (`Running Recovery Image ( Recover Reason Code not populated)`)
+12. If the validation is successful, set the `DEVICE_STATUS` register `Device Status` field to 0x5 (`Running Recovery Image ( Recover Reason Code not populated)`)
 13. If the validation fails, set the `RECOVERY_STATUS` register `Device Recovery Status` field to 0xd (`Authentication Error`) and `DEVICE_STATUS` register `Device Status` field to 0xE (`Boot Failure`) with the `Recovery Reason Code` populated for the failure.
 14. Release the mailbox lock.
 

@@ -103,6 +103,10 @@ pub extern "C" fn entry_point() -> ! {
     if !drivers.persistent_data.get().rom.fht.is_valid() {
         handle_fatal_error(caliptra_drivers::CaliptraError::RUNTIME_HANDOFF_FHT_NOT_LOADED.into());
     }
+
+    cprintln!("[rt] Disable entropy source");
+    drivers.trng.disable_entropy_source();
+
     cprintln!("[rt] RT listening for mailbox commands...");
     if let Err(e) = caliptra_runtime::handle_mailbox_commands(drivers) {
         handle_fatal_error(e.into());

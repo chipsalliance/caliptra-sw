@@ -49,7 +49,7 @@ CFLAGS += $(HWMODEL_INCLUDE) $(HWMODEL_LIB) $(HWMODEL_FLAGS) -Wall
 $(ROM_FILE) $(FW_FILE):
 	@echo [IMAGE] caliptra_rom.bin image_bundle.bin
 	$(Q)make -C ../../../rom/dev
-	$(Q)cd ../../../runtime && ./build.sh
+	$(Q)cargo xtask build runtime
 	$(Q)cargo --config="$(EXTRA_CARGO_CONFIG)" run --manifest-path=$(BUILDER_PATH)/Cargo.toml --bin image -- --rom-with-log $(ROM_FW_DIR)/caliptra_rom.bin --fw $(ROM_FW_DIR)/image_bundle.bin
 
 $(HWMODEL_BINDING_LIB_OBJ):

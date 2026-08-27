@@ -389,7 +389,7 @@ mod tests {
     test_rr_zerodest!(test_slt_38, slt, 16, 30);
 
     // ---------------------------------------------------------------------------------------------
-    // Tests For Multiply High Singed and Unsigned (`mulhsu`) Instruction
+    // Tests For Multiply High Signed and Unsigned (`mulhsu`) Instruction
     //
     // Test suite based on riscv-tests
     // https://github.com/riscv-software-src/riscv-tests/blob/master/isa/rv64um/mulhsu.S

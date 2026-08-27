@@ -1,0 +1,637 @@
+// Licensed under the Apache-2.0 license
+
+//! Integration tests for `SET_OWNER_AUTH_MANIFEST` and the
+//! `AUTHORIZE_AND_STASH` owner-only fall-through path.
+
+use crate::common::{run_rt_test, RuntimeTestArgs};
+use crate::test_authorize_and_stash::{set_auth_manifest, FW_ID_1, IMAGE_DIGEST1};
+use crate::test_info::get_fwinfo;
+use crate::test_set_auth_manifest::create_auth_manifest_with_metadata_with_svn;
+use crate::test_update_reset::update_fw;
+use caliptra_api::{
+    mailbox::{GetImageInfoReq, GetImageInfoResp, VerifyAuthManifestReq},
+    SocManager,
+};
+use caliptra_auth_man_gen::{
+    AuthManifestGenerator, AuthManifestGeneratorKeyConfig, OwnerAuthManifestGeneratorConfig,
+};
+use caliptra_auth_man_types::{
+    Addr64, AuthManifestImageMetadata, AuthManifestPrivKeysConfig, AuthManifestPubKeysConfig,
+    AuthorizationManifest, ImageMetadataFlags, OwnerAuthorizationManifest,
+};
+use caliptra_builder::{firmware::APP_WITH_UART, ImageOptions};
+use caliptra_common::mailbox_api::{
+    AuthorizeAndStashReq, AuthorizeAndStashResp, CommandId, ImageHashSource, MailboxReq,
+    MailboxReqHeader, SetAuthManifestReq, SetOwnerAuthManifestReq,
+};
+use caliptra_error::CaliptraError;
+use caliptra_hw_model::{DefaultHwModel, DeviceLifecycle, HwModel, ModelError, SecurityState};
+use caliptra_image_crypto::OsslCrypto as Crypto;
+use caliptra_image_fake_keys::{
+    OWNER_ECC_KEY_PRIVATE, OWNER_ECC_KEY_PUBLIC, OWNER_LMS_KEY_PRIVATE, OWNER_LMS_KEY_PUBLIC,
+    OWNER_MLDSA_KEY_PRIVATE, OWNER_MLDSA_KEY_PUBLIC,
+};
+use caliptra_image_types::FwVerificationPqcKeyType;
+use caliptra_runtime::{
+    RtBootStatus, IMAGE_AUTHORIZED_OWNER_ONLY, IMAGE_AUTHORIZED_VENDOR_OWNER, IMAGE_HASH_MISMATCH,
+    IMAGE_NOT_AUTHORIZED,
+};
+use zerocopy::{FromBytes, IntoBytes};
+
+/// Owner-only firmware ID (distinct from `FW_ID_1` that lives in the
+/// vendor + owner manifest used by `set_auth_manifest`).
+const OWNER_ONLY_FW_ID: u32 = 11;
+
+/// A 48-byte digest distinct from `IMAGE_DIGEST1`.
+const OWNER_ONLY_DIGEST: [u8; 48] = [
+    0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF, 0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99,
+    0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF, 0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99,
+    0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF, 0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99,
+];
+
+fn owner_key_config() -> AuthManifestGeneratorKeyConfig {
+    AuthManifestGeneratorKeyConfig {
+        pub_keys: AuthManifestPubKeysConfig {
+            ecc_pub_key: OWNER_ECC_KEY_PUBLIC,
+            lms_pub_key: OWNER_LMS_KEY_PUBLIC,
+            mldsa_pub_key: OWNER_MLDSA_KEY_PUBLIC,
+        },
+        priv_keys: Some(AuthManifestPrivKeysConfig {
+            ecc_priv_key: OWNER_ECC_KEY_PRIVATE,
+            lms_priv_key: OWNER_LMS_KEY_PRIVATE,
+            mldsa_priv_key: OWNER_MLDSA_KEY_PRIVATE,
+        }),
+    }
+}
+
+/// Build a signed `OwnerAuthorizationManifest` through the shared generator.
+fn build_owner_manifest(
+    entries: Vec<AuthManifestImageMetadata>,
+    svn: u32,
+) -> OwnerAuthorizationManifest {
+    build_owner_manifest_with_pqc(entries, svn, FwVerificationPqcKeyType::MLDSA)
+}
+
+fn build_owner_manifest_with_pqc(
+    entries: Vec<AuthManifestImageMetadata>,
+    svn: u32,
+    pqc_key_type: FwVerificationPqcKeyType,
+) -> OwnerAuthorizationManifest {
+    let owner_key_config = owner_key_config();
+    let gen = AuthManifestGenerator::new(Crypto::default());
+    gen.generate_owner(&OwnerAuthManifestGeneratorConfig {
+        version: 1,
+        svn,
+        pqc_key_type,
+        owner_fw_key_info: owner_key_config.clone(),
+        owner_man_key_info: owner_key_config,
+        image_metadata_list: entries,
+    })
+    .unwrap()
+}
+
+/// Issue a `SET_OWNER_AUTH_MANIFEST` mailbox command with the
+/// supplied owner manifest and assert success.
+fn send_set_owner_auth_manifest(model: &mut DefaultHwModel, man: &OwnerAuthorizationManifest) {
+    set_owner_auth_manifest(model, man)
+        .unwrap()
+        .expect("SET_OWNER_AUTH_MANIFEST should return a response");
+}
+
+fn set_owner_auth_manifest(
+    model: &mut DefaultHwModel,
+    man: &OwnerAuthorizationManifest,
+) -> Result<Option<Vec<u8>>, ModelError> {
+    let buf = man.as_bytes();
+    let mut slice = [0u8; SetOwnerAuthManifestReq::MAX_MAN_SIZE];
+    slice[..buf.len()].copy_from_slice(buf);
+
+    let mut cmd = MailboxReq::SetOwnerAuthManifest(SetOwnerAuthManifestReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        manifest_size: buf.len() as u32,
+        manifest: slice,
+    });
+    cmd.populate_chksum().unwrap();
+
+    model.mailbox_execute(
+        u32::from(CommandId::SET_OWNER_AUTH_MANIFEST),
+        cmd.as_bytes().unwrap(),
+    )
+}
+
+fn set_vendor_owner_auth_manifest(
+    model: &mut DefaultHwModel,
+    man: &AuthorizationManifest,
+) -> Result<Option<Vec<u8>>, ModelError> {
+    let buf = man.as_bytes();
+    let mut slice = [0u8; SetAuthManifestReq::MAX_MAN_SIZE];
+    slice[..buf.len()].copy_from_slice(buf);
+
+    let mut cmd = MailboxReq::SetAuthManifest(SetAuthManifestReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        manifest_size: buf.len() as u32,
+        manifest: slice,
+    });
+    cmd.populate_chksum().unwrap();
+
+    model.mailbox_execute(
+        u32::from(CommandId::SET_AUTH_MANIFEST),
+        cmd.as_bytes().unwrap(),
+    )
+}
+
+fn verify_vendor_owner_auth_manifest(
+    model: &mut DefaultHwModel,
+    man: &AuthorizationManifest,
+) -> Result<Option<Vec<u8>>, ModelError> {
+    let buf = man.as_bytes();
+    let mut slice = [0u8; SetAuthManifestReq::MAX_MAN_SIZE];
+    slice[..buf.len()].copy_from_slice(buf);
+
+    let mut cmd = MailboxReq::VerifyAuthManifest(VerifyAuthManifestReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        manifest_size: buf.len() as u32,
+        manifest: slice,
+    });
+    cmd.populate_chksum().unwrap();
+
+    model.mailbox_execute(
+        u32::from(CommandId::VERIFY_AUTH_MANIFEST),
+        cmd.as_bytes().unwrap(),
+    )
+}
+
+fn make_entry(fw_id: u32, digest: [u8; 48]) -> AuthManifestImageMetadata {
+    let mut flags = ImageMetadataFlags(0);
+    flags.set_ignore_auth_check(false);
+    flags.set_image_source(ImageHashSource::InRequest as u32);
+    AuthManifestImageMetadata {
+        fw_id,
+        flags: flags.0,
+        digest,
+        ..Default::default()
+    }
+}
+
+fn authorize_and_stash_in_request(
+    model: &mut DefaultHwModel,
+    fw_id_le: [u8; 4],
+    measurement: [u8; 48],
+) -> AuthorizeAndStashResp {
+    let mut cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        fw_id: fw_id_le,
+        measurement,
+        source: ImageHashSource::InRequest as u32,
+        flags: 0,
+        ..Default::default()
+    });
+    cmd.populate_chksum().unwrap();
+    let resp = model
+        .mailbox_execute(
+            u32::from(CommandId::AUTHORIZE_AND_STASH),
+            cmd.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .expect("AUTHORIZE_AND_STASH should return a response");
+    AuthorizeAndStashResp::read_from_bytes(resp.as_slice()).unwrap()
+}
+
+fn get_image_info(model: &mut DefaultHwModel, fw_id: u32) -> GetImageInfoResp {
+    let mut cmd = MailboxReq::GetImageInfo(GetImageInfoReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        fw_id: fw_id.to_le_bytes(),
+    });
+    cmd.populate_chksum().unwrap();
+    let resp = model
+        .mailbox_execute(
+            u32::from(CommandId::GET_IMAGE_INFO),
+            cmd.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .expect("GET_IMAGE_INFO should return a response");
+    GetImageInfoResp::read_from_bytes(resp.as_slice()).unwrap()
+}
+
+#[test]
+fn test_get_image_info_owner_only_fallback() {
+    const COMPONENT_ID: u32 = 0x1234_5678;
+    const LOAD_ADDR: Addr64 = Addr64 {
+        lo: 0x3456_7890,
+        hi: 0x0000_0012,
+    };
+    const STAGING_ADDR: Addr64 = Addr64 {
+        lo: 0x7654_3210,
+        hi: 0x0000_0043,
+    };
+
+    let mut flags = ImageMetadataFlags(0);
+    flags.set_ignore_auth_check(false);
+    flags.set_image_source(ImageHashSource::StagingAddress as u32);
+    let owner_man = build_owner_manifest(
+        vec![AuthManifestImageMetadata {
+            fw_id: OWNER_ONLY_FW_ID,
+            flags: flags.0,
+            digest: OWNER_ONLY_DIGEST,
+            image_load_address: LOAD_ADDR,
+            image_staging_address: STAGING_ADDR,
+            component_id: COMPONENT_ID,
+            ..Default::default()
+        }],
+        1,
+    );
+
+    let mut model = set_auth_manifest(None);
+    send_set_owner_auth_manifest(&mut model, &owner_man);
+
+    let resp = get_image_info(&mut model, OWNER_ONLY_FW_ID);
+    assert_eq!(resp.component_id, COMPONENT_ID);
+    assert_eq!(resp.flags, flags.0);
+    assert_eq!(resp.image_load_address_low, LOAD_ADDR.lo);
+    assert_eq!(resp.image_load_address_high, LOAD_ADDR.hi);
+    assert_eq!(resp.image_staging_address_low, STAGING_ADDR.lo);
+    assert_eq!(resp.image_staging_address_high, STAGING_ADDR.hi);
+    assert_eq!(resp.digest, OWNER_ONLY_DIGEST);
+}
+
+#[test]
+fn test_get_image_info_rejects_unknown_fw_id_with_owner_manifest() {
+    const UNKNOWN_FW_ID: u32 = 0xDEAD_BEEF;
+
+    let mut model = set_auth_manifest(None);
+    let owner_man = build_owner_manifest(vec![make_entry(OWNER_ONLY_FW_ID, OWNER_ONLY_DIGEST)], 1);
+    send_set_owner_auth_manifest(&mut model, &owner_man);
+
+    let mut cmd = MailboxReq::GetImageInfo(GetImageInfoReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        fw_id: UNKNOWN_FW_ID.to_le_bytes(),
+    });
+    cmd.populate_chksum().unwrap();
+
+    let err = model
+        .mailbox_execute(
+            u32::from(CommandId::GET_IMAGE_INFO),
+            cmd.as_bytes().unwrap(),
+        )
+        .expect_err("unknown fw_id must not resolve from either metadata collection");
+    let expected: u32 = CaliptraError::RUNTIME_IMAGE_METADATA_NOT_FOUND.into();
+    assert!(
+        matches!(err, ModelError::MailboxCmdFailed(code) if code == expected),
+        "expected image metadata not found, got {err:?}",
+    );
+}
+
+/// End-to-end: vendor + owner manifest is loaded first, then
+/// owner-only manifest is loaded. AUTHORIZE_AND_STASH for a fw_id
+/// present only in the owner-only collection returns
+/// `IMAGE_AUTHORIZED_OWNER_ONLY`. fw_id present in the vendor + owner
+/// collection still returns `IMAGE_AUTHORIZED_VENDOR_OWNER`. Unknown
+/// fw_id returns `IMAGE_NOT_AUTHORIZED`.
+#[test]
+fn test_set_owner_auth_manifest_then_authorize_returns_owner_only() {
+    let mut model = set_auth_manifest(None);
+
+    let owner_man = build_owner_manifest(vec![make_entry(OWNER_ONLY_FW_ID, OWNER_ONLY_DIGEST)], 1);
+    send_set_owner_auth_manifest(&mut model, &owner_man);
+
+    // Owner-only collection match.
+    let resp = authorize_and_stash_in_request(
+        &mut model,
+        OWNER_ONLY_FW_ID.to_le_bytes(),
+        OWNER_ONLY_DIGEST,
+    );
+    assert_eq!(resp.auth_req_result, IMAGE_AUTHORIZED_OWNER_ONLY);
+
+    // Vendor + owner collection still works (FW_ID_1 lives there).
+    let resp = authorize_and_stash_in_request(&mut model, FW_ID_1, IMAGE_DIGEST1);
+    assert_eq!(resp.auth_req_result, IMAGE_AUTHORIZED_VENDOR_OWNER);
+
+    // Unknown fw_id rejects.
+    let resp = authorize_and_stash_in_request(&mut model, [0xAB, 0xCD, 0, 0], OWNER_ONLY_DIGEST);
+    assert_eq!(resp.auth_req_result, IMAGE_NOT_AUTHORIZED);
+}
+
+#[test]
+fn test_owner_and_vendor_auth_manifests_survive_update_reset() {
+    let mut model = set_auth_manifest(None);
+
+    let owner_man = build_owner_manifest(vec![make_entry(OWNER_ONLY_FW_ID, OWNER_ONLY_DIGEST)], 1);
+    send_set_owner_auth_manifest(&mut model, &owner_man);
+
+    update_fw(&mut model, &APP_WITH_UART, ImageOptions::default());
+
+    let resp = authorize_and_stash_in_request(
+        &mut model,
+        OWNER_ONLY_FW_ID.to_le_bytes(),
+        OWNER_ONLY_DIGEST,
+    );
+    assert_eq!(resp.auth_req_result, IMAGE_AUTHORIZED_OWNER_ONLY);
+
+    let resp = authorize_and_stash_in_request(&mut model, FW_ID_1, IMAGE_DIGEST1);
+    assert_eq!(resp.auth_req_result, IMAGE_AUTHORIZED_VENDOR_OWNER);
+}
+
+#[test]
+fn test_set_owner_auth_manifest_svn_floor_uses_strap_bits_15_8() {
+    const MIN_SVN: u32 = 5;
+    const EXISTING_STRAP_FLAGS: u32 = 0x3;
+
+    let mut model = run_rt_test(RuntimeTestArgs {
+        security_state: Some(
+            *SecurityState::default().set_device_lifecycle(DeviceLifecycle::Manufacturing),
+        ),
+        subsystem_mode: true,
+        initial_ss_strap_generic_3: Some((MIN_SVN << 8) | EXISTING_STRAP_FLAGS),
+        ..Default::default()
+    });
+    model.step_until_ready_for_runtime();
+    let info = get_fwinfo(&mut model);
+    assert_eq!(info.owner_auth_manifest_current_svn, 0);
+    assert_eq!(info.owner_auth_manifest_min_svn, MIN_SVN);
+
+    let below_floor = build_owner_manifest(
+        vec![make_entry(OWNER_ONLY_FW_ID, OWNER_ONLY_DIGEST)],
+        MIN_SVN - 1,
+    );
+    let err = set_owner_auth_manifest(&mut model, &below_floor)
+        .expect_err("owner manifest SVN below the strap floor must be rejected");
+    let expected: u32 = CaliptraError::RUNTIME_OWNER_AUTH_MANIFEST_SVN_LESS_THAN_MIN.into();
+    assert!(
+        matches!(err, ModelError::MailboxCmdFailed(code) if code == expected),
+        "expected owner manifest SVN below minimum, got {err:?}",
+    );
+    assert_eq!(get_fwinfo(&mut model).owner_auth_manifest_current_svn, 0);
+
+    let at_floor = build_owner_manifest(
+        vec![make_entry(OWNER_ONLY_FW_ID, OWNER_ONLY_DIGEST)],
+        MIN_SVN,
+    );
+    send_set_owner_auth_manifest(&mut model, &at_floor);
+    assert_eq!(
+        get_fwinfo(&mut model).owner_auth_manifest_current_svn,
+        MIN_SVN
+    );
+}
+
+#[test]
+fn test_set_owner_auth_manifest_rejects_vendor_owner_fw_id() {
+    let mut model = set_auth_manifest(None);
+
+    let initial_owner_man =
+        build_owner_manifest(vec![make_entry(OWNER_ONLY_FW_ID, OWNER_ONLY_DIGEST)], 1);
+    send_set_owner_auth_manifest(&mut model, &initial_owner_man);
+
+    let colliding_owner_man = build_owner_manifest(
+        vec![make_entry(u32::from_le_bytes(FW_ID_1), OWNER_ONLY_DIGEST)],
+        1,
+    );
+    let err = set_owner_auth_manifest(&mut model, &colliding_owner_man)
+        .expect_err("owner-only fw_id collision must be rejected");
+    let expected: u32 = CaliptraError::RUNTIME_OWNER_AUTH_MANIFEST_IMC_DUPLICATE_FW_ID.into();
+    assert!(
+        matches!(err, ModelError::MailboxCmdFailed(code) if code == expected),
+        "expected owner manifest duplicate firmware ID, got {err:?}",
+    );
+
+    let resp = authorize_and_stash_in_request(
+        &mut model,
+        OWNER_ONLY_FW_ID.to_le_bytes(),
+        OWNER_ONLY_DIGEST,
+    );
+    assert_eq!(resp.auth_req_result, IMAGE_AUTHORIZED_OWNER_ONLY);
+
+    let resp = authorize_and_stash_in_request(&mut model, FW_ID_1, IMAGE_DIGEST1);
+    assert_eq!(resp.auth_req_result, IMAGE_AUTHORIZED_VENDOR_OWNER);
+}
+
+#[test]
+fn test_verify_and_set_auth_manifest_reject_owner_only_fw_id() {
+    let mut model = run_rt_test(RuntimeTestArgs {
+        key_type: Some(FwVerificationPqcKeyType::LMS),
+        subsystem_mode: !cfg!(feature = "fpga_realtime"),
+        ..Default::default()
+    });
+    model.step_until_ready_for_runtime();
+
+    let owner_man = build_owner_manifest_with_pqc(
+        vec![make_entry(OWNER_ONLY_FW_ID, OWNER_ONLY_DIGEST)],
+        1,
+        FwVerificationPqcKeyType::LMS,
+    );
+    send_set_owner_auth_manifest(&mut model, &owner_man);
+
+    let vendor_owner_man = create_auth_manifest_with_metadata_with_svn(
+        vec![
+            make_entry(OWNER_ONLY_FW_ID, IMAGE_DIGEST1),
+            make_entry(u32::from_le_bytes(FW_ID_1), IMAGE_DIGEST1),
+        ],
+        FwVerificationPqcKeyType::LMS,
+        1,
+    );
+    let expected: u32 =
+        CaliptraError::RUNTIME_AUTH_MANIFEST_IMAGE_METADATA_LIST_DUPLICATE_FIRMWARE_ID.into();
+
+    let err = verify_vendor_owner_auth_manifest(&mut model, &vendor_owner_man)
+        .expect_err("verifying a colliding vendor + owner fw_id must fail");
+    assert!(
+        matches!(err, ModelError::MailboxCmdFailed(code) if code == expected),
+        "expected auth manifest duplicate firmware ID, got {err:?}",
+    );
+
+    let err = set_vendor_owner_auth_manifest(&mut model, &vendor_owner_man)
+        .expect_err("vendor + owner fw_id collision must be rejected");
+    assert!(
+        matches!(err, ModelError::MailboxCmdFailed(code) if code == expected),
+        "expected auth manifest duplicate firmware ID, got {err:?}",
+    );
+
+    let resp = authorize_and_stash_in_request(
+        &mut model,
+        OWNER_ONLY_FW_ID.to_le_bytes(),
+        OWNER_ONLY_DIGEST,
+    );
+    assert_eq!(resp.auth_req_result, IMAGE_AUTHORIZED_OWNER_ONLY);
+
+    let resp = authorize_and_stash_in_request(&mut model, FW_ID_1, IMAGE_DIGEST1);
+    assert_eq!(resp.auth_req_result, IMAGE_NOT_AUTHORIZED);
+}
+
+/// Verify that loading a second manifest replaces the owner-only collection.
+#[test]
+fn test_set_owner_auth_manifest_replaces_collection() {
+    let mut model = set_auth_manifest(None);
+
+    let second_fw_id = OWNER_ONLY_FW_ID + 1;
+    let mut second_digest = OWNER_ONLY_DIGEST;
+    second_digest[0] ^= 0xFF;
+
+    // Initial load with two entries.
+    let owner_man_a = build_owner_manifest(
+        vec![
+            make_entry(OWNER_ONLY_FW_ID, OWNER_ONLY_DIGEST),
+            make_entry(second_fw_id, second_digest),
+        ],
+        1,
+    );
+    send_set_owner_auth_manifest(&mut model, &owner_man_a);
+
+    // Replace the collection with one entry carrying a new digest.
+    let mut updated_digest = OWNER_ONLY_DIGEST;
+    updated_digest[1] ^= 0xFF;
+    let owner_man_b = build_owner_manifest(vec![make_entry(OWNER_ONLY_FW_ID, updated_digest)], 1);
+    send_set_owner_auth_manifest(&mut model, &owner_man_b);
+
+    // The old digest is no longer authorized for the updated entry.
+    let resp = authorize_and_stash_in_request(
+        &mut model,
+        OWNER_ONLY_FW_ID.to_le_bytes(),
+        OWNER_ONLY_DIGEST,
+    );
+    assert_eq!(resp.auth_req_result, IMAGE_HASH_MISMATCH);
+
+    // The replacement digest is authorized.
+    let resp =
+        authorize_and_stash_in_request(&mut model, OWNER_ONLY_FW_ID.to_le_bytes(), updated_digest);
+    assert_eq!(resp.auth_req_result, IMAGE_AUTHORIZED_OWNER_ONLY);
+
+    // The second entry was removed by the replacement.
+    let resp =
+        authorize_and_stash_in_request(&mut model, second_fw_id.to_le_bytes(), second_digest);
+    assert_eq!(resp.auth_req_result, IMAGE_NOT_AUTHORIZED);
+}
+
+/// The former update bit is reserved and must be rejected.
+#[test]
+fn test_set_owner_auth_manifest_rejects_nonzero_flags() {
+    let mut model = set_auth_manifest(None);
+    let mut owner_man =
+        build_owner_manifest(vec![make_entry(OWNER_ONLY_FW_ID, OWNER_ONLY_DIGEST)], 1);
+    owner_man.preamble.flags = 1;
+
+    let buf = owner_man.as_bytes();
+    let mut slice = [0u8; SetOwnerAuthManifestReq::MAX_MAN_SIZE];
+    slice[..buf.len()].copy_from_slice(buf);
+
+    let mut cmd = MailboxReq::SetOwnerAuthManifest(SetOwnerAuthManifestReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        manifest_size: buf.len() as u32,
+        manifest: slice,
+    });
+    cmd.populate_chksum().unwrap();
+
+    let result = model.mailbox_execute(
+        u32::from(CommandId::SET_OWNER_AUTH_MANIFEST),
+        cmd.as_bytes().unwrap(),
+    );
+
+    let err = result.expect_err("nonzero owner manifest flags must be rejected");
+    let expected: u32 = CaliptraError::RUNTIME_OWNER_AUTH_MANIFEST_INVALID_FLAGS.into();
+    assert!(
+        matches!(err, ModelError::MailboxCmdFailed(code) if code == expected),
+        "expected RUNTIME_OWNER_AUTH_MANIFEST_INVALID_FLAGS, got {err:?}",
+    );
+}
+
+/// The embedded size covers the owner manifest Preamble.
+#[test]
+fn test_set_owner_auth_manifest_rejects_invalid_preamble_size() {
+    let mut model = set_auth_manifest(None);
+    let mut owner_man =
+        build_owner_manifest(vec![make_entry(OWNER_ONLY_FW_ID, OWNER_ONLY_DIGEST)], 1);
+    owner_man.preamble.size -= 1;
+
+    let buf = owner_man.as_bytes();
+    let mut slice = [0u8; SetOwnerAuthManifestReq::MAX_MAN_SIZE];
+    slice[..buf.len()].copy_from_slice(buf);
+
+    let mut cmd = MailboxReq::SetOwnerAuthManifest(SetOwnerAuthManifestReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        manifest_size: buf.len() as u32,
+        manifest: slice,
+    });
+    cmd.populate_chksum().unwrap();
+
+    let result = model.mailbox_execute(
+        u32::from(CommandId::SET_OWNER_AUTH_MANIFEST),
+        cmd.as_bytes().unwrap(),
+    );
+
+    let err = result.expect_err("incorrect owner manifest Preamble size must be rejected");
+    let expected: u32 = CaliptraError::RUNTIME_OWNER_AUTH_MANIFEST_PREAMBLE_SIZE_MISMATCH.into();
+    assert!(
+        matches!(err, ModelError::MailboxCmdFailed(code) if code == expected),
+        "expected RUNTIME_OWNER_AUTH_MANIFEST_PREAMBLE_SIZE_MISMATCH, got {err:?}",
+    );
+}
+
+/// The mailbox payload length must match the complete serialized manifest.
+#[test]
+fn test_set_owner_auth_manifest_rejects_truncated_manifest() {
+    let mut model = set_auth_manifest(None);
+    let owner_man = build_owner_manifest(vec![make_entry(OWNER_ONLY_FW_ID, OWNER_ONLY_DIGEST)], 1);
+
+    let buf = owner_man.as_bytes();
+    let mut slice = [0u8; SetOwnerAuthManifestReq::MAX_MAN_SIZE];
+    slice[..buf.len()].copy_from_slice(buf);
+
+    let mut cmd = MailboxReq::SetOwnerAuthManifest(SetOwnerAuthManifestReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        manifest_size: (buf.len() - 1) as u32,
+        manifest: slice,
+    });
+    cmd.populate_chksum().unwrap();
+
+    let result = model.mailbox_execute(
+        u32::from(CommandId::SET_OWNER_AUTH_MANIFEST),
+        cmd.as_bytes().unwrap(),
+    );
+
+    let err = result.expect_err("truncated owner manifest must be rejected");
+    let expected: u32 = CaliptraError::RUNTIME_OWNER_AUTH_MANIFEST_IMC_INVALID_SIZE.into();
+    assert!(
+        matches!(err, ModelError::MailboxCmdFailed(code) if code == expected),
+        "expected RUNTIME_OWNER_AUTH_MANIFEST_IMC_INVALID_SIZE, got {err:?}",
+    );
+}
+
+/// Bad marker is rejected with the dedicated error.
+#[test]
+fn test_set_owner_auth_manifest_invalid_marker() {
+    let mut model = run_rt_test(RuntimeTestArgs {
+        key_type: Some(FwVerificationPqcKeyType::LMS),
+        ..Default::default()
+    });
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    let mut owner_man = build_owner_manifest_with_pqc(
+        vec![make_entry(OWNER_ONLY_FW_ID, OWNER_ONLY_DIGEST)],
+        1,
+        FwVerificationPqcKeyType::LMS,
+    );
+    owner_man.preamble.marker = 0xDEAD_BEEF;
+
+    let buf = owner_man.as_bytes();
+    let mut slice = [0u8; SetOwnerAuthManifestReq::MAX_MAN_SIZE];
+    slice[..buf.len()].copy_from_slice(buf);
+
+    let mut cmd = MailboxReq::SetOwnerAuthManifest(SetOwnerAuthManifestReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        manifest_size: buf.len() as u32,
+        manifest: slice,
+    });
+    cmd.populate_chksum().unwrap();
+
+    let result = model.mailbox_execute(
+        u32::from(CommandId::SET_OWNER_AUTH_MANIFEST),
+        cmd.as_bytes().unwrap(),
+    );
+
+    let err = result.expect_err("invalid marker must be rejected");
+    let expected: u32 = CaliptraError::RUNTIME_OWNER_AUTH_MANIFEST_INVALID_MARKER.into();
+    assert!(
+        matches!(err, ModelError::MailboxCmdFailed(code) if code == expected),
+        "expected RUNTIME_OWNER_AUTH_MANIFEST_INVALID_MARKER, got {err:?}",
+    );
+}

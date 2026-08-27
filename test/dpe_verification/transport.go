@@ -126,6 +126,7 @@ func getHWModel() *C.struct_caliptra_model {
 	cRom := C.CBytes(rom)
 	defer C.free(cRom)
 
+	params.hw_version = C.CALIPTRA_HW_VERSION_2_1
 	params.rom.data = (*C.uchar)(cRom)
 	params.rom.len = C.uintptr_t(len(rom))
 	params.soc_user = 1

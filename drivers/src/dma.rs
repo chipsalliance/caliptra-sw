@@ -507,6 +507,10 @@ pub struct DmaRecovery<'a> {
 impl<'a> DmaRecovery<'a> {
     const RECOVERY_REGISTER_OFFSET: usize = 0x100;
     const INDIRECT_FIFO_DATA_OFFSET: u32 = 0x68;
+
+    /// Max bytes per DMA transfer; mirrors `DMA_MAX_XFER_SIZE` in
+    /// `axi_dma_ctrl.sv`. A larger `byte_count` is rejected by the HW.
+    const DMA_MAX_XFER_SIZE: u32 = 0x10_0000; // 1 MiB
     const PROT_CAP2_DEVICE_ID_SUPPORT: u32 = 0x1; // Bit 0 in agent_caps
     const PROT_CAP2_DEVICE_STATUS_SUPPORT: u32 = 0x10; // Bit 4 in agent_caps
     const PROT_CAP2_RECOVERY_MEMORY_ACCESS_SUPPORT: u32 = 0x20; // Bit 5 in agent_caps
@@ -1174,6 +1178,41 @@ impl<'a> DmaRecovery<'a> {
         self.sha512_image(sha_acc, source, length, aes_mode)
     }
 
+    /// Feed `length` bytes from `source` into the SHA accelerator's `datain`
+    /// (`write_addr`) in <= [`DMA_MAX_XFER_SIZE`] chunks; the digest matches a
+    /// single transfer. AES cannot be chunked (its cipher context is
+    /// per-DMA-command), so an AES payload is sent as a single transfer and is
+    /// therefore limited to [`DMA_MAX_XFER_SIZE`]; a larger AES payload is
+    /// rejected.
+    fn chunked_sha_datain(
+        &self,
+        source: AxiAddr,
+        length: u32,
+        write_addr: AxiAddr,
+        aes_mode: AesDmaMode,
+    ) -> CaliptraResult<()> {
+        if aes_mode.aes() {
+            if length > Self::DMA_MAX_XFER_SIZE {
+                return Err(CaliptraError::DRIVER_DMA_AES_CHUNKING_UNSUPPORTED);
+            }
+            return self.transfer_payload_to_axi(source, length, write_addr, false, true, aes_mode);
+        }
+
+        for offset in (0..length).step_by(Self::DMA_MAX_XFER_SIZE as usize) {
+            let chunk = (length - offset).min(Self::DMA_MAX_XFER_SIZE);
+            // `source` advances per chunk; `write_addr` (datain) stays fixed.
+            self.transfer_payload_to_axi(
+                source + offset,
+                chunk,
+                write_addr,
+                false,
+                true,
+                AesDmaMode::None,
+            )?;
+        }
+        Ok(())
+    }
+
     pub fn sha384_image(
         &self,
         sha_acc: &'a mut Sha2_512_384Acc,
@@ -1216,8 +1255,9 @@ impl<'a> DmaRecovery<'a> {
             // Safety: the dma_sha is relative to 0, so we can use it to get the offset of the data in register.
             let write_addr = self.caliptra_base + (dma_sha.datain().ptr as u32 as u64);
 
-            // stream the data in to the SHA accelerator
-            self.transfer_payload_to_axi(source, length, write_addr, false, true, aes_mode)?;
+            // feed the data into the SHA accelerator (split into <= 1 MiB
+            // DMA transfers; dlen/execute cover the full length).
+            self.chunked_sha_datain(source, length, write_addr, aes_mode)?;
 
             dma_sha.execute().write(|w| w.execute(true));
 
@@ -1287,8 +1327,9 @@ impl<'a> DmaRecovery<'a> {
                 length
             );
 
-            // stream the data in to the SHA accelerator
-            self.transfer_payload_to_axi(source, length, write_addr, false, true, aes_mode)?;
+            // feed the data into the SHA accelerator (split into <= 1 MiB
+            // DMA transfers; dlen/execute cover the full length).
+            self.chunked_sha_datain(source, length, write_addr, aes_mode)?;
 
             dma_sha.execute().write(|w| w.execute(true));
 

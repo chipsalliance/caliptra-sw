@@ -91,7 +91,7 @@ pub(crate) fn extend_pcrs(
 
     // NOTE: The contents of this PCR and the FMC Alias TCB info must stay in sync.
     //       Ordering and grouping is irrelevant but both must contain the same info
-    let device_status: [u8; 17] = [
+    let device_status: [u8; 18] = [
         owner_pub_keys_digest_in_fuses as u8,
         soc_ifc.fuse_bank().anti_rollback_disable() as u8,
         soc_ifc.fuse_bank().vendor_ecc_pub_key_revocation().bits() as u8,
@@ -109,6 +109,7 @@ pub(crate) fn extend_pcrs(
         data_vault.cold_boot_fw_svn() as u8,
         data_vault.vendor_ecc_pk_index() as u8,
         data_vault.vendor_pqc_pk_index() as u8,
+        soc_ifc.subsystem_mode() as u8, // CPTRA_HW_CONFIG.subsystem_mode_en (0=passive, 1=subsystem)
     ];
 
     let mut pcr = PcrExtender {

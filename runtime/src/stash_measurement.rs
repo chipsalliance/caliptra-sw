@@ -16,7 +16,9 @@ use crate::{
     invoke_dpe::invoke_dpe_cmd, mutrefbytes, CaliptraDpeProfile, Drivers, PauserPrivileges,
 };
 use caliptra_cfi_derive::cfi_impl_fn;
-use caliptra_common::mailbox_api::{MailboxRespHeader, StashMeasurementReq, StashMeasurementResp};
+use caliptra_common::mailbox_api::{
+    ActivateFirmwareReq, MailboxRespHeader, StashMeasurementReq, StashMeasurementResp,
+};
 use caliptra_dpe::{
     commands::{Command, DeriveContextCmd, DeriveContextFlags},
     context::ContextHandle,
@@ -28,12 +30,39 @@ use zerocopy::{FromBytes, IntoBytes};
 
 const MCU_TCI_TYPE: u32 = u32::from_be_bytes(*b"MCFW");
 
+/// Firmware ID reserved for the Caliptra-managed MCU runtime DPE context.
+///
+/// Measurements stashed under this ID are tagged with the `MCFW` TCI type and
+/// re-point the cached MCU RT context index, so it may only be used with a
+/// measurement Caliptra has verified against the signed SoC manifest.
+pub(crate) const MCU_RT_RESERVED_FW_ID: [u8; 4] = ActivateFirmwareReq::MCU_IMAGE_ID.to_le_bytes();
+
+/// Whether a stash operation may create or update the Caliptra-managed MCU RT
+/// DPE context by stashing under [`MCU_RT_RESERVED_FW_ID`].
+///
+/// This deliberately has no `Default` impl and no conversion from raw mailbox
+/// bytes so that a mailbox caller cannot forge
+/// [`CaliptraManagedContextAccess::Allowed`].
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum CaliptraManagedContextAccess {
+    /// The measurement was verified against the signed SoC manifest, or was
+    /// produced by a Caliptra-internal flow such as recovery.
+    Allowed,
+    /// The measurement was supplied verbatim by the SoC over the mailbox and
+    /// was not verified against the SoC manifest.
+    Denied,
+}
+
 pub struct StashMeasurementCmd;
 impl StashMeasurementCmd {
     #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     /// This function MUST ONLY be called by Caliptra.
     /// Mailbox commands MUST use the `execute` function.
+    ///
+    /// Callers passing a measurement Caliptra has not verified MUST pass
+    /// `CaliptraManagedContextAccess::Denied`; only verified measurements may
+    /// stash under `MCU_RT_RESERVED_FW_ID`.
     pub(crate) fn stash_measurement(
         drivers: &mut Drivers,
         metadata: &[u8; 4],
@@ -41,10 +70,20 @@ impl StashMeasurementCmd {
         svn: u32,
         caller_privilege_level: PauserPrivileges,
         locality: u32,
+        caliptra_managed_access: CaliptraManagedContextAccess,
     ) -> CaliptraResult<DpeErrorCode> {
+        // The reserved MCU RT firmware ID creates or re-points the
+        // Caliptra-managed MCFW context. Reject it for unverified measurements
+        // so the SoC cannot forge the MCU RT measurement or steal its cached
+        // context index via STASH_MEASUREMENT.
+        let is_mcu_rt = metadata == &MCU_RT_RESERVED_FW_ID;
+        if is_mcu_rt && caliptra_managed_access == CaliptraManagedContextAccess::Denied {
+            return Err(CaliptraError::RUNTIME_STASH_MEASUREMENT_RESERVED_FW_ID);
+        }
+
         let dpe_result = {
             // Check for MCU FW ID and swap it's TCI type
-            let tci_type = if metadata == &[2, 0, 0, 0] {
+            let tci_type = if is_mcu_rt {
                 MCU_TCI_TYPE
             } else {
                 u32::from_ne_bytes(*metadata)
@@ -86,6 +125,26 @@ impl StashMeasurementCmd {
         };
 
         if let DpeErrorCode::NoError = dpe_result {
+            if is_mcu_rt {
+                let mcu_rt_dpe_context_idx = drivers
+                    .persistent_data
+                    .get()
+                    .fw
+                    .dpe
+                    .state
+                    .get_active_context_pos(&ContextHandle::default(), locality)
+                    .map_err(|_| CaliptraError::RUNTIME_DPE_CONTEXT_NOT_FOUND)?;
+                let mcu_rt_dpe_context_idx = u8::try_from(mcu_rt_dpe_context_idx)
+                    .map_err(|_| CaliptraError::RUNTIME_DPE_CONTEXT_NOT_FOUND)?;
+                drivers
+                    .persistent_data
+                    .get_mut()
+                    .fw
+                    .dpe
+                    .caliptra_managed_dpe_context_indices
+                    .set_mcu_rt(mcu_rt_dpe_context_idx);
+            }
+
             // Extend the measurement into PCR31
             drivers.pcr_bank.extend_pcr(
                 PCR_ID_STASH_MEASUREMENT,
@@ -122,6 +181,7 @@ impl StashMeasurementCmd {
             cmd.svn,
             caller_privilege_level,
             locality,
+            CaliptraManagedContextAccess::Denied,
         )?;
 
         let resp = mutrefbytes::<StashMeasurementResp>(resp)?;

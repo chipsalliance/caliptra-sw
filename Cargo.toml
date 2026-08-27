@@ -38,6 +38,7 @@ members = [
   "drivers/tests/csrng_test_data_gen",
   "fmc",
   "hw/latest/registers",
+  "hw/rev-2_1/registers",
   "hw/verilated",
   "hw-model",
   "hw-model/test-fw",
@@ -138,6 +139,7 @@ caliptra-ocp-eat = { path = "common/eat", default-features = false }
 caliptra-okref = { path = "common/okref" }
 caliptra-registers = { path = "registers" }
 caliptra-registers-latest = { path = "hw/latest/registers" }
+caliptra-registers-rev-2-1 = { path = "hw/rev-2_1/registers" }
 caliptra-runtime = { path = "runtime", default-features = false }
 caliptra-systemrdl = { path = "systemrdl" }
 caliptra-test = { path = "test" }

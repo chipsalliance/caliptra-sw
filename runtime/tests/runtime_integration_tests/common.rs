@@ -1,5 +1,6 @@
 // Licensed under the Apache-2.0 license
 
+use crate::test_set_auth_manifest::create_auth_manifest_with_metadata_with_svn;
 use anyhow::Context;
 use caliptra_api::{
     mailbox::{
@@ -7,6 +8,9 @@ use caliptra_api::{
         Request,
     },
     SocManager,
+};
+use caliptra_auth_man_types::{
+    AuthManifestImageMetadata, AuthManifestPreamble, AuthorizationManifest, ImageMetadataFlags,
 };
 use caliptra_builder::{
     firmware::{APP_WITH_UART_OCP_LOCK, APP_WITH_UART_OCP_LOCK_FPGA, FMC_WITH_UART},
@@ -39,6 +43,8 @@ use caliptra_hw_model::{
     Fuses, HwModel, ImageInfo, InitParams, ModelCallback, ModelError, SecurityState, StackInfo,
     StackRange, SubsystemInitParams,
 };
+use caliptra_image_crypto::OsslCrypto as Crypto;
+use caliptra_image_gen::{from_hw_format, ImageGeneratorCrypto};
 use caliptra_image_types::ImageBundle;
 use caliptra_runtime::CaliptraDpeProfile;
 pub use caliptra_test::{
@@ -56,6 +62,7 @@ use openssl::{
     x509::{X509Builder, X509},
     x509::{X509Name, X509NameBuilder},
 };
+use sha2::{Digest as Sha2DigestTrait, Sha384 as Sha384Hasher};
 use std::borrow::Cow;
 use std::io;
 use zerocopy::{FromZeros, IntoBytes, TryFromBytes};
@@ -86,6 +93,55 @@ pub const PQC_KEY_TYPE: [FwVerificationPqcKeyType; 2] = [
     FwVerificationPqcKeyType::MLDSA,
 ];
 
+/// PQC key type used by `run_rt_test*` (and therefore by the default SoC
+/// manifest delivered over the recovery interface) when a test does not pick
+/// one explicitly.
+pub const DEFAULT_PQC_KEY_TYPE: FwVerificationPqcKeyType = FwVerificationPqcKeyType::MLDSA;
+
+fn default_soc_manifest(pqc_key_type: FwVerificationPqcKeyType, svn: u32) -> AuthorizationManifest {
+    // generate a default SoC manifest if one is not provided in subsystem mode
+    const IMAGE_SOURCE_IN_REQUEST: u32 = 1;
+    let mut flags = ImageMetadataFlags(0);
+    flags.set_image_source(IMAGE_SOURCE_IN_REQUEST);
+    let crypto = Crypto::default();
+    let digest = from_hw_format(&crypto.sha384_digest(&DEFAULT_MCU_FW).unwrap());
+    let metadata = vec![AuthManifestImageMetadata {
+        fw_id: 2,
+        flags: flags.0,
+        digest,
+        ..Default::default()
+    }];
+    create_auth_manifest_with_metadata_with_svn(metadata, pqc_key_type, svn)
+}
+
+pub fn soc_manifest_measurements(manifest: &AuthorizationManifest) -> ([u8; 48], [u8; 48]) {
+    let preamble = manifest.preamble.as_bytes();
+    let vendor_range = AuthManifestPreamble::vendor_signed_data_range();
+    let owner_range = AuthManifestPreamble::owner_pub_keys_range();
+    (
+        Sha384Hasher::digest(&preamble[vendor_range.start as usize..vendor_range.end as usize])
+            .into(),
+        Sha384Hasher::digest(&preamble[owner_range.start as usize..owner_range.end as usize])
+            .into(),
+    )
+}
+
+pub fn default_soc_manifest_measurements(
+    pqc_key_type: FwVerificationPqcKeyType,
+    svn: u32,
+) -> ([u8; 48], [u8; 48]) {
+    let manifest = default_soc_manifest(pqc_key_type, svn);
+    soc_manifest_measurements(&manifest)
+}
+
+/// SOMV/SOMO measurements of the SoC manifest that `run_rt_test*` delivers over
+/// the recovery interface when the test does not supply one. Must track the key
+/// type that `run_rt_test_return_fw` defaults to, otherwise the expected DPE
+/// measurements will not match the ones Caliptra actually computed.
+pub fn default_rt_test_soc_manifest_measurements(svn: u32) -> ([u8; 48], [u8; 48]) {
+    default_soc_manifest_measurements(DEFAULT_PQC_KEY_TYPE, svn)
+}
+
 #[derive(Default)]
 pub struct RuntimeProductionArgs {
     pub fmc_version: u16,
@@ -115,10 +171,13 @@ pub struct RuntimeTestArgs<'a> {
     pub successful_reach_rt: bool,
     pub ocp_lock_en: bool,
     pub stable_owner_key_en: bool,
+    pub initial_ss_strap_generic_3: Option<u32>,
     pub key_type: Option<FwVerificationPqcKeyType>,
     pub rom_callback: Option<ModelCallback>,
     /// Use encrypted firmware boot (RI_DOWNLOAD_ENCRYPTED_FIRMWARE instead of RI_DOWNLOAD_FIRMWARE)
     pub encrypted_boot: bool,
+    // Whether or not to use external I3C host instead of soft IP.
+    pub use_external_i3c_host: bool,
 }
 
 impl RuntimeTestArgs<'_> {
@@ -163,9 +222,11 @@ impl Default for RuntimeTestArgs<'_> {
             successful_reach_rt: true,
             ocp_lock_en: cfg!(feature = "ocp-lock"),
             stable_owner_key_en: false,
+            initial_ss_strap_generic_3: None,
             key_type: None,
             rom_callback: None,
             encrypted_boot: false,
+            use_external_i3c_host: false,
         }
     }
 }
@@ -288,6 +349,7 @@ pub fn start_rt_test_pqc_model(
         stable_owner_key_en: args.stable_owner_key_en,
         ss_init_params: SubsystemInitParams {
             enable_mcu_uart_log: args.subsystem_mode,
+            use_external_i3c_host: args.use_external_i3c_host,
             ..Default::default()
         },
         rom_callback: args.rom_callback,
@@ -339,6 +401,7 @@ pub fn start_rt_test_pqc_model(
         BootParams {
             fw_image: if args.stop_at_rom { None } else { Some(&image) },
             initial_dbg_manuf_service_reg: boot_flags,
+            initial_ss_strap_generic_3: args.initial_ss_strap_generic_3,
             soc_manifest,
             mcu_fw_image,
             encrypted_boot: args.encrypted_boot,
@@ -358,8 +421,7 @@ pub fn run_rt_test(args: RuntimeTestArgs) -> DefaultHwModel {
 }
 
 pub fn run_rt_test_return_fw(args: RuntimeTestArgs) -> (DefaultHwModel, ImageBundle) {
-    // TODO(clundin): Do we want to use MLDSA by default in 2.1?
-    let key_type = args.key_type.unwrap_or(FwVerificationPqcKeyType::LMS);
+    let key_type = args.key_type.unwrap_or(DEFAULT_PQC_KEY_TYPE);
     run_rt_test_pqc_return_fw(args, key_type)
 }
 
@@ -474,7 +536,7 @@ pub fn execute_dpe_cmd(
         _ => false,
     };
     let external_response_info = if external_response {
-        let addr = model.staging_physical_address().unwrap();
+        let addr = model.staging_physical_address().unwrap() + 1024;
         Some(AxiResponseInfo {
             addr_lo: addr as u32,
             addr_hi: (addr >> 32) as u32,
@@ -563,7 +625,7 @@ pub fn execute_dpe_cmd_raw(
         resp_hdr.as_mut_bytes()[..resp.len()].copy_from_slice(&resp);
     } else {
         let resp = model
-            .read_payload_from_ss_staging_area(size_of::<InvokeDpeResp>(), 0)
+            .read_payload_from_ss_staging_area(size_of::<InvokeDpeResp>(), 1024)
             .unwrap();
         resp_hdr.as_mut_bytes()[..resp.len()].copy_from_slice(&resp);
         check_header_checksum(resp_hdr.as_bytes_partial().unwrap()).unwrap();

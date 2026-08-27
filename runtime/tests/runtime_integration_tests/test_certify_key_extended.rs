@@ -103,7 +103,7 @@ fn execute_certify_key_extended_cmd_helper(
     let mut certify_key_extended_resp = CertifyKeyExtendedResp::default();
     if external_response {
         let resp = model
-            .read_payload_from_ss_staging_area(size_of::<CertifyKeyExtendedResp>(), 0)
+            .read_payload_from_ss_staging_area(size_of::<CertifyKeyExtendedResp>(), 1024)
             .unwrap();
         certify_key_extended_resp.as_mut_bytes()[..resp.len()].copy_from_slice(&resp);
         check_header_checksum(certify_key_extended_resp.as_bytes_partial().unwrap())?;
@@ -129,7 +129,7 @@ fn execute_certify_key_extended_cmd(
     flags: CertifyKeyExtendedFlags,
 ) -> anyhow::Result<CertifyKeyResp> {
     let (flags, axi_info) = if model.subsystem_mode() && profile == CaliptraDpeProfile::Mldsa87 {
-        let addr = model.staging_physical_address().unwrap();
+        let addr = model.staging_physical_address().unwrap() + 1024;
         (
             flags | CertifyKeyExtendedFlags::EXTERNAL_AXI_RESPONSE,
             Some(AxiResponseInfo {

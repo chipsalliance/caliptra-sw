@@ -1106,6 +1106,11 @@ impl CaliptraError {
             "DMA driver Error: Invalid target"
         ),
         (
+            DRIVER_DMA_AES_CHUNKING_UNSUPPORTED,
+            0x0000f007,
+            "DMA driver Error: AES cannot be split across multiple transfers"
+        ),
+        (
             DRIVER_SHA3_INVALID_STATE_ERR,
             0x0001f000,
             "SHA3 driver Error: Invalid op state"
@@ -1774,6 +1779,11 @@ impl CaliptraError {
             "OCP LOCK Error: DPK is not valid"
         ),
         (
+            RUNTIME_OCP_LOCK_LOCKED_MPK_INVALID,
+            0x000E00AF,
+            "OCP LOCK Error: LOCKED MPK is not valid"
+        ),
+        (
             RUNTIME_INVALID_ROM_PERSISTENT_DATA_MARKER,
             0x000E007A,
             "Runtime Error: Invalid ROM persistent data marker"
@@ -1809,12 +1819,12 @@ impl CaliptraError {
             "Runtime Error: Attested CSR COSE Sign1 encoding error"
         ),
         (
-             RUNTIME_AUTH_MANIFEST_INVALID_PQC_KEY_TYPE_IN_FUSE,
+            RUNTIME_AUTH_MANIFEST_INVALID_PQC_KEY_TYPE_IN_FUSE,
             0x000E008A,
             "Runtime Error: Auth manifest invalid PQC key type in fuse"
         ),
         (
-             RUNTIME_AUTH_MANIFEST_INVALID_PQC_KEY_TYPE,
+            RUNTIME_AUTH_MANIFEST_INVALID_PQC_KEY_TYPE,
             0x000E008B,
             "Runtime Error: Auth manifest invalid PQC key type"
         ),
@@ -1844,14 +1854,14 @@ impl CaliptraError {
             "Runtime Error: CM AES GCM decrypt DMA requires subsystem mode"
         ),
         (
-            RUNTIME_CCIV_CONTEXT_NOT_FOUND,
+            RUNTIME_DPE_CONTEXT_NOT_FOUND,
             0x000E0093,
-            "Runtime Error: CCIV context not found"
+            "Runtime Error: DPE context not found"
         ),
         (
-            RUNTIME_MULTIPLE_CCIV_CONTEXTS_FOUND,
+            RUNTIME_MULTIPLE_DPE_CONTEXTS_FOUND,
             0x000E0094,
-            "Runtime Error: Multiple CCIV contexts found"
+            "Runtime Error: Multiple DPE contexts found"
         ),
         (
             RUNTIME_DISABLE_ATTESTATION_FAILED_WARM_RESET,
@@ -1892,6 +1902,92 @@ impl CaliptraError {
             RUNTIME_SIGN_WITH_EXPORTED_MLDSA_INVALID_SIGNATURE,
             0x000E009E,
             "Runtime Error: Sign with exported MLDSA invalid signature"
+        ),
+        // Owner Authorization Manifest errors (SET_OWNER_AUTH_MANIFEST).
+        (
+            RUNTIME_OWNER_AUTH_MANIFEST_INVALID_MARKER,
+            0x000E009F,
+            "Runtime Error: Owner auth manifest invalid marker"
+        ),
+        (
+            RUNTIME_OWNER_AUTH_MANIFEST_PREAMBLE_SIZE_LT_MIN,
+            0x000E00A0,
+            "Runtime Error: Owner auth manifest preamble too small"
+        ),
+        (
+            RUNTIME_OWNER_AUTH_MANIFEST_PREAMBLE_SIZE_MISMATCH,
+            0x000E00A1,
+            "Runtime Error: Owner auth manifest preamble size mismatch"
+        ),
+        (
+            RUNTIME_OWNER_AUTH_MANIFEST_SVN_LESS_THAN_MIN,
+            0x000E00A2,
+            "Runtime Error: Owner auth manifest SVN less than enforced minimum from SS_STRAP_GENERIC"
+        ),
+        (
+            RUNTIME_OWNER_AUTH_MANIFEST_SVN_GREATER_THAN_MAX,
+            0x000E00A3,
+            "Runtime Error: Owner auth manifest SVN greater than maximum"
+        ),
+        (
+            RUNTIME_OWNER_AUTH_MANIFEST_OWNER_ECC_SIGNATURE_INVALID,
+            0x000E00A4,
+            "Runtime Error: Owner auth manifest owner ECC signature invalid"
+        ),
+        (
+            RUNTIME_OWNER_AUTH_MANIFEST_OWNER_LMS_SIGNATURE_INVALID,
+            0x000E00A5,
+            "Runtime Error: Owner auth manifest owner LMS signature invalid"
+        ),
+        (
+            RUNTIME_OWNER_AUTH_MANIFEST_OWNER_MLDSA_SIGNATURE_INVALID,
+            0x000E00A6,
+            "Runtime Error: Owner auth manifest owner MLDSA signature invalid"
+        ),
+        (
+            RUNTIME_OWNER_AUTH_MANIFEST_IMC_OWNER_ECC_SIGNATURE_INVALID,
+            0x000E00A7,
+            "Runtime Error: Owner auth manifest IMC owner ECC signature invalid"
+        ),
+        (
+            RUNTIME_OWNER_AUTH_MANIFEST_IMC_OWNER_LMS_SIGNATURE_INVALID,
+            0x000E00A8,
+            "Runtime Error: Owner auth manifest IMC owner LMS signature invalid"
+        ),
+        (
+            RUNTIME_OWNER_AUTH_MANIFEST_IMC_OWNER_MLDSA_SIGNATURE_INVALID,
+            0x000E00A9,
+            "Runtime Error: Owner auth manifest IMC owner MLDSA signature invalid"
+        ),
+        (
+            RUNTIME_OWNER_AUTH_MANIFEST_IMC_INVALID_SIZE,
+            0x000E00AA,
+            "Runtime Error: Owner auth manifest IMC invalid size"
+        ),
+        (
+            RUNTIME_OWNER_AUTH_MANIFEST_IMC_INVALID_ENTRY_COUNT,
+            0x000E00AB,
+            "Runtime Error: Owner auth manifest IMC invalid entry count"
+        ),
+        (
+            RUNTIME_OWNER_AUTH_MANIFEST_IMC_DUPLICATE_FW_ID,
+            0x000E00AC,
+            "Runtime Error: Owner auth manifest IMC duplicate firmware ID"
+        ),
+        (
+            RUNTIME_OWNER_AUTH_MANIFEST_INVALID_FLAGS,
+            0x000E00AD,
+            "Runtime Error: Owner auth manifest flags must be zero"
+        ),
+        (
+            RUNTIME_OWNER_AUTH_MANIFEST_OWNER_PUB_KEY_MISMATCH,
+            0x000E00AE,
+            "Runtime Error: Owner auth manifest owner public key does not match firmware-image owner pub key"
+        ),
+        (
+            RUNTIME_STASH_MEASUREMENT_RESERVED_FW_ID,
+            0x000E00B0,
+            "Runtime Error: Stash measurement firmware ID is reserved for Caliptra internal use"
         ),
         // FMC Errors
         (FMC_GLOBAL_NMI, 0x000F0001, "FMC Error: Global NMI"),
@@ -2743,6 +2839,11 @@ impl CaliptraError {
             RUNTIME_DRIVER_HPKE_INVALID_PUB_KEY_BUFFER_SIZE,
             0xa004_1004,
             "Driver Error: HPKE the pub key buffer was too small"
+        ),
+        (
+            RUNTIME_DRIVER_HPKE_OPEN_FAILED,
+            0xa004_1005,
+            "Driver Error: HPKE failed to open the encrypted message"
         ),
         (
             RUNTIME_DRIVER_HPKE_ML_KEM_TRNG_KEYGEN_FAIL,

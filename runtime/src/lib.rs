@@ -46,6 +46,7 @@ mod reallocate_dpe_context_limits;
 mod recovery_flow;
 mod revoke_exported_cdi_handle;
 mod set_auth_manifest;
+mod set_owner_auth_manifest;
 mod sign_with_exported_ecdsa;
 mod sign_with_exported_mldsa;
 mod stash_measurement;
@@ -85,7 +86,10 @@ use crate::sign_with_exported_ecdsa::SignWithExportedEcdsaCmd;
 use crate::sign_with_exported_mldsa::SignWithExportedMldsaCmd;
 pub use crate::subject_alt_name::AddSubjectAltNameCmd;
 pub use activate_firmware::ActivateFirmwareCmd;
-pub use authorize_and_stash::{IMAGE_AUTHORIZED, IMAGE_HASH_MISMATCH, IMAGE_NOT_AUTHORIZED};
+pub use authorize_and_stash::{
+    IMAGE_AUTHORIZED, IMAGE_AUTHORIZED_OWNER_ONLY, IMAGE_AUTHORIZED_VENDOR_OWNER,
+    IMAGE_HASH_MISMATCH, IMAGE_NOT_AUTHORIZED,
+};
 pub use caliptra_common::fips::FipsVersionCmd;
 use caliptra_common::mailbox_api::{populate_checksum, FipsVersionResp, MAX_RESP_SIZE};
 pub use dice::{GetFmcAliasCertCmd, GetLdevCertCmd, IDevIdCertCmd};
@@ -105,6 +109,7 @@ pub use key_ladder::KeyLadder;
 pub use pcr::{GetPcrLogCmd, IncrementPcrResetCounterCmd};
 pub use reallocate_dpe_context_limits::ReallocateDpeContextLimitsCmd;
 pub use set_auth_manifest::SetAuthManifestCmd;
+pub use set_owner_auth_manifest::SetOwnerAuthManifestCmd;
 pub use stash_measurement::StashMeasurementCmd;
 pub use verify::LmsVerifyCmd;
 pub mod packet;
@@ -258,13 +263,8 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
     if drivers.soc_ifc.subsystem_mode()
         && CommandId::from(cmd_id) == CommandId::EXTERNAL_MAILBOX_CMD
     {
-        match drivers.caller_privilege_level() {
-            // EXTERNAL_MAILBOX_CMD MUST only be called from PL0
-            PauserPrivileges::PL0 => (),
-            PauserPrivileges::PL1 => {
-                return Err(CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL);
-            }
-        }
+        // EXTERNAL_MAILBOX_CMD MUST only be called from PL0
+        drivers.ensure_pl0()?;
         let external_cmd = ExternalMailboxCmdReq::ref_from_bytes(cmd_bytes)
             .map_err(|_| CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
 
@@ -389,7 +389,13 @@ fn execute_command(
         }),
         CommandId::EXTEND_PCR => ExtendPcrCmd::execute(drivers, cmd_bytes),
         CommandId::STASH_MEASUREMENT => StashMeasurementCmd::execute(drivers, cmd_bytes, resp),
-        CommandId::DISABLE_ATTESTATION => DisableAttestationCmd::execute(drivers),
+        CommandId::DISABLE_ATTESTATION => {
+            // Restrict to PL0. The check lives here rather than in
+            // DisableAttestationCmd::execute because the reset/error paths call
+            // execute() directly, outside of any mailbox command.
+            drivers.ensure_pl0()?;
+            DisableAttestationCmd::execute(drivers)
+        }
         CommandId::AUTHORIZE_AND_STASH => AuthorizeAndStashCmd::execute(drivers, cmd_bytes, resp),
         CommandId::CAPABILITIES => CapabilitiesCmd::execute(drivers, resp),
         CommandId::FW_INFO => FwInfoCmd::execute(drivers, resp),
@@ -455,6 +461,7 @@ fn execute_command(
         CommandId::SHUTDOWN => FipsShutdownCmd::execute(drivers),
         CommandId::SET_AUTH_MANIFEST => SetAuthManifestCmd::execute(drivers, cmd_bytes, false),
         CommandId::VERIFY_AUTH_MANIFEST => SetAuthManifestCmd::execute(drivers, cmd_bytes, true),
+        CommandId::SET_OWNER_AUTH_MANIFEST => SetOwnerAuthManifestCmd::execute(drivers, cmd_bytes),
         CommandId::GET_IDEV_ECC384_CSR => GetIdevCsrCmd::execute(drivers, resp),
         CommandId::GET_IDEV_MLDSA87_CSR => GetIdevMldsaCsrCmd::execute(drivers, resp),
         CommandId::GET_FMC_ALIAS_ECC384_CSR => GetFmcAliasCsrCmd::execute(drivers, resp),

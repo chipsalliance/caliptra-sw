@@ -54,6 +54,10 @@ impl FwInfoCmd {
         resp.image_manifest_pqc_type = pdata.rom.manifest1.pqc_key_type as u32;
         resp.vendor_ecc384_pub_key_index = handoff.data_vault.vendor_ecc_pk_index();
         resp.vendor_pqc_pub_key_index = handoff.data_vault.vendor_pqc_pk_index();
+        resp.soc_manifest_current_svn = pdata.fw.auth_manifest_svn;
+        resp.soc_manifest_min_svn = drivers.soc_ifc.fuse_bank().soc_manifest_fuse_svn();
+        resp.owner_auth_manifest_current_svn = pdata.fw.owner_auth_manifest_svn;
+        resp.owner_auth_manifest_min_svn = drivers.soc_ifc.ss_owner_manifest_min_svn();
         resp.most_recent_fw_error = match get_fw_error_non_fatal() {
             0 => drivers.persistent_data.get().rom.cleared_non_fatal_fw_error,
             e => e,

@@ -70,6 +70,7 @@ pub use api::mailbox::{mbox_write_fifo, mbox_write_fifo_with_limit};
 pub use api_types::{DbgManufServiceRegReq, DeviceLifecycle, Fuses, SecurityState, U4};
 pub use caliptra_emu_bus::BusMmio;
 pub use caliptra_emu_cpu::{CodeRange, ImageInfo, StackInfo, StackRange};
+pub use caliptra_hw_model_types::CaliptraHwVersion;
 pub use output::ExitStatus;
 pub use output::Output;
 
@@ -179,6 +180,19 @@ impl TrngMode {
 
 const EXPECTED_CALIPTRA_BOOT_TIME_IN_CYCLES: u64 = 40_000_000; // 40 million cycles
 
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Default)]
+pub enum ProvisioningStage {
+    /// RAW stage: Blank OTP memory.
+    Raw = 0,
+    /// TestUnlocked stage: Harness provisions SECRET_LC_TRANSITION & SW_TEST_UNLOCK
+    TestUnlocked = 1,
+    /// Manuf stage: Harness provisions up to MANUF stage
+    Manuf = 2,
+    /// Prod stage: Harness provisions all partitions (default for runtime/prod testing).
+    #[default]
+    Prod = 3,
+}
+
 pub struct SubsystemInitParams<'a> {
     // Optionally, provide MCU ROM; otherwise use the pre-built ROM image, if needed
     pub mcu_rom: Option<&'a [u8]>,
@@ -203,6 +217,9 @@ pub struct SubsystemInitParams<'a> {
     // Initial contents of the primary flash memory (for flash-based boot testing)
     pub primary_flash_initial_contents: Option<&'a [u8]>,
 
+    // Whether to use external I3C host controller.
+    pub use_external_i3c_host: bool,
+
     // Override the lifecycle state provisioned into OTP. When set, this
     // takes priority over the security_state-derived lifecycle mapping.
     pub lc_state: Option<LifecycleControllerState>,
@@ -212,8 +229,8 @@ pub struct SubsystemInitParams<'a> {
     // IDevID on FPGA, required for attestation tests.
     pub use_strap_secrets: bool,
 
-    // When true, do not provision fuses in OTP. Useful for testing provisioning flows.
-    pub skip_otp_provisioning: bool,
+    // Target provisioning stage. The harness will provision OTP up to (but not including) this stage.
+    pub target_provisioning_stage: ProvisioningStage,
 }
 
 impl Default for SubsystemInitParams<'_> {
@@ -226,14 +243,17 @@ impl Default for SubsystemInitParams<'_> {
             num_prod_dbg_unlock_pk_hashes: Default::default(),
             prod_dbg_unlock_pk_hashes_offset: Default::default(),
             primary_flash_initial_contents: None,
+            use_external_i3c_host: false,
             lc_state: None,
             use_strap_secrets: false,
-            skip_otp_provisioning: false,
+            target_provisioning_stage: Default::default(),
         }
     }
 }
 
 pub struct InitParams<'a> {
+    pub hw_version: CaliptraHwVersion,
+
     // Fuse settings
     pub fuses: Fuses,
 
@@ -342,6 +362,7 @@ impl Default for InitParams<'_> {
                 Box::new(RandomEtrngResponses::new_from_stdrng())
             };
         Self {
+            hw_version: Default::default(),
             fuses: Default::default(),
             rom: Default::default(),
             dccm: Default::default(),
@@ -1551,6 +1572,12 @@ pub trait HwModel: SocManager {
         soc_manifest: Option<&[u8]>,
         mcu_firmware: Option<&[u8]>,
     ) -> Result<(), ModelError>;
+
+    fn enable_external_i3c_upload_firmware_rri(&mut self) -> Result<(), ModelError> {
+        unimplemented!(
+            "Firmware upload from an external I3C host is only supported with the FPGA setup."
+        )
+    }
 
     /// Upload fw image to RRI.
     fn upload_firmware_rri(

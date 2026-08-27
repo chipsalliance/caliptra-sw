@@ -38,6 +38,7 @@ if [[ -z "${SKIP_DEBOOTSTRAP}" ]]; then
   chroot out/rootfs bash -c 'echo auto end0 > /etc/network/interfaces'
   chroot out/rootfs bash -c 'echo allow-hotplug end0 >> /etc/network/interfaces'
   chroot out/rootfs bash -c 'echo iface end0 inet dhcp >> /etc/network/interfaces'
+  chroot out/rootfs bash -c 'echo "    pre-up /usr/sbin/set-mac-address.sh end0" >> /etc/network/interfaces'
   chroot out/rootfs bash -c 'echo iface end0 inet6 auto >> /etc/network/interfaces'
   chroot out/rootfs bash -c 'echo nameserver 8.8.8.8 > /etc/resolv.conf'
   chroot out/rootfs bash -c 'echo nameserver 2001:4860:4860::6464 > /etc/resolv.conf'
@@ -137,6 +138,8 @@ popd
 mv out/aarch64-unknown-linux-gnu/release/cargo-nextest out/rootfs/usr/bin/
 
 chroot out/rootfs bash -c 'echo ::1 caliptra-fpga >> /etc/hosts'
+cp set-mac-address.sh out/rootfs/usr/sbin/
+chmod 755 out/rootfs/usr/sbin/set-mac-address.sh
 cp overlay-mount.sh out/rootfs/usr/sbin/
 chmod 755 out/rootfs/usr/sbin/overlay-mount.sh
 cp startup-script.sh out/rootfs/usr/bin/

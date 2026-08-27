@@ -158,6 +158,9 @@ impl CommandId {
     // Verify the authorization manifest command.
     pub const VERIFY_AUTH_MANIFEST: Self = Self(0x4154_564D); // "ATVM"
 
+    // The owner-only authorization manifest set command.
+    pub const SET_OWNER_AUTH_MANIFEST: Self = Self(0x4F41_4D4E); // "OAMN"
+
     // The authorize and stash command.
     pub const AUTHORIZE_AND_STASH: Self = Self(0x4154_5348); // "ATSH"
 
@@ -709,6 +712,7 @@ pub enum MailboxReq {
     CertifyKeyExtendedMldsa87(CertifyKeyExtendedMldsa87Req),
     SetAuthManifest(SetAuthManifestReq),
     VerifyAuthManifest(VerifyAuthManifestReq),
+    SetOwnerAuthManifest(SetOwnerAuthManifestReq),
     AuthorizeAndStash(AuthorizeAndStashReq),
     SignWithExportedEcdsa(SignWithExportedEcdsaReq),
     SignWithExportedMldsa(SignWithExportedMldsaReq),
@@ -818,6 +822,7 @@ impl MailboxReq {
             MailboxReq::CertifyKeyExtendedMldsa87(req) => Ok(req.as_bytes()),
             MailboxReq::SetAuthManifest(req) => Ok(req.as_bytes()),
             MailboxReq::VerifyAuthManifest(req) => Ok(req.as_bytes()),
+            MailboxReq::SetOwnerAuthManifest(req) => Ok(req.as_bytes()),
             MailboxReq::AuthorizeAndStash(req) => Ok(req.as_bytes()),
             MailboxReq::SignWithExportedEcdsa(req) => Ok(req.as_bytes()),
             MailboxReq::SignWithExportedMldsa(req) => Ok(req.as_bytes()),
@@ -925,6 +930,7 @@ impl MailboxReq {
             MailboxReq::CertifyKeyExtendedMldsa87(req) => Ok(req.as_mut_bytes()),
             MailboxReq::SetAuthManifest(req) => Ok(req.as_mut_bytes()),
             MailboxReq::VerifyAuthManifest(req) => Ok(req.as_mut_bytes()),
+            MailboxReq::SetOwnerAuthManifest(req) => Ok(req.as_mut_bytes()),
             MailboxReq::AuthorizeAndStash(req) => Ok(req.as_mut_bytes()),
             MailboxReq::SignWithExportedEcdsa(req) => Ok(req.as_mut_bytes()),
             MailboxReq::SignWithExportedMldsa(req) => Ok(req.as_mut_bytes()),
@@ -1032,6 +1038,7 @@ impl MailboxReq {
             MailboxReq::CertifyKeyExtendedMldsa87(_) => CommandId::CERTIFY_KEY_EXTENDED_MLDSA87,
             MailboxReq::SetAuthManifest(_) => CommandId::SET_AUTH_MANIFEST,
             MailboxReq::VerifyAuthManifest(_) => CommandId::VERIFY_AUTH_MANIFEST,
+            MailboxReq::SetOwnerAuthManifest(_) => CommandId::SET_OWNER_AUTH_MANIFEST,
             MailboxReq::AuthorizeAndStash(_) => CommandId::AUTHORIZE_AND_STASH,
             MailboxReq::SignWithExportedEcdsa(_) => CommandId::SIGN_WITH_EXPORTED_ECDSA,
             MailboxReq::SignWithExportedMldsa(_) => CommandId::SIGN_WITH_EXPORTED_MLDSA,
@@ -1986,6 +1993,10 @@ pub struct FwInfoResp {
     pub image_manifest_pqc_type: u32,
     pub vendor_ecc384_pub_key_index: u32,
     pub vendor_pqc_pub_key_index: u32,
+    pub soc_manifest_current_svn: u32,
+    pub soc_manifest_min_svn: u32,
+    pub owner_auth_manifest_current_svn: u32,
+    pub owner_auth_manifest_min_svn: u32,
 }
 
 // CAPABILITIES
@@ -2129,12 +2140,23 @@ pub struct GetTaggedTciReq {
     pub hdr: MailboxReqHeader,
     pub tag: u32,
 }
+/// Response to `DPE_GET_TAGGED_TCI`.
+///
+/// Fields are appended only; never insert, reorder, resize or remove a published
+/// field, since callers rely on the offsets of the ones already here.
+///
+/// Appending still changes the response length and therefore its checksum, so a
+/// caller built against an older layout cannot parse a response from newer
+/// firmware. As with `FW_INFO`, this command assumes the caller and firmware are
+/// updated in lockstep.
 #[repr(C)]
 #[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
 pub struct GetTaggedTciResp {
     pub hdr: MailboxRespHeader,
     pub tci_cumulative: [u8; 48],
     pub tci_current: [u8; 48],
+    /// Security Version Number of the tagged DPE context.
+    pub svn: u32,
 }
 
 // INCREMENT_PCR_RESET_COUNTER request
@@ -2335,6 +2357,55 @@ impl Default for VerifyAuthManifestReq {
 }
 impl Request for VerifyAuthManifestReq {
     const ID: CommandId = CommandId::VERIFY_AUTH_MANIFEST;
+    type Resp = MailboxRespHeader;
+}
+
+// SET_OWNER_AUTH_MANIFEST
+//
+// Loads the Owner Authorization Manifest into the dedicated owner-only
+// IME collection. The wire payload is the serialized
+// `OwnerAuthorizationManifest` (preamble + IMC). `manifest_size` is the
+// number of valid bytes in `manifest`.
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+pub struct SetOwnerAuthManifestReq {
+    pub hdr: MailboxReqHeader,
+    pub manifest_size: u32,
+    pub manifest: [u8; SetOwnerAuthManifestReq::MAX_MAN_SIZE],
+}
+impl SetOwnerAuthManifestReq {
+    /// Maximum size of an Owner Authorization Manifest payload. Sized to
+    /// hold the owner Preamble (~12 KiB: pubkeys + 2 signature pairs)
+    /// plus the owner-only IMC (4 + 127 * 80 ≈ 10 KiB), with headroom.
+    pub const MAX_MAN_SIZE: usize = 24 * 1024;
+
+    pub fn as_bytes_partial(&self) -> CaliptraResult<&[u8]> {
+        if self.manifest_size as usize > Self::MAX_MAN_SIZE {
+            return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
+        }
+        let unused_byte_count = Self::MAX_MAN_SIZE - self.manifest_size as usize;
+        Ok(&self.as_bytes()[..size_of::<Self>() - unused_byte_count])
+    }
+
+    pub fn as_bytes_partial_mut(&mut self) -> CaliptraResult<&mut [u8]> {
+        if self.manifest_size as usize > Self::MAX_MAN_SIZE {
+            return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
+        }
+        let unused_byte_count = Self::MAX_MAN_SIZE - self.manifest_size as usize;
+        Ok(&mut self.as_mut_bytes()[..size_of::<Self>() - unused_byte_count])
+    }
+}
+impl Default for SetOwnerAuthManifestReq {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxReqHeader::default(),
+            manifest_size: 0,
+            manifest: [0u8; SetOwnerAuthManifestReq::MAX_MAN_SIZE],
+        }
+    }
+}
+impl Request for SetOwnerAuthManifestReq {
+    const ID: CommandId = CommandId::SET_OWNER_AUTH_MANIFEST;
     type Resp = MailboxRespHeader;
 }
 

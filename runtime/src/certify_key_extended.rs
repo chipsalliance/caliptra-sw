@@ -12,9 +12,7 @@ Abstract:
 
 --*/
 
-use crate::{
-    invoke_dpe::invoke_dpe_cmd, mutrefbytes, CaliptraDpeProfile, Drivers, PauserPrivileges,
-};
+use crate::{invoke_dpe::invoke_dpe_cmd, mutrefbytes, CaliptraDpeProfile, Drivers};
 use arrayvec::ArrayVec;
 use caliptra_api::mailbox::{
     populate_checksum, CertifyKeyExtendedMldsa87Req, SUBSYSTEM_MAILBOX_SIZE_LIMIT,
@@ -133,13 +131,8 @@ impl CertifyKeyExtendedCmd {
         certify_key_req: &[u8; CertifyKeyExtendedEcc384Req::CERTIFY_KEY_REQ_SIZE],
         mbox_resp: &mut [u8],
     ) -> CaliptraResult<usize> {
-        match drivers.caller_privilege_level() {
-            // CERTIFY_KEY_EXTENDED MUST only be called from PL0
-            PauserPrivileges::PL0 => (),
-            PauserPrivileges::PL1 => {
-                return Err(CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL);
-            }
-        }
+        // CERTIFY_KEY_EXTENDED MUST only be called from PL0
+        drivers.ensure_pl0()?;
 
         // Populate the otherName only if requested and provided by ADD_SUBJECT_ALT_NAME
         let dmtf_device_info = if flags.contains(CertifyKeyExtendedFlags::DMTF_OTHER_NAME) {
@@ -182,7 +175,7 @@ impl CertifyKeyExtendedCmd {
                 let len = size_of::<CertifyKeyExtendedResp>()
                     - CertifyKeyExtendedResp::CERTIFY_KEY_RESP_SIZE
                     + dpe_resp_len;
-                resp.size = len as u32;
+                resp.size = dpe_resp_len as u32;
                 Ok(len)
             }
             Err(e) => {

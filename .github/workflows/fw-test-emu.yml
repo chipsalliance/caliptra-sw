@@ -16,6 +16,9 @@ on:
       rom-version:
         default: "latest"
         type: string
+      hw-revision:
+        default: "latest"
+        type: string
 
 permissions:
   contents: read
@@ -27,6 +30,7 @@ jobs:
     env:
       NEXTEST_VERSION: 0.9.72
       CACHE_BUSTER: f7c64774f17c
+      CALIPTRA_HW_REV: ${{ inputs.hw-revision }}
 
     steps:
       - name: Restore cargo-nextest binary
@@ -65,6 +69,7 @@ jobs:
             case "${{ inputs.rom-version }}" in
               "2.1.0") export FIPS_TEST_ROM_EXP_VERSION="2_1_0" ;;
               "2.1.1") export FIPS_TEST_ROM_EXP_VERSION="2_1_1" ;;
+              "2.1.2") export FIPS_TEST_ROM_EXP_VERSION="2_1_2" ;;
               *) echo "Unknown rom-version ${{ inputs.rom-version }} for FIPS_TEST_ROM_EXP_VERSION"; exit 1 ;;
             esac
           fi
