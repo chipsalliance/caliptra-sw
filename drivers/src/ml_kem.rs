@@ -58,7 +58,6 @@ const DECAPS: u32 = 3;
 const KEYGEN_DECAPS: u32 = 4;
 
 /// ML-KEM-1024 Seeds
-#[derive(Copy, Clone)]
 pub enum MlKem1024Seeds<'a> {
     /// Array pair (seed_d, seed_z)
     Arrays(&'a MlKem1024Seed, &'a MlKem1024Seed),
@@ -202,20 +201,20 @@ impl<'a> MlKem1024<'a> {
         seeds: MlKem1024Seeds,
         pct_kv: Option<MlKemPctKvContext<'_>>,
     ) -> CaliptraResult<(MlKem1024EncapsKey, MlKem1024DecapsKey)> {
-        let kv_seeds = matches!(seeds, MlKem1024Seeds::Key(_));
+        let kv_seeds = matches!(&seeds, MlKem1024Seeds::Key(_));
 
         self.zeroize_internal()?;
 
         let mlkem = self.mlkem.regs_mut();
 
         // Copy seeds to the hardware
-        match seeds {
+        match &seeds {
             MlKem1024Seeds::Arrays(seed_d, seed_z) => {
                 seed_d.write_to_reg(mlkem.mlkem_seed_d());
                 seed_z.write_to_reg(mlkem.mlkem_seed_z());
             }
             MlKem1024Seeds::Key(key) => KvAccess::copy_from_kv(
-                key,
+                *key,
                 mlkem.kv_mlkem_seed_rd_status(),
                 mlkem.kv_mlkem_seed_rd_ctrl(),
             )
