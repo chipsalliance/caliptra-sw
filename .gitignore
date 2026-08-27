@@ -37,3 +37,7 @@ junit.xml
 # FPGA Bitstream file
 **/*.pdi
 ci-tools/host-runner/secrets/
+
+# Mjolnir
+tools/mjolnir/results/
+tools/mjolnir/workspace/

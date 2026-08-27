@@ -1,0 +1,41 @@
+name: Mjolnir Security Audit (PR)
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  mjolnir-audit:
+    name: Mjolnir Security Audit (PR)
+    runs-on: e2-standard-2-reporter
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Nix
+        run: |
+          sh <(curl -L https://nixos.org/nix/install) --no-daemon
+          . ~/.nix-profile/etc/profile.d/nix.sh
+          mkdir -p ~/.config/nix
+          echo "experimental-features = nix-command flakes" >> ~/.config/nix/nix.conf
+          echo "$HOME/.nix-profile/bin" >> $GITHUB_PATH
+
+      - name: Run Mjolnir Security Audit
+        run: |
+          nix run path:.#ci -- \
+            --diff-base "${{ github.event.pull_request.base.sha }}" \
+            --diff-head "${{ github.event.pull_request.head.sha }}"
+
+      - name: Sync Audit Artifacts to GCS
+        run: |
+          nix run path:.#deploy-gcs-runs -- \
+            --bucket "caliptra-github-ci-caliptra-reports" \
+            --output-dir "./tools/mjolnir/results"

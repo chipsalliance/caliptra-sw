@@ -1,0 +1,22 @@
+# Licensed under the Apache-2.0 license
+# SPDX-License-Identifier: Apache-2.0
+
+name: Mjolnir Security Audit Schedule (caliptra-1.x)
+
+on:
+  workflow_dispatch:
+  schedule:
+    # 3:00 AM PST Sunday (11:00 UTC Sunday)
+    - cron: '0 11 * * 0'
+
+permissions:
+  contents: read
+
+jobs:
+  mjolnir-full-scan-1-x:
+    name: Full Scan (caliptra-1.x)
+    permissions:
+      contents: read
+    uses: chipsalliance/caliptra-sw/.github/workflows/mjolnir_full_scan.yml@caliptra-1.x
+    with:
+      branch: "caliptra-1.x"
