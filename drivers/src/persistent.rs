@@ -426,6 +426,7 @@ bitflags::bitflags! {
 
 #[derive(FromZeros, IntoBytes, KnownLayout, Zeroize)]
 #[repr(C)]
+#[cfg_attr(not(any(feature = "fmc", feature = "runtime")), allow(dead_code))]
 pub struct OcpLockMetadataFirmware {
     pub flags: OcpLockFlags,
 }
@@ -939,7 +940,7 @@ unsafe fn ref_from_addr<'a, T: TryFromBytes>(addr: u32) -> &'a T {
 
     // dereferencing zero is undefined behavior
     assert!(addr != 0);
-    assert!(addr as usize % core::mem::align_of::<T>() == 0);
+    assert!((addr as usize).is_multiple_of(core::mem::align_of::<T>()));
     assert!(core::mem::size_of::<u32>() == core::mem::size_of::<*const T>());
     &*(addr as *const T)
 }
@@ -950,7 +951,7 @@ unsafe fn ref_mut_from_addr<'a, T: TryFromBytes>(addr: u32) -> &'a mut T {
 
     // dereferencing zero is undefined behavior
     assert!(addr != 0);
-    assert!(addr as usize % core::mem::align_of::<T>() == 0);
+    assert!((addr as usize).is_multiple_of(core::mem::align_of::<T>()));
     assert!(core::mem::size_of::<u32>() == core::mem::size_of::<*const T>());
     &mut *(addr as *mut T)
 }

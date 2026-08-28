@@ -882,7 +882,7 @@ fn ec_dpe_env(
     drivers: &mut Drivers,
     dmtf_device_info: Option<ArrayVec<u8, { MAX_OTHER_NAME_SIZE }>>,
     ueid: Option<[u8; 17]>,
-) -> CaliptraResult<CaliptraDpeEnv> {
+) -> CaliptraResult<CaliptraDpeEnv<'_>> {
     let hashed_rt_pub_key = drivers.compute_ecc_rt_alias_sn()?;
     let key_id_rt_cdi = Drivers::get_key_id_rt_cdi(drivers)?;
     let key_id_rt_priv_key = Drivers::get_key_id_rt_ecc_priv_key(drivers)?;
@@ -925,7 +925,7 @@ fn mldsa_dpe_env(
     drivers: &mut Drivers,
     dmtf_device_info: Option<ArrayVec<u8, { MAX_OTHER_NAME_SIZE }>>,
     ueid: Option<[u8; 17]>,
-) -> CaliptraResult<CaliptraDpeEnv> {
+) -> CaliptraResult<CaliptraDpeEnv<'_>> {
     let hashed_rt_pub_key = drivers.compute_mldsa_rt_alias_sn()?;
     let rt_pub_key = Drivers::get_key_id_rt_mldsa_pub_key(drivers);
     let rt_pub_key = okref(&rt_pub_key)?;

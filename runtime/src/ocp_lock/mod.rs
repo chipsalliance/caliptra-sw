@@ -67,6 +67,29 @@ pub use unload_mek::UnloadMekCmd;
 
 const ACCESS_KEY_LEN: usize = 32;
 
+fn stage_mailbox_request<'a, T>(
+    cmd_args: &[u8],
+    staging_buffer: &'a mut [u32],
+) -> CaliptraResult<&'a T>
+where
+    T: FromBytes + KnownLayout + Immutable,
+{
+    let staging_bytes = staging_buffer.as_mut_bytes();
+    if cmd_args.len() != staging_bytes.len() {
+        return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
+    }
+    // SAFETY: The exact-length check guarantees both regions are valid for `cmd_args.len()` bytes,
+    // and mailbox SRAM cannot overlap this stack-backed staging buffer.
+    unsafe {
+        core::ptr::copy_nonoverlapping(
+            cmd_args.as_ptr(),
+            staging_bytes.as_mut_ptr(),
+            cmd_args.len(),
+        );
+    }
+    T::ref_from_bytes(staging_bytes).map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)
+}
+
 /// Represents the VEK type from OCP LOCK.
 /// The VEK is used to encrypt an MPK. This transitions the MPK to the "enabled" state and it can
 /// be mixed into an MEK.

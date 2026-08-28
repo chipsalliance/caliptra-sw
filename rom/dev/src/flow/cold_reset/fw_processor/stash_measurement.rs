@@ -49,7 +49,7 @@ impl StashMeasurementCmd {
     ///
     /// # Returns
     /// * `()` - Ok
-    ///    Error code on failure.
+    ///   Error code on failure.
     fn extend_measurement(
         pcr_bank: &mut PcrBank,
         sha2: &mut Sha2_512_384,
