@@ -236,7 +236,7 @@ fn execute(
         Err(ref e) => {
             // Error: write a ResponseHdr into the data field.
             drivers.soc_ifc.set_fw_extended_error(e.get_error_code());
-            let r = ResponseHdr::new(CaliptraDpeProfile::Ecc384.into(), *e);
+            let r = ResponseHdr::new(profile.into(), *e);
             w.clear()
                 .map_err(|_| CaliptraError::RUNTIME_DPE_RESPONSE_SERIALIZATION_FAILED)?;
             w.write_at(0, r.as_bytes())
