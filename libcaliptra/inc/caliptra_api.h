@@ -287,6 +287,26 @@ int caliptra_authorize_and_stash(struct caliptra_authorize_and_stash_req *req, s
 // Reallocate DPE Context Limits
 int caliptra_reallocate_dpe_context_limits(struct caliptra_reallocate_dpe_context_limits_req *req, struct caliptra_reallocate_dpe_context_limits_resp *resp, bool async);
 
+// OCP LOCK APIs
+int caliptra_ocp_lock_report_hek_metadata(struct caliptra_ocp_lock_report_hek_metadata_req *req, struct caliptra_ocp_lock_report_hek_metadata_resp *resp, bool async);
+int caliptra_ocp_lock_get_algorithms(struct caliptra_ocp_lock_get_algorithms_resp *resp, bool async);
+int caliptra_ocp_lock_initialize_mek_secret(struct caliptra_ocp_lock_initialize_mek_secret_req *req, struct caliptra_ocp_lock_initialize_mek_secret_resp *resp, bool async);
+int caliptra_ocp_lock_mix_mpk(struct caliptra_ocp_lock_mix_mpk_req *req, struct caliptra_ocp_lock_mix_mpk_resp *resp, bool async);
+int caliptra_ocp_lock_derive_mek(struct caliptra_ocp_lock_derive_mek_req *req, struct caliptra_ocp_lock_derive_mek_resp *resp, bool async);
+int caliptra_ocp_lock_enumerate_hpke_handles(struct caliptra_ocp_lock_enumerate_hpke_handles_req *req, struct caliptra_ocp_lock_enumerate_hpke_handles_resp *resp, bool async);
+int caliptra_ocp_lock_rotate_hpke_key(struct caliptra_ocp_lock_rotate_hpke_key_req *req, struct caliptra_ocp_lock_rotate_hpke_key_resp *resp, bool async);
+int caliptra_ocp_lock_generate_mek(struct caliptra_ocp_lock_generate_mek_req *req, struct caliptra_ocp_lock_generate_mek_resp *resp, bool async);
+int caliptra_ocp_lock_get_hpke_pub_key(struct caliptra_ocp_lock_get_hpke_pub_key_req *req, struct caliptra_ocp_lock_get_hpke_pub_key_resp *resp, bool async);
+int caliptra_ocp_lock_generate_mpk(struct caliptra_ocp_lock_generate_mpk_req *req, struct caliptra_ocp_lock_generate_mpk_resp *resp, bool async);
+int caliptra_ocp_lock_rewrap_mpk(struct caliptra_ocp_lock_rewrap_mpk_req *req, struct caliptra_ocp_lock_rewrap_mpk_resp *resp, bool async);
+int caliptra_ocp_lock_enable_mpk(struct caliptra_ocp_lock_enable_mpk_req *req, struct caliptra_ocp_lock_enable_mpk_resp *resp, bool async);
+int caliptra_ocp_lock_test_access_key(struct caliptra_ocp_lock_test_access_key_req *req, struct caliptra_ocp_lock_test_access_key_resp *resp, bool async);
+int caliptra_ocp_lock_get_status(struct caliptra_ocp_lock_get_status_resp *resp, bool async);
+int caliptra_ocp_lock_clear_key_cache(struct caliptra_ocp_lock_clear_key_cache_req *req, struct caliptra_ocp_lock_clear_key_cache_resp *resp, bool async);
+int caliptra_ocp_lock_unload_mek(struct caliptra_ocp_lock_unload_mek_req *req, struct caliptra_ocp_lock_unload_mek_resp *resp, bool async);
+int caliptra_ocp_lock_load_mek(struct caliptra_ocp_lock_load_mek_req *req, struct caliptra_ocp_lock_load_mek_resp *resp, bool async);
+
+
 // Query if IDevID CSR is ready.
 bool caliptra_is_idevid_csr_ready();
 
