@@ -2808,7 +2808,7 @@ The command derivation is summarized below:
 
 ![CM_DERIVE_STABLE_KEY Derivation](../rom/dev/doc/svg/cm-derive-stable-key.svg)
 
-Command Code: `0x434D_4453` ("CMDS")
+Command Code: `0x494D_4453` ("IMDS")
 
 *Table: `CM_DERIVE_STABLE_KEY` input arguments*
 
