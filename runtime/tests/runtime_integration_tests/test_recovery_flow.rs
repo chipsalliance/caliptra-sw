@@ -1,5 +1,7 @@
 // Licensed under the Apache-2.0 license
 
+#![allow(clippy::result_large_err)]
+
 use crate::common::{run_rt_test, RuntimeTestArgs};
 use crate::test_set_auth_manifest::create_auth_manifest_with_metadata;
 use caliptra_auth_man_gen::{

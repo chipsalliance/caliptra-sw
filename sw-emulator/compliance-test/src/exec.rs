@@ -16,7 +16,7 @@ Abstract:
 use crate::fs::annotate_error;
 use std::ffi::OsString;
 use std::fmt;
-use std::io::{self, ErrorKind, Write};
+use std::io::{self, Write};
 
 /// Executes a command (subprocess).
 ///
@@ -56,7 +56,7 @@ pub struct ExecError {
 }
 impl ExecError {
     fn into_io_error(self) -> io::Error {
-        io::Error::new(ErrorKind::Other, self)
+        io::Error::other(self)
     }
 }
 impl std::error::Error for ExecError {}
@@ -86,6 +86,7 @@ fn collect_args(cmd: &std::process::Command) -> Vec<OsString> {
 mod tests {
     use super::*;
     use crate::fs::TempFile;
+    use std::io::ErrorKind;
 
     #[cfg(target_family = "unix")]
     #[test]

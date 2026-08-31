@@ -867,7 +867,7 @@ mod tests {
         }
 
         if block_via_kv {
-            assert!(data.len() % 4 == 0);
+            assert!(data.len().is_multiple_of(4));
             assert!(data.len() <= (SHA512_BLOCK_SIZE - (16 + 1)));
         } else {
             block_arr[..data.len()].copy_from_slice(data);

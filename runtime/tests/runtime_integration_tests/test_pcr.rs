@@ -262,7 +262,13 @@ fn test_extend_pcr_cmd_reserved_range() {
     let extension_data: [u8; 48] = [0u8; 48];
 
     // 4. Ensure reserved PCR range
-    let reserved_pcrs = [PcrId::PcrId0, PcrId::PcrId1, PcrId::PcrId2, PcrId::PcrId3];
+    let reserved_pcrs = [
+        PcrId::PcrId0,
+        PcrId::PcrId1,
+        PcrId::PcrId2,
+        PcrId::PcrId3,
+        PcrId::PcrId31,
+    ];
     for test_pcr_index_reserved in reserved_pcrs {
         let cmd = generate_mailbox_extend_pcr_req(test_pcr_index_reserved.into(), extension_data);
 

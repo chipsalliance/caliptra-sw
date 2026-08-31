@@ -67,6 +67,29 @@ pub use unload_mek::UnloadMekCmd;
 
 const ACCESS_KEY_LEN: usize = 32;
 
+fn stage_mailbox_request<'a, T>(
+    cmd_args: &[u8],
+    staging_buffer: &'a mut [u32],
+) -> CaliptraResult<&'a T>
+where
+    T: FromBytes + KnownLayout + Immutable,
+{
+    let staging_bytes = staging_buffer.as_mut_bytes();
+    if cmd_args.len() != staging_bytes.len() {
+        return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
+    }
+    // SAFETY: The exact-length check guarantees both regions are valid for `cmd_args.len()` bytes,
+    // and mailbox SRAM cannot overlap this stack-backed staging buffer.
+    unsafe {
+        core::ptr::copy_nonoverlapping(
+            cmd_args.as_ptr(),
+            staging_bytes.as_mut_ptr(),
+            cmd_args.len(),
+        );
+    }
+    T::ref_from_bytes(staging_bytes).map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)
+}
+
 /// Represents the VEK type from OCP LOCK.
 /// The VEK is used to encrypt an MPK. This transitions the MPK to the "enabled" state and it can
 /// be mixed into an MEK.
@@ -534,11 +557,16 @@ pub struct Mek {
 impl Mek {
     /// Generate a new `Mek`
     pub fn generate(trng: &mut Trng) -> CaliptraResult<Self> {
-        let key = {
-            let seed = trng.generate16()?;
-            transmute!(seed)
-        };
-        Ok(Self { key })
+        loop {
+            let key = {
+                let seed = trng.generate16()?;
+                transmute!(seed)
+            };
+
+            if is_valid_xts_key(&key) {
+                return Ok(Self { key });
+            }
+        }
     }
 
     /// Consumes `Mek` and encrypts `Mek` with the `Mdk` and returns a `SingleEncryptedMek`
@@ -1079,6 +1107,13 @@ impl OcpLockContext {
             cfi_assert!(expect_mek_checksum == checksum);
         }
 
+        // Check validity just before AES-ECB decryption.
+        // Equality between both halves is preserved across decryption,
+        // this is the case because the half-size is a multiple of the 128-bit AES block size.
+        if !is_valid_xts_key(&mek_seed.as_ref().into()) {
+            return Err(CaliptraError::RUNTIME_OCP_LOCK_MEK_INVALID_XTS_KEY);
+        }
+
         // Decrypt MEK from MEK seed using MDK.
         aes.aes_256_ecb_decrypt_kv(mek_seed.as_ref())?;
 
@@ -1426,6 +1461,14 @@ impl OcpLockContext {
         let mek_secret = intermediate_secret.wrapping_mek_secret(hmac, trng, kv)?;
 
         let single_encrypted_mek = mek_secret.decrypt_mek(aes, trng, hmac, wrapped_mek)?;
+
+        // Check validity just before AES-ECB decryption.
+        // Equality between both halves is preserved across decryption,
+        // this is the case because the half-size is a multiple of the 128-bit AES block size.
+        if !is_valid_xts_key(&single_encrypted_mek.key) {
+            return Err(CaliptraError::RUNTIME_OCP_LOCK_MEK_INVALID_XTS_KEY);
+        }
+
         aes.aes_256_ecb_decrypt_kv(&LEArray4x16::from(single_encrypted_mek.key))?;
 
         Ok(())
@@ -1458,6 +1501,11 @@ fn timeout_to_mtime(command_timeout: Millisecond, clock_period: Picosecond) -> u
     };
 
     walltime_to_mtime(bounded_command_timeout, period)
+}
+
+/// Check if the given key is a valid key for AES-XTS-{128, 256}
+fn is_valid_xts_key(key: &[u8; 64]) -> bool {
+    key[..16] != key[16..32] && key[..32] != key[32..]
 }
 
 /// Entry point for OCP LOCK commands

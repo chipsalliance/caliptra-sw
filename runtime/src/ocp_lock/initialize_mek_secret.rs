@@ -8,11 +8,9 @@ use caliptra_api::mailbox::{
 #[cfg(feature = "cfi")]
 use caliptra_cfi_derive::cfi_impl_fn;
 
-use caliptra_error::{CaliptraError, CaliptraResult};
+use caliptra_error::CaliptraResult;
 
-use zerocopy::FromBytes;
-
-use super::{Dpk, Sek};
+use super::{stage_mailbox_request, Dpk, Sek};
 
 pub struct InitializeMekSecretCmd;
 impl InitializeMekSecretCmd {
@@ -23,8 +21,9 @@ impl InitializeMekSecretCmd {
         cmd_args: &[u8],
         resp: &mut [u8],
     ) -> CaliptraResult<usize> {
-        let cmd = OcpLockInitializeMekSecretReq::ref_from_bytes(cmd_args)
-            .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+        let mut staging_buffer = [0u32; core::mem::size_of::<OcpLockInitializeMekSecretReq>() / 4];
+        let cmd =
+            stage_mailbox_request::<OcpLockInitializeMekSecretReq>(cmd_args, &mut staging_buffer)?;
 
         drivers.ocp_lock_context.create_intermediate_mek_secret(
             &mut drivers.hmac,

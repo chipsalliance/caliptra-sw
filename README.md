@@ -187,7 +187,7 @@ by Caliptra.
 To build Caliptra firmware or tools, you need a Linux installation with a recent
 Rust toolchain. See [Getting started with
 Rust](https://www.rust-lang.org/learn/get-started) for more information on
-installing an up-to-date Rust toolchain. We use version 1.70 of the Rust
+installing an up-to-date Rust toolchain. We use version 1.95 of the Rust
 toolchain for all continuous integration.
 
 ### Checkout and build

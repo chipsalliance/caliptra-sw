@@ -143,7 +143,7 @@ impl InvokeDpeCmd {
         );
 
         // Get the number of words to send by rounding up to nearest word
-        let num_words = len.next_multiple_of(4) / 4;
+        let num_words = len.div_ceil(4);
         let len = num_words * 4;
         if len > cmd.axi_response.max_size as usize {
             return Err(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY);
@@ -194,13 +194,12 @@ impl InvokeDpeCmd {
         let pdata = drivers.persistent_data.get_mut();
         let pl0_pauser = pdata.rom.manifest1.header.pl0_pauser;
 
-        // Check if command can be executed
+        // Apply Caliptra-specific preflight checks. Commands not matched here are still executed
+        // by invoke_dpe_cmd below.
         match command {
-            Command::InitCtx(cmd) => {
+            Command::InitCtx(cmd) if InitCtxCmd::flag_is_simulation(cmd) => {
                 // InitCtx can only create new contexts if they are simulation contexts.
-                if InitCtxCmd::flag_is_simulation(cmd) {
-                    dpe_context_threshold_err?;
-                }
+                dpe_context_threshold_err?;
             }
             Command::DeriveContext(cmd) => {
                 let flags = cmd.flags;
@@ -222,13 +221,12 @@ impl InvokeDpeCmd {
                     return Err(CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL);
                 }
             }
-            Command::CertifyKey(cmd) => {
-                // PL1 cannot request X509
+            Command::CertifyKey(cmd)
                 if cmd.format() == CertifyKeyCommand::FORMAT_X509
-                    && caller_privilege_level != PauserPrivileges::PL0
-                {
-                    return Err(CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL);
-                }
+                    && caller_privilege_level != PauserPrivileges::PL0 =>
+            {
+                // PL1 cannot request X509
+                return Err(CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL);
             }
             _ => (),
         };

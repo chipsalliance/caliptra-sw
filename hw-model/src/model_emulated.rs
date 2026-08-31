@@ -157,7 +157,7 @@ impl Drop for ModelEmulated {
 
 #[cfg(feature = "coverage")]
 impl ModelEmulated {
-    pub fn code_coverage_bitmap(&self) -> CoverageBitmaps {
+    pub fn code_coverage_bitmap(&self) -> CoverageBitmaps<'_> {
         self.cpu.code_coverage.code_coverage_bitmap()
     }
 }
@@ -602,11 +602,11 @@ impl HwModel for ModelEmulated {
             return Err(ModelError::SubsystemSramError);
         }
         assert!(
-            offset % 4 == 0,
+            offset.is_multiple_of(4),
             "Staging area offset must be 4-byte aligned"
         );
         assert!(
-            payload.len() % 4 == 0,
+            payload.len().is_multiple_of(4),
             "Payload length must be a multiple of 4"
         );
 
