@@ -129,7 +129,7 @@ impl ExtendPcrCmd {
 
         let pcr_index: PcrId =
             match PcrId::try_from(idx).map_err(|_| CaliptraError::RUNTIME_PCR_INVALID_INDEX)? {
-                PcrId::PcrId0 | PcrId::PcrId1 | PcrId::PcrId2 | PcrId::PcrId3 => {
+                PcrId::PcrId0 | PcrId::PcrId1 | PcrId::PcrId2 | PcrId::PcrId3 | PcrId::PcrId31 => {
                     return Err(CaliptraError::RUNTIME_PCR_RESERVED)
                 }
                 pcr_id => pcr_id,
