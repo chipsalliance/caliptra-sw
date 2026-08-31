@@ -2430,13 +2430,11 @@ impl Commands {
         };
         unencrypted_cmk.key_material[..MLKEM1024_SHARED_KEY_SIZE].copy_from_slice(raw_key);
 
-        let result = drivers.cryptographic_mailbox.encrypt_cmk(
+        drivers.cryptographic_mailbox.encrypt_cmk(
             &mut drivers.aes,
             &mut drivers.trng,
             &unencrypted_cmk,
-        );
-        unencrypted_cmk.zeroize();
-        result
+        )
     }
 
     fn decrypt_mlkem_seeds(
@@ -2446,13 +2444,13 @@ impl Commands {
         let encrypted_cmk = EncryptedCmk::ref_from_bytes(&cmk.0[..])
             .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
 
-        let mut cmk = drivers.cryptographic_mailbox.decrypt_cmk(
+        let cmk = drivers.cryptographic_mailbox.decrypt_cmk(
             &mut drivers.aes,
             &mut drivers.trng,
             encrypted_cmk,
         )?;
 
-        let result = if !matches!(CmKeyUsage::from(cmk.key_usage as u32), CmKeyUsage::Mlkem) {
+        if !matches!(CmKeyUsage::from(cmk.key_usage as u32), CmKeyUsage::Mlkem) {
             Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)
         } else {
             let seed_d = &cmk.key_material[..MLKEM_SEED_SIZE];
@@ -2460,9 +2458,7 @@ impl Commands {
             let seed_z = &cmk.key_material[MLKEM_SEED_SIZE..MLKEM_SEED_SIZE * 2];
             let seed_z: &[u8; MLKEM_SEED_SIZE] = seed_z.try_into().unwrap();
             Ok((seed_d.into(), seed_z.into()))
-        };
-        cmk.zeroize();
-        result
+        }
     }
 
     #[cfg_attr(feature = "cfi", cfi_impl_fn)]
