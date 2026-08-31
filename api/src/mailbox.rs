@@ -251,7 +251,7 @@ impl CommandId {
     pub const CM_ECDSA_PUBLIC_KEY: Self = Self(0x434D_4550); // "CMEP"
     pub const CM_ECDSA_SIGN: Self = Self(0x434D_4553); // "CMES"
     pub const CM_ECDSA_VERIFY: Self = Self(0x434D_4556); // "CMEV"
-    pub const CM_DERIVE_STABLE_KEY: Self = Self(0x494D_4453); // "CMDS"
+    pub const CM_DERIVE_STABLE_KEY: Self = Self(0x494D_4453); // "IMDS"
     pub const CM_SHA: Self = Self(0x434D_5348); // "CMSH"
     pub const CM_SHAKE256_INIT: Self = Self(0x434D_5849); // "CMXI"
     pub const CM_SHAKE256_UPDATE: Self = Self(0x434D_5855); // "CMXU"
