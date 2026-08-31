@@ -169,7 +169,14 @@ const RT_EXP_1_2_5: RtExpVals = RtExpVals {
     ..RT_EXP_1_2_4
 };
 
-const RT_EXP_CURRENT: RtExpVals = RtExpVals { ..RT_EXP_1_2_5 };
+const RT_EXP_1_3_0: RtExpVals = RtExpVals {
+    fmc_version: 0x8C0,      // 1.3.0
+    fw_version: 0x0103_0000, // 1.3.0
+    supports_get_pcr_log: true,
+    ..RT_EXP_1_2_5
+};
+
+const RT_EXP_CURRENT: RtExpVals = RtExpVals { ..RT_EXP_1_3_0 };
 
 // === Getter implementations ===
 // TODO: These could be improved
