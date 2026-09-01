@@ -55,6 +55,9 @@ const K_GAMMA_2: u32 = (K_PRIME - 1) / 32;
 const BETA: u32 = 120;
 const OMEGA: usize = 75;
 
+/// Maximum length of the context string defined in Section 5.2 and 5.3 of FIPS 204.
+const MAX_CONTEXT_BYTES: usize = 255;
+
 /// Number of ML-DSA-87 matrix A polynomials cached across the signing rejection
 /// loop. A is 8 rows x 7 columns = 56 polynomials and depends only on `rho`, so
 /// caching avoids re-expanding these via SHAKE128 on every iteration — the
@@ -1241,6 +1244,10 @@ fn verify_with_mu_context(
     msg: &[u8],
     context: &[u8],
 ) -> Mldsa87Result {
+    if context.len() > MAX_CONTEXT_BYTES {
+        return Mldsa87Result::SigVerifyFailed;
+    }
+
     let mut tr_mu = [0u8; K_TR_BYTES];
     let mut shake256 = Shake256::new();
     shake256.absorb(encoded_public_key);
@@ -1429,7 +1436,11 @@ pub fn mldsa87_sign_with_context_from_sk(
     randomizer: &[u8; MLDSA87_RANDOMIZER_BYTES],
     msg: &[u8],
     context: &[u8],
-) {
+) -> Mldsa87Result {
+    if context.len() > MAX_CONTEXT_BYTES {
+        return Mldsa87Result::SigVerifyFailed;
+    }
+
     let mut priv_key = PrivateKey {
         rho: [0u8; K_RHO_BYTES],
         k: [0u8; K_K_BYTES],
@@ -1448,6 +1459,8 @@ pub fn mldsa87_sign_with_context_from_sk(
     shake256.squeeze(&mut mu);
 
     sign_internal_with_mu(out_encoded_signature, &priv_key, &mu, randomizer, Some(sk));
+
+    Mldsa87Result::Success
 }
 
 /// Deterministic variant of [`mldsa87_sign_with_context_from_sk`].
@@ -1457,9 +1470,9 @@ pub fn mldsa87_sign_with_context_deterministic_from_sk(
     sk: &[u8; MLDSA87_PRIVATE_KEY_BYTES],
     msg: &[u8],
     context: &[u8],
-) {
+) -> Mldsa87Result {
     let randomizer = [0u8; MLDSA87_RANDOMIZER_BYTES];
-    mldsa87_sign_with_context_from_sk(out_encoded_signature, sk, &randomizer, msg, context);
+    mldsa87_sign_with_context_from_sk(out_encoded_signature, sk, &randomizer, msg, context)
 }
 
 /// Sign a pre-computed `mu` using an encoded private key.

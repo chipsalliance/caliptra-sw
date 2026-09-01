@@ -112,7 +112,9 @@ fn test_acvp_mldsa87_siggen() {
                 // Group 5: external interface with context
                 let msg = hex::decode(test["message"].as_str().unwrap()).unwrap();
                 let context = hex::decode(test["context"].as_str().unwrap_or("")).unwrap();
-                Mldsa87::sign_with_context_deterministic_from_sk(&sk, &msg, &context, &mut sig);
+                let result =
+                    Mldsa87::sign_with_context_deterministic_from_sk(&sk, &msg, &context, &mut sig);
+                assert_eq!(result, Mldsa87Result::Success);
             }
 
             assert_eq!(sig, expected_sig, "siggen tcId {} failed", test["tcId"]);
