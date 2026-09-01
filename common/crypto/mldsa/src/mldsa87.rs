@@ -55,9 +55,6 @@ const K_GAMMA_2: u32 = (K_PRIME - 1) / 32;
 const BETA: u32 = 120;
 const OMEGA: usize = 75;
 
-/// Maximum length of the context string defined in Section 5.2 and 5.3 of FIPS 204.
-const MAX_CONTEXT_BYTES: usize = 255;
-
 /// Number of ML-DSA-87 matrix A polynomials cached across the signing rejection
 /// loop. A is 8 rows x 7 columns = 56 polynomials and depends only on `rho`, so
 /// caching avoids re-expanding these via SHAKE128 on every iteration — the
@@ -1244,10 +1241,6 @@ fn verify_with_mu_context(
     msg: &[u8],
     context: &[u8],
 ) -> Mldsa87Result {
-    if context.len() > MAX_CONTEXT_BYTES {
-        return Mldsa87Result::SigVerifyFailed;
-    }
-
     let mut tr_mu = [0u8; K_TR_BYTES];
     let mut shake256 = Shake256::new();
     shake256.absorb(encoded_public_key);
@@ -1255,7 +1248,10 @@ fn verify_with_mu_context(
 
     let mut shake256 = Shake256::new();
     shake256.absorb(&tr_mu);
-    let context_prefix = [0u8, context.len() as u8];
+    let Ok(context_len) = u8::try_from(context.len()) else {
+        return Mldsa87Result::SigVerifyFailed;
+    };
+    let context_prefix = [0u8, context_len];
     shake256.absorb(&context_prefix);
     shake256.absorb(context);
     shake256.absorb(msg);
@@ -1437,10 +1433,6 @@ pub fn mldsa87_sign_with_context_from_sk(
     msg: &[u8],
     context: &[u8],
 ) -> Mldsa87Result {
-    if context.len() > MAX_CONTEXT_BYTES {
-        return Mldsa87Result::SigVerifyFailed;
-    }
-
     let mut priv_key = PrivateKey {
         rho: [0u8; K_RHO_BYTES],
         k: [0u8; K_K_BYTES],
@@ -1452,7 +1444,10 @@ pub fn mldsa87_sign_with_context_from_sk(
     let mut mu = [0u8; K_MU_BYTES];
     let mut shake256 = Shake256::new();
     shake256.absorb(&tr);
-    let context_prefix = [0u8, context.len() as u8];
+    let Ok(context_len) = u8::try_from(context.len()) else {
+        return Mldsa87Result::SigVerifyFailed;
+    };
+    let context_prefix = [0u8, context_len];
     shake256.absorb(&context_prefix);
     shake256.absorb(context);
     shake256.absorb(msg);
