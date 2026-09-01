@@ -378,7 +378,7 @@ For example, the `ECDSA384_SIGNATURE_VERIFY` input fields (`pub_key_x`,
 output fields (`digest`, `signature_r`, `signature_s`) can be used directly with
 `openssl` or OpenSSL's `BN_bin2bn()` without any conversion.
 
-### FW\_LOAD
+### FIRMWARE\_LOAD
 
 The `FIRMWARE_LOAD` command is handled by both ROM and Runtime Firmware.
 
@@ -3044,6 +3044,38 @@ Command Code: `0x5357_4545` ("SWEE")
 | signature_s        | u8[48]   | The S BigNum of an ECDSA signature.                                        |
 
 The `exported_cdi_handle` can be created by calling `DeriveContext` with the `export-cdi` and `create-certificate` flags.
+
+### SIGN\_WITH\_EXPORTED\_MLDSA
+
+Command Code: `0x5357_4D4C` ("SWML")
+
+**Note**: This command is only available in the locality of the PL0 PAUSER.
+
+*Table: `SIGN_WITH_EXPORTED_MLDSA` input arguments*
+
+| **Name**             | **Type** | **Description** |
+| --------             | -------- | --------------- |
+| chksum               | u32      | Checksum over other input arguments, computed by the caller. Little endian. |
+| exported_cdi_handle  | u8[32]   | The exported CDI handle returned by the DPE `DeriveContext` command. Opaque byte array; copy the bytes exactly as returned. |
+| sign_type            | u32      | Signing mode selector. `0` = `Mu` (64-byte pre-hash input), `1` = `Raw` (arbitrary byte array input). |
+| tbs_size             | u32      | Length of the message to be signed. For `Mu`, this must be exactly 64 bytes. For `Raw`, this may be up to 1024 bytes. |
+| tbs                  | u8[1024] | The message bytes to be signed. For `Mu`, this field contains a 64-byte message digest. For `Raw`, it contains the raw input bytes to sign. |
+
+*Table: `SIGN_WITH_EXPORTED_MLDSA` output arguments*
+
+| **Name**           | **Type** | **Description** |
+| --------           | -------- | --------------- |
+| derived_pubkey     | u8[2592] | The ML-DSA public key derived from the exported CDI handle and the DPE environment. |
+| signature          | u8[4627] | The ML-DSA signature produced by the derived key. |
+
+The `exported_cdi_handle` can be created by calling `DeriveContext` with the `export-cdi` and `create-certificate` flags.
+
+This command derives an ML-DSA key pair from the provided exported CDI handle and signs either:
+
+- a 64-byte `Mu` message digest, or
+- a `Raw` message payload of up to 1024 bytes.
+
+The command performs the signing under PL0-only access control and returns the derived public key together with the signature.
 
 ### REVOKE\_EXPORTED\_CDI\_HANDLE
 
