@@ -20,6 +20,29 @@ const OCP_CLAIM_KEY_RIM_LOCATORS: i64 = -70001;
 // CoAP content format for concise-evidence-map (application/ce+cbor)
 const COAP_CONTENT_FORMAT_CONCISE_EV_MAP: u16 = 10571;
 
+/// OCP EAT profile policy.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OcpEatProfile {
+    EccX5ChainRequired,
+    EccMldsaX5ChainOrKid,
+}
+
+impl OcpEatProfile {
+    pub const ECC_X5CHAIN_REQUIRED_OID: &'static str = "1.3.6.1.4.1.42623.1.3";
+
+    // TODO: Replace this provisional value when OCP assigns the combined
+    // ECC/ML-DSA profile OID.
+    // See https://github.com/opencomputeproject/Security/pull/97.
+    pub const PROVISIONAL_ECC_MLDSA_X5CHAIN_OR_KID_OID: &'static str = "1.3.6.1.4.1.42623.1.4";
+
+    pub const fn oid(self) -> &'static str {
+        match self {
+            Self::EccX5ChainRequired => Self::ECC_X5CHAIN_REQUIRED_OID,
+            Self::EccMldsaX5ChainOrKid => Self::PROVISIONAL_ECC_MLDSA_X5CHAIN_OR_KID_OID,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 #[repr(u8)]
 pub enum DebugStatus {
@@ -176,7 +199,7 @@ pub struct OcpEatClaims<'a> {
 // Helper functions for creating common structures
 impl<'a> OcpEatClaims<'a> {
     /// Default OCP EAT Profile OID as per OCP specification
-    pub const DEFAULT_PROFILE_OID: &'static str = "1.3.6.1.4.1.42623.1.3";
+    pub const DEFAULT_PROFILE_OID: &'static str = OcpEatProfile::ECC_X5CHAIN_REQUIRED_OID;
 
     /// Create a new OcpEatClaims with mandatory fields
     pub fn new(
@@ -184,10 +207,25 @@ impl<'a> OcpEatClaims<'a> {
         dbgstat: DebugStatus,
         measurements: &'a [MeasurementFormat<'a>],
     ) -> Self {
+        Self::new_with_profile(
+            OcpEatProfile::EccX5ChainRequired,
+            nonce,
+            dbgstat,
+            measurements,
+        )
+    }
+
+    /// Create OCP EAT claims for a selected policy profile.
+    pub fn new_with_profile(
+        profile: OcpEatProfile,
+        nonce: &'a [u8],
+        dbgstat: DebugStatus,
+        measurements: &'a [MeasurementFormat<'a>],
+    ) -> Self {
         Self {
             nonce,
             dbgstat,
-            eat_profile: Self::DEFAULT_PROFILE_OID,
+            eat_profile: profile.oid(),
             measurements,
             issuer: None,
             cti: None,
@@ -655,6 +693,28 @@ mod tests {
         assert!(claims.issuer.is_none());
         assert!(claims.cti.is_none());
         assert_eq!(claims.private_claims.len(), 0);
+    }
+
+    #[test]
+    fn test_ocp_eat_profiles() {
+        let nonce = [0x01; 16];
+        let measurements = [];
+
+        let x5chain_required = OcpEatClaims::new_with_profile(
+            OcpEatProfile::EccX5ChainRequired,
+            &nonce,
+            DebugStatus::Disabled,
+            &measurements,
+        );
+        let x5chain_or_kid = OcpEatClaims::new_with_profile(
+            OcpEatProfile::EccMldsaX5ChainOrKid,
+            &nonce,
+            DebugStatus::Disabled,
+            &measurements,
+        );
+
+        assert_eq!(x5chain_required.eat_profile, "1.3.6.1.4.1.42623.1.3");
+        assert_eq!(x5chain_or_kid.eat_profile, "1.3.6.1.4.1.42623.1.4");
     }
 
     #[test]

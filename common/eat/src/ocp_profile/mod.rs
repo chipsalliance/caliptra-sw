@@ -6,7 +6,8 @@ mod eat;
 
 // Re-export OCP EAT profile types
 pub use eat::{
-    CorimLocatorMap, DebugStatus, DloaType, MeasurementFormat, OcpEatClaims, PrivateClaim,
+    CorimLocatorMap, DebugStatus, DloaType, MeasurementFormat, OcpEatClaims, OcpEatProfile,
+    PrivateClaim,
 };
 
 // Re-export only used items from the concise_evidence module
