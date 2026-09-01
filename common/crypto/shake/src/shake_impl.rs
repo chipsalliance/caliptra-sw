@@ -1,6 +1,7 @@
 // Licensed under the Apache-2.0 license
 
 use zerocopy::IntoBytes;
+use zeroize::Zeroize;
 
 // Keccak phases.
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -123,6 +124,13 @@ fn keccak_f(state: &mut [u64; 25]) {
     }
 }
 
+impl Drop for KeccakSt {
+    /// Zeroize the state buffer, which may contain priviliged information on drop.
+    fn drop(&mut self) {
+        self.state.zeroize();
+    }
+}
+
 impl KeccakSt {
     pub fn new(config: ShakeConfig) -> Self {
         KeccakSt {
@@ -230,5 +238,26 @@ impl KeccakSt {
             out_slice = rest;
             self.squeeze_offset += todo;
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A finalized SHAKE state carries the squeezed bytes in the clear, so the
+    /// drop glue must scrub it. Drops the value in place and inspects the bytes
+    /// left behind, which is sound here because every field is plain data.
+    #[test]
+    fn test_keccak_state_scrubbed_on_drop() {
+        let mut st = core::mem::ManuallyDrop::new(KeccakSt::new(ShakeConfig::Shake256));
+        st.absorb(b"secret key material");
+        let mut out = [0u8; 64];
+        st.squeeze(&mut out);
+        assert!(st.state.iter().any(|&w| w != 0));
+
+        unsafe { core::ptr::drop_in_place(&mut *st) };
+
+        assert!(st.state.iter().all(|&w| w == 0));
     }
 }
