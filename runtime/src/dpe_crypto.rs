@@ -660,6 +660,16 @@ impl crypto::Signer for DpeCrypto<'_> {
                 let Some(DerivedKey::Mldsa(seed)) = &self.derived_key else {
                     return Err(CryptoError::CryptoLibError(3));
                 };
+                // PCT for DPE leaf keys.
+                {
+                    let Signature::Mldsa(MldsaSignature(buf)) = out else {
+                        return Err(CryptoError::MismatchedAlgorithm);
+                    };
+                    let sig = Mldsa87Signature::mut_from_bytes(buf.as_mut_slice())
+                        .map_err(|_| CryptoError::Size)?;
+                    Mldsa87::pct(seed, sig)
+                        .map_err(|e| CryptoError::CryptoLibError(u32::from(e)))?;
+                }
                 Self::sign_helper_mldsa(data, seed, out)
             }
         }
@@ -678,6 +688,10 @@ impl crypto::Signer for DpeCrypto<'_> {
                 let pub_key = Mldsa87PubKey::mut_from_bytes(bytes.as_mut_slice())
                     .map_err(|_| CryptoError::Size)?;
                 Mldsa87::pub_from_seed(seed, pub_key, None)
+                    .map_err(|e| CryptoError::CryptoLibError(u32::from(e)))?;
+                // PCT verify key-pair consistency before the public key is exported.
+                let mut sig_scratch = Mldsa87Signature::default();
+                Mldsa87::pct(seed, &mut sig_scratch)
                     .map_err(|e| CryptoError::CryptoLibError(u32::from(e)))?;
                 Ok(())
             }

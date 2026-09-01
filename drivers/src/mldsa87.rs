@@ -17,7 +17,7 @@ Abstract:
 
 --*/
 
-use crate::CaliptraResult;
+use crate::{CaliptraError, CaliptraResult};
 use caliptra_mldsa::Mldsa87 as Mldsa87Sw;
 use core::ops::{Deref, DerefMut};
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
@@ -95,9 +95,9 @@ impl_helper_traits!(Mldsa87Mu);
 /// Software ML-DSA-87 engine.
 ///
 /// This is a stateless wrapper; there is no hardware to own. The methods return
-/// [`CaliptraResult`] for consistency with the other crypto drivers and to keep
-/// the API stable if validation (e.g. a pairwise-consistency self-test) is added
-/// later. The underlying software operations are currently infallible.
+/// [`CaliptraResult`] for consistency with the other crypto drivers though is
+/// only currently leveraged by the pairwise-consistency self-test. All other
+/// underlying software operations are currently infallible.
 ///
 /// Each operation is marked `#[inline(never)]` so that the large (tens of KB)
 /// stack frames used by keygen and signing do not get inlined into — and
@@ -201,6 +201,41 @@ impl Mldsa87 {
         msg: &[u8],
     ) -> CaliptraResult<Mldsa87Result> {
         Ok(Mldsa87Sw::verify(pub_key, sig, msg))
+    }
+
+    /// Pairwise Consistency Test (PCT) per ISO/IEC 19790 7.10.3
+    ///
+    /// # Arguments
+    ///
+    /// * `seed`        - 32-byte ML-DSA-87 private seed
+    /// * `sig_scratch` - Caller-provided scratch buffer for signature
+    #[inline(never)]
+    pub fn pct(seed: &Mldsa87Seed, sig_scratch: &mut Mldsa87Signature) -> CaliptraResult<()> {
+        const PCT_MESSAGE: [u8; 1] = [0x00];
+        Mldsa87Sw::sign_deterministic(seed, &PCT_MESSAGE, sig_scratch);
+
+        #[cfg(feature = "fips-test-hooks")]
+        // SAFETY: corrupts sig_scratch to force a PCT verify failure for testing.
+        unsafe {
+            crate::FipsTestHook::corrupt_data_if_hook_set(
+                crate::FipsTestHook::MLDSA87_PCT_FAILURE,
+                sig_scratch,
+            )
+        };
+
+        Self::pct_verify(seed, sig_scratch, &PCT_MESSAGE)
+    }
+
+    // Separate #[inline(never)] fn so pub_key lives in its own stack frame
+    // and is never simultaneously alive with the ML-DSA sign frames in pct().
+    #[inline(never)]
+    fn pct_verify(seed: &Mldsa87Seed, sig: &Mldsa87Signature, msg: &[u8]) -> CaliptraResult<()> {
+        let mut pub_key = Mldsa87PubKey::default();
+        Mldsa87Sw::pub_from_seed(seed, &mut pub_key);
+        if Mldsa87Sw::verify(&pub_key, sig, msg) != Mldsa87Result::Success {
+            return Err(CaliptraError::RUNTIME_PQ_PCT_VERIFY_FAILURE);
+        }
+        Ok(())
     }
 
     /// Verify an ML-DSA-87 signature over `msg` using an explicit signing
