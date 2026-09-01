@@ -44,7 +44,8 @@ impl SetPqSeedCmd {
         drivers
             .persistent_data
             .get_mut()
-            .set_pq_devid_cdi((*out).into())?;
+            .set_pq_devid_cdi((*out).into())
+            .inspect_err(|_| cmd.seed.zeroize())?;
 
         // The request buffer still holds the caller-supplied seed.
         cmd.seed.zeroize();
