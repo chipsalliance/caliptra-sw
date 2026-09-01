@@ -1248,7 +1248,10 @@ fn verify_with_mu_context(
 
     let mut shake256 = Shake256::new();
     shake256.absorb(&tr_mu);
-    let context_prefix = [0u8, context.len() as u8];
+    let Ok(context_len) = u8::try_from(context.len()) else {
+        return Mldsa87Result::SigVerifyFailed;
+    };
+    let context_prefix = [0u8, context_len];
     shake256.absorb(&context_prefix);
     shake256.absorb(context);
     shake256.absorb(msg);
@@ -1429,7 +1432,7 @@ pub fn mldsa87_sign_with_context_from_sk(
     randomizer: &[u8; MLDSA87_RANDOMIZER_BYTES],
     msg: &[u8],
     context: &[u8],
-) {
+) -> Mldsa87Result {
     let mut priv_key = PrivateKey {
         rho: [0u8; K_RHO_BYTES],
         k: [0u8; K_K_BYTES],
@@ -1441,13 +1444,18 @@ pub fn mldsa87_sign_with_context_from_sk(
     let mut mu = [0u8; K_MU_BYTES];
     let mut shake256 = Shake256::new();
     shake256.absorb(&tr);
-    let context_prefix = [0u8, context.len() as u8];
+    let Ok(context_len) = u8::try_from(context.len()) else {
+        return Mldsa87Result::SigVerifyFailed;
+    };
+    let context_prefix = [0u8, context_len];
     shake256.absorb(&context_prefix);
     shake256.absorb(context);
     shake256.absorb(msg);
     shake256.squeeze(&mut mu);
 
     sign_internal_with_mu(out_encoded_signature, &priv_key, &mu, randomizer, Some(sk));
+
+    Mldsa87Result::Success
 }
 
 /// Deterministic variant of [`mldsa87_sign_with_context_from_sk`].
@@ -1457,9 +1465,9 @@ pub fn mldsa87_sign_with_context_deterministic_from_sk(
     sk: &[u8; MLDSA87_PRIVATE_KEY_BYTES],
     msg: &[u8],
     context: &[u8],
-) {
+) -> Mldsa87Result {
     let randomizer = [0u8; MLDSA87_RANDOMIZER_BYTES];
-    mldsa87_sign_with_context_from_sk(out_encoded_signature, sk, &randomizer, msg, context);
+    mldsa87_sign_with_context_from_sk(out_encoded_signature, sk, &randomizer, msg, context)
 }
 
 /// Sign a pre-computed `mu` using an encoded private key.
