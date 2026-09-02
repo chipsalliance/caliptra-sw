@@ -91,6 +91,11 @@ fn test_fe_programming_cannot_be_called_from_pl1() {
     let init_params = InitParams {
         rom: &rom,
         security_state: *SecurityState::default().set_device_lifecycle(DeviceLifecycle::Production),
+        ss_init_params: SubsystemInitParams {
+            enable_mcu_uart_log: true,
+            ..Default::default()
+        },
+        subsystem_mode: true,
         ..Default::default()
     };
 
@@ -105,6 +110,7 @@ fn test_fe_programming_cannot_be_called_from_pl1() {
     let mut model = run_rt_test(RuntimeTestArgs {
         init_params: Some(init_params),
         test_image_options: Some(image_opts),
+        subsystem_mode: true,
         ..Default::default()
     });
 
