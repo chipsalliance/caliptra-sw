@@ -612,6 +612,20 @@ pub fn measure_mldsa_dpe_subcommands(sampler: &mut dyn CommandSampler) -> Vec<(&
         measure_dpe_profile(sampler, model, P, &mut Command::from(&certify_cmd)),
     ));
 
+    // 4a. CertifyKey / CSR. Unlike X509 (signed with the alias key), the CSR form
+    //     signs with the derived key, so it is the certify path that goes through
+    //     `Signer::sign`.
+    let certify_csr_cmd = CertifyKeyMldsa87Cmd {
+        handle: ContextHandle::default(),
+        flags: CertifyKeyFlags::empty(),
+        format: CertifyKeyCommand::FORMAT_CSR,
+        label: TEST_LABEL,
+    };
+    results.push((
+        "INVOKE_DPE_MLDSA87(CertifyKey/CSR)",
+        measure_dpe_profile(sampler, model, P, &mut Command::from(&certify_csr_cmd)),
+    ));
+
     // 4b. SIGN_WITH_EXPORTED_MLDSA (data mode) — export an ML-DSA CDI first
     //     (populates the exported-CDI slot; the export derives from the default
     //     context, so this runs before the default is retired in step 8), then sign

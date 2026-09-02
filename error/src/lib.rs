@@ -1348,6 +1348,11 @@ impl CaliptraError {
             0x000E0073,
             "Runtime Error: Invalid FW persistent data version"
         ),
+        (
+            RUNTIME_PQ_PCT_VERIFY_FAILURE,
+            0x000E0074,
+            "Runtime Error: ML-DSA-87 pairwise consistency test (PCT) verify failed"
+        ),
         // FMC Errors
         (FMC_GLOBAL_NMI, 0x000F0001, "FMC Error: Global NMI"),
         (

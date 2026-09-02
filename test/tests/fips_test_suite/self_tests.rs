@@ -610,3 +610,46 @@ pub fn integrity_check_failure_rom() {
 //         u32::from(CaliptraError::DRIVER_ECC384_KEYGEN_PAIRWISE_CONSISTENCY_FAILURE),
 //     );
 // }
+
+#[test]
+pub fn mldsa_pairwise_consistency_error() {
+    let fw_image = caliptra_builder::build_and_sign_image(
+        &FMC_WITH_UART,
+        &APP_WITH_UART_FIPS_TEST_HOOKS,
+        ImageOptions::default(),
+    )
+    .unwrap()
+    .to_bytes()
+    .unwrap();
+
+    let mut hw = fips_test_init_to_rt(
+        None,
+        Some(BootParams {
+            fw_image: Some(&fw_image),
+            ..fips_default_boot_params()
+        }),
+    );
+
+    hw.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_runtime());
+
+    // Arm the hook so the next PCT call corrupts the test signature.
+    hw.soc_ifc()
+        .cptra_dbg_manuf_service_reg()
+        .write(|_| (FipsTestHook::MLDSA87_PCT_FAILURE as u32) << HOOK_CODE_OFFSET);
+
+    // SET_PQ_SEED triggers a PCT; the hook should make it fail.
+    let mut cmd = MailboxReq::SetPqSeed(SetPqSeedReq {
+        hdr: MailboxReqHeader::default(),
+        seed: [0x5a; caliptra_common::mailbox_api::SET_PQ_SEED_SEED_SIZE],
+    });
+    cmd.populate_chksum().unwrap();
+    match hw.mailbox_execute(u32::from(CommandId::SET_PQ_SEED), cmd.as_bytes().unwrap()) {
+        Err(ModelError::MailboxCmdFailed(code)) => {
+            assert_eq!(
+                code,
+                u32::from(CaliptraError::RUNTIME_PQ_PCT_VERIFY_FAILURE)
+            );
+        }
+        other => panic!("Expected PCT failure, got {:?}", other),
+    }
+}
