@@ -221,6 +221,17 @@ impl<'a> DpeCrypto<'a> {
         Ok(output)
     }
 
+    // Sets derived_key to the new seed unless it already matches, preserving pct_done.
+    fn set_mldsa_derived_key(&mut self, seed: Mldsa87Seed) {
+        if !matches!(&self.derived_key, Some(DerivedKey::Mldsa { seed: prev, .. }) if constant_time_eq(&**prev, &*seed))
+        {
+            self.derived_key = Some(DerivedKey::Mldsa {
+                seed,
+                pct_done: false,
+            });
+        }
+    }
+
     // Derive only the ML-DSA seed from an in-memory CDI.
     fn derive_key_pair_mldsa(
         &mut self,
@@ -575,14 +586,7 @@ impl Crypto for DpeCrypto<'_> {
                 };
                 let mut seed = Mldsa87Seed::default();
                 self.derive_key_pair_mldsa((&*cdi).into(), label, info, &mut seed)?;
-                // Skip overwriting if seed matches existing derived_key. Preserves pct_done=true from the first call.
-                if !matches!(&self.derived_key, Some(DerivedKey::Mldsa { seed: prev, .. }) if constant_time_eq(&**prev, &*seed))
-                {
-                    self.derived_key = Some(DerivedKey::Mldsa {
-                        seed,
-                        pct_done: false,
-                    });
-                }
+                self.set_mldsa_derived_key(seed);
             }
         }
 
@@ -640,14 +644,7 @@ impl CdiManager for DpeCrypto<'_> {
                 };
                 let mut seed = Mldsa87Seed::default();
                 self.derive_key_pair_mldsa((&*cdi_bytes).into(), label, info, &mut seed)?;
-                // Skip overwriting if seed matches existing derived_key. Preserves pct_done=true from the first call.
-                if !matches!(&self.derived_key, Some(DerivedKey::Mldsa { seed: prev, .. }) if constant_time_eq(&**prev, &*seed))
-                {
-                    self.derived_key = Some(DerivedKey::Mldsa {
-                        seed,
-                        pct_done: false,
-                    });
-                }
+                self.set_mldsa_derived_key(seed);
             }
         };
 

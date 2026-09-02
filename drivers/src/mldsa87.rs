@@ -46,7 +46,7 @@ pub struct Mldsa87PrivKey([u8; MLDSA87_PRIVATE_KEY_BYTES]);
 
 /// ML-DSA-87 encoded signature (4,627 bytes).
 #[repr(transparent)]
-#[derive(KnownLayout, Immutable, FromBytes, IntoBytes)]
+#[derive(KnownLayout, Immutable, FromBytes, IntoBytes, Zeroize)]
 pub struct Mldsa87Signature([u8; MLDSA87_SIGNATURE_BYTES]);
 
 #[repr(transparent)]
@@ -223,7 +223,9 @@ impl Mldsa87 {
             )
         };
 
-        Self::pct_verify(seed, sig_scratch, &PCT_MESSAGE)
+        let result = Self::pct_verify(seed, sig_scratch, &PCT_MESSAGE);
+        sig_scratch.zeroize();
+        result
     }
 
     // Separate #[inline(never)] fn so pub_key lives in its own stack frame
