@@ -221,6 +221,17 @@ impl<'a> DpeCrypto<'a> {
         Ok(output)
     }
 
+    // Sets derived_key to the new seed unless it already matches, preserving pct_done.
+    fn set_mldsa_derived_key(&mut self, seed: Mldsa87Seed) {
+        if !matches!(&self.derived_key, Some(DerivedKey::Mldsa { seed: prev, .. }) if constant_time_eq(&**prev, &*seed))
+        {
+            self.derived_key = Some(DerivedKey::Mldsa {
+                seed,
+                pct_done: false,
+            });
+        }
+    }
+
     // Derive only the ML-DSA seed from an in-memory CDI.
     fn derive_key_pair_mldsa(
         &mut self,
@@ -575,7 +586,7 @@ impl Crypto for DpeCrypto<'_> {
                 };
                 let mut seed = Mldsa87Seed::default();
                 self.derive_key_pair_mldsa((&*cdi).into(), label, info, &mut seed)?;
-                self.derived_key = Some(DerivedKey::Mldsa(seed));
+                self.set_mldsa_derived_key(seed);
             }
         }
 
@@ -633,7 +644,7 @@ impl CdiManager for DpeCrypto<'_> {
                 };
                 let mut seed = Mldsa87Seed::default();
                 self.derive_key_pair_mldsa((&*cdi_bytes).into(), label, info, &mut seed)?;
-                self.derived_key = Some(DerivedKey::Mldsa(seed));
+                self.set_mldsa_derived_key(seed);
             }
         };
 
@@ -657,21 +668,31 @@ impl crypto::Signer for DpeCrypto<'_> {
             }
 
             Signer::Mldsa { .. } => {
-                let Some(DerivedKey::Mldsa(seed)) = &self.derived_key else {
+                let Some(DerivedKey::Mldsa { seed, pct_done }) = &mut self.derived_key else {
                     return Err(CryptoError::CryptoLibError(3));
                 };
+                if !*pct_done {
+                    let Signature::Mldsa(MldsaSignature(buf)) = out else {
+                        return Err(CryptoError::MismatchedAlgorithm);
+                    };
+                    let sig = Mldsa87Signature::mut_from_bytes(buf.as_mut_slice())
+                        .map_err(|_| CryptoError::Size)?;
+                    Mldsa87::pct(seed, sig)
+                        .map_err(|e| CryptoError::CryptoLibError(u32::from(e)))?;
+                    *pct_done = true;
+                }
                 Self::sign_helper_mldsa(data, seed, out)
             }
         }
     }
 
     fn public_key(&mut self, out: &mut PubKey) -> Result<(), CryptoError> {
-        match &self.derived_key {
+        match &mut self.derived_key {
             Some(DerivedKey::Ec((_, pub_key))) => {
                 *out = PubKey::Ecdsa(pub_key.clone());
                 Ok(())
             }
-            Some(DerivedKey::Mldsa(seed)) => {
+            Some(DerivedKey::Mldsa { seed, pct_done }) => {
                 let PubKey::Mldsa(MldsaPublicKey(bytes)) = out else {
                     return Err(CryptoError::MismatchedAlgorithm);
                 };
@@ -679,6 +700,12 @@ impl crypto::Signer for DpeCrypto<'_> {
                     .map_err(|_| CryptoError::Size)?;
                 Mldsa87::pub_from_seed(seed, pub_key, None)
                     .map_err(|e| CryptoError::CryptoLibError(u32::from(e)))?;
+                if !*pct_done {
+                    let mut sig_scratch = Mldsa87Signature::default();
+                    Mldsa87::pct(seed, &mut sig_scratch)
+                        .map_err(|e| CryptoError::CryptoLibError(u32::from(e)))?;
+                    *pct_done = true;
+                }
                 Ok(())
             }
             _ => Err(CryptoError::CryptoLibError(4)),
@@ -710,5 +737,5 @@ enum DerivedKey {
     // its 2,592-byte ML-DSA variant, so this ~96-byte P-384 key would otherwise
     // bloat the live DPE env on the sign stack by ~2.5 KB for an unused variant.
     Ec((KeyId, EcdsaPubKey)),
-    Mldsa(Mldsa87Seed),
+    Mldsa { seed: Mldsa87Seed, pct_done: bool },
 }

@@ -15,7 +15,9 @@ Abstract:
 use crate::Drivers;
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_common::mailbox_api::{MailboxRespHeader, SetPqSeedReq, SET_PQ_SEED_SEED_SIZE};
-use caliptra_drivers::{hmac384_kdf, Array4x12, CaliptraError, CaliptraResult};
+use caliptra_drivers::{
+    hmac384_kdf, Array4x12, CaliptraError, CaliptraResult, Mldsa87, Mldsa87Signature,
+};
 use crypto::{Digest, Sha256};
 use zerocopy::{FromZeros, IntoBytes};
 use zeroize::{Zeroize, Zeroizing};
@@ -44,7 +46,8 @@ impl SetPqSeedCmd {
         drivers
             .persistent_data
             .get_mut()
-            .set_pq_devid_cdi((*out).into())?;
+            .set_pq_devid_cdi((*out).into())
+            .inspect_err(|_| cmd.seed.zeroize())?;
 
         // The request buffer still holds the caller-supplied seed.
         cmd.seed.zeroize();
@@ -52,13 +55,20 @@ impl SetPqSeedCmd {
         // Calculate the digest of the PQ.DevID public key and cache it
         // in the persistent data to avoid repeated key generation passes
         // involved in DPE invocation.
-        let (_, _, Digest::Sha256(Sha256(digest))) = drivers.compute_mldsa_key_material()? else {
+        let (seed, _, Digest::Sha256(Sha256(digest))) = drivers.compute_mldsa_key_material()?
+        else {
             return Err(CaliptraError::RUNTIME_PQ_INVALID_PUBKEY_DIGEST);
         };
         drivers
             .persistent_data
             .get_mut()
             .set_pq_devid_pub_key_digest(digest)?;
+
+        // Pairwise Consistency Test (PCT)
+        // Required once prior to first use of the key pair.
+        // Re-derivations from the stored CDI do not require repeating the PCT
+        let mut sig_scratch = Mldsa87Signature::default();
+        Mldsa87::pct(&seed, &mut sig_scratch)?;
 
         crate::packet::copy_to_mbox(drivers, MailboxRespHeader::default().as_mut_bytes())
     }
