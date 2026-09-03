@@ -21,3 +21,16 @@ Release notes for changes introduced since fw-1.2.4
 - Updated FIPS CMVP Test Suite
 - Included DPE Cert fixes
 - Various instruction memory optimizations
+
+# fw-1.3.0
+## Caliptra Runtime/FMC 1.3.0 Release Notes
+
+Release nots for changes introduced since fw-1.2.5
+
+### Features
+ - Implemented software support for PQC(MLDSA) including:
+    * Initialization of PQC Seed
+    * MLDSA signature verification
+    * Attestation for firmware downstream of Caliptra Core
+ - Updated to rust toolchain 1.95
+
