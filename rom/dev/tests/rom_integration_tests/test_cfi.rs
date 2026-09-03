@@ -9,6 +9,7 @@ use caliptra_common::RomBootStatus;
 use caliptra_emu_cpu::CoverageBitmaps;
 use caliptra_hw_model::{BootParams, HwModel, InitParams};
 
+#[allow(dead_code)]
 fn find_symbol<'a>(symbols: &'a [Symbol<'a>], name: &str) -> &'a Symbol<'a> {
     symbols
         .iter()
@@ -57,8 +58,7 @@ fn test_memcpy_not_called_before_cfi_init() {
 
         hw.step_until_boot_status(RomBootStatus::CfiInitialized.into(), true);
 
-        assert_symbol_not_called(&hw, find_symbol(&symbols, "memcpy"));
-        assert_symbol_not_called(&hw, find_symbol(&symbols, "memset"));
+        // Ideally we would also check for memcpy and memset, but the CSRNG KAT has to happen before the CFI init which uses it
         assert_symbol_not_called(&hw, find_symbol_containing(&symbols, "read_volatile_slice"));
         assert_symbol_not_called(
             &hw,
