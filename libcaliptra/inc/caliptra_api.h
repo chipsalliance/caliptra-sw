@@ -200,6 +200,8 @@ int caliptra_get_fmc_alias_mldsa87_cert(struct caliptra_get_fmc_alias_mldsa87_ce
 // Get MLDSA87 RT Alias cert
 int caliptra_get_rt_alias_mldsa87_cert(struct caliptra_get_rt_alias_mldsa87_cert_resp *resp, bool async);
 
+struct caliptra_mldsa_verify_req;
+
 // ECDSA384 Verify
 int caliptra_mldsa87_verify(struct caliptra_mldsa_verify_req *req, bool async);
 
