@@ -74,6 +74,7 @@ pub const ALL_RELEASES: &[ReleaseEntry] = &[
     ReleaseEntry { name: "rt-1.2.3",  tag: "rt-1.2.3",  ty: ReleaseType::Fw, asset_tag: Some("release_v20251105_0"), build: false },
     ReleaseEntry { name: "rt-1.2.4",  tag: "rt-1.2.4",  ty: ReleaseType::Fw, asset_tag: Some("release_v20260312_0"), build: false },
     ReleaseEntry { name: "rt-1.2.5",  tag: "rt-1.2.5",  ty: ReleaseType::Fw, asset_tag: None, build: false },
+    ReleaseEntry { name: "rt-1.3.0",  tag: "rt-1.3.0",  ty: ReleaseType::Fw, asset_tag: None, build: false },
     ReleaseEntry { name: "fw-2.0.0",  tag: "fw-2.0.0",  ty: ReleaseType::Fw, asset_tag: None, build: false },
     ReleaseEntry { name: "fw-2.0.1",  tag: "fw-2.0.1",  ty: ReleaseType::Fw, asset_tag: None, build: false },
     ReleaseEntry { name: "fw-2.1.0",  tag: "fw-2.1.0",  ty: ReleaseType::Fw, asset_tag: None, build: false },
@@ -647,6 +648,7 @@ fn rtl_compat(name: &str, ty: ReleaseType) -> &'static str {
         (ReleaseType::Fw, "1", "0") => "1.0",
         (ReleaseType::Fw, "1", "1") => "1.0, 1.1",
         (ReleaseType::Fw, "1", "2") => "1.0, 1.1",
+        (ReleaseType::Fw, "1", "3") => "1.0, 1.1",
         (ReleaseType::Fw, "2", "0") => "2.0.2+",
         (ReleaseType::Fw, "2", "1") => "2.1",
         _ => "",
@@ -838,6 +840,7 @@ mod tests {
         );
         assert_eq!(rtl_compat("rt-1.2.0", ReleaseType::Fw), "1.0, 1.1");
         assert_eq!(rtl_compat("rt-1.2.4", ReleaseType::Fw), "1.0, 1.1");
+        assert_eq!(rtl_compat("rt-1.3.0", ReleaseType::Fw), "1.0, 1.1");
         assert_eq!(rtl_compat("fw-2.0.0", ReleaseType::Fw), "2.0.2+");
         assert_eq!(rtl_compat("fw-2.0.1", ReleaseType::Fw), "2.0.2+");
         assert_eq!(rtl_compat("fw-2.1.0", ReleaseType::Fw), "2.1");
