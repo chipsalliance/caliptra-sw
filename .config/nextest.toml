@@ -13,6 +13,12 @@ slow-timeout = { period = "30s", terminate-after = 140 }
 filter = 'test(test_stress_update)'
 slow-timeout = { period = "30s", terminate-after = 17 }
 
+# The measurement suites walk every runtime command, including the ML-DSA-87
+# keygen/sign paths, against a debug-built emulator. Allow 6 minutes.
+[[profile.nightly.overrides]]
+filter = 'test(=test_command_timing::measure_runtime_command_timing) + test(=test_stack_usage::measure_runtime_command_stack_usage)'
+slow-timeout = { period = "30s", terminate-after = 12 }
+
 [profile.nightly.junit]
 path = "/tmp/junit.xml"
 store-success-output = true

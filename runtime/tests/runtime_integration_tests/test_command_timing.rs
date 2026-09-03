@@ -113,6 +113,7 @@ fn measure_runtime_command_timing() {
 }
 
 #[test]
+#[ignore = "Traces the stack; invoke with --ignored"]
 fn measure_runtime_command_timing_and_sample_stack_traces() {
     measure_timing(test_args(true, None));
 }
