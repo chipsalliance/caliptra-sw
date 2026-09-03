@@ -635,6 +635,9 @@ fn expand_s1_short(s1: &mut Vector7, sigma: &[u8; K_SIGMA_BYTES]) {
         scalar_uniform_2(&mut s1.v[i], &derived_seed);
         derived_seed[K_SIGMA_BYTES] = derived_seed[K_SIGMA_BYTES].wrapping_add(1);
     }
+
+    // Clear the derived seed from the stack.
+    derived_seed.zeroize();
 }
 
 fn expand_s2_short(s2: &mut Vector8, sigma: &[u8; K_SIGMA_BYTES]) {
@@ -646,6 +649,9 @@ fn expand_s2_short(s2: &mut Vector8, sigma: &[u8; K_SIGMA_BYTES]) {
         scalar_uniform_2(&mut s2.v[i], &derived_seed);
         derived_seed[K_SIGMA_BYTES] = derived_seed[K_SIGMA_BYTES].wrapping_add(1);
     }
+
+    // Clear the derived seed from the stack.
+    derived_seed.zeroize();
 }
 
 fn expand_s1_or_s2_ntt_mul_scalar(
@@ -666,6 +672,9 @@ fn expand_s1_or_s2_ntt_mul_scalar(
         derived_seed[K_SIGMA_BYTES] = seed_idx as u8;
         derived_seed[K_SIGMA_BYTES + 1] = 0;
         scalar_uniform_2(out, &derived_seed);
+
+        // Clear the derived seed from the stack.
+        derived_seed.zeroize();
     }
     scalar_ntt(out);
     scalar_mul_assign(out, rhs);
@@ -1039,8 +1048,8 @@ fn sign_internal_with_mu(
     matrix87_cache_expand(&mut a_cache, &priv_key.rho);
 
     let mut kappa = 0;
+    let mut tmp = Vector8::default();
     loop {
-        let mut tmp = Vector8::default();
         matrix87_expand_mul_mask(&mut tmp, &priv_key.rho, &a_cache, &rho_prime, kappa);
         vector8_inverse_ntt(&mut tmp);
 
@@ -1066,8 +1075,8 @@ fn sign_internal_with_mu(
         let mut mask_seed = [0u8; K_RHO_PRIME_BYTES + 2];
         mask_seed[..K_RHO_PRIME_BYTES].copy_from_slice(&rho_prime);
 
+        let mut cs_i = Scalar::default();
         for i in 0..7 {
-            let mut cs_i = Scalar::default();
             expand_s1_or_s2_ntt_mul_scalar(
                 &mut cs_i,
                 i,
@@ -1104,8 +1113,8 @@ fn sign_internal_with_mu(
         let mut ct0_max = 0u32;
         let mut h_ones = 0usize;
 
+        let mut r0_i = Scalar::default();
         for i in 0..8 {
-            let mut cs_i = Scalar::default();
             expand_s1_or_s2_ntt_mul_scalar(
                 &mut cs_i,
                 i,
@@ -1116,8 +1125,6 @@ fn sign_internal_with_mu(
                 &c_ntt,
             );
             scalar_inverse_ntt(&mut cs_i);
-
-            let mut r0_i = Scalar::default();
             scalar_sub(&mut r0_i, &tmp.v[i], &cs_i);
             scalar_low_bits(&mut r0_i);
 
@@ -1137,6 +1144,8 @@ fn sign_internal_with_mu(
             scalar_max(&mut ct0_max, ct0_i);
             h_ones += scalar_count_ones(&tmp.v[i]);
         }
+        r0_i.zeroize();
+        cs_i.zeroize();
 
         if (ct_ge(r0_max, K_GAMMA_2.wrapping_sub(BETA))
             | ct_ge(ct0_max, K_GAMMA_2)
@@ -1157,6 +1166,7 @@ fn sign_internal_with_mu(
 
     // rho_prime derives every mask y; with a published signature it recovers s1.
     rho_prime.zeroize();
+    tmp.zeroize();
 }
 
 fn verify_internal_with_mu(
@@ -1248,7 +1258,10 @@ fn verify_with_mu_context(
 
     let mut shake256 = Shake256::new();
     shake256.absorb(&tr_mu);
-    let context_prefix = [0u8, context.len() as u8];
+    let Ok(context_len) = u8::try_from(context.len()) else {
+        return Mldsa87Result::SigVerifyFailed;
+    };
+    let context_prefix = [0u8, context_len];
     shake256.absorb(&context_prefix);
     shake256.absorb(context);
     shake256.absorb(msg);
@@ -1429,7 +1442,7 @@ pub fn mldsa87_sign_with_context_from_sk(
     randomizer: &[u8; MLDSA87_RANDOMIZER_BYTES],
     msg: &[u8],
     context: &[u8],
-) {
+) -> Mldsa87Result {
     let mut priv_key = PrivateKey {
         rho: [0u8; K_RHO_BYTES],
         k: [0u8; K_K_BYTES],
@@ -1441,13 +1454,18 @@ pub fn mldsa87_sign_with_context_from_sk(
     let mut mu = [0u8; K_MU_BYTES];
     let mut shake256 = Shake256::new();
     shake256.absorb(&tr);
-    let context_prefix = [0u8, context.len() as u8];
+    let Ok(context_len) = u8::try_from(context.len()) else {
+        return Mldsa87Result::SigVerifyFailed;
+    };
+    let context_prefix = [0u8, context_len];
     shake256.absorb(&context_prefix);
     shake256.absorb(context);
     shake256.absorb(msg);
     shake256.squeeze(&mut mu);
 
     sign_internal_with_mu(out_encoded_signature, &priv_key, &mu, randomizer, Some(sk));
+
+    Mldsa87Result::Success
 }
 
 /// Deterministic variant of [`mldsa87_sign_with_context_from_sk`].
@@ -1457,9 +1475,9 @@ pub fn mldsa87_sign_with_context_deterministic_from_sk(
     sk: &[u8; MLDSA87_PRIVATE_KEY_BYTES],
     msg: &[u8],
     context: &[u8],
-) {
+) -> Mldsa87Result {
     let randomizer = [0u8; MLDSA87_RANDOMIZER_BYTES];
-    mldsa87_sign_with_context_from_sk(out_encoded_signature, sk, &randomizer, msg, context);
+    mldsa87_sign_with_context_from_sk(out_encoded_signature, sk, &randomizer, msg, context)
 }
 
 /// Sign a pre-computed `mu` using an encoded private key.
@@ -1488,7 +1506,7 @@ pub fn mldsa87_sign_mu_from_sk(
 /// and a message supplied via a [`ResponseBuffer`] and then sign it, reusing
 /// the private key from the generation.
 ///
-/// Implements FIPS 204 HashML-DSA with an empty (zero-length) context:
+/// Implements FIPS 204 ML-DSA with an empty (zero-length) context:
 /// `mu = SHAKE256(tr || 0x00 || 0x00 || M)` where `tr = SHAKE256(pk)` and
 /// `pk` is derived from `seed`.
 pub fn mldsa87_generate_sign_mu_deterministic(

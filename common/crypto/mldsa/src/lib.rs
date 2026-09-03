@@ -103,8 +103,8 @@ impl Mldsa87 {
         msg: &[u8],
         context: &[u8],
         sig: &mut [u8; MLDSA87_SIGNATURE_BYTES],
-    ) {
-        mldsa87_sign_with_context_from_sk(sig, sk, randomizer, msg, context);
+    ) -> Mldsa87Result {
+        mldsa87_sign_with_context_from_sk(sig, sk, randomizer, msg, context)
     }
 
     /// Deterministic variant of [`Self::sign_with_context_from_sk`].
@@ -114,8 +114,8 @@ impl Mldsa87 {
         msg: &[u8],
         context: &[u8],
         sig: &mut [u8; MLDSA87_SIGNATURE_BYTES],
-    ) {
-        mldsa87_sign_with_context_deterministic_from_sk(sig, sk, msg, context);
+    ) -> Mldsa87Result {
+        mldsa87_sign_with_context_deterministic_from_sk(sig, sk, msg, context)
     }
 
     /// Sign a pre-computed `mu` using an encoded private key.
