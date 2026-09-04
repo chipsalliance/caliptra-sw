@@ -4,7 +4,7 @@ use crate::test_update_reset::update_fw;
 use caliptra_api::mailbox::{
     CommandId, MailboxReq, MailboxReqHeader, MailboxRespHeader, OcpLockGenerateMekReq,
     OcpLockGenerateMekResp, OcpLockInitializeMekSecretReq, OcpLockLoadMekReq, OcpLockLoadMekResp,
-    WrappedKey, OCP_LOCK_ENCRYPTION_ENGINE_AUX_SIZE, OCP_LOCK_ENCRYPTION_ENGINE_METADATA_SIZE,
+    WrappedKey,
 };
 use caliptra_builder::{firmware::APP_WITH_UART_OCP_LOCK_FPGA, ImageOptions};
 use caliptra_error::CaliptraError;
@@ -15,14 +15,9 @@ use caliptra_test::derive::{DoeInput, DoeOutput, Mek, OcpLockKeyLadderBuilder};
 use zerocopy::{FromBytes, IntoBytes};
 
 use super::{
-    boot_ocp_lock_runtime, validate_ocp_lock_response, InitializeMekSecretParams, OcpLockBootParams,
+    boot_ocp_lock_runtime, validate_ocp_lock_response, InitializeMekSecretParams,
+    OcpLockBootParams, TEST_AUX, TEST_METADATA,
 };
-
-const TEST_METADATA: [u8; OCP_LOCK_ENCRYPTION_ENGINE_METADATA_SIZE] =
-    [0xDE; OCP_LOCK_ENCRYPTION_ENGINE_METADATA_SIZE];
-
-const TEST_AUX: [u8; OCP_LOCK_ENCRYPTION_ENGINE_AUX_SIZE] =
-    [0xFE; OCP_LOCK_ENCRYPTION_ENGINE_AUX_SIZE];
 
 fn generate_test_mek() -> (Mek, WrappedKey) {
     let doe_out = DoeOutput::generate(&DoeInput::default());

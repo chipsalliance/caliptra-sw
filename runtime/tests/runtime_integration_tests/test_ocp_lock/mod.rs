@@ -8,6 +8,7 @@ use caliptra_api::{
         OcpLockGetHpkePubKeyReq, OcpLockGetHpkePubKeyResp, OcpLockInitializeMekSecretReq,
         OcpLockReportHekMetadataReq, OcpLockReportHekMetadataResp,
         OcpLockReportHekMetadataRespFlags, OcpLockRewrapMpkReq, SealedAccessKey, WrappedKey,
+        OCP_LOCK_ENCRYPTION_ENGINE_AUX_SIZE, OCP_LOCK_ENCRYPTION_ENGINE_METADATA_SIZE,
         OCP_LOCK_MAX_ENC_LEN, OCP_LOCK_WRAPPED_KEY_MAX_INFO_LEN,
         OCP_LOCK_WRAPPED_KEY_MAX_METADATA_LEN,
     },
@@ -39,6 +40,7 @@ mod test_get_algorithms;
 mod test_get_hpke_pubkey;
 mod test_get_status;
 mod test_initialize_mek_secret;
+mod test_load_kat_mek;
 mod test_load_mek;
 mod test_mix_mpk;
 mod test_rewrap_mpk;
@@ -51,6 +53,12 @@ const ALL_HPKE_ALGS: &[HpkeAlgorithms] = &[
     HpkeAlgorithms::ECDH_P384_HKDF_SHA384_AES_256_GCM,
     HpkeAlgorithms::ML_KEM_1024_ECDH_P384_HKDF_SHA384_AES_256_GCM,
 ];
+
+const TEST_METADATA: [u8; OCP_LOCK_ENCRYPTION_ENGINE_METADATA_SIZE] =
+    [0xDE; OCP_LOCK_ENCRYPTION_ENGINE_METADATA_SIZE];
+
+const TEST_AUX: [u8; OCP_LOCK_ENCRYPTION_ENGINE_AUX_SIZE] =
+    [0xFE; OCP_LOCK_ENCRYPTION_ENGINE_AUX_SIZE];
 
 #[cfg_attr(feature = "fpga_realtime", ignore)]
 #[test]

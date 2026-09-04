@@ -280,6 +280,7 @@ impl CommandId {
     pub const OCP_LOCK_GET_STATUS: Self = Self(0x4753_5441); // "GSTA"
     pub const OCP_LOCK_UNLOAD_MEK: Self = Self(0x554D_454B); // "UMEK"
     pub const OCP_LOCK_LOAD_MEK: Self = Self(0x4C4D_454B); // "LMEK"
+    pub const OCP_LOCK_LOAD_KAT_MEK: Self = Self(0x4C4B_4154); // "LKAT"
 
     pub const REALLOCATE_DPE_CONTEXT_LIMITS: Self = Self(0x5243_5458); // "RCTX"
     pub const CERTIFY_KEY_CHUNKS: Self = Self(0x434B4348); // "CKCH"
@@ -447,6 +448,7 @@ pub enum MailboxResp {
     OcpLockClearKeyCache(OcpLockClearKeyCacheResp),
     OcpLockUnloadMek(OcpLockUnloadMekResp),
     OcpLockLoadMek(OcpLockLoadMekResp),
+    OcpLockLoadKatMek(OcpLockLoadKatMekResp),
     CertifyKeyChunks(CertifyKeyChunksResp),
 }
 
@@ -536,6 +538,7 @@ impl MailboxResp {
             MailboxResp::OcpLockClearKeyCache(resp) => Ok(resp.as_bytes()),
             MailboxResp::OcpLockUnloadMek(resp) => Ok(resp.as_bytes()),
             MailboxResp::OcpLockLoadMek(resp) => Ok(resp.as_bytes()),
+            MailboxResp::OcpLockLoadKatMek(resp) => Ok(resp.as_bytes()),
             MailboxResp::CertifyKeyChunks(resp) => Ok(resp.as_bytes()),
         }
     }
@@ -623,6 +626,7 @@ impl MailboxResp {
             MailboxResp::OcpLockClearKeyCache(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::OcpLockUnloadMek(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::OcpLockLoadMek(resp) => Ok(resp.as_mut_bytes()),
+            MailboxResp::OcpLockLoadKatMek(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::CertifyKeyChunks(resp) => Ok(resp.as_mut_bytes()),
         }
     }
@@ -783,6 +787,7 @@ pub enum MailboxReq {
     OcpLockClearKeyCache(OcpLockClearKeyCacheReq),
     OcpLockUnloadMek(OcpLockUnloadMekReq),
     OcpLockLoadMek(OcpLockLoadMekReq),
+    OcpLockLoadKatMek(OcpLockLoadKatMekReq),
     CertifyKeyChunks(CertifyKeyChunksReq),
 }
 
@@ -893,6 +898,7 @@ impl MailboxReq {
             MailboxReq::OcpLockClearKeyCache(req) => Ok(req.as_bytes()),
             MailboxReq::OcpLockUnloadMek(req) => Ok(req.as_bytes()),
             MailboxReq::OcpLockLoadMek(req) => Ok(req.as_bytes()),
+            MailboxReq::OcpLockLoadKatMek(req) => Ok(req.as_bytes()),
             MailboxReq::CertifyKeyChunks(req) => Ok(req.as_bytes()),
         }
     }
@@ -1001,6 +1007,7 @@ impl MailboxReq {
             MailboxReq::OcpLockClearKeyCache(req) => Ok(req.as_mut_bytes()),
             MailboxReq::OcpLockUnloadMek(req) => Ok(req.as_mut_bytes()),
             MailboxReq::OcpLockLoadMek(req) => Ok(req.as_mut_bytes()),
+            MailboxReq::OcpLockLoadKatMek(req) => Ok(req.as_mut_bytes()),
             MailboxReq::CertifyKeyChunks(req) => Ok(req.as_mut_bytes()),
         }
     }
@@ -1115,6 +1122,7 @@ impl MailboxReq {
             MailboxReq::OcpLockClearKeyCache(_) => CommandId::OCP_LOCK_CLEAR_KEY_CACHE,
             MailboxReq::OcpLockUnloadMek(_) => CommandId::OCP_LOCK_UNLOAD_MEK,
             MailboxReq::OcpLockLoadMek(_) => CommandId::OCP_LOCK_LOAD_MEK,
+            MailboxReq::OcpLockLoadKatMek(_) => CommandId::OCP_LOCK_LOAD_KAT_MEK,
             MailboxReq::CertifyKeyChunks(_) => CommandId::CERTIFY_KEY_CHUNKS,
         }
     }
@@ -5918,6 +5926,31 @@ pub struct OcpLockLoadMekResp {
 }
 
 impl Response for OcpLockLoadMekResp {}
+
+// LOAD_KAT_MEK
+#[repr(C)]
+#[derive(Debug, Default, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+pub struct OcpLockLoadKatMekReq {
+    pub hdr: MailboxReqHeader,
+    pub reserved: u32,
+    pub metadata: [u8; OCP_LOCK_ENCRYPTION_ENGINE_METADATA_SIZE],
+    pub aux_metadata: [u8; OCP_LOCK_ENCRYPTION_ENGINE_AUX_SIZE],
+    pub cmd_timeout: u32,
+}
+
+impl Request for OcpLockLoadKatMekReq {
+    const ID: CommandId = CommandId::OCP_LOCK_LOAD_KAT_MEK;
+    type Resp = OcpLockLoadKatMekResp;
+}
+
+#[repr(C)]
+#[derive(Debug, Default, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+pub struct OcpLockLoadKatMekResp {
+    pub hdr: MailboxRespHeader,
+    pub reserved: u32,
+}
+
+impl Response for OcpLockLoadKatMekResp {}
 
 /// Retrieves dlen bytes  from the mailbox.
 pub fn mbox_read_response(
