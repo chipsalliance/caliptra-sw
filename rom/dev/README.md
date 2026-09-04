@@ -224,6 +224,7 @@ The header contains the security version and SHA2-384 hash of the table of conte
 | TOC Entry Count | 4 | Number of entries in TOC. |
 | PL0 PAUSER | 4 | The PAUSER with PL0 privileges. |
 | TOC Digest | 48 | SHA2-384 Digest of table of contents. |
+| FW SVN | 4 | Security Version Number for the firmware image bundle. Compared to FW SVN fuses during image validation. |
 | Vendor Data | 40 | Vendor Data. <br> **Not Before:** Vendor Start Date [ASN1 Time Format] For Alias FMC and Alias RT certificates (15 bytes) <br> **Not After:** Vendor End Date [ASN1 Time Format] For Alias FMC and Alias RT certificates (15 bytes) <br> **Reserved:** (10 bytes) |
 | Owner Data | 40 | Owner Data. <br> **Not Before:** Owner Start Date [ASN1 Time Format] For Alias FMC and Alias RT certificates. Takes preference over vendor start date (15 bytes) <br> **Not After:** Owner End Date [ASN1 Time Format] For Alias FMC and Alias RT certificates. Takes preference over vendor end date (15 bytes) <br> **Reserved:** (10 bytes) |
 
@@ -236,8 +237,7 @@ It contains the image information and SHA-384 hash of individual firmware images
 | Image Type | 4 | Image Type that defines format of the image section <br> **0x0000_0001:** Executable |
 | Image Revision | 20 | Git Commit hash of the build |
 | Image Version | 4 | Firmware release number |
-| Image SVN | 4 | Security Version Number for the image. It is compared to FW SVN fuses. FMC TOC entry's SVN field is ignored. |
-| Reserved | 4 | Reserved field |
+| Reserved | 8 | Reserved field |
 | Image Load Address | 4 | Load address |
 | Image Entry Point | 4 | Entry point to start the execution from  |
 | Image Offset | 4 | Offset from beginning of the image |
