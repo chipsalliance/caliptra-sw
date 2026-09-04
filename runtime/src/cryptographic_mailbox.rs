@@ -64,6 +64,7 @@ use caliptra_image_types::{
 };
 use constant_time_eq::constant_time_eq;
 use zerocopy::{transmute, FromBytes, Immutable, IntoBytes, KnownLayout};
+use zeroize::Zeroize;
 
 pub const GCM_MAX_KEY_USES: u64 = (1 << 32) - 1;
 pub const KEY_USAGE_MAX: usize = 256;
@@ -2452,14 +2453,14 @@ impl Commands {
         )?;
 
         if !matches!(CmKeyUsage::from(cmk.key_usage as u32), CmKeyUsage::Mlkem) {
-            return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)
+        } else {
+            let seed_d = &cmk.key_material[..MLKEM_SEED_SIZE];
+            let seed_d: &[u8; MLKEM_SEED_SIZE] = seed_d.try_into().unwrap();
+            let seed_z = &cmk.key_material[MLKEM_SEED_SIZE..MLKEM_SEED_SIZE * 2];
+            let seed_z: &[u8; MLKEM_SEED_SIZE] = seed_z.try_into().unwrap();
+            Ok((seed_d.into(), seed_z.into()))
         }
-
-        let seed_d = &cmk.key_material[..MLKEM_SEED_SIZE];
-        let seed_d: &[u8; MLKEM_SEED_SIZE] = seed_d.try_into().unwrap();
-        let seed_z = &cmk.key_material[MLKEM_SEED_SIZE..MLKEM_SEED_SIZE * 2];
-        let seed_z: &[u8; MLKEM_SEED_SIZE] = seed_z.try_into().unwrap();
-        Ok((seed_d.into(), seed_z.into()))
     }
 
     #[cfg_attr(feature = "cfi", cfi_impl_fn)]
@@ -2475,10 +2476,16 @@ impl Commands {
         let cmd = CmMlkemKeyGenReq::ref_from_bytes(cmd_bytes)
             .map_err(|_| CaliptraError::RUNTIME_INTERNAL)?;
 
-        let (seed_d, seed_z) = Self::decrypt_mlkem_seeds(drivers, &cmd.cmk)?;
+        let (mut seed_d, mut seed_z) = Self::decrypt_mlkem_seeds(drivers, &cmd.cmk)?;
         let seeds = MlKem1024Seeds::Arrays(&seed_d, &seed_z);
         let mut ml_kem = MlKem1024::new(drivers.abr.abr_reg());
-        let (encaps_key, _decaps_key) = ml_kem.key_pair(seeds, None)?;
+        let result = ml_kem.key_pair(seeds, None);
+        seed_d.zeroize();
+        seed_z.zeroize();
+        let (encaps_key, mut decaps_key) = result?;
+
+        // As it's not being used the decaps key is cleared now.
+        decaps_key.zeroize();
 
         let resp = mutrefbytes::<CmMlkemKeyGenResp>(resp)?;
         resp.hdr = MailboxRespHeader::default();
@@ -2508,7 +2515,7 @@ impl Commands {
         let encaps_key: LEArray4x392 = (&cmd.encaps_key).into();
 
         // Generate random message from TRNG
-        let message = {
+        let mut message = {
             let mut message = MlKem1024Message::default();
             let rnd = drivers.trng.generate()?;
             message.0[..].clone_from_slice(&rnd.0[..8]);
@@ -2517,14 +2524,25 @@ impl Commands {
 
         let mut shared_key = MlKem1024SharedKey::default();
         let mut ml_kem = MlKem1024::new(drivers.abr.abr_reg());
-        let ciphertext = ml_kem.encapsulate(
+        let result = ml_kem.encapsulate(
             &encaps_key,
             MlKem1024MessageSource::Array(&message),
             MlKem1024SharedKeyOut::Array(&mut shared_key),
-        )?;
+        );
+        message.zeroize();
+        let ciphertext = match result {
+            Ok(ciphertext) => ciphertext,
+            Err(err) => {
+                shared_key.zeroize();
+                return Err(err);
+            }
+        };
 
-        let shared_key_bytes: [u8; 32] = (&shared_key).into();
-        let encrypted_cmk = Self::wrap_shared_key_as_cmk(drivers, &shared_key_bytes, key_usage)?;
+        let mut shared_key_bytes: [u8; 32] = (&shared_key).into();
+        let encrypted_cmk = Self::wrap_shared_key_as_cmk(drivers, &shared_key_bytes, key_usage);
+        shared_key_bytes.zeroize();
+        shared_key.zeroize();
+        let encrypted_cmk = encrypted_cmk?;
 
         let resp = mutrefbytes::<CmMlkemEncapsulateResp>(resp)?;
         resp.hdr = MailboxRespHeader::default();
@@ -2552,20 +2570,29 @@ impl Commands {
             return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
         }
 
-        let (seed_d, seed_z) = Self::decrypt_mlkem_seeds(drivers, &cmd.cmk)?;
-        let seeds = MlKem1024Seeds::Arrays(&seed_d, &seed_z);
+        let (mut seed_d, mut seed_z) = Self::decrypt_mlkem_seeds(drivers, &cmd.cmk)?;
         let ciphertext: LEArray4x392 = (&cmd.ciphertext).into();
 
         let mut shared_key = MlKem1024SharedKey::default();
+        let seeds = MlKem1024Seeds::Arrays(&seed_d, &seed_z);
         let mut ml_kem = MlKem1024::new(drivers.abr.abr_reg());
-        ml_kem.keygen_decapsulate(
+        let result = ml_kem.keygen_decapsulate(
             seeds,
             &ciphertext,
             MlKem1024SharedKeyOut::Array(&mut shared_key),
-        )?;
+        );
+        seed_d.zeroize();
+        seed_z.zeroize();
+        if let Err(err) = result {
+            shared_key.zeroize();
+            return Err(err);
+        }
 
-        let shared_key_bytes: [u8; 32] = (&shared_key).into();
-        let encrypted_cmk = Self::wrap_shared_key_as_cmk(drivers, &shared_key_bytes, key_usage)?;
+        let mut shared_key_bytes: [u8; 32] = (&shared_key).into();
+        let encrypted_cmk = Self::wrap_shared_key_as_cmk(drivers, &shared_key_bytes, key_usage);
+        shared_key_bytes.zeroize();
+        shared_key.zeroize();
+        let encrypted_cmk = encrypted_cmk?;
 
         let resp = mutrefbytes::<CmMlkemDecapsulateResp>(resp)?;
         resp.hdr = MailboxRespHeader::default();
