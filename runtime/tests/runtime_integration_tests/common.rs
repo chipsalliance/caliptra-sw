@@ -33,7 +33,8 @@ use caliptra_dpe::{
         CommandHdr, DeriveContextCmd, SignFlags, SignMldsa87Cmd, SignP384Cmd,
     },
     context::ContextHandle,
-    response::{CertifyKeyResp, DpeErrorCode, Response, ResponseHdr, SignResp},
+    error::DpeErrorCode,
+    response::{CertifyKeyResp, Response, ResponseHdr, SignResp},
 };
 use caliptra_dpe_crypto::{Digest, Mu, PrecomputedSignData, Sha384};
 use caliptra_drivers::MfgFlags;
@@ -1111,8 +1112,8 @@ pub fn verify_sign_and_certify_key(
 
             let ecc_pub_key = EcKey::from_public_key_affine_coordinates(
                 &EcGroup::from_curve_name(Nid::SECP384R1).unwrap(),
-                &BigNum::from_slice(&certify_key_resp.derived_pubkey_x).unwrap(),
-                &BigNum::from_slice(&certify_key_resp.derived_pubkey_y).unwrap(),
+                &BigNum::from_slice(&certify_key_resp.header.derived_pubkey_x).unwrap(),
+                &BigNum::from_slice(&certify_key_resp.header.derived_pubkey_y).unwrap(),
             )
             .unwrap();
             assert!(sig.verify(data, &ecc_pub_key).unwrap());
@@ -1123,7 +1124,8 @@ pub fn verify_sign_and_certify_key(
             let alias_x509 = X509::from_der(alias_cert_bytes).unwrap();
             let alias_pubkey = alias_x509.public_key().unwrap();
 
-            let leaf_cert_bytes = &certify_key_resp.cert[..certify_key_resp.cert_size as usize];
+            let leaf_cert_bytes =
+                &certify_key_resp.cert[..certify_key_resp.header.cert_size as usize];
             let leaf_x509 = X509::from_der(leaf_cert_bytes).unwrap();
             assert!(leaf_x509.verify(&alias_pubkey).unwrap());
         }
@@ -1133,7 +1135,7 @@ pub fn verify_sign_and_certify_key(
             CertifyKeyResp::Mldsa87(certify_key_resp),
         ) => {
             let encoded_vk =
-                EncodedVerifyingKey::<ml_dsa_01::MlDsa87>::from(certify_key_resp.pubkey);
+                EncodedVerifyingKey::<ml_dsa_01::MlDsa87>::from(certify_key_resp.header.pubkey);
             let vk = VerifyingKey::<ml_dsa_01::MlDsa87>::decode(&encoded_vk);
             let encoded_sig = EncodedSignature::<ml_dsa_01::MlDsa87>::from(sign_resp.sig);
             let sig = Signature::decode(&encoded_sig).unwrap();
@@ -1145,7 +1147,8 @@ pub fn verify_sign_and_certify_key(
             let alias_x509 = X509::from_der(alias_cert_bytes).unwrap();
             let alias_pubkey = alias_x509.public_key().unwrap();
 
-            let leaf_cert_bytes = &certify_key_resp.cert[..certify_key_resp.cert_size as usize];
+            let leaf_cert_bytes =
+                &certify_key_resp.cert[..certify_key_resp.header.cert_size as usize];
             let leaf_x509 = X509::from_der(leaf_cert_bytes).unwrap();
             assert!(leaf_x509.verify(&alias_pubkey).unwrap());
         }

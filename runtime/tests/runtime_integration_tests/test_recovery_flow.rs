@@ -227,7 +227,7 @@ fn dpe_tcb_snapshots(model: &mut DefaultHwModel) -> Vec<TcbSnapshot> {
     else {
         panic!("Wrong response type!");
     };
-    let cert_bytes = &certify_key_resp.cert[..certify_key_resp.cert_size as usize];
+    let cert_bytes = &certify_key_resp.cert[..certify_key_resp.header.cert_size as usize];
     let (_, cert) = X509CertificateParser::new()
         .with_deep_parse_extensions(true)
         .parse(cert_bytes)

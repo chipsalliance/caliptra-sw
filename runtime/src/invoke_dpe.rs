@@ -23,10 +23,12 @@ use caliptra_common::mailbox_api::{InvokeDpeReq, InvokeDpeResp};
 use caliptra_dpe::{
     commands::{CertifyKeyCommand, Command, CommandExecution, InitCtxCmd},
     context::ContextState,
-    response::{DpeErrorCode, ResponseHdr},
+    error::{DpeErrorCode, InternalErrorCode},
+    response::ResponseHdr,
     DpeInstance, DpeProfile, U8Bool, MAX_HANDLES,
 };
 use caliptra_dpe_platform::MAX_OTHER_NAME_SIZE;
+use caliptra_dpe_response_buffer::SliceResponseBuffer;
 use caliptra_drivers::{okmutref, CaliptraError, CaliptraResult};
 use ufmt::derive::uDebug;
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
@@ -255,10 +257,7 @@ impl InvokeDpeCmd {
                 invoke_resp.data_size = data_size as u32;
             }
             Err(ref e) => {
-                // If there is extended error info, populate CPTRA_FW_EXTENDED_ERROR_INFO
-                if let Some(ext_err) = e.get_error_detail() {
-                    drivers.soc_ifc.set_fw_extended_error(ext_err);
-                }
+                drivers.soc_ifc.set_fw_extended_error(e.get_error_code());
                 let r = ResponseHdr::new(profile.into(), *e);
                 data[..core::mem::size_of::<ResponseHdr>()].copy_from_slice(r.as_bytes());
                 invoke_resp.data_size = r.as_bytes().len() as u32;
@@ -329,9 +328,11 @@ fn invoke_ecc_dpe_cmd(
     out: &mut [u8],
 ) -> Result<usize, DpeErrorCode> {
     let mut env = ec_dpe_env(drivers, dmtf_device_info, ueid);
-    let env = okmutref(&mut env).map_err(|_| DpeErrorCode::InternalError)?;
+    let env = okmutref(&mut env)
+        .map_err(|_| DpeErrorCode::from(InternalErrorCode::ActiveContextNotFound))?;
     let dpe = &mut DpeInstance::initialized(DpeProfile::P384Sha384);
-    command.execute_serialized(dpe, env, locality, out)
+    let mut resp_buf = SliceResponseBuffer::new(out);
+    command.execute_serialized(dpe, env, locality, &mut resp_buf)
 }
 
 #[inline(never)]
@@ -344,9 +345,11 @@ fn invoke_mldsa_dpe_cmd(
     out: &mut [u8],
 ) -> Result<usize, DpeErrorCode> {
     let mut env = mldsa_dpe_env(drivers, dmtf_device_info, ueid);
-    let env = okmutref(&mut env).map_err(|_| DpeErrorCode::InternalError)?;
+    let env = okmutref(&mut env)
+        .map_err(|_| DpeErrorCode::from(InternalErrorCode::ActiveContextNotFound))?;
     let dpe = &mut DpeInstance::initialized(DpeProfile::Mldsa87);
-    command.execute_serialized(dpe, env, locality, out)
+    let mut resp_buf = SliceResponseBuffer::new(out);
+    command.execute_serialized(dpe, env, locality, &mut resp_buf)
 }
 
 #[repr(C)]
