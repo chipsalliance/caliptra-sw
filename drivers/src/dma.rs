@@ -1431,6 +1431,7 @@ enum EncryptionEngineCommandCode {
     LoadMek = 1,
     UnloadMek = 2,
     Zeroize = 3,
+    LoadKatMek = 4,
 }
 impl From<EncryptionEngineCommandCode> for u8 {
     fn from(val: EncryptionEngineCommandCode) -> Self {
@@ -1438,6 +1439,7 @@ impl From<EncryptionEngineCommandCode> for u8 {
             EncryptionEngineCommandCode::LoadMek => 1u8,
             EncryptionEngineCommandCode::UnloadMek => 2u8,
             EncryptionEngineCommandCode::Zeroize => 3u8,
+            EncryptionEngineCommandCode::LoadKatMek => 4u8,
         }
     }
 }
@@ -1532,6 +1534,32 @@ impl<'a> DmaEncryptionEngine<'a> {
         self.write_array_fifo(write_transaction, &aligned_aux);
     }
 
+    pub fn write_kat_mek(
+        &self,
+        mek: &[u32; OCP_LOCK_ENCRYPTION_ENGINE_MAX_MEK_SIZE / size_of::<u32>()],
+        mek_size: u32,
+    ) -> CaliptraResult<()> {
+        if mek_size > OCP_LOCK_ENCRYPTION_ENGINE_MAX_MEK_SIZE as u32 || mek_size & 0x3 != 0 {
+            Err(CaliptraError::OCP_LOCK_ENGINE_INVALID_MEK_SIZE)?
+        }
+
+        let write_addr = self.key_release_base + Self::OCP_LOCK_ENCRYPTION_ENGINE_MEK_OFFSET;
+        let write_transaction = DmaWriteTransaction {
+            write_addr,
+            fixed_addr: false,
+            length: mek_size,
+            origin: DmaWriteOrigin::AhbFifo,
+            aes_mode: false,
+            aes_gcm: false,
+        };
+
+        self.write_array_fifo(
+            write_transaction,
+            &mek[..mek_size as usize / size_of::<u32>()],
+        );
+        Ok(())
+    }
+
     /// Used by OCP LOCK to release an MEK to the Encryption Engine key vault
     pub fn release_mek_from_key_vault(
         &self,
@@ -1577,6 +1605,11 @@ impl<'a> DmaEncryptionEngine<'a> {
 
     pub fn execute_load_command(&self) {
         let ctrl = EncryptionEngineCtrl::execute(EncryptionEngineCommandCode::LoadMek);
+        self.write_ctrl(ctrl.0);
+    }
+
+    pub fn execute_load_kat_command(&self) {
+        let ctrl = EncryptionEngineCtrl::execute(EncryptionEngineCommandCode::LoadKatMek);
         self.write_ctrl(ctrl.0);
     }
 
