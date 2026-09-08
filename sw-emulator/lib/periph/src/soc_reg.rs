@@ -16,19 +16,21 @@ use crate::helpers::{bytes_from_words_be, words_from_bytes_be};
 use crate::mailbox::MailboxRequester;
 use crate::root_bus::ReadyForFwCbArgs;
 use crate::Mci;
-use crate::{CaliptraRootBusArgs, Iccm, MailboxInternal};
+use crate::{CaliptraRootBusArgs, Iccm, MailboxInternal, StashMeasurementBank};
 use caliptra_emu_bus::BusError::{LoadAccessFault, StoreAccessFault};
 use caliptra_emu_bus::{
-    ActionHandle, Bus, BusError, ReadOnlyRegister, ReadWriteRegister, Register, Timer, TimerAction,
+    ActionHandle, Bus, BusError, Event, ReadOnlyRegister, ReadWriteRegister, Register, Timer,
+    TimerAction,
 };
 use caliptra_emu_cpu::{IntSource, Irq};
 use caliptra_emu_derive::Bus;
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
-use caliptra_hw_model_types::EtrngResponse;
+use caliptra_hw_model_types::{CaliptraHwVersion, EtrngResponse};
 use caliptra_registers::soc_ifc::regs::CptraHwConfigReadVal;
 use caliptra_registers::soc_ifc_trng::regs::{CptraTrngStatusReadVal, CptraTrngStatusWriteVal};
 use std::cell::RefCell;
 use std::rc::Rc;
+use std::sync::mpsc;
 use tock_registers::interfaces::{ReadWriteable, Readable, Writeable};
 use tock_registers::register_bitfields;
 use tock_registers::registers::InMemoryRegister;
@@ -112,6 +114,12 @@ mod constants {
     pub const INTERNAL_NMI_VECTOR_START: u32 = 0x62c;
     pub const INTERNAL_RV_MTIME_L_START: u32 = 0x640;
     pub const INTERNAL_RV_MTIME_H_START: u32 = 0x644;
+    pub const STASH_DATA_START: u32 = 0xc00;
+    pub const STASH_DATA_SIZE: usize = 0x340;
+    pub const STASH_SOC_LOCK_START: u32 = 0xf40;
+    pub const STASH_END_STASH_START: u32 = 0xf44;
+    pub const STASH_CPTRA_LOCK_START: u32 = 0xf48;
+    pub const STASH_STATUS_START: u32 = 0xf4c;
 }
 use constants::*;
 
@@ -359,12 +367,17 @@ pub struct SocRegistersInternal {
 const CALIPTRA_REG_START_ADDR: u32 = 0x00;
 
 /// Caliptra Register End Address
-const CALIPTRA_REG_END_ADDR: u32 = 0x820;
+const CALIPTRA_REG_END_ADDR: u32 = 0xf4f;
 
 /// Caliptra Fuse start address
 const FUSE_START_ADDR: u32 = 0x200;
 /// Caliptra Fuse end address
 const FUSE_END_ADDR: u32 = 0x340;
+
+/// Stash measurement data start address
+const STASH_DATA_START_ADDR: u32 = STASH_DATA_START;
+/// Stash measurement data end address
+const STASH_DATA_END_ADDR: u32 = STASH_DATA_START + STASH_DATA_SIZE as u32 - 1;
 
 impl SocRegistersInternal {
     /// Create an instance of SOC register peripheral
@@ -472,6 +485,16 @@ impl Bus for SocRegistersInternal {
                 // Microcontroller can't ever write to fuse registers
                 Err(StoreAccessFault)
             }
+            // Caliptra cannot write stash measurement data, SOC_LOCK or END_STASH.
+            STASH_DATA_START_ADDR..=STASH_DATA_END_ADDR
+            | STASH_SOC_LOCK_START
+            | STASH_END_STASH_START => {
+                if self.regs.borrow().stash_measurement_bank.is_active() {
+                    Ok(())
+                } else {
+                    Err(StoreAccessFault)
+                }
+            }
             CALIPTRA_REG_START_ADDR..=CALIPTRA_REG_END_ADDR => {
                 self.regs.borrow_mut().write(size, addr, val)
             }
@@ -535,6 +558,14 @@ impl Bus for SocRegistersExternal {
             FUSE_START_ADDR..=FUSE_END_ADDR => {
                 if self.regs.borrow_mut().fuses_can_be_written {
                     self.regs.borrow_mut().write(size, addr, val)
+                } else {
+                    Err(StoreAccessFault)
+                }
+            }
+            // SoC cannot write CPTRA_LOCK.
+            STASH_CPTRA_LOCK_START => {
+                if self.regs.borrow().stash_measurement_bank.is_active() {
+                    Ok(())
                 } else {
                     Err(StoreAccessFault)
                 }
@@ -898,6 +929,10 @@ struct SocRegistersImpl {
     #[register(offset = 0x820, write_fn = on_write_notif_intr_trig)]
     notif_intr_trig_r: ReadWriteRegister<u32, NotifIntrTrigT::Register>,
 
+    /// Stash measurement registers
+    #[peripheral(offset = 0xc00, len = 0x350)]
+    stash_measurement_bank: StashMeasurementBankSlot,
+
     /// Mailbox
     mailbox: MailboxInternal,
 
@@ -997,6 +1032,13 @@ impl SocRegistersImpl {
             crate::mci::MciRegs::SS_MANUF_DBG_UNLOCK_NUMBER_OF_FUSES;
         let encryption_engine_offset =
             crate::dma::axi_root_bus::AxiRootBus::ENCRYPTION_ENGINE_OFFSET;
+
+        let stash_measurement_bank = match args.hw_version {
+            CaliptraHwVersion::V2_2 => {
+                StashMeasurementBankSlot::active(StashMeasurementBank::new(args.subsystem_mode))
+            }
+            _ => StashMeasurementBankSlot::disabled(),
+        };
 
         let regs = Self {
             cptra_hw_error_fatal: ReadWriteRegister::new(0),
@@ -1136,6 +1178,7 @@ impl SocRegistersImpl {
             ),
             ss_soc_dbg_unlock_level: [0; 2],
             ss_generic_fw_exec_ctrl: [0; 4],
+            stash_measurement_bank,
         };
         regs
     }
@@ -1633,9 +1676,73 @@ impl SocRegistersImpl {
     }
 }
 
+struct StashMeasurementBankSlot(Option<Box<dyn Bus>>);
+
+impl StashMeasurementBankSlot {
+    pub fn active<T: Bus + 'static>(stash: T) -> Self {
+        Self(Some(Box::new(stash)))
+    }
+
+    pub fn disabled() -> Self {
+        Self(None)
+    }
+
+    pub fn is_active(&self) -> bool {
+        self.0.is_some()
+    }
+}
+
+impl Bus for StashMeasurementBankSlot {
+    fn read(
+        &mut self,
+        size: caliptra_emu_types::RvSize,
+        addr: caliptra_emu_types::RvAddr,
+    ) -> Result<caliptra_emu_types::RvData, caliptra_emu_bus::BusError> {
+        match &mut self.0 {
+            Some(s) => s.read(size, addr),
+            None => Err(caliptra_emu_bus::BusError::LoadAccessFault),
+        }
+    }
+
+    fn write(
+        &mut self,
+        size: caliptra_emu_types::RvSize,
+        addr: caliptra_emu_types::RvAddr,
+        val: caliptra_emu_types::RvData,
+    ) -> Result<(), caliptra_emu_bus::BusError> {
+        match &mut self.0 {
+            Some(s) => s.write(size, addr, val),
+            None => Err(caliptra_emu_bus::BusError::StoreAccessFault),
+        }
+    }
+
+    fn poll(&mut self) {
+        // No-op
+    }
+
+    fn warm_reset(&mut self) {
+        if let Some(s) = &mut self.0 {
+            s.warm_reset();
+        }
+    }
+
+    fn update_reset(&mut self) {
+        // No-op
+    }
+
+    fn incoming_event(&mut self, _event: Rc<Event>) {
+        // No-op
+    }
+
+    fn register_outgoing_events(&mut self, _sender: mpsc::Sender<Event>) {
+        // No-op
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::stash_measurement_bank::Status;
     use crate::{root_bus::TbServicesCb, MailboxRam};
     use caliptra_emu_bus::Clock;
     use std::{
@@ -2246,5 +2353,78 @@ mod tests {
             soc_reg.read(RvSize::Word, CPTRA_WDT_STATUS_START).unwrap(),
         );
         assert!(status.is_set(WdtStatus::T1_TIMEOUT));
+    }
+
+    #[test]
+    fn test_stash_measurement_register_visibility() {
+        let clock = Rc::new(Clock::new());
+        let mailbox_ram = MailboxRam::default();
+        let mailbox = MailboxInternal::new(&clock, mailbox_ram);
+
+        let args = CaliptraRootBusArgs {
+            hw_version: CaliptraHwVersion::V2_2,
+            subsystem_mode: false,
+            clock: clock.clone(),
+            ..CaliptraRootBusArgs::default()
+        };
+        let mci = Mci::new(vec![]);
+        let mut caliptra_reg =
+            SocRegistersInternal::new(mailbox, Iccm::new(&clock), mci.clone(), args);
+        let mut soc_reg = caliptra_reg.external_regs();
+
+        // SoC cannot write CPTRA_LOCK.
+        soc_reg
+            .write(RvSize::Word, STASH_CPTRA_LOCK_START, 0x1)
+            .unwrap();
+        let val = soc_reg.read(RvSize::Word, STASH_CPTRA_LOCK_START).unwrap();
+        let reg = InMemoryRegister::<u32, Status::Register>::new(val);
+        assert_eq!(reg.read(Status::CPTRA_LOCK), 0);
+
+        // Caliptra cannot write SOC_LOCK.
+        caliptra_reg
+            .write(RvSize::Word, STASH_SOC_LOCK_START, 0xff)
+            .unwrap();
+        let val = caliptra_reg
+            .read(RvSize::Word, STASH_SOC_LOCK_START)
+            .unwrap();
+        let reg = InMemoryRegister::<u32, Status::Register>::new(val);
+        assert_eq!(reg.read(Status::SLOT_LOCKED), 0);
+
+        // Caliptra cannot write END_STASH.
+        caliptra_reg
+            .write(RvSize::Word, STASH_END_STASH_START, 0x1)
+            .unwrap();
+        let val = caliptra_reg
+            .read(RvSize::Word, STASH_END_STASH_START)
+            .unwrap();
+        let reg = InMemoryRegister::<u32, Status::Register>::new(val);
+        assert_eq!(reg.read(Status::END_STASH), 0);
+
+        // Caliptra cannot write stash data.
+        for addr in (STASH_DATA_START_ADDR..=STASH_DATA_END_ADDR).step_by(RvSize::Word.into()) {
+            caliptra_reg.write(RvSize::Word, addr, 0xa5).unwrap();
+            let val = caliptra_reg.read(RvSize::Word, addr).unwrap();
+            assert_eq!(val, 0);
+        }
+    }
+
+    #[test]
+    fn test_stash_measurement_bank_not_available_in_old_versions() {
+        let clock = Rc::new(Clock::new());
+        let mailbox_ram = MailboxRam::default();
+        let mailbox = MailboxInternal::new(&clock, mailbox_ram);
+
+        let args = CaliptraRootBusArgs {
+            subsystem_mode: false,
+            clock: clock.clone(),
+            ..CaliptraRootBusArgs::default()
+        };
+        let mci = Mci::new(vec![]);
+        let mut reg = SocRegistersInternal::new(mailbox, Iccm::new(&clock), mci.clone(), args);
+
+        let result = reg.read(RvSize::Word, STASH_STATUS_START);
+        assert_eq!(result, Err(BusError::LoadAccessFault));
+        let result = reg.write(RvSize::Word, STASH_DATA_START, 0xff);
+        assert_eq!(result, Err(BusError::StoreAccessFault));
     }
 }
