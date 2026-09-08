@@ -33,6 +33,13 @@ fn main() {
             println!("cargo:rustc-link-arg=-Tmemory.x");
 
             println!("cargo:rustc-link-arg=-Tlink.x");
+
+            // Identical-code folding: fold byte-identical functions (e.g. dual
+            // monomorphizations) in the linked Runtime binary. Scoped here rather
+            // than in .cargo/config so it applies only to the deployed FMC/Runtime,
+            // not to ROM or the test firmwares (whose sizes are separately calibrated).
+            println!("cargo:rustc-link-arg=--icf=all");
+
             println!("cargo:rerun-if-changed=build.rs");
         }
     }
