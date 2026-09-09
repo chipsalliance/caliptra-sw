@@ -67,7 +67,7 @@ fn test_firmware_gt_max_size() {
         .cmd()
         .write(|_| CommandId::FIRMWARE_LOAD.into());
     hw.soc_mbox().dlen().write(|_| (IMAGE_BYTE_SIZE + 1) as u32);
-    for i in 0..((IMAGE_BYTE_SIZE + 1 + 3) / 4) {
+    for i in 0..(IMAGE_BYTE_SIZE + 1).div_ceil(4) {
         hw.soc_mbox().datain().write(|_| i as u32);
     }
     hw.soc_mbox().execute().write(|w| w.execute(true));

@@ -84,7 +84,7 @@ impl io::Read for FtdiUartReader {
         self.ftdi
             .borrow_mut()
             .read_data(buf)
-            .map_err(|e| io::Error::new(ErrorKind::Other, e))
+            .map_err(io::Error::other)
     }
 }
 
@@ -96,7 +96,7 @@ impl io::Read for FtdiUartReaderBlocking {
                 .ftdi
                 .borrow_mut()
                 .read_data(buf)
-                .map_err(|e| io::Error::new(ErrorKind::Other, e))?;
+                .map_err(io::Error::other)?;
             if bytes_read > 0 {
                 return Ok(bytes_read);
             }
@@ -117,7 +117,7 @@ impl io::Write for FtdiUartWriter {
         self.ftdi
             .borrow_mut()
             .write_data(buf)
-            .map_err(|e| io::Error::new(ErrorKind::Other, e))
+            .map_err(io::Error::other)
     }
 
     fn flush(&mut self) -> std::io::Result<()> {

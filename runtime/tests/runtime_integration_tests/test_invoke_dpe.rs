@@ -1,5 +1,7 @@
 // Licensed under the Apache-2.0 license.
 
+#![allow(clippy::result_large_err)]
+
 use crate::common::{
     certify_key, check_dpe_status, execute_dpe_cmd, execute_dpe_cmd_raw, get_rt_alias_ecc384_cert,
     run_rt_test, verify_sign_and_certify_key, CertifyKeyCommandNoRef, CreateCertifyKeyCmdArgs,

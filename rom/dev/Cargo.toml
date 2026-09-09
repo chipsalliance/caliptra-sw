@@ -4,7 +4,7 @@
 name = "caliptra-rom"
 version = "0.1.0"
 edition = "2021"
-rust-version = "1.85"
+rust-version = "1.95"
 
 [dependencies]
 caliptra-api.workspace = true

@@ -309,7 +309,7 @@ pub trait FromMmioPtr {
     ///
     /// * `ptr` is non-null
     /// * `ptr` is valid for loads and stores of `Self::STRIDE * mem::size_of::<Self::Raw>`
-    ///    bytes for the entire lifetime of the returned value.
+    ///   bytes for the entire lifetime of the returned value.
     /// * `ptr` is properly aligned.
     unsafe fn from_ptr(ptr: *mut Self::TRaw, mmio: Self::TMmio) -> Self;
 }
@@ -326,8 +326,8 @@ pub trait FromMmioPtr {
 /// * `WritableReg` for registers that can be written to. If `TReg` implements `WritableReg`,
 ///   `RegRef::modify()` will be available.
 /// * `ResettableReg` for registers that have a defined reset value. If `TReg`
-///    implements `ResettableReg` and `WritableReg`, `RegRef::write()` will be
-///    available.
+///   implements `ResettableReg` and `WritableReg`, `RegRef::write()` will be
+///   available.
 #[derive(Clone, Copy)]
 pub struct RegRef<TReg: RegType, TMmio: Mmio> {
     mmio: TMmio,
@@ -358,7 +358,7 @@ impl<TReg: RegType, TMmio: Mmio + Default> RegRef<TReg, TMmio> {
     ///
     /// * `ptr` is non-null
     /// * `ptr` is valid for loads and stores of `mem::size_of::<TReg::Raw>`
-    ///    bytes for the entire lifetime of this RegRef.
+    ///   bytes for the entire lifetime of this RegRef.
     /// * `ptr` is properly aligned.
     #[inline(always)]
     pub unsafe fn new(ptr: *mut TReg::Raw) -> Self {
@@ -726,7 +726,7 @@ impl<const LEN: usize, TMmio: Mmio + Default, TItem: FromMmioPtr<TMmio = TMmio>>
     ///
     /// * `ptr` is non-null
     /// * `ptr` is valid for loads and stores of `LEN * TItem::STRIDE * mem::size_of::<TItem::Raw>`
-    ///    bytes for the entire lifetime of this array.
+    ///   bytes for the entire lifetime of this array.
     /// * `ptr` is properly aligned.
     #[inline(always)]
     pub unsafe fn new(ptr: *mut TItem::TRaw) -> Self {
@@ -746,7 +746,7 @@ impl<const LEN: usize, TItem: FromMmioPtr> Array<LEN, TItem> {
     ///
     /// * `ptr` is non-null
     /// * `ptr` is valid for loads and stores of `LEN * TItem::STRIDE * mem::size_of::<TItem::Raw>`
-    ///    bytes for the entire lifetime of this array.
+    ///   bytes for the entire lifetime of this array.
     /// * `ptr` is properly aligned.
     #[inline(always)]
     pub unsafe fn new_with_mmio(ptr: *mut TItem::TRaw, mmio: TItem::TMmio) -> Self {
@@ -1005,10 +1005,10 @@ mod tests {
         pub unsafe fn new(ptr: *mut u32) -> Self {
             Self(ptr)
         }
-        pub fn fifo(&self) -> RegRef<FifoReg, RealMmioMut> {
+        pub fn fifo(&self) -> RegRef<FifoReg, RealMmioMut<'_>> {
             unsafe { RegRef::new(self.0.wrapping_offset(0)) }
         }
-        pub fn control(&self) -> RegRef<ControlReg, RealMmioMut> {
+        pub fn control(&self) -> RegRef<ControlReg, RealMmioMut<'_>> {
             unsafe { RegRef::new(self.0.wrapping_offset(1)) }
         }
     }

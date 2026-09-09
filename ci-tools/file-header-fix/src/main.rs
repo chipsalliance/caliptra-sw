@@ -2,7 +2,7 @@
 
 use std::{
     fs::File,
-    io::{BufRead, BufReader, Error, ErrorKind},
+    io::{BufRead, BufReader, Error},
     path::{Path, PathBuf},
 };
 
@@ -37,10 +37,9 @@ fn check_file_contents(path: &Path, contents: impl BufRead) -> Result<(), Error>
             return Ok(());
         }
     }
-    Err(Error::new(
-        ErrorKind::Other,
-        format!("File {path:?} doesn't contain {REQUIRED_TEXT:?} in the first {N} lines"),
-    ))
+    Err(Error::other(format!(
+        "File {path:?} doesn't contain {REQUIRED_TEXT:?} in the first {N} lines"
+    )))
 }
 
 fn check_file(path: &Path) -> Result<(), Error> {
@@ -56,10 +55,9 @@ fn fix_file(path: &Path) -> Result<(), Error> {
         Some("toml" | "sh" | "py") => format!("# {REQUIRED_TEXT}\n"),
         Some("ld") => format!("/* {REQUIRED_TEXT} */\n"),
         other => {
-            return Err(std::io::Error::new(
-                ErrorKind::Other,
-                format!("Unknown extension {other:?}"),
-            ))
+            return Err(std::io::Error::other(format!(
+                "Unknown extension {other:?}"
+            )))
         }
     });
     let mut prev_contents = std::fs::read(path).map_err(wrap_err)?;
@@ -135,6 +133,7 @@ fn main() {
 #[cfg(test)]
 mod test {
     use crate::*;
+    use std::io::ErrorKind;
 
     #[test]
     fn test_check_success() {

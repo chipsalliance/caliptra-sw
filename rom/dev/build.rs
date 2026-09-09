@@ -195,7 +195,7 @@ fn main() {
         );
 
         // Generate Rust constants for all certificates
-        let const_declarations = vec![
+        let const_declarations = [
             const_array_declaration!(pub FAKE_FMC_ALIAS_ECC_TBS = ecc_fmc_tbs),
             const_array_declaration!(pub FAKE_FMC_ALIAS_MLDSA_PUB_KEY = mldsa_fmc_pubkey),
             const_array_declaration!(pub FAKE_FMC_ALIAS_MLDSA_SIG = mldsa_fmc_signature),

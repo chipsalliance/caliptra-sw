@@ -188,7 +188,7 @@ impl Clock {
                 | TimerAction::SetGlobalIntEn { .. }
                 | TimerAction::SetExtIntEn { .. }
                 | TimerAction::InternalTimerLocalInterrupt { .. }
-                | TimerAction::MachineTimerInterrupt { .. }
+                | TimerAction::MachineTimerInterrupt
                 | TimerAction::Halt => {}
             }
         }

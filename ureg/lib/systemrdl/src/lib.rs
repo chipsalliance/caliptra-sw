@@ -355,7 +355,7 @@ fn calculate_mem_size(iref: systemrdl::InstanceRef) -> u64 {
 
 fn next_multiple_of(x: u64, mult: u64) -> u64 {
     assert!(mult > 0);
-    if x % mult == 0 {
+    if x.is_multiple_of(mult) {
         x
     } else {
         x + (mult - x % mult)

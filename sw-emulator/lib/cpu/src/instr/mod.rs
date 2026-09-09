@@ -89,7 +89,7 @@ impl<TBus: Bus> Cpu<TBus> {
     /// # Error
     ///
     /// * `RvException` - Exception with cause `RvExceptionCause::InstrAccessFault`
-    ///                   or `RvExceptionCause::InstrAddrMisaligned`
+    ///   or `RvExceptionCause::InstrAddrMisaligned`
     fn fetch(&mut self) -> Result<Instr, RvException> {
         let instr = self.read_instr(RvSize::HalfWord, self.read_pc())?;
         match instr & 0b11 {
