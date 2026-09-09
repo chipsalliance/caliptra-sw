@@ -2,6 +2,50 @@
 
 The Caliptra SOC manifest has two main components: [Preamble](#preamble) and [Image Metadata Collection](#image-metadata-collection)
 
+```mermaid
+flowchart TD
+    subgraph MANIFEST["SOC Manifest"]
+        direction LR
+
+        subgraph IMC["Image Metadata Collection (IMC)"]
+            IME0["Image Metadata Entry 0<br/>fw_id | load/staging addrs | digest"]
+            IMEN["Image Metadata Entries (1..N)<br/>fw_id | load/staging addrs | digest"]
+        end
+
+        subgraph PREAMBLE["Preamble"]
+            direction LR
+            subgraph BOOT_PAYLOAD["Endorsed by Boot Keys"]
+                direction LR
+                HDR["Header<br/>Marker: 'ATM2' | Version | SVN | Flags"]
+                PUB_KEYS["Manifest IMC Public Keys<br/>(Vendor & Owner)"]
+            end
+            ENDORSE_SIGS["Boot Key Endorsement Signatures<br/>(Vendor & Owner)"]
+            IMC_SIGS["Manifest IMC Signatures<br/>(Vendor & Owner)"]
+        end
+    end
+
+    subgraph SOC_IMAGES["SOC Firmware Images"]
+        direction LR
+        SOC_IMAGE_0["SOC Firmware Image 0"]
+        SOC_IMAGE_N["SOC Firmware Images (1..N)"]
+    end
+
+    subgraph SIGNING_KEYS["Signing Keys"]
+        direction LR
+        IMC_KEYS["Manifest IMC Signing Keys<br/>(Vendor & Owner)"]
+        BOOT_KEYS["Caliptra Boot Keys<br/>(Fused / FW Image Bundle)"]
+        BOOT_KEYS ~~~ IMC_KEYS
+    end
+
+    %% Endorsements & Verifications
+    BOOT_PAYLOAD -->|"Endorsed by"| BOOT_KEYS
+
+    IMC -->|"Endorsed by"| IMC_KEYS
+
+    IME0 -->|"Authorizes via Digest"| SOC_IMAGE_0
+    IMEN -->|"Authorizes via Digest"| SOC_IMAGE_N
+```
+
 ### **Preamble**
 
   The Preamble section contains the authorization manifest **ECC** and **PQC (LMS or MLDSA)** public keys of the vendor and the owner.
