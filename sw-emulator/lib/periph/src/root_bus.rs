@@ -208,6 +208,40 @@ impl From<Box<dyn FnMut() + 'static>> for ActionCb {
     }
 }
 
+/// Observes changes to either entry of `SS_SOC_DBG_UNLOCK_LEVEL`.
+///
+/// Called synchronously after a successful write through either bus interface
+/// changes an entry. Arguments are the entry index (0 or 1) and its full new
+/// 32-bit value. Repeated writes, construction, and the existing warm/update
+/// resets do not notify. The default callback does nothing; register access and
+/// reset behavior are unchanged. Callbacks must not reenter the SoC register bus.
+pub struct DbgSocUnlockLevelCb(Box<dyn FnMut(usize, u32)>);
+impl DbgSocUnlockLevelCb {
+    pub fn new(f: impl FnMut(usize, u32) + 'static) -> Self {
+        Self(Box::new(f))
+    }
+    pub(crate) fn take(&mut self) -> Box<dyn FnMut(usize, u32)> {
+        std::mem::take(self).0
+    }
+}
+impl Default for DbgSocUnlockLevelCb {
+    fn default() -> Self {
+        Self(Box::new(|_, _| {}))
+    }
+}
+impl std::fmt::Debug for DbgSocUnlockLevelCb {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("DbgSocUnlockLevelCb")
+            .field(&"<unknown closure>")
+            .finish()
+    }
+}
+impl From<Box<dyn FnMut(usize, u32) + 'static>> for DbgSocUnlockLevelCb {
+    fn from(value: Box<dyn FnMut(usize, u32)>) -> Self {
+        Self(value)
+    }
+}
+
 /// Caliptra Root Bus Arguments
 pub struct CaliptraRootBusArgs<'a> {
     pub pic: Rc<Pic>,
@@ -228,6 +262,8 @@ pub struct CaliptraRootBusArgs<'a> {
     pub upload_update_fw: UploadUpdateFwCb,
     pub bootfsm_go_cb: ActionCb,
     pub download_idevid_csr_cb: DownloadIdevidCsrCb,
+    /// Optional observer of changes to either debug unlock level entry.
+    pub dbg_soc_unlock_level_cb: DbgSocUnlockLevelCb,
 
     // The obfuscation key, as passed to caliptra-top
     pub cptra_obf_key: [u32; 8],
@@ -259,6 +295,7 @@ impl Default for CaliptraRootBusArgs<'_> {
             upload_update_fw: Default::default(),
             bootfsm_go_cb: Default::default(),
             download_idevid_csr_cb: Default::default(),
+            dbg_soc_unlock_level_cb: Default::default(),
             cptra_obf_key: words_from_bytes_be(&DEFAULT_DOE_KEY),
             itrng_nibbles: Some(Box::new(RandomNibbles::new_from_thread_rng())),
             etrng_responses: Box::new(RandomEtrngResponses::new_from_stdrng()),
