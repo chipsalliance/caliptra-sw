@@ -490,6 +490,7 @@ pub fn check_header_checksum(resp: &[u8]) -> anyhow::Result<()> {
 
 /// Response from `execute_dpe_cmd_raw` that can hold responses larger than
 /// `InvokeDpeResp::DATA_MAX_SIZE` (needed for MLDSA87 certify-key responses).
+#[derive(Debug)]
 pub struct DpeRawResp {
     pub data_size: u32,
     pub data: Vec<u8>,

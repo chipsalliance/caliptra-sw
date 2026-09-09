@@ -1,14 +1,17 @@
 // Licensed under the Apache-2.0 license
+use crate::common::{run_rt_test, RuntimeTestArgs};
 use crate::test_authorize_and_stash::set_auth_manifest_with_test_sram;
 use crate::test_set_auth_manifest::create_auth_manifest_with_metadata;
-use caliptra_api::mailbox::ActivateFirmwareReq;
+use caliptra_api::{mailbox::ActivateFirmwareReq, SocManager};
 use caliptra_auth_man_types::AuthManifestImageMetadata;
 use caliptra_auth_man_types::{Addr64, ImageMetadataFlags};
 use caliptra_common::mailbox_api::{
     AuthorizeAndStashReq, AuthorizeAndStashResp, CommandId, GetTaggedTciReq, GetTaggedTciResp,
     ImageHashSource, MailboxReq, MailboxReqHeader, TagTciReq,
 };
+use caliptra_error::CaliptraError;
 use caliptra_hw_model::{DefaultHwModel, HwModel, ModelError};
+use caliptra_image_types::FwVerificationPqcKeyType;
 use caliptra_runtime::IMAGE_AUTHORIZED;
 use sha2::{Digest, Sha384};
 use zerocopy::FromBytes;
@@ -552,4 +555,54 @@ fn test_invalid_exec_bit_in_manifest() {
     activate_cmd.populate_chksum().unwrap();
 
     assert!(send_activate_firmware_cmd(&mut model, activate_cmd, false).is_err());
+}
+
+#[cfg_attr(feature = "fpga_realtime", ignore)]
+#[test]
+fn test_activate_firmware_cannot_be_called_from_pl1() {
+    // Boot with no PL0 pauser so that every caller is PL1. No auth manifest is
+    // loaded: the privilege check is the first thing ACTIVATE_FIRMWARE does, so
+    // a PL1 caller must be rejected before any request parsing or manifest
+    // lookup. A PL0 caller would instead get past the check and fail later with
+    // RUNTIME_MAILBOX_INVALID_PARAMS.
+    // The key type must match the fuse value `run_rt_test` programs, or ROM
+    // rejects the image and the boot never reaches the runtime.
+    let mut image_opts = caliptra_builder::ImageOptions {
+        pqc_key_type: FwVerificationPqcKeyType::LMS,
+        ..Default::default()
+    };
+    image_opts.vendor_config.pl0_pauser = None;
+
+    let mut model = run_rt_test(RuntimeTestArgs {
+        subsystem_mode: true,
+        test_image_options: Some(image_opts),
+        ..Default::default()
+    });
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read()
+            == u32::from(caliptra_runtime::RtBootStatus::RtReadyForCommands)
+    });
+
+    let mut activate_cmd = MailboxReq::ActivateFirmware(ActivateFirmwareReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        fw_id_count: 1,
+        mcu_fw_image_size: MCU_FW_SIZE as u32,
+        fw_ids: {
+            let mut arr = [0u32; 128];
+            arr[0] = MCU_FW_ID_1;
+            arr
+        },
+    });
+    activate_cmd.populate_chksum().unwrap();
+
+    assert_eq!(
+        model.mailbox_execute(
+            u32::from(CommandId::ACTIVATE_FIRMWARE),
+            activate_cmd.as_bytes().unwrap(),
+        ),
+        Err(ModelError::MailboxCmdFailed(
+            CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL.into()
+        ))
+    );
 }

@@ -15,10 +15,7 @@ Abstract:
 use core::cmp::min;
 use core::mem::size_of;
 
-use crate::{
-    drivers::CaliptraManagedDpeContext, manifest::sorted_metadata_lists_overlap, Drivers,
-    PauserPrivileges,
-};
+use crate::{drivers::CaliptraManagedDpeContext, manifest::sorted_metadata_lists_overlap, Drivers};
 use caliptra_auth_man_types::{
     AuthManifestFlags, AuthManifestImageMetadata, AuthManifestImageMetadataCollection,
     AuthManifestPreamble, OwnerAuthManifestImageMetadataCollection,
@@ -747,9 +744,7 @@ impl SetAuthManifestCmd {
         verify_only: bool,
     ) -> CaliptraResult<usize> {
         // Restrict to PL0
-        if drivers.caller_privilege_level() != PauserPrivileges::PL0 {
-            Err(CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL)?
-        }
+        drivers.ensure_pl0()?;
 
         // Validate cmd length
         let manifest_size: usize = {

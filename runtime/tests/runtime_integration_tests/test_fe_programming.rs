@@ -5,11 +5,14 @@ use caliptra_api::{
     mailbox::{FeProgReq, MailboxReq, MailboxReqHeader},
     SocManager,
 };
+use caliptra_builder::ImageOptions;
 use caliptra_common::mailbox_api::CommandId;
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{
     DeviceLifecycle, HwModel, InitParams, ModelError, SecurityState, SubsystemInitParams,
 };
+use caliptra_image_types::FwVerificationPqcKeyType;
+use caliptra_runtime::RtBootStatus;
 
 #[cfg_attr(feature = "fpga_realtime", ignore)] // FE programming is not supported on core FPGA
 #[test]
@@ -78,6 +81,55 @@ fn test_fe_programming_invalid_partition() {
         model.mailbox_execute(u32::from(CommandId::FE_PROG), cmd.as_bytes().unwrap()),
         Err(ModelError::MailboxCmdFailed(
             CaliptraError::RUNTIME_FE_PROG_INVALID_PARTITION.into()
+        ))
+    );
+}
+
+#[test]
+fn test_fe_programming_cannot_be_called_from_pl1() {
+    let rom = crate::common::rom_for_fw_integration_tests().unwrap();
+    let init_params = InitParams {
+        rom: &rom,
+        security_state: *SecurityState::default().set_device_lifecycle(DeviceLifecycle::Production),
+        ss_init_params: SubsystemInitParams {
+            enable_mcu_uart_log: true,
+            ..Default::default()
+        },
+        subsystem_mode: true,
+        ..Default::default()
+    };
+
+    // Boot with no PL0 pauser so that every caller is PL1. The key type must
+    // match the fuse value run_rt_test programs, or the image fails verification.
+    let mut image_opts = ImageOptions {
+        pqc_key_type: FwVerificationPqcKeyType::LMS,
+        ..Default::default()
+    };
+    image_opts.vendor_config.pl0_pauser = None;
+
+    let mut model = run_rt_test(RuntimeTestArgs {
+        init_params: Some(init_params),
+        test_image_options: Some(image_opts),
+        subsystem_mode: true,
+        ..Default::default()
+    });
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    // A partition that would otherwise be valid, on a Production part: the only
+    // reason for the rejection is the caller's privilege level.
+    let mut cmd = MailboxReq::FeProg(FeProgReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        partition: 1,
+    });
+    cmd.populate_chksum().unwrap();
+
+    assert_eq!(
+        model.mailbox_execute(u32::from(CommandId::FE_PROG), cmd.as_bytes().unwrap()),
+        Err(ModelError::MailboxCmdFailed(
+            CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL.into()
         ))
     );
 }

@@ -26,6 +26,9 @@ impl FeProgrammingCmd {
     #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn execute(drivers: &mut Drivers, cmd_bytes: &[u8]) -> CaliptraResult<usize> {
+        // Restrict to PL0
+        drivers.ensure_pl0()?;
+
         let cmd = FeProgReq::ref_from_bytes(cmd_bytes)
             .map_err(|_| CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
 
