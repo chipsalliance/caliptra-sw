@@ -25,7 +25,6 @@ pub struct ImageGenerator<Crypto: ImageGeneratorCrypto> {
 
 impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
     const DEFAULT_FLAGS: u32 = 0;
-    const PL0_PAUSER_FLAG: u32 = (1 << 0);
 
     /// Create an instance `ImageGenerator`
     pub fn new(crypto: Crypto) -> Self {
@@ -309,8 +308,12 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
         header.vendor_data.vendor_not_after = config.vendor_config.not_after;
 
         if let Some(pauser) = config.vendor_config.pl0_pauser {
-            header.flags |= Self::PL0_PAUSER_FLAG;
+            header.flags |= IMAGE_FLAGS_PL0_PAUSER;
             header.pl0_pauser = pauser;
+        }
+
+        if config.vendor_config.debug_image {
+            header.flags |= IMAGE_FLAGS_DEBUG_IMAGE;
         }
 
         if let Some(owner_config) = &config.owner_config {

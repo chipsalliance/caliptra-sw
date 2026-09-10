@@ -5,7 +5,7 @@ This document tracks the currently compiled ROM integration tests under
 modules from `main.rs`, and the inventory below includes all current `#[test]`
 functions grouped by logical coverage area.
 
-Total current tests: **184**
+Total current tests: **189**
 
 Run the harness with:
 
@@ -26,7 +26,7 @@ behavior or checks state/data without expecting a ROM error code.
 | Identity, DICE, and certificate commands | 12 | `test_dice_derivations.rs`, `test_idevid_derivation.rs`, `tests_get_idev_csr.rs`, `test_ldev_cert_cmd.rs` |
 | Reset, watchdog, and fatal trap handling | 20 | `test_update_reset.rs`, `test_warm_reset.rs`, `test_wdt_activation_and_stoppage.rs`, `test_cpu_fault.rs` |
 | Mailbox commands and ROM services | 22 | `test_mailbox_errors.rs`, `test_cm_sha.rs`, `test_derive_stable_key.rs`, `test_capabilities.rs`, `test_version.rs`, `test_ecdsa_verify.rs`, `test_mldsa_verify.rs` |
-| Debug unlock, UDS/FE, and hardware protections | 28 | `test_debug_unlock.rs`, `test_uds_fe.rs`, `test_ocp_lock.rs`, `test_pmp.rs`, `test_cfi.rs`, `test_fips_hooks.rs` |
+| Debug unlock, UDS/FE, and hardware protections | 33 | `test_debug_unlock.rs`, `test_debug_image.rs`, `test_uds_fe.rs`, `test_ocp_lock.rs`, `test_pmp.rs`, `test_cfi.rs`, `test_fips_hooks.rs` |
 | ROM configuration, integrity, and test infrastructure | 14 | `test_fake_rom.rs`, `test_rom_integrity.rs`, `test_panic_missing.rs`, `test_symbols.rs`, `rv32_unit_tests.rs`, `helpers.rs` |
 
 ## Secure Boot and Image Validation
@@ -212,6 +212,11 @@ behavior or checks state/data without expecting a ROM error code.
 | Reject production debug unlock with the wrong mailbox command | `test_dbg_unlock_prod_wrong_cmd` | `SS_DBG_UNLOCK_PROD_INVALID_REQ_MBOX_CMD` |
 | Complete production debug unlock with unlock-level controls | `test_dbg_unlock_prod_unlock_levels_success` | N/A |
 | Reject production debug unlock when unlock-level checks fail | `test_dbg_unlock_prod_unlock_levels_failure` | N/A |
+| Reject cold-reset load of a Debug Image when Debug Intent is clear | `test_debug_image_cold_reset_rejected_without_debug_intent` | `IMAGE_VERIFIER_ERR_DEBUG_IMAGE_NOT_ALLOWED` |
+| Accept cold-reset load of a Debug Image when Debug Intent is set | `test_debug_image_cold_reset_accepted_with_debug_intent` | N/A |
+| Accept non-debug image cold reset when Debug Intent is set | `test_non_debug_image_cold_reset_with_debug_intent` | N/A |
+| Reject update-reset load of a Debug Image when Debug Intent is clear | `test_debug_image_update_reset_rejected_without_debug_intent` | `IMAGE_VERIFIER_ERR_DEBUG_IMAGE_NOT_ALLOWED` |
+| Accept update-reset load of a Debug Image when Debug Intent is set | `test_debug_image_update_reset_accepted_with_debug_intent` | N/A |
 | Reject UDS programming in passive mode | `test_uds_programming_no_active_mode` | `ROM_UDS_PROG_IN_PASSIVE_MODE` |
 | Program UDS using 64-bit granularity | `test_uds_programming_granularity_64bit` | N/A |
 | Program UDS with configurable status-register offset | `test_uds_programming_configurable_status_reg_offset` | N/A |
