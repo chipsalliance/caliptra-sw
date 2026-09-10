@@ -112,13 +112,21 @@ fn mlkem_cmd_run_wycheproof() {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
     });
 
-    let keygen_tests = wycheproof_mlkem::mlkem::TestSet::load(
-        wycheproof_mlkem::mlkem::TestName::MlKem1024KeyGenSeed,
-    )
-    .unwrap();
+    let keygen_tests =
+        wycheproof::mlkem::TestSet::load(wycheproof::mlkem::TestName::MlKem1024KeyGenSeed).unwrap();
     let mut keygen_test_count = 0;
     for group in &keygen_tests.test_groups {
         for test in &group.tests {
+            assert!(
+                matches!(
+                    test.result,
+                    wycheproof::TestResult::Valid | wycheproof::TestResult::Acceptable
+                ),
+                "Wycheproof ML-KEM-1024 keygen test {} has unexpected result {:?}: {}",
+                test.tc_id,
+                test.result,
+                test.comment
+            );
             keygen_test_count += 1;
             let seed = test.seed.as_ref().unwrap().as_slice();
             let expected_encaps_key = test.encaps_key.as_ref().unwrap().as_slice();
@@ -147,27 +155,79 @@ fn mlkem_cmd_run_wycheproof() {
     assert_eq!(keygen_test_count, 100);
 
     let decaps_tests =
-        wycheproof_mlkem::mlkem::TestSet::load(wycheproof_mlkem::mlkem::TestName::MlKem1024)
-            .unwrap();
+        wycheproof::mlkem::TestSet::load(wycheproof::mlkem::TestName::MlKem1024).unwrap();
     let mut decaps_test_count = 0;
+    let mut skipped_invalid_count = 0;
     for group in &decaps_tests.test_groups {
         for test in &group.tests {
-            let Some(seed) = test.seed.as_ref().map(|value| value.as_slice()) else {
-                continue;
-            };
-            let Some(ciphertext) = test.ct.as_ref().map(|value| value.as_slice()) else {
-                continue;
-            };
-            let Some(shared_secret) = test.shared_secret.as_ref().map(|value| value.as_slice())
-            else {
-                continue;
-            };
-            if seed.len() != MLKEM1024_SEED_SIZE
-                || ciphertext.len() != MLKEM1024_CIPHERTEXT_SIZE
-                || shared_secret.len() != MLKEM_SHARED_SECRET_SIZE
-            {
-                continue;
+            match test.result {
+                wycheproof::TestResult::Valid | wycheproof::TestResult::Acceptable => {}
+                wycheproof::TestResult::Invalid => {
+                    // All invalid vectors in this set carry a malformed seed or
+                    // ciphertext size (with an empty shared secret) that the
+                    // fixed-size mailbox structs cannot represent, so there is
+                    // nothing to send to the device. Fail if that ever changes
+                    // so negative-path coverage gets added instead of silently
+                    // skipping the vector.
+                    let expressible = test
+                        .seed
+                        .as_ref()
+                        .is_some_and(|v| v.as_slice().len() == MLKEM1024_SEED_SIZE)
+                        && test
+                            .ct
+                            .as_ref()
+                            .is_some_and(|v| v.as_slice().len() == MLKEM1024_CIPHERTEXT_SIZE)
+                        && test
+                            .shared_secret
+                            .as_ref()
+                            .is_some_and(|v| v.as_slice().len() == MLKEM_SHARED_SECRET_SIZE);
+                    assert!(
+                        !expressible,
+                        "Wycheproof ML-KEM-1024 decapsulation test {} became expressible on the mailbox API: {}",
+                        test.tc_id,
+                        test.comment
+                    );
+                    skipped_invalid_count += 1;
+                    continue;
+                }
             }
+            // Valid vectors must be well-formed; fail loudly if they are not.
+            let seed = test
+                .seed
+                .as_ref()
+                .expect("valid decapsulation test must have a seed")
+                .as_slice();
+            let ciphertext = test
+                .ct
+                .as_ref()
+                .expect("valid decapsulation test must have a ciphertext")
+                .as_slice();
+            let shared_secret = test
+                .shared_secret
+                .as_ref()
+                .expect("valid decapsulation test must have a shared secret")
+                .as_slice();
+            assert_eq!(
+                seed.len(),
+                MLKEM1024_SEED_SIZE,
+                "Wycheproof ML-KEM-1024 decapsulation test {} has a malformed seed: {}",
+                test.tc_id,
+                test.comment
+            );
+            assert_eq!(
+                ciphertext.len(),
+                MLKEM1024_CIPHERTEXT_SIZE,
+                "Wycheproof ML-KEM-1024 decapsulation test {} has a malformed ciphertext: {}",
+                test.tc_id,
+                test.comment
+            );
+            assert_eq!(
+                shared_secret.len(),
+                MLKEM_SHARED_SECRET_SIZE,
+                "Wycheproof ML-KEM-1024 decapsulation test {} has a malformed shared secret: {}",
+                test.tc_id,
+                test.comment
+            );
 
             decaps_test_count += 1;
             let cmk = import_mlkem_seed(&mut model, seed);
@@ -203,4 +263,5 @@ fn mlkem_cmd_run_wycheproof() {
         }
     }
     assert_eq!(decaps_test_count, 153);
+    assert_eq!(skipped_invalid_count, 40);
 }

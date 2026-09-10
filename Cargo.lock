@@ -1188,8 +1188,7 @@ dependencies = [
  "sha3 0.10.8",
  "spki 0.7.3",
  "ufmt",
- "wycheproof 0.6.0",
- "wycheproof 0.7.0",
+ "wycheproof",
  "x509-cert",
  "x509-parser",
  "zerocopy",
@@ -6121,17 +6120,6 @@ dependencies = [
  "serde_json",
  "unicode-xid",
  "wasmparser",
-]
-
-[[package]]
-name = "wycheproof"
-version = "0.6.0"
-source = "git+https://github.com/randombit/wycheproof-rs?rev=5120390a605bb6fd950048928981dc7a52937379#5120390a605bb6fd950048928981dc7a52937379"
-dependencies = [
- "data-encoding",
- "serde",
- "serde_derive",
- "serde_json",
 ]
 
 [[package]]
