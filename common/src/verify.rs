@@ -64,6 +64,9 @@ impl MldsaVerifyCmd {
 
         let signature_bytes = MldsaVerifyReq::signature(cmd_args)
             .ok_or(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+        if signature_bytes.last() != Some(&0) {
+            return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
+        }
         let signature = Mldsa87Signature::from(*signature_bytes);
 
         let message = MldsaVerifyReq::message(cmd_args)

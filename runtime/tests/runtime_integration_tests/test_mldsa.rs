@@ -95,6 +95,36 @@ fn test_mldsa_verify_cmd() {
 }
 
 #[test]
+fn test_mldsa_verify_nonzero_padding_byte() {
+    let mut model = run_rt_test(RuntimeTestArgs::default());
+    model.step_until_ready_for_runtime();
+
+    let mut signature = [0u8; 4628];
+    signature[4627] = 1;
+    let mut cmd = MailboxReq::MldsaVerify(MldsaVerifyReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        pub_key: [0u8; 2592],
+        signature,
+        message_size: 0,
+        message: [0u8; 4096],
+    });
+    cmd.populate_chksum().unwrap();
+
+    let response = model
+        .mailbox_execute(
+            u32::from(CommandId::MLDSA87_SIGNATURE_VERIFY),
+            cmd.as_bytes().unwrap(),
+        )
+        .unwrap_err();
+
+    crate::common::assert_error(
+        &mut model,
+        caliptra_drivers::CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS,
+        response,
+    );
+}
+
+#[test]
 fn test_mldsa_verify_bad_chksum() {
     let mut model = run_rt_test(RuntimeTestArgs::default());
 
