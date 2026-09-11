@@ -121,6 +121,8 @@ impl ExtendPcrCmd {
     #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<usize> {
+        drivers.ensure_pl0()?;
+
         let cmd = ExtendPcrReq::ref_from_bytes(cmd_args)
             .map_err(|_| CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
 
@@ -129,7 +131,7 @@ impl ExtendPcrCmd {
 
         let pcr_index: PcrId =
             match PcrId::try_from(idx).map_err(|_| CaliptraError::RUNTIME_PCR_INVALID_INDEX)? {
-                PcrId::PcrId0 | PcrId::PcrId1 | PcrId::PcrId2 | PcrId::PcrId3 | PcrId::PcrId31 => {
+                PcrId::PcrId0 | PcrId::PcrId1 | PcrId::PcrId2 | PcrId::PcrId3 => {
                     return Err(CaliptraError::RUNTIME_PCR_RESERVED)
                 }
                 pcr_id => pcr_id,
