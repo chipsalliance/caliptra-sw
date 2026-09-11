@@ -26,6 +26,14 @@ use x509_cert::certificate::Certificate;
 use x509_cert::der::{Decode, Encode};
 use zerocopy::{FromBytes, IntoBytes};
 
+fn extend_pcr(current: &[u8; 48], data: &[u8; 48]) -> [u8; 48] {
+    let mut h = Hasher::new(MessageDigest::sha384()).unwrap();
+    let _ = h.update(current);
+    let _ = h.update(data);
+    let res = h.finish().unwrap();
+    res.as_bytes().try_into().unwrap()
+}
+
 #[test]
 fn test_pcr_quote_ecc() {
     let mut model = run_rt_test(RuntimeTestArgs::default());
@@ -188,14 +196,6 @@ pub fn get_model_pcrs(model: &mut DefaultHwModel) -> [[u8; 48]; 32] {
 
 #[test]
 fn test_extend_pcr_cmd_multiple_extensions() {
-    fn extend_pcr(current: &[u8; 48], data: &[u8; 48]) -> [u8; 48] {
-        let mut h = Hasher::new(MessageDigest::sha384()).unwrap();
-        let _ = h.update(current);
-        let _ = h.update(data);
-        let res = h.finish().unwrap();
-        res.as_bytes().try_into().unwrap()
-    }
-
     // 0. Get fresh pcr state and verify
     let mut model = run_rt_test(RuntimeTestArgs::default());
     assert_eq!(get_model_pcrs(&mut model)[4], [0u8; 48]);
@@ -262,13 +262,7 @@ fn test_extend_pcr_cmd_reserved_range() {
     let extension_data: [u8; 48] = [0u8; 48];
 
     // 4. Ensure reserved PCR range
-    let reserved_pcrs = [
-        PcrId::PcrId0,
-        PcrId::PcrId1,
-        PcrId::PcrId2,
-        PcrId::PcrId3,
-        PcrId::PcrId31,
-    ];
+    let reserved_pcrs = [PcrId::PcrId0, PcrId::PcrId1, PcrId::PcrId2, PcrId::PcrId3];
     for test_pcr_index_reserved in reserved_pcrs {
         let cmd = generate_mailbox_extend_pcr_req(test_pcr_index_reserved.into(), extension_data);
 
@@ -280,6 +274,61 @@ fn test_extend_pcr_cmd_reserved_range() {
             )))
         );
     }
+}
+
+#[test]
+fn test_extend_pcr31_from_pl0_for_mcu_soc_measurements() {
+    let mut model = run_rt_test(RuntimeTestArgs::default());
+    let extension_data = [0xa5; 48];
+    let current_pcr = get_model_pcrs(&mut model)[PcrId::PcrId31 as usize];
+
+    // The MCU uses its PL0 locality to extend SoC firmware measurements into PCR31.
+    let cmd = generate_mailbox_extend_pcr_req(PcrId::PcrId31.into(), extension_data);
+    let res = model.mailbox_execute(u32::from(CommandId::EXTEND_PCR), cmd.as_bytes().unwrap());
+
+    assert!(res.is_ok());
+    assert_eq!(
+        get_model_pcrs(&mut model)[PcrId::PcrId31 as usize],
+        extend_pcr(&current_pcr, &extension_data)
+    );
+}
+
+#[test]
+fn test_extend_pcr_cmd_restricted_to_pl0() {
+    let mut model = run_rt_test(RuntimeTestArgs::default());
+    model.set_axi_user(2);
+
+    for pcr in [PcrId::PcrId4, PcrId::PcrId31] {
+        let cmd = generate_mailbox_extend_pcr_req(pcr.into(), [0xa5; 48]);
+        let res = model.mailbox_execute(u32::from(CommandId::EXTEND_PCR), cmd.as_bytes().unwrap());
+
+        assert_eq!(
+            res,
+            Err(ModelError::MailboxCmdFailed(u32::from(
+                CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL
+            )))
+        );
+    }
+}
+
+#[test]
+fn test_extend_pcr_cmd_rejected_without_pl0_pauser() {
+    let mut image_opts = caliptra_builder::ImageOptions::default();
+    image_opts.vendor_config.pl0_pauser = None;
+
+    let mut model = run_rt_test(RuntimeTestArgs {
+        subsystem_mode: true,
+        test_image_options: Some(image_opts),
+        ..Default::default()
+    });
+    let cmd = generate_mailbox_extend_pcr_req(PcrId::PcrId31.into(), [0xa5; 48]);
+
+    assert_eq!(
+        model.mailbox_execute(u32::from(CommandId::EXTEND_PCR), cmd.as_bytes().unwrap()),
+        Err(ModelError::MailboxCmdFailed(u32::from(
+            CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL
+        )))
+    );
 }
 
 #[test]
