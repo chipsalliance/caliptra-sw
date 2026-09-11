@@ -2848,6 +2848,30 @@ Command Code: `0x434D_494D` ("CMIM")
 | fips_status | u32      | FIPS approved or an error   |
 | CMK         | CMK      | CMK containing imported key |
 
+### CM_KEY_GEN
+
+Generates a key using internal TRNG and returns an encrypted CMK for it.
+
+Usage and size information are required so that the key can be verified and used appropriately.
+
+Command Code: `0x434D_4B47` ("CMKG")
+
+*Table: `CM_KEY_GEN` input arguments*
+
+| **Name**   | **Type** | **Description**                         |
+| ---------- | -------- | --------------------------------------- |
+| chksum     | u32      |                                         |
+| key usage  | u32      | Tag to specify how the data can be used |
+| key size   | u32      | Size in bytes (must agree with usage)   |
+
+*Table: `CM_KEY_GEN` output arguments*
+
+| **Name**    | **Type** | **Description**              |
+| ----------- | -------- | ---------------------------- |
+| chksum      | u32      |                              |
+| fips_status | u32      | FIPS approved or an error    |
+| CMK         | CMK      | CMK containing generated key |
+
 ### CM_DELETE
 
 Deletes the object stored with the given mailbox ID.
