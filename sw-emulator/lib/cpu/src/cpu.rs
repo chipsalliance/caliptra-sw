@@ -194,7 +194,7 @@ impl CodeCoverage {
         }
     }
 
-    pub fn code_coverage_bitmap(&self) -> CoverageBitmaps {
+    pub fn code_coverage_bitmap(&self) -> CoverageBitmaps<'_> {
         CoverageBitmaps {
             rom: &self.rom_bit_vec,
             iccm: &self.iccm_bit_vec,

@@ -58,7 +58,7 @@ impl Sha2_512_384Acc {
     pub fn try_start_operation(
         &mut self,
         assumed_lock_state: ShaAccLockState,
-    ) -> CaliptraResult<Option<Sha2_512_384AccOp>> {
+    ) -> CaliptraResult<Option<Sha2_512_384AccOp<'_>>> {
         let sha_acc = self.sha512_acc.regs();
 
         #[cfg(feature = "fips-test-hooks")]
