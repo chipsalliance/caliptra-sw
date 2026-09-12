@@ -304,7 +304,7 @@ impl SocIfc {
         soc_ifc.cptra_flow_status().read().mailbox_flow_done()
     }
 
-    pub fn fuse_bank(&self) -> FuseBank {
+    pub fn fuse_bank(&self) -> FuseBank<'_> {
         FuseBank {
             soc_ifc: &self.soc_ifc,
         }

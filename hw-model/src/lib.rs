@@ -1253,7 +1253,7 @@ pub trait HwModel: SocManager {
 
     fn events_to_caliptra(&mut self) -> mpsc::Sender<Event>;
 
-    fn wait_for_mailbox_receive(&mut self) -> Result<MailboxRecvTxn<Self>, ModelError>
+    fn wait_for_mailbox_receive(&mut self) -> Result<MailboxRecvTxn<'_, Self>, ModelError>
     where
         Self: Sized,
     {
@@ -1265,7 +1265,7 @@ pub trait HwModel: SocManager {
         }
     }
 
-    fn try_mailbox_receive(&mut self) -> Result<Option<MailboxRecvTxn<Self>>, ModelError>
+    fn try_mailbox_receive(&mut self) -> Result<Option<MailboxRecvTxn<'_, Self>>, ModelError>
     where
         Self: Sized,
     {
