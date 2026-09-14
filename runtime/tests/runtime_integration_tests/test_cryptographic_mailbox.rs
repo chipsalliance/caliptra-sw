@@ -19,16 +19,16 @@ use caliptra_api::mailbox::{
     CmEcdhGenerateReq, CmEcdhGenerateResp, CmEcdsaPublicKeyReq, CmEcdsaPublicKeyResp,
     CmEcdsaSignReq, CmEcdsaSignResp, CmEcdsaVerifyReq, CmHashAlgorithm, CmHkdfExpandReq,
     CmHkdfExpandResp, CmHkdfExtractReq, CmHkdfExtractResp, CmHmacKdfCounterReq,
-    CmHmacKdfCounterResp, CmHmacReq, CmHmacResp, CmImportReq, CmImportResp, CmKeyUsage,
-    CmMldsaPublicKeyReq, CmMldsaPublicKeyResp, CmMldsaSignReq, CmMldsaSignResp, CmMldsaVerifyReq,
-    CmMlkemDecapsulateReq, CmMlkemDecapsulateResp, CmMlkemEncapsulateReq, CmMlkemEncapsulateResp,
-    CmMlkemKeyGenReq, CmMlkemKeyGenResp, CmRandomGenerateReq, CmRandomGenerateResp,
-    CmRandomStirReq, CmShaFinalReq, CmShaFinalResp, CmShaInitReq, CmShaInitResp, CmShaUpdateReq,
-    CmShake256FinalReq, CmShake256FinalResp, CmShake256InitReq, CmShake256InitResp,
-    CmShake256UpdateReq, CmStableKeyType, CmStatusResp, Cmk, CommandId, MailboxReq,
-    MailboxReqHeader, MailboxRespHeader, MailboxRespHeaderVarSize, ResponseVarSize,
-    CMB_ECDH_EXCHANGE_DATA_MAX_SIZE, CMB_SHAKE256_CONTEXT_SIZE, CMK_SIZE_BYTES, MAX_CMB_DATA_SIZE,
-    MLKEM1024_ENCAPS_KEY_SIZE, SHAKE256_MAX_DIGEST_BYTE_SIZE,
+    CmHmacKdfCounterResp, CmHmacReq, CmHmacResp, CmImportReq, CmImportResp, CmKeyGenReq,
+    CmKeyGenResp, CmKeyUsage, CmMldsaPublicKeyReq, CmMldsaPublicKeyResp, CmMldsaSignReq,
+    CmMldsaSignResp, CmMldsaVerifyReq, CmMlkemDecapsulateReq, CmMlkemDecapsulateResp,
+    CmMlkemEncapsulateReq, CmMlkemEncapsulateResp, CmMlkemKeyGenReq, CmMlkemKeyGenResp,
+    CmRandomGenerateReq, CmRandomGenerateResp, CmRandomStirReq, CmShaFinalReq, CmShaFinalResp,
+    CmShaInitReq, CmShaInitResp, CmShaUpdateReq, CmShake256FinalReq, CmShake256FinalResp,
+    CmShake256InitReq, CmShake256InitResp, CmShake256UpdateReq, CmStableKeyType, CmStatusResp, Cmk,
+    CommandId, MailboxReq, MailboxReqHeader, MailboxRespHeader, MailboxRespHeaderVarSize,
+    ResponseVarSize, CMB_ECDH_EXCHANGE_DATA_MAX_SIZE, CMB_SHAKE256_CONTEXT_SIZE, CMK_SIZE_BYTES,
+    MAX_CMB_DATA_SIZE, MLKEM1024_ENCAPS_KEY_SIZE, SHAKE256_MAX_DIGEST_BYTE_SIZE,
 };
 use caliptra_api::{Capabilities, SocManager};
 use caliptra_drivers::AES_BLOCK_SIZE_BYTES;
@@ -164,6 +164,179 @@ fn test_import() {
     let cm_resp = CmStatusResp::ref_from_bytes(status_resp.as_slice()).unwrap();
     assert_eq!(cm_resp.used_usage_storage, 1);
     assert_eq!(cm_resp.total_usage_storage, 256);
+}
+
+#[test]
+fn test_key_gen() {
+    let mut model = run_rt_test(RuntimeTestArgs::default());
+    model.step_until_ready_for_runtime();
+
+    // Wrong size for AES
+    let mut cm_key_gen_cmd = MailboxReq::CmKeyGen(CmKeyGenReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        key_usage: CmKeyUsage::Aes.into(),
+        key_size: 64,
+    });
+    cm_key_gen_cmd.populate_chksum().unwrap();
+    let resp = model
+        .mailbox_execute(
+            u32::from(CommandId::CM_KEY_GEN),
+            cm_key_gen_cmd.as_bytes().unwrap(),
+        )
+        .unwrap_err();
+    assert_error(
+        &mut model,
+        caliptra_drivers::CaliptraError::RUNTIME_CMB_INVALID_KEY_USAGE_AND_SIZE,
+        resp,
+    );
+
+    // AES key gen (32 bytes)
+    let mut cm_key_gen_cmd = MailboxReq::CmKeyGen(CmKeyGenReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        key_usage: CmKeyUsage::Aes.into(),
+        key_size: 32,
+    });
+    cm_key_gen_cmd.populate_chksum().unwrap();
+    let resp = model
+        .mailbox_execute(
+            u32::from(CommandId::CM_KEY_GEN),
+            cm_key_gen_cmd.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .expect("We should have received a response");
+    let cm_key_gen_resp = CmKeyGenResp::ref_from_bytes(resp.as_slice()).unwrap();
+    let cmk = cm_key_gen_resp.cmk.as_bytes();
+    assert_eq!(CMK_SIZE_BYTES, cmk.len());
+    assert!(!cmk.iter().all(|&x| x == 0));
+    assert_eq!(
+        cm_key_gen_resp.hdr.fips_status,
+        MailboxRespHeader::FIPS_STATUS_APPROVED
+    );
+
+    // Verify storage counter used for AES
+    let cm_resp = status(&mut model);
+    assert_eq!(cm_resp.used_usage_storage, 1);
+
+    // ML-KEM key gen (64 bytes)
+    let mut cm_key_gen_cmd = MailboxReq::CmKeyGen(CmKeyGenReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        key_usage: CmKeyUsage::Mlkem.into(),
+        key_size: 64,
+    });
+    cm_key_gen_cmd.populate_chksum().unwrap();
+    let resp = model
+        .mailbox_execute(
+            u32::from(CommandId::CM_KEY_GEN),
+            cm_key_gen_cmd.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .expect("We should have received a response");
+    let cm_key_gen_resp = CmKeyGenResp::ref_from_bytes(resp.as_slice()).unwrap();
+    let mlkem_cmk = cm_key_gen_resp.cmk.clone();
+    assert!(!mlkem_cmk.as_bytes().iter().all(|&x| x == 0));
+
+    // Verify ML-KEM key gen works with CM_MLKEM_KEY_GEN to derive public key
+    let mut mlkem_pub_req = MailboxReq::CmMlkemKeyGen(CmMlkemKeyGenReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        cmk: mlkem_cmk,
+    });
+    mlkem_pub_req.populate_chksum().unwrap();
+    let resp = model
+        .mailbox_execute(
+            u32::from(CommandId::CM_MLKEM_KEY_GEN),
+            mlkem_pub_req.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .expect("We should have received a response");
+    let pub_resp = CmMlkemKeyGenResp::ref_from_bytes(resp.as_slice()).unwrap();
+    assert_eq!(
+        pub_resp.hdr.fips_status,
+        MailboxRespHeader::FIPS_STATUS_APPROVED
+    );
+    assert!(!pub_resp.encaps_key.iter().all(|&x| x == 0));
+
+    // ML-DSA key gen (32 bytes)
+    let mut cm_key_gen_cmd = MailboxReq::CmKeyGen(CmKeyGenReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        key_usage: CmKeyUsage::Mldsa.into(),
+        key_size: 32,
+    });
+    cm_key_gen_cmd.populate_chksum().unwrap();
+    let resp = model
+        .mailbox_execute(
+            u32::from(CommandId::CM_KEY_GEN),
+            cm_key_gen_cmd.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .expect("We should have received a response");
+    let mldsa_cmk = CmKeyGenResp::ref_from_bytes(resp.as_slice())
+        .unwrap()
+        .cmk
+        .clone();
+    let mut mldsa_pub_req = MailboxReq::CmMldsaPublicKey(CmMldsaPublicKeyReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        cmk: mldsa_cmk,
+    });
+    mldsa_pub_req.populate_chksum().unwrap();
+    let resp = model
+        .mailbox_execute(
+            u32::from(CommandId::CM_MLDSA_PUBLIC_KEY),
+            mldsa_pub_req.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .expect("We should have received a response");
+    let mldsa_pub_resp = CmMldsaPublicKeyResp::ref_from_bytes(resp.as_slice()).unwrap();
+    assert!(!mldsa_pub_resp.public_key.iter().all(|&x| x == 0));
+
+    // ECDSA key gen (48 bytes)
+    let mut cm_key_gen_cmd = MailboxReq::CmKeyGen(CmKeyGenReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        key_usage: CmKeyUsage::Ecdsa.into(),
+        key_size: 48,
+    });
+    cm_key_gen_cmd.populate_chksum().unwrap();
+    let resp = model
+        .mailbox_execute(
+            u32::from(CommandId::CM_KEY_GEN),
+            cm_key_gen_cmd.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .expect("We should have received a response");
+    let ecdsa_cmk = CmKeyGenResp::ref_from_bytes(resp.as_slice())
+        .unwrap()
+        .cmk
+        .clone();
+    let mut ecdsa_pub_req = MailboxReq::CmEcdsaPublicKey(CmEcdsaPublicKeyReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        cmk: ecdsa_cmk,
+    });
+    ecdsa_pub_req.populate_chksum().unwrap();
+    let resp = model
+        .mailbox_execute(
+            u32::from(CommandId::CM_ECDSA_PUBLIC_KEY),
+            ecdsa_pub_req.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .expect("We should have received a response");
+    let ecdsa_pub_resp = CmEcdsaPublicKeyResp::ref_from_bytes(resp.as_slice()).unwrap();
+    assert!(!ecdsa_pub_resp.public_key_x.iter().all(|&x| x == 0));
+
+    // HMAC key gen (64 bytes)
+    let mut cm_key_gen_cmd = MailboxReq::CmKeyGen(CmKeyGenReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        key_usage: CmKeyUsage::Hmac.into(),
+        key_size: 64,
+    });
+    cm_key_gen_cmd.populate_chksum().unwrap();
+    let resp = model
+        .mailbox_execute(
+            u32::from(CommandId::CM_KEY_GEN),
+            cm_key_gen_cmd.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .expect("We should have received a response");
+    let hmac_resp = CmKeyGenResp::ref_from_bytes(resp.as_slice()).unwrap();
+    assert!(!hmac_resp.cmk.as_bytes().iter().all(|&x| x == 0));
 }
 
 #[test]
