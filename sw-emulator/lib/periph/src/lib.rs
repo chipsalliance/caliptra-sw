@@ -35,6 +35,7 @@ mod ml_dsa87;
 mod root_bus;
 mod sha512_acc;
 pub mod soc_reg;
+mod stash_measurement_bank;
 mod uart;
 
 pub use abr::Abr;
@@ -61,4 +62,5 @@ pub use root_bus::{
 };
 pub use sha512_acc::Sha512Accelerator;
 pub use soc_reg::SocRegistersInternal;
+pub use stash_measurement_bank::StashMeasurementBank;
 pub use uart::Uart;
