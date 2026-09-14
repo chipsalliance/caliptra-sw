@@ -53,7 +53,7 @@ impl Sha2_512_384Acc {
     ///
     /// * On success, either an object representing the SHA384 accelerator operation or
     ///   'None' if unable to acquire the SHA384 Accelerator lock.
-    ///    On failure, an error code.
+    ///   On failure, an error code.
     ///
     pub fn try_start_operation(
         &mut self,

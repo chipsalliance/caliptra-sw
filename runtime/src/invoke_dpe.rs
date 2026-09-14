@@ -205,13 +205,12 @@ impl InvokeDpeCmd {
                     return Err(CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL);
                 }
             }
-            Command::CertifyKey(cmd) => {
-                // PL1 cannot request X509
+            // PL1 cannot request X509
+            Command::CertifyKey(cmd)
                 if cmd.format() == CertifyKeyCommand::FORMAT_X509
-                    && caller_privilege_level != PauserPrivileges::PL0
-                {
-                    return Err(CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL);
-                }
+                    && caller_privilege_level != PauserPrivileges::PL0 =>
+            {
+                return Err(CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL);
             }
             _ => (),
         };

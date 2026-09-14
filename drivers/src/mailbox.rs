@@ -417,7 +417,7 @@ impl MailboxRecvTxn<'_> {
     pub fn drop_words(&mut self, count: usize) -> CaliptraResult<()> {
         let mbox = self.mbox.regs_mut();
         let dlen_bytes = mbox.dlen().read() as usize;
-        let dlen_words = (dlen_bytes + 3) / 4;
+        let dlen_words = dlen_bytes.div_ceil(4);
         let words_to_read = min(count, dlen_words);
         for _ in 0..words_to_read {
             _ = mbox.dataout().read();

@@ -14,7 +14,7 @@ use std::sync::mpsc;
 use std::{
     error::Error,
     fmt::Display,
-    io::{stdout, ErrorKind, Write},
+    io::{stdout, Write},
 };
 
 use caliptra_hw_model_types::{
@@ -967,10 +967,7 @@ pub trait HwModel: SocManager {
             match self.output().exit_status() {
                 Some(ExitStatus::Passed) => return Ok(()),
                 Some(ExitStatus::Failed) => {
-                    return Err(std::io::Error::new(
-                        ErrorKind::Other,
-                        "firmware exited with failure",
-                    ))
+                    return Err(std::io::Error::other("firmware exited with failure"))
                 }
                 None => {}
             }
@@ -983,8 +980,7 @@ pub trait HwModel: SocManager {
             match self.output().exit_status() {
                 Some(ExitStatus::Failed) => return Ok(()),
                 Some(ExitStatus::Passed) => {
-                    return Err(std::io::Error::new(
-                        ErrorKind::Other,
+                    return Err(std::io::Error::other(
                         "firmware exited with success when failure was expected",
                     ))
                 }

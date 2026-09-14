@@ -916,6 +916,7 @@ pub fn generate_code(block: &ValidatedRegisterBlock, options: Options) -> TokenS
 
         #![allow(clippy::erasing_op)]
         #![allow(clippy::identity_op)]
+        #![allow(clippy::zero_ptr)]
 
         #instance_type_tokens
 

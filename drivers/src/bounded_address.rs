@@ -63,7 +63,7 @@ impl<T: IntoBytes + FromBytes, B: MemBounds> BoundedAddr<T, B> {
     pub fn validate_addr(addr: u32) -> Result<(), CaliptraError> {
         let addr = addr as usize;
 
-        if addr % core::mem::align_of::<T>() != 0 {
+        if !addr.is_multiple_of(core::mem::align_of::<T>()) {
             return Err(CaliptraError::ADDRESS_MISALIGNED);
         }
         let size = core::mem::size_of::<T>();

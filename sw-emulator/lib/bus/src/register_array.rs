@@ -76,7 +76,7 @@ impl<T: UIntLike + Into<RvData> + TryFrom<RvData>, const SIZE: usize, R: Registe
     for ReadWriteRegisterArray<T, SIZE, R>
 {
     fn read(&mut self, _size: RvSize, addr: RvAddr) -> Result<RvData, BusError> {
-        if addr as usize % std::mem::size_of::<T>() != 0 {
+        if !(addr as usize).is_multiple_of(std::mem::size_of::<T>()) {
             return Err(BusError::LoadAddrMisaligned);
         }
         // TODO: Check size?
@@ -89,7 +89,7 @@ impl<T: UIntLike + Into<RvData> + TryFrom<RvData>, const SIZE: usize, R: Registe
         if usize::from(size) != std::mem::size_of::<T>() {
             return Err(BusError::StoreAccessFault);
         }
-        if addr as usize % std::mem::size_of::<T>() != 0 {
+        if !(addr as usize).is_multiple_of(std::mem::size_of::<T>()) {
             return Err(BusError::StoreAddrMisaligned);
         }
         let i = addr as usize / std::mem::size_of::<T>();

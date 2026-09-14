@@ -4,6 +4,7 @@
 //
 #![allow(clippy::erasing_op)]
 #![allow(clippy::identity_op)]
+#![allow(clippy::zero_ptr)]
 /// A zero-sized type that represents ownership of this
 /// peripheral, used to get access to a Register lock. Most
 /// programs create one of these in unsafe code near the top of
