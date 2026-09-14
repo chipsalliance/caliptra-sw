@@ -817,7 +817,8 @@ impl Commands {
 
         let mode = CmAesMode::from(cmd.mode);
 
-        if matches!(mode, CmAesMode::Cbc) && cmd.plaintext_size as usize % AES_BLOCK_SIZE_BYTES != 0
+        if matches!(mode, CmAesMode::Cbc)
+            && !(cmd.plaintext_size as usize).is_multiple_of(AES_BLOCK_SIZE_BYTES)
         {
             Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
         }
@@ -893,7 +894,8 @@ impl Commands {
         )?;
 
         let mode = CmAesMode::from(context.mode);
-        if matches!(mode, CmAesMode::Cbc) && cmd.plaintext_size as usize % AES_BLOCK_SIZE_BYTES != 0
+        if matches!(mode, CmAesMode::Cbc)
+            && !(cmd.plaintext_size as usize).is_multiple_of(AES_BLOCK_SIZE_BYTES)
         {
             Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
         }
@@ -928,7 +930,7 @@ impl Commands {
         let mode = CmAesMode::from(cmd.mode);
 
         if matches!(mode, CmAesMode::Cbc)
-            && cmd.ciphertext_size as usize % AES_BLOCK_SIZE_BYTES != 0
+            && !(cmd.ciphertext_size as usize).is_multiple_of(AES_BLOCK_SIZE_BYTES)
         {
             Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
         }
@@ -996,7 +998,7 @@ impl Commands {
         )?;
         let mode: CmAesMode = context.mode.into();
         if matches!(mode, CmAesMode::Cbc)
-            && cmd.ciphertext_size as usize % AES_BLOCK_SIZE_BYTES != 0
+            && !(cmd.ciphertext_size as usize).is_multiple_of(AES_BLOCK_SIZE_BYTES)
         {
             Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
         }

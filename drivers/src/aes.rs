@@ -1009,7 +1009,7 @@ impl Aes {
         if input.is_empty() {
             return Ok(());
         }
-        if input.len() % AES_BLOCK_SIZE_BYTES != 0 {
+        if !input.len().is_multiple_of(AES_BLOCK_SIZE_BYTES) {
             Err(CaliptraError::RUNTIME_DRIVER_AES_INVALID_SLICE)?;
         }
         if output.len() < input.len() {
@@ -1065,7 +1065,7 @@ impl Aes {
                 ..Default::default()
             });
         }
-        if input.len() % AES_BLOCK_SIZE_BYTES != 0 {
+        if !input.len().is_multiple_of(AES_BLOCK_SIZE_BYTES) {
             Err(CaliptraError::RUNTIME_DRIVER_AES_INVALID_SLICE)?;
         }
         if output.len() < input.len() {
