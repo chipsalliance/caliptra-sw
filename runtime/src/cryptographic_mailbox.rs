@@ -2017,10 +2017,8 @@ impl Commands {
         let ikm = Self::decrypt_hmac_key(drivers, &cmd.ikm)?;
         let salt = Self::decrypt_hmac_key(drivers, &cmd.salt)?;
 
-        match (cm_hash_algorithm, ikm.length) {
-            (CmHashAlgorithm::Sha384, 48) => {}
-            (CmHashAlgorithm::Sha512, 64) => {}
-            _ => return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?,
+        if !matches!(ikm.length, 32 | 48 | 64) {
+            return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
         }
 
         let mut unencrypted_cmk = UnencryptedCmk {
