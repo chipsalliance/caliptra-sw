@@ -2330,103 +2330,100 @@ fn test_hkdf_random() {
     let seed_bytes = [1u8; 32];
     let mut seeded_rng = StdRng::from_seed(seed_bytes);
 
-    for size in [48, 64] {
-        let hash_algorithm = if size == 48 {
-            CmHashAlgorithm::Sha384
-        } else {
-            CmHashAlgorithm::Sha512
-        };
-        let mut model = run_rt_test(RuntimeTestArgs::default());
-        model.step_until_ready_for_runtime();
-        const KEYS: usize = 16;
-        let mut keys = vec![];
-        let mut cmks = vec![];
-        for _ in 0..KEYS {
-            let mut key = vec![0u8; size];
-            seeded_rng.fill_bytes(&mut key);
-            cmks.push(import_key(&mut model, &key, CmKeyUsage::Hmac));
-            keys.push(key);
-        }
+    for size in [32, 48, 64] {
+        for hash_algorithm in [CmHashAlgorithm::Sha384, CmHashAlgorithm::Sha512] {
+            let mut model = run_rt_test(RuntimeTestArgs::default());
+            model.step_until_ready_for_runtime();
+            const KEYS: usize = 16;
+            let mut keys = vec![];
+            let mut cmks = vec![];
+            for _ in 0..KEYS {
+                let mut key = vec![0u8; size];
+                seeded_rng.fill_bytes(&mut key);
+                cmks.push(import_key(&mut model, &key, CmKeyUsage::Hmac));
+                keys.push(key);
+            }
 
-        for _ in 0..25 {
-            let key_idx = seeded_rng.gen_range(0..KEYS);
-            let salt_len = seeded_rng.gen_range(0..size);
-            let mut salt = [0u8; 64];
-            seeded_rng.fill_bytes(&mut salt[..salt_len]);
+            for _ in 0..25 {
+                let key_idx = seeded_rng.gen_range(0..KEYS);
+                let salt_len = seeded_rng.gen_range(0..size);
+                let mut salt = [0u8; 64];
+                seeded_rng.fill_bytes(&mut salt[..salt_len]);
 
-            let salt_cmk = import_key(&mut model, &salt[..size], CmKeyUsage::Hmac);
+                let salt_cmk = import_key(&mut model, &salt[..size], CmKeyUsage::Hmac);
 
-            let mut cm_hkdf_extract = MailboxReq::CmHkdfExtract(CmHkdfExtractReq {
-                ikm: cmks[key_idx].clone(),
-                hash_algorithm: hash_algorithm.into(),
-                salt: salt_cmk,
-                ..Default::default()
-            });
-            cm_hkdf_extract.populate_chksum().unwrap();
+                let mut cm_hkdf_extract = MailboxReq::CmHkdfExtract(CmHkdfExtractReq {
+                    ikm: cmks[key_idx].clone(),
+                    hash_algorithm: hash_algorithm.into(),
+                    salt: salt_cmk,
+                    ..Default::default()
+                });
+                cm_hkdf_extract.populate_chksum().unwrap();
 
-            let resp_bytes = model
-                .mailbox_execute(
-                    u32::from(CommandId::CM_HKDF_EXTRACT),
-                    cm_hkdf_extract.as_bytes().unwrap(),
-                )
-                .expect("Should have succeeded")
-                .unwrap();
-            let resp = CmHkdfExtractResp::ref_from_bytes(resp_bytes.as_slice())
-                .expect("Response should be correct size");
-            assert_eq!(
-                resp.hdr.fips_status,
-                MailboxRespHeader::FIPS_STATUS_APPROVED
-            );
+                let resp_bytes = model
+                    .mailbox_execute(
+                        u32::from(CommandId::CM_HKDF_EXTRACT),
+                        cm_hkdf_extract.as_bytes().unwrap(),
+                    )
+                    .expect("Should have succeeded")
+                    .unwrap();
+                let resp = CmHkdfExtractResp::ref_from_bytes(resp_bytes.as_slice())
+                    .expect("Response should be correct size");
+                assert_eq!(
+                    resp.hdr.fips_status,
+                    MailboxRespHeader::FIPS_STATUS_APPROVED
+                );
 
-            let len = seeded_rng.gen_range(0..MAX_CMB_DATA_SIZE);
-            let mut info = vec![0u8; len];
-            seeded_rng.fill_bytes(&mut info);
+                let len = seeded_rng.gen_range(0..MAX_CMB_DATA_SIZE);
+                let mut info = vec![0u8; len];
+                seeded_rng.fill_bytes(&mut info);
 
-            let mut cm_hkdf_expand = CmHkdfExpandReq {
-                prk: resp.prk.clone(),
-                hash_algorithm: hash_algorithm.into(),
-                key_usage: CmKeyUsage::Aes.into(),
-                key_size: 32,
-                info_size: len as u32,
-                ..Default::default()
-            };
-            cm_hkdf_expand.info[..len].copy_from_slice(&info);
-            let mut cm_hkdf_expand = MailboxReq::CmHkdfExpand(cm_hkdf_expand);
-            cm_hkdf_expand.populate_chksum().unwrap();
+                let mut cm_hkdf_expand = CmHkdfExpandReq {
+                    prk: resp.prk.clone(),
+                    hash_algorithm: hash_algorithm.into(),
+                    key_usage: CmKeyUsage::Aes.into(),
+                    key_size: 32,
+                    info_size: len as u32,
+                    ..Default::default()
+                };
+                cm_hkdf_expand.info[..len].copy_from_slice(&info);
+                let mut cm_hkdf_expand = MailboxReq::CmHkdfExpand(cm_hkdf_expand);
+                cm_hkdf_expand.populate_chksum().unwrap();
 
-            let resp_bytes = model
-                .mailbox_execute(
-                    u32::from(CommandId::CM_HKDF_EXPAND),
-                    cm_hkdf_expand.as_bytes().unwrap(),
-                )
-                .expect("Should have succeeded")
-                .unwrap();
-            let resp = CmHkdfExpandResp::ref_from_bytes(resp_bytes.as_slice())
-                .expect("Response should be correct size");
-            assert_eq!(
-                resp.hdr.fips_status,
-                MailboxRespHeader::FIPS_STATUS_APPROVED
-            );
+                let resp_bytes = model
+                    .mailbox_execute(
+                        u32::from(CommandId::CM_HKDF_EXPAND),
+                        cm_hkdf_expand.as_bytes().unwrap(),
+                    )
+                    .expect("Should have succeeded")
+                    .unwrap();
+                let resp = CmHkdfExpandResp::ref_from_bytes(resp_bytes.as_slice())
+                    .expect("Response should be correct size");
+                assert_eq!(
+                    resp.hdr.fips_status,
+                    MailboxRespHeader::FIPS_STATUS_APPROVED
+                );
 
-            let cmk = &resp.okm;
-            let key = rustcrypto_hkdf(hash_algorithm, &keys[key_idx], &salt[..salt_len], &info);
+                let cmk = &resp.okm;
+                let key = rustcrypto_hkdf(hash_algorithm, &keys[key_idx], &salt[..salt_len], &info);
 
-            // use the CMK shared secret to AES encrypt a known plaintext.
-            let plaintext = [0u8; 16];
-            let (iv, tag, ciphertext) = mailbox_gcm_encrypt(
-                &mut model,
-                cmk,
-                &[],
-                &plaintext,
-                MAX_CMB_DATA_SIZE,
-                MailboxRespHeader::FIPS_STATUS_APPROVED,
-            );
-            // encrypt with RustCrypto and check if everything matches
-            let (rtag, rciphertext) = rustcrypto_gcm_encrypt(&key[..32], &iv, &[], &plaintext);
+                // use the CMK shared secret to AES encrypt a known plaintext.
+                let plaintext = [0u8; 16];
+                let (iv, tag, ciphertext) = mailbox_gcm_encrypt(
+                    &mut model,
+                    cmk,
+                    &[],
+                    &plaintext,
+                    MAX_CMB_DATA_SIZE,
+                    MailboxRespHeader::FIPS_STATUS_APPROVED,
+                );
+                // encrypt with RustCrypto and check if everything matches
+                let (rtag, rciphertext) = rustcrypto_gcm_encrypt(&key[..32], &iv, &[], &plaintext);
 
-            // check that ciphertext and tags match, meaning the shared secret is the same on both sides
-            assert_eq!(ciphertext, rciphertext);
-            assert_eq!(tag, rtag);
+                // check that ciphertext and tags match, meaning the shared secret is the same on both sides
+                assert_eq!(ciphertext, rciphertext);
+                assert_eq!(tag, rtag);
+            }
         }
     }
 }
