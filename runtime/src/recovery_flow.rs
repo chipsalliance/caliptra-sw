@@ -111,6 +111,16 @@ impl RecoveryFlow {
             dma_recovery.set_device_status(
                 DmaRecovery::DEVICE_STATUS_READY_TO_ACCEPT_RECOVERY_IMAGE_VALUE,
             )?;
+
+            // Signal that we are awaiting the MCU firmware image and wait
+            // for payload_available to deassert. This avoids reading stale
+            // image metadata while the prior REC_PAYLOAD_DONE is still set.
+            dma_recovery.set_recovery_status(
+                DmaRecovery::RECOVERY_STATUS_AWAITING_RECOVERY_IMAGE,
+                MCU_FIRMWARE_INDEX,
+            )?;
+            dma_recovery.wait_for_payload_not_available();
+
             cprintln!("[rt] Uploading MCU firmware");
             let mcu_size_bytes = dma_recovery.download_image_to_mcu(MCU_FIRMWARE_INDEX)?;
             cprintln!("[rt] Calculating MCU digest");
