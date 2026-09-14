@@ -221,7 +221,7 @@ tock-registers = { git = "https://github.com/tock/tock.git", rev = "release-2.2"
 toml = "0.7.0"
 ufmt = { git = "https://github.com/korran/ufmt.git", rev = "1d0743c1ffffc68bc05ca8eeb81c166192863f33", features = ["inline"] }
 uio = { version = "0.4.0" }
-wycheproof = { git = "https://github.com/randombit/wycheproof-rs", rev = "5120390a605bb6fd950048928981dc7a52937379" }
+wycheproof = { git = "https://github.com/randombit/wycheproof-rs", rev = "795abac5c21688b2a34a9cb6ee2b24cbe0275568", default-features = false, features = ["ecdsa", "mldsa_verify", "mlkem"] }
 x509-cert = { version = "0.2.5", features = ["builder", "hazmat"] }
 x509-parser = "0.15.0"
 zerocopy = { version = "0.8.17", features = ["derive"] }
