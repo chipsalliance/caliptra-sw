@@ -98,10 +98,6 @@ Tool for collecting code coverage metrics from Caliptra tests.
 
 Implementations of CPU-specific features such as NMI and Trap handlers.
 
-### [dpe](/dpe)
-
-DICE Protection Environment submodule (reference to its own repository).
-
 ### [drivers](/drivers)
 
 A rust library containing drivers for the Caliptra hardware, intended to be
@@ -195,8 +191,7 @@ toolchain for all continuous integration.
 
 ```shell
 git clone https://github.com/chipsalliance/caliptra-sw \
-    --config submodule.recurse=true \
-    --recurse-submodules=dpe
+    --config submodule.recurse=true
 cd caliptra-sw
 cargo build
 ```
@@ -253,7 +248,7 @@ cargo test --features=verilator --release
 
 Sometimes you may only want to run a single test, like this
 [pcrbank driver test](/drivers/test-fw/src/bin/pcrbank_tests.rs)
-(hosted by the [driver integration tests](/drivers/tests/integration_tests.rs))
+(hosted by the [driver integration tests](/drivers/tests/drivers_integration_tests/main.rs))
 that can run in seconds:
 
 ```shell
