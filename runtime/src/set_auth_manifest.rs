@@ -26,6 +26,7 @@ use caliptra_cfi_lib::{
     cfi_assert, cfi_assert_bool, cfi_assert_eq, cfi_assert_ge, cfi_assert_le, cfi_launder,
 };
 use caliptra_common::mailbox_api::SetAuthManifestReq;
+use caliptra_dpe::U8Bool;
 use caliptra_drivers::{
     Array4x12, Array4xN, CaliptraError, CaliptraResult, Ecc384, Ecc384PubKey, Ecc384Signature,
     HashValue, Lifecycle, Lms, Mldsa87, Mldsa87PubKey, Mldsa87Result, Mldsa87Signature, Sha256,
@@ -855,6 +856,16 @@ impl SetAuthManifestCmd {
                     pqc_key_type,
                 )?;
 
+                let flags = AuthManifestFlags::from(auth_manifest_preamble.flags);
+                if flags.contains(AuthManifestFlags::DEBUG_IMAGE) {
+                    if !flags.contains(AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED) {
+                        Err(CaliptraError::RUNTIME_AUTH_MANIFEST_INVALID_FLAGS)?;
+                    }
+                    if !drivers.soc_ifc.vendor_debug_image_allowed() {
+                        Err(CaliptraError::RUNTIME_AUTH_MANIFEST_DEBUG_IMAGE_NOT_ALLOWED)?;
+                    }
+                }
+
                 // Verify the owner public keys.
                 Self::verify_owner_pub_keys(
                     auth_manifest_preamble,
@@ -895,6 +906,11 @@ impl SetAuthManifestCmd {
             // when creating the MCU RT DPE context during recovery boot or
             // hitless update.
             Self::update_soc_manifest_dpe_contexts(drivers, auth_manifest_preamble, update_mode)?;
+
+            drivers.persistent_data.get_mut().fw.auth_manifest_is_debug = U8Bool::new(
+                AuthManifestFlags::from(auth_manifest_preamble.flags)
+                    .contains(AuthManifestFlags::DEBUG_IMAGE),
+            );
         }
         Ok(())
     }

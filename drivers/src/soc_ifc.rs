@@ -89,6 +89,11 @@ impl SocIfc {
         soc_ifc_regs.ss_debug_intent().read().debug_intent()
     }
 
+    /// Whether the platform permits vendor-authorized debug artifacts.
+    pub fn vendor_debug_image_allowed(&self) -> bool {
+        self.subsystem_mode() && self.ss_debug_intent()
+    }
+
     /// Subsystem debug unlock requested
     pub fn ss_debug_unlock_req(&self) -> CaliptraResult<bool> {
         if !self.ss_debug_intent() {
