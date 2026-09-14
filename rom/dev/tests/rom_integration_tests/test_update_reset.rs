@@ -368,6 +368,76 @@ fn test_update_reset_boot_status() {
     }
 }
 
+#[cfg_attr(any(feature = "fpga_realtime", feature = "fpga_subsystem"), ignore)]
+#[test]
+fn test_update_reset_post_load_digest_mismatch_is_fatal() {
+    let pqc_key_type = helpers::PQC_KEY_TYPE[0];
+    let image_options = ImageOptions {
+        pqc_key_type,
+        ..Default::default()
+    };
+    let fuses = Fuses {
+        fuse_pqc_key_type: pqc_key_type as u32,
+        ..Default::default()
+    };
+    let rom = caliptra_builder::build_firmware_rom(crate::helpers::rom_from_env()).unwrap();
+    let image_bundle = caliptra_builder::build_and_sign_image(
+        &TEST_FMC_INTERACTIVE,
+        &APP_WITH_UART_FPGA,
+        image_options,
+    )
+    .unwrap();
+    let image_bytes = image_bundle.to_bytes().unwrap();
+    let mut hw = caliptra_hw_model::new(
+        InitParams {
+            fuses,
+            rom: &rom,
+            subsystem_mode: true,
+            ..Default::default()
+        },
+        BootParams {
+            fw_image: Some(&image_bytes),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+
+    hw.step_until_boot_status(ColdResetComplete.into(), true);
+    hw.start_mailbox_execute(CommandId::FIRMWARE_LOAD.into(), &image_bytes)
+        .unwrap();
+
+    hw.step_until_boot_status(CfiInitialized.into(), false);
+    hw.step_until_boot_status(KatStarted.into(), false);
+    hw.step_until_boot_status(KatComplete.into(), false);
+    hw.step_until_boot_status(UpdateResetStarted.into(), false);
+    hw.step_until_boot_status(UpdateResetLoadManifestComplete.into(), false);
+    hw.step_until_boot_status(UpdateResetImageVerificationComplete.into(), false);
+    hw.step_until_boot_status(UpdateResetPopulateDataVaultComplete.into(), false);
+    hw.step_until_boot_status(UpdateResetExtendKeyLadderComplete.into(), false);
+    hw.step_until_boot_status(UpdateResetExtendPcrComplete.into(), false);
+
+    let runtime_offset =
+        image_bundle.manifest.as_bytes().len() + image_bundle.manifest.fmc.size as usize;
+    let tamper_offset = runtime_offset + image_bundle.manifest.runtime.size as usize - 4;
+    let mut tampered_word: [u8; 4] = image_bytes[tamper_offset..tamper_offset + 4]
+        .try_into()
+        .unwrap();
+    tampered_word[0] ^= 1;
+    hw.write_payload_to_ss_staging_area(&tampered_word, tamper_offset)
+        .unwrap();
+
+    hw.step_until(|model| model.soc_ifc().cptra_fw_error_fatal().read() != 0);
+    assert_eq!(
+        hw.soc_ifc().cptra_fw_error_fatal().read(),
+        u32::from(CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_DIGEST_MISMATCH)
+    );
+    assert_eq!(hw.soc_ifc().cptra_fw_error_non_fatal().read(), 0);
+    assert_eq!(
+        hw.soc_ifc().cptra_boot_status().read(),
+        u32::from(UpdateResetExtendPcrComplete)
+    );
+}
+
 #[test]
 fn test_update_reset_vendor_ecc_pub_key_idx_dv_mismatch() {
     for &subsystem_mode in &HW_MODEL_MODES_SUBSYSTEM {
