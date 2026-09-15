@@ -436,3 +436,96 @@ impl FuseController {
         self.state_machine.context.error_injection = enable;
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{CaliptraRootBusArgs, Iccm, MailboxInternal, MailboxRam, Mci};
+    use caliptra_emu_bus::Clock;
+    use caliptra_emu_types::RvAddr;
+    use std::rc::Rc;
+
+    const STATUS: RvAddr = 0x10;
+    const DAI_ERROR_CODE: RvAddr = 0x74;
+    const DIRECT_ACCESS_CMD: RvAddr = 0x80;
+    const DIRECT_ACCESS_ADDRESS: RvAddr = 0x84;
+    const DIRECT_ACCESS_WDATA_0: RvAddr = 0x88;
+    const DIRECT_ACCESS_WDATA_1: RvAddr = 0x8c;
+    const UDS_SEED_BASE_OFFSET: RvAddr = 0x800;
+
+    fn new_fuse_controller() -> FuseController {
+        let clock = Rc::new(Clock::new());
+        let mailbox = MailboxInternal::new(&clock, MailboxRam::default());
+        let mci = Mci::new(vec![]);
+        let soc_reg = SocRegistersInternal::new(
+            mailbox,
+            Iccm::new(&clock),
+            mci,
+            CaliptraRootBusArgs {
+                clock,
+                ..Default::default()
+            },
+        );
+        FuseController::new(soc_reg)
+    }
+
+    fn write_partition(fuse_controller: &mut FuseController, address: RvAddr) {
+        fuse_controller
+            .write(
+                RvSize::Word,
+                DIRECT_ACCESS_ADDRESS,
+                UDS_SEED_BASE_OFFSET + address,
+            )
+            .unwrap();
+        fuse_controller
+            .write(RvSize::Word, DIRECT_ACCESS_WDATA_0, 0x1122_3344)
+            .unwrap();
+        fuse_controller
+            .write(RvSize::Word, DIRECT_ACCESS_WDATA_1, 0x5566_7788)
+            .unwrap();
+        fuse_controller
+            .write(RvSize::Word, DIRECT_ACCESS_CMD, DaiCmd::Write as u32)
+            .unwrap();
+    }
+
+    #[test]
+    fn test_locked_partition_reports_access_error() {
+        let mut fuse_controller = new_fuse_controller();
+        let fe_partition_0 = UDS_PARTITION_SIZE_BYTES as RvAddr;
+
+        write_partition(&mut fuse_controller, fe_partition_0);
+        fuse_controller
+            .write(
+                RvSize::Word,
+                DIRECT_ACCESS_ADDRESS,
+                UDS_SEED_BASE_OFFSET + fe_partition_0,
+            )
+            .unwrap();
+        fuse_controller
+            .write(RvSize::Word, DIRECT_ACCESS_CMD, DaiCmd::Digest as u32)
+            .unwrap();
+
+        write_partition(&mut fuse_controller, fe_partition_0);
+        assert_eq!(
+            fuse_controller.read(RvSize::Word, STATUS).unwrap(),
+            (Status::DAI_IDLE::Idle + Status::DAI_ERROR::SET).value
+        );
+        assert_eq!(
+            fuse_controller.read(RvSize::Word, DAI_ERROR_CODE).unwrap(),
+            OTP_ACCESS_ERROR
+        );
+
+        write_partition(
+            &mut fuse_controller,
+            fe_partition_0 + FE_PARTITION_SIZE_BYTES as RvAddr,
+        );
+        assert_eq!(
+            fuse_controller.read(RvSize::Word, STATUS).unwrap(),
+            Status::DAI_IDLE::Idle.value
+        );
+        assert_eq!(
+            fuse_controller.read(RvSize::Word, DAI_ERROR_CODE).unwrap(),
+            0
+        );
+    }
+}
