@@ -20,3 +20,13 @@
 [submodule "hw/rev-2_1/rtl"]
 	path = hw/rev-2_1/rtl
 	url = https://github.com/chipsalliance/caliptra-rtl
+[submodule "hw/rev-2_2/rtl"]
+	path = hw/rev-2_2/rtl
+	url = https://github.com/amullick007/caliptra-rtl.git
+	branch = feat/stash-bank-rfc-673
+[submodule "hw/rev-2_2/i3c-core-rtl"]
+	path = hw/rev-2_2/i3c-core-rtl
+	url = https://github.com/chipsalliance/i3c-core.git
+[submodule "hw/rev-2_2/caliptra-ss"]
+	path = hw/rev-2_2/caliptra-ss
+	url = https://github.com/chipsalliance/caliptra-ss.git
