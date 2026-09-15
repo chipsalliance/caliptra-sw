@@ -6124,8 +6124,8 @@ dependencies = [
 
 [[package]]
 name = "wycheproof"
-version = "0.6.0"
-source = "git+https://github.com/randombit/wycheproof-rs?rev=5120390a605bb6fd950048928981dc7a52937379#5120390a605bb6fd950048928981dc7a52937379"
+version = "0.7.0"
+source = "git+https://github.com/randombit/wycheproof-rs?rev=795abac5c21688b2a34a9cb6ee2b24cbe0275568#795abac5c21688b2a34a9cb6ee2b24cbe0275568"
 dependencies = [
  "data-encoding",
  "serde",
