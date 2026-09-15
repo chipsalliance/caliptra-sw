@@ -25,6 +25,10 @@ use zeroize::Zeroize;
 pub const AUTH_MANIFEST_MARKER: u32 = 0x324D_5441;
 pub const AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT: usize = 80;
 pub const AUTH_MANIFEST_PREAMBLE_SIZE: usize = 24292;
+/// Firmware ID reserved for the optional UEID entry in the original SoC manifest.
+pub const AUTH_MANIFEST_UEID_FW_ID: u32 = u32::from_le_bytes(*b"UEID");
+/// Number of bytes in a device UEID.
+pub const AUTH_MANIFEST_UEID_LEN: usize = 17;
 
 bitflags::bitflags! {
     #[derive(Default, Copy, Clone, Debug)]
@@ -168,6 +172,19 @@ pub struct AuthManifestImageMetadata {
     pub image_load_address: Addr64,
     pub image_staging_address: Addr64,
     pub digest: [u8; 48],
+}
+
+impl AuthManifestImageMetadata {
+    /// Creates a canonical UEID metadata entry with zero-padded digest bytes.
+    pub fn new_ueid(ueid: &[u8; AUTH_MANIFEST_UEID_LEN]) -> Self {
+        let mut digest = [0; 48];
+        digest[..AUTH_MANIFEST_UEID_LEN].copy_from_slice(ueid);
+        Self {
+            fw_id: AUTH_MANIFEST_UEID_FW_ID,
+            digest,
+            ..Default::default()
+        }
+    }
 }
 
 impl Default for AuthManifestImageMetadata {
@@ -350,11 +367,26 @@ pub struct OwnerAuthorizationManifest {
 #[cfg(test)]
 mod test {
     use crate::{
-        AuthManifestPreamble, OwnerAuthManifestPreamble, OwnerAuthorizationManifest,
-        AUTH_MANIFEST_PREAMBLE_SIZE, OWNER_AUTH_MANIFEST_MARKER, OWNER_AUTH_MANIFEST_PREAMBLE_SIZE,
+        AuthManifestImageMetadata, AuthManifestPreamble, OwnerAuthManifestPreamble,
+        OwnerAuthorizationManifest, AUTH_MANIFEST_PREAMBLE_SIZE, AUTH_MANIFEST_UEID_FW_ID,
+        AUTH_MANIFEST_UEID_LEN, OWNER_AUTH_MANIFEST_MARKER, OWNER_AUTH_MANIFEST_PREAMBLE_SIZE,
         OWNER_AUTH_MANIFEST_SIZE,
     };
     use zerocopy::IntoBytes;
+
+    #[test]
+    fn test_ueid_metadata_encoding() {
+        let ueid = [0xA5; AUTH_MANIFEST_UEID_LEN];
+        let metadata = AuthManifestImageMetadata::new_ueid(&ueid);
+
+        assert_eq!(metadata.fw_id, AUTH_MANIFEST_UEID_FW_ID);
+        assert_eq!(metadata.fw_id.to_le_bytes(), *b"UEID");
+        assert_eq!(&metadata.digest[..AUTH_MANIFEST_UEID_LEN], &ueid);
+        assert_eq!(
+            &metadata.digest[AUTH_MANIFEST_UEID_LEN..],
+            &[0; 48 - AUTH_MANIFEST_UEID_LEN]
+        );
+    }
 
     #[test]
     fn test_auth_preamble_size() {

@@ -1994,6 +1994,11 @@ impl CaliptraError {
             0x000E00B0,
             "Runtime Error: Stash measurement firmware ID is reserved for Caliptra internal use"
         ),
+        (
+            RUNTIME_AUTH_MANIFEST_UEID_MISMATCH,
+            0x000E00B4,
+            "Runtime Error: Auth manifest UEID does not match device UEID"
+        ),
         // FMC Errors
         (FMC_GLOBAL_NMI, 0x000F0001, "FMC Error: Global NMI"),
         (
