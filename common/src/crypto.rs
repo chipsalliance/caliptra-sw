@@ -22,7 +22,7 @@ use caliptra_drivers::{
 };
 use caliptra_error::CaliptraError;
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
-use zeroize::{Zeroize, ZeroizeOnDrop};
+use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 
 /// DICE Layer ECC Key Pair
 #[derive(Debug, Zeroize)]
@@ -497,17 +497,17 @@ impl Crypto {
         encrypted_cmk: &EncryptedCmk,
     ) -> CaliptraResult<UnencryptedCmk> {
         let ciphertext = &encrypted_cmk.ciphertext;
-        let mut plaintext = [0u8; UNENCRYPTED_CMK_SIZE_BYTES];
+        let mut plaintext = Zeroizing::new([0u8; UNENCRYPTED_CMK_SIZE_BYTES]);
         aes.gcm_decrypt(
             trng,
             &encrypted_cmk.iv,
             AesKey::Split(&kek.0, &kek.1),
             &[],
             ciphertext,
-            &mut plaintext,
+            &mut plaintext[..],
             &encrypted_cmk.gcm_tag,
         )?;
-        UnencryptedCmk::read_from_bytes(&plaintext)
+        UnencryptedCmk::read_from_bytes(&plaintext[..])
             .map_err(|_| CaliptraError::CMB_HMAC_INVALID_DEC_CMK)
     }
 }
