@@ -50,11 +50,13 @@ use zerocopy::{FromBytes, IntoBytes};
 use crate::helpers;
 
 const ICCM_END_ADDR: u32 = ICCM_ORG + ICCM_SIZE - 1;
+const DISABLE_VENDOR_DEBUG_IMAGES: u32 = 1 << 31;
 
 fn build_debug_image_model(
     pqc_key_type: FwVerificationPqcKeyType,
     subsystem_mode: bool,
     debug_intent: bool,
+    disable_vendor_debug_images: bool,
 ) -> (DefaultHwModel, ImageBundle) {
     let image_options = ImageOptions {
         vendor_config: ImageGeneratorVendorConfig {
@@ -77,7 +79,11 @@ fn build_debug_image_model(
             debug_intent,
             ..Default::default()
         },
-        BootParams::default(),
+        BootParams {
+            initial_ss_strap_generic_3: disable_vendor_debug_images
+                .then_some(DISABLE_VENDOR_DEBUG_IMAGES),
+            ..Default::default()
+        },
     )
     .unwrap();
     (model, image_bundle)
@@ -86,7 +92,28 @@ fn build_debug_image_model(
 #[test]
 fn test_debug_image_cold_boot_allowed() {
     for pqc_key_type in helpers::PQC_KEY_TYPE {
-        let (mut model, image_bundle) = build_debug_image_model(pqc_key_type, true, true);
+        let (mut model, image_bundle) = build_debug_image_model(pqc_key_type, true, true, false);
+        assert!(image_bundle
+            .manifest
+            .preamble
+            .owner_pub_keys
+            .as_bytes()
+            .iter()
+            .all(|byte| *byte == 0));
+        assert!(image_bundle
+            .manifest
+            .preamble
+            .owner_sigs
+            .as_bytes()
+            .iter()
+            .all(|byte| *byte == 0));
+        assert!(image_bundle
+            .manifest
+            .header
+            .owner_data
+            .as_bytes()
+            .iter()
+            .all(|byte| *byte == 0));
         helpers::test_upload_firmware(&mut model, &image_bundle.to_bytes().unwrap(), pqc_key_type);
         model.step_until_boot_status(u32::from(ColdResetComplete), true);
         assert_eq!(model.soc_ifc().cptra_fw_error_fatal().read(), 0);
@@ -96,7 +123,7 @@ fn test_debug_image_cold_boot_allowed() {
 #[test]
 fn test_debug_image_cold_boot_requires_debug_intent() {
     for pqc_key_type in helpers::PQC_KEY_TYPE {
-        let (mut model, image_bundle) = build_debug_image_model(pqc_key_type, true, false);
+        let (mut model, image_bundle) = build_debug_image_model(pqc_key_type, true, false, false);
         helpers::assert_fatal_fw_load(
             &mut model,
             pqc_key_type,
@@ -109,13 +136,72 @@ fn test_debug_image_cold_boot_requires_debug_intent() {
 #[test]
 fn test_debug_image_cold_boot_rejected_in_passive_mode() {
     for pqc_key_type in helpers::PQC_KEY_TYPE {
-        let (mut model, image_bundle) = build_debug_image_model(pqc_key_type, false, true);
+        let (mut model, image_bundle) = build_debug_image_model(pqc_key_type, false, true, false);
         helpers::assert_fatal_fw_load(
             &mut model,
             pqc_key_type,
             &image_bundle.to_bytes().unwrap(),
             CaliptraError::IMAGE_VERIFIER_ERR_DEBUG_IMAGE_NOT_ALLOWED,
         );
+    }
+}
+
+#[test]
+fn test_debug_image_cold_boot_disabled_by_strap() {
+    for pqc_key_type in helpers::PQC_KEY_TYPE {
+        let (mut model, image_bundle) = build_debug_image_model(pqc_key_type, true, true, true);
+        helpers::assert_fatal_fw_load(
+            &mut model,
+            pqc_key_type,
+            &image_bundle.to_bytes().unwrap(),
+            CaliptraError::IMAGE_VERIFIER_ERR_DEBUG_IMAGE_NOT_ALLOWED,
+        );
+    }
+}
+
+#[test]
+fn test_debug_image_cold_boot_rejects_nonzero_owner_data() {
+    for pqc_key_type in helpers::PQC_KEY_TYPE {
+        let (mut model, mut image_bundle) =
+            build_debug_image_model(pqc_key_type, true, true, false);
+        image_bundle.manifest.header.owner_data.owner_not_before[0] = 1;
+        helpers::assert_fatal_fw_load(
+            &mut model,
+            pqc_key_type,
+            &image_bundle.to_bytes().unwrap(),
+            CaliptraError::IMAGE_VERIFIER_ERR_DEBUG_IMAGE_INVALID_OWNER_DATA,
+        );
+    }
+}
+
+#[test]
+fn test_normal_image_cold_boot_allowed_when_vendor_debug_disabled() {
+    for pqc_key_type in helpers::PQC_KEY_TYPE {
+        let image_bundle = helpers::build_image_bundle(ImageOptions {
+            pqc_key_type,
+            ..Default::default()
+        });
+        let rom = caliptra_builder::build_firmware_rom(helpers::rom_from_env()).unwrap();
+        let mut model = caliptra_hw_model::new(
+            InitParams {
+                fuses: Fuses {
+                    fuse_pqc_key_type: pqc_key_type as u32,
+                    ..Default::default()
+                },
+                rom: &rom,
+                subsystem_mode: true,
+                debug_intent: true,
+                ..Default::default()
+            },
+            BootParams {
+                initial_ss_strap_generic_3: Some(DISABLE_VENDOR_DEBUG_IMAGES),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        helpers::test_upload_firmware(&mut model, &image_bundle.to_bytes().unwrap(), pqc_key_type);
+        model.step_until_boot_status(u32::from(ColdResetComplete), true);
+        assert_eq!(model.soc_ifc().cptra_fw_error_fatal().read(), 0);
     }
 }
 

@@ -78,7 +78,8 @@ pub struct ImageVerificationInfo {
     /// PQC Key Type
     pub pqc_key_type: FwVerificationPqcKeyType,
 
-    /// Digest of owner public keys that verified the image
+    /// Digest of the configured owner public keys. For a debug image, these keys did not verify
+    /// the image and consumers must inspect the manifest flag before reporting owner endorsement.
     pub owner_pub_keys_digest: ImageDigest384,
 
     /// Whether `owner_pub_keys_digest` was in fuses

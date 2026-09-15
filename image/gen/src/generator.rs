@@ -181,30 +181,32 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
             };
         }
 
-        // Add Owner Header Signatures.
-        if let Some(owner_config) = &config.owner_config {
-            if let Some(priv_keys) = &owner_config.priv_keys {
-                let sig = self.crypto.ecdsa384_sign(
-                    owner_signdata_holder.digest_384,
-                    &priv_keys.ecc_priv_key,
-                    &owner_config.pub_keys.ecc_pub_key,
-                )?;
-                owner_sigs.ecc_sig = sig;
-                if config.pqc_key_type == FwVerificationPqcKeyType::LMS {
-                    let lms_sig = self
-                        .crypto
-                        .lms_sign(owner_signdata_holder.digest_384, &priv_keys.lms_priv_key)?;
-                    let sig = lms_sig.as_bytes();
-                    owner_sigs.pqc_sig.0[..sig.len()].copy_from_slice(sig);
-                } else {
-                    let mldsa_sig = self.crypto.mldsa_sign(
-                        owner_signdata_holder.mldsa_msg.unwrap(),
-                        &priv_keys.mldsa_priv_key,
-                        &config.owner_config.as_ref().unwrap().pub_keys.mldsa_pub_key,
+        // Debug images carry no owner endorsement.
+        if !config.vendor_config.debug_image.unwrap_or(false) {
+            if let Some(owner_config) = &config.owner_config {
+                if let Some(priv_keys) = &owner_config.priv_keys {
+                    let sig = self.crypto.ecdsa384_sign(
+                        owner_signdata_holder.digest_384,
+                        &priv_keys.ecc_priv_key,
+                        &owner_config.pub_keys.ecc_pub_key,
                     )?;
-                    let sig = mldsa_sig.as_bytes();
-                    owner_sigs.pqc_sig.0[..sig.len()].copy_from_slice(sig);
-                };
+                    owner_sigs.ecc_sig = sig;
+                    if config.pqc_key_type == FwVerificationPqcKeyType::LMS {
+                        let lms_sig = self
+                            .crypto
+                            .lms_sign(owner_signdata_holder.digest_384, &priv_keys.lms_priv_key)?;
+                        let sig = lms_sig.as_bytes();
+                        owner_sigs.pqc_sig.0[..sig.len()].copy_from_slice(sig);
+                    } else {
+                        let mldsa_sig = self.crypto.mldsa_sign(
+                            owner_signdata_holder.mldsa_msg.unwrap(),
+                            &priv_keys.mldsa_priv_key,
+                            &owner_config.pub_keys.mldsa_pub_key,
+                        )?;
+                        let sig = mldsa_sig.as_bytes();
+                        owner_sigs.pqc_sig.0[..sig.len()].copy_from_slice(sig);
+                    };
+                }
             }
         }
 
@@ -277,16 +279,21 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
         };
         preamble.vendor_pqc_active_pub_key.0[..pqc_pub_key.len()].copy_from_slice(pqc_pub_key);
 
-        if let Some(owner_config) = &config.owner_config {
-            // Store the ECC owner public key in the Preamble.
-            preamble.owner_pub_keys.ecc_pub_key = owner_config.pub_keys.ecc_pub_key;
+        if !config.vendor_config.debug_image.unwrap_or(false) {
+            if let Some(owner_config) = &config.owner_config {
+                // Store the ECC owner public key in the Preamble.
+                preamble.owner_pub_keys.ecc_pub_key = owner_config.pub_keys.ecc_pub_key;
 
-            // Store the PQC (LMS or MLDSA) owner public key in the Preamble.
-            let pqc_pub_key = match config.pqc_key_type {
-                FwVerificationPqcKeyType::LMS => owner_config.pub_keys.lms_pub_key.as_bytes(),
-                FwVerificationPqcKeyType::MLDSA => owner_config.pub_keys.mldsa_pub_key.0.as_bytes(),
-            };
-            preamble.owner_pub_keys.pqc_pub_key.0[..pqc_pub_key.len()].copy_from_slice(pqc_pub_key);
+                // Store the PQC (LMS or MLDSA) owner public key in the Preamble.
+                let pqc_pub_key = match config.pqc_key_type {
+                    FwVerificationPqcKeyType::LMS => owner_config.pub_keys.lms_pub_key.as_bytes(),
+                    FwVerificationPqcKeyType::MLDSA => {
+                        owner_config.pub_keys.mldsa_pub_key.0.as_bytes()
+                    }
+                };
+                preamble.owner_pub_keys.pqc_pub_key.0[..pqc_pub_key.len()]
+                    .copy_from_slice(pqc_pub_key);
+            }
         }
 
         Ok(preamble)
@@ -320,9 +327,11 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
             header.pl0_pauser = pauser;
         }
 
-        if let Some(owner_config) = &config.owner_config {
-            header.owner_data.owner_not_before = owner_config.not_before;
-            header.owner_data.owner_not_after = owner_config.not_after;
+        if !config.vendor_config.debug_image.unwrap_or(false) {
+            if let Some(owner_config) = &config.owner_config {
+                header.owner_data.owner_not_before = owner_config.not_before;
+                header.owner_data.owner_not_after = owner_config.not_after;
+            }
         }
 
         Ok(header)

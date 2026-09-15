@@ -186,8 +186,12 @@ impl FmcAliasLayer {
         let sha2_512_384 = &mut env.sha2_512_384;
 
         let svn = data_vault.cold_boot_fw_svn() as u8;
-        let owner_device_info_hash =
-            dice::gen_fmc_alias_owner_device_info_hash(soc_ifc, data_vault, sha2_512_384)?;
+        let owner_device_info_hash = dice::gen_fmc_alias_owner_device_info_hash_with_owner_status(
+            soc_ifc,
+            data_vault,
+            sha2_512_384,
+            !fw_proc_info.debug_image,
+        )?;
         let vendor_device_info_hash =
             dice::gen_fmc_alias_vendor_device_info_hash(soc_ifc, data_vault, sha2_512_384)?;
 
@@ -267,8 +271,12 @@ impl FmcAliasLayer {
         let sha2_512_384 = &mut env.sha2_512_384;
 
         let svn = data_vault.cold_boot_fw_svn() as u8;
-        let owner_device_info_hash =
-            dice::gen_fmc_alias_owner_device_info_hash(soc_ifc, data_vault, sha2_512_384)?;
+        let owner_device_info_hash = dice::gen_fmc_alias_owner_device_info_hash_with_owner_status(
+            soc_ifc,
+            data_vault,
+            sha2_512_384,
+            !fw_proc_info.debug_image,
+        )?;
         let vendor_device_info_hash =
             dice::gen_fmc_alias_vendor_device_info_hash(soc_ifc, data_vault, sha2_512_384)?;
 

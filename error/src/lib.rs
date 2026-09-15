@@ -947,6 +947,11 @@ impl CaliptraError {
             "Image Verifier Error: Debug image not allowed"
         ),
         (
+            IMAGE_VERIFIER_ERR_DEBUG_IMAGE_INVALID_OWNER_DATA,
+            0x000b0064,
+            "Image Verifier Error: Debug image owner data must be zero"
+        ),
+        (
             DRIVER_LMS_INVALID_LMS_ALGO_TYPE,
             0x000c0001,
             "Driver Error: LMS invalid LMS algorithm type"
@@ -2007,6 +2012,11 @@ impl CaliptraError {
             RUNTIME_AUTH_MANIFEST_INVALID_FLAGS,
             0x000E00B3,
             "Runtime Error: Auth manifest invalid flags"
+        ),
+        (
+            RUNTIME_AUTH_MANIFEST_DEBUG_IMAGE_INVALID_OWNER_DATA,
+            0x000E00B4,
+            "Runtime Error: Debug auth manifest owner data must be zero"
         ),
         // FMC Errors
         (FMC_GLOBAL_NMI, 0x000F0001, "FMC Error: Global NMI"),

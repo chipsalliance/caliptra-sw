@@ -33,6 +33,7 @@ impl<Crypto: ImageGeneratorCrypto> AuthManifestGenerator<Crypto> {
         &self,
         config: &AuthManifestGeneratorConfig,
     ) -> anyhow::Result<AuthorizationManifest> {
+        let debug_image = config.flags.contains(AuthManifestFlags::DEBUG_IMAGE);
         let mut auth_manifest = AuthorizationManifest::default();
 
         if config.image_metadata_list.len() > AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT {
@@ -125,48 +126,52 @@ impl<Crypto: ImageGeneratorCrypto> AuthManifestGenerator<Crypto> {
         }
 
         // Sign the owner manifest public keys.
-        if let (Some(owner_fw_config), Some(owner_man_config)) =
-            (&config.owner_fw_key_info, &config.owner_man_key_info)
-        {
-            auth_manifest.preamble.owner_pub_keys.ecc_pub_key =
-                owner_man_config.pub_keys.ecc_pub_key;
-            let pqc_pub_key = match config.pqc_key_type {
-                FwVerificationPqcKeyType::LMS => owner_man_config.pub_keys.lms_pub_key.as_bytes(),
-                FwVerificationPqcKeyType::MLDSA => {
-                    owner_man_config.pub_keys.mldsa_pub_key.0.as_bytes()
-                }
-            };
-            auth_manifest.preamble.owner_pub_keys.pqc_pub_key.0[..pqc_pub_key.len()]
-                .copy_from_slice(pqc_pub_key);
+        if !debug_image {
+            if let (Some(owner_fw_config), Some(owner_man_config)) =
+                (&config.owner_fw_key_info, &config.owner_man_key_info)
+            {
+                auth_manifest.preamble.owner_pub_keys.ecc_pub_key =
+                    owner_man_config.pub_keys.ecc_pub_key;
+                let pqc_pub_key = match config.pqc_key_type {
+                    FwVerificationPqcKeyType::LMS => {
+                        owner_man_config.pub_keys.lms_pub_key.as_bytes()
+                    }
+                    FwVerificationPqcKeyType::MLDSA => {
+                        owner_man_config.pub_keys.mldsa_pub_key.0.as_bytes()
+                    }
+                };
+                auth_manifest.preamble.owner_pub_keys.pqc_pub_key.0[..pqc_pub_key.len()]
+                    .copy_from_slice(pqc_pub_key);
 
-            let digest = self
-                .crypto
-                .sha384_digest(auth_manifest.preamble.owner_pub_keys.as_bytes())?;
+                let digest = self
+                    .crypto
+                    .sha384_digest(auth_manifest.preamble.owner_pub_keys.as_bytes())?;
 
-            if let Some(owner_fw_priv_keys) = owner_fw_config.priv_keys {
-                let sig = self.crypto.ecdsa384_sign(
-                    &digest,
-                    &owner_fw_priv_keys.ecc_priv_key,
-                    &owner_fw_config.pub_keys.ecc_pub_key,
-                )?;
-                auth_manifest.preamble.owner_pub_keys_signatures.ecc_sig = sig;
-
-                if config.pqc_key_type == FwVerificationPqcKeyType::LMS {
-                    let lms_sig = self
-                        .crypto
-                        .lms_sign(&digest, &owner_fw_priv_keys.lms_priv_key)?;
-                    let sig = lms_sig.as_bytes();
-                    auth_manifest.preamble.owner_pub_keys_signatures.pqc_sig.0[..sig.len()]
-                        .copy_from_slice(sig);
-                } else {
-                    let mldsa_sig = self.crypto.mldsa_sign(
-                        auth_manifest.preamble.owner_pub_keys.as_bytes(),
-                        &owner_fw_priv_keys.mldsa_priv_key,
-                        &owner_fw_config.pub_keys.mldsa_pub_key,
+                if let Some(owner_fw_priv_keys) = owner_fw_config.priv_keys {
+                    let sig = self.crypto.ecdsa384_sign(
+                        &digest,
+                        &owner_fw_priv_keys.ecc_priv_key,
+                        &owner_fw_config.pub_keys.ecc_pub_key,
                     )?;
-                    let sig = mldsa_sig.as_bytes();
-                    auth_manifest.preamble.owner_pub_keys_signatures.pqc_sig.0[..sig.len()]
-                        .copy_from_slice(sig);
+                    auth_manifest.preamble.owner_pub_keys_signatures.ecc_sig = sig;
+
+                    if config.pqc_key_type == FwVerificationPqcKeyType::LMS {
+                        let lms_sig = self
+                            .crypto
+                            .lms_sign(&digest, &owner_fw_priv_keys.lms_priv_key)?;
+                        let sig = lms_sig.as_bytes();
+                        auth_manifest.preamble.owner_pub_keys_signatures.pqc_sig.0[..sig.len()]
+                            .copy_from_slice(sig);
+                    } else {
+                        let mldsa_sig = self.crypto.mldsa_sign(
+                            auth_manifest.preamble.owner_pub_keys.as_bytes(),
+                            &owner_fw_priv_keys.mldsa_priv_key,
+                            &owner_fw_config.pub_keys.mldsa_pub_key,
+                        )?;
+                        let sig = mldsa_sig.as_bytes();
+                        auth_manifest.preamble.owner_pub_keys_signatures.pqc_sig.0[..sig.len()]
+                            .copy_from_slice(sig);
+                    }
                 }
             }
         }
@@ -223,43 +228,45 @@ impl<Crypto: ImageGeneratorCrypto> AuthManifestGenerator<Crypto> {
         }
 
         // Sign the IMC with the owner manifest public keys.
-        if let Some(owner_man_config) = &config.owner_man_key_info {
-            if let Some(owner_man_priv_keys) = &owner_man_config.priv_keys {
-                let sig = self.crypto.ecdsa384_sign(
-                    &digest,
-                    &owner_man_priv_keys.ecc_priv_key,
-                    &owner_man_config.pub_keys.ecc_pub_key,
-                )?;
-                auth_manifest
-                    .preamble
-                    .owner_image_metdata_signatures
-                    .ecc_sig = sig;
-
-                if config.pqc_key_type == FwVerificationPqcKeyType::LMS {
-                    let lms_sig = self
-                        .crypto
-                        .lms_sign(&digest, &owner_man_priv_keys.lms_priv_key)?;
-
-                    let sig = lms_sig.as_bytes();
-                    auth_manifest
-                        .preamble
-                        .owner_image_metdata_signatures
-                        .pqc_sig
-                        .0[..sig.len()]
-                        .copy_from_slice(sig);
-                } else {
-                    let mldsa_sig = self.crypto.mldsa_sign(
-                        auth_manifest.image_metadata_col.as_bytes(),
-                        &owner_man_priv_keys.mldsa_priv_key,
-                        &owner_man_config.pub_keys.mldsa_pub_key,
+        if !debug_image {
+            if let Some(owner_man_config) = &config.owner_man_key_info {
+                if let Some(owner_man_priv_keys) = &owner_man_config.priv_keys {
+                    let sig = self.crypto.ecdsa384_sign(
+                        &digest,
+                        &owner_man_priv_keys.ecc_priv_key,
+                        &owner_man_config.pub_keys.ecc_pub_key,
                     )?;
-                    let sig = mldsa_sig.as_bytes();
                     auth_manifest
                         .preamble
                         .owner_image_metdata_signatures
-                        .pqc_sig
-                        .0[..sig.len()]
-                        .copy_from_slice(sig);
+                        .ecc_sig = sig;
+
+                    if config.pqc_key_type == FwVerificationPqcKeyType::LMS {
+                        let lms_sig = self
+                            .crypto
+                            .lms_sign(&digest, &owner_man_priv_keys.lms_priv_key)?;
+
+                        let sig = lms_sig.as_bytes();
+                        auth_manifest
+                            .preamble
+                            .owner_image_metdata_signatures
+                            .pqc_sig
+                            .0[..sig.len()]
+                            .copy_from_slice(sig);
+                    } else {
+                        let mldsa_sig = self.crypto.mldsa_sign(
+                            auth_manifest.image_metadata_col.as_bytes(),
+                            &owner_man_priv_keys.mldsa_priv_key,
+                            &owner_man_config.pub_keys.mldsa_pub_key,
+                        )?;
+                        let sig = mldsa_sig.as_bytes();
+                        auth_manifest
+                            .preamble
+                            .owner_image_metdata_signatures
+                            .pqc_sig
+                            .0[..sig.len()]
+                            .copy_from_slice(sig);
+                    }
                 }
             }
         }

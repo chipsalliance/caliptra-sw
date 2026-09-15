@@ -32,6 +32,7 @@ use zerocopy::{FromBytes, IntoBytes};
 
 const RT_READY_FOR_COMMANDS: u32 = 0x600;
 const PCR_ID_STASH_MEASUREMENT: usize = 31;
+const DISABLE_VENDOR_DEBUG_IMAGES: u32 = 1 << 31;
 
 #[derive(asn1::Asn1Read)]
 struct Fwid<'a> {
@@ -346,6 +347,24 @@ fn test_recovery_flow_reports_debug_auth_manifest() {
 
     for pqc_key_type in PQC_KEY_TYPE {
         let soc_manifest = create_recovery_auth_manifest(&mcu_fw, debug_flags, pqc_key_type);
+        assert!(soc_manifest
+            .preamble
+            .owner_pub_keys
+            .as_bytes()
+            .iter()
+            .all(|byte| *byte == 0));
+        assert!(soc_manifest
+            .preamble
+            .owner_pub_keys_signatures
+            .as_bytes()
+            .iter()
+            .all(|byte| *byte == 0));
+        assert!(soc_manifest
+            .preamble
+            .owner_image_metdata_signatures
+            .as_bytes()
+            .iter()
+            .all(|byte| *byte == 0));
         let rom = crate::common::rom_for_fw_integration_tests().unwrap();
         let args = RuntimeTestArgs {
             init_params: Some(InitParams {
@@ -367,6 +386,8 @@ fn test_recovery_flow_reports_debug_auth_manifest() {
             get_fwinfo_allow_attestation_disabled(&mut model).debug_policy,
             FwInfoResp::DEBUG_AUTH_MANIFEST_ACTIVE
         );
+        let snapshots = dpe_tcb_snapshots(&mut model);
+        assert_eq!(find_tcb_snapshot(&snapshots, b"SOMO").digest, Some([0; 48]));
     }
 }
 
@@ -395,6 +416,45 @@ fn test_recovery_flow_debug_auth_manifest_requires_debug_intent() {
             }),
             subsystem_mode: true,
             debug_intent: false,
+            soc_manifest: Some(soc_manifest.as_bytes()),
+            mcu_fw_image: Some(&mcu_fw),
+            successful_reach_rt: false,
+            ..Default::default()
+        };
+        let mut model = run_rt_test_pqc(args, pqc_key_type);
+        model.step_until_fatal_error(
+            CaliptraError::RUNTIME_AUTH_MANIFEST_DEBUG_IMAGE_NOT_ALLOWED.into(),
+            30_000_000,
+        );
+    }
+}
+
+#[cfg_attr(
+    any(
+        feature = "verilator",
+        feature = "fpga_realtime",
+        feature = "fpga_subsystem"
+    ),
+    ignore
+)]
+#[test]
+fn test_recovery_flow_debug_auth_manifest_disabled_by_strap() {
+    let mcu_fw = vec![0x37u8; 256];
+    let debug_flags = AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED | AuthManifestFlags::DEBUG_IMAGE;
+
+    for pqc_key_type in PQC_KEY_TYPE {
+        let soc_manifest = create_recovery_auth_manifest(&mcu_fw, debug_flags, pqc_key_type);
+        let rom = crate::common::rom_for_fw_integration_tests().unwrap();
+        let args = RuntimeTestArgs {
+            init_params: Some(InitParams {
+                rom: &rom,
+                subsystem_mode: true,
+                debug_intent: true,
+                ..Default::default()
+            }),
+            subsystem_mode: true,
+            debug_intent: true,
+            initial_ss_strap_generic_3: Some(DISABLE_VENDOR_DEBUG_IMAGES),
             soc_manifest: Some(soc_manifest.as_bytes()),
             mcu_fw_image: Some(&mcu_fw),
             successful_reach_rt: false,

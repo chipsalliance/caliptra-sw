@@ -1,6 +1,6 @@
 // Licensed under the Apache-2.0 license
 
-use crate::test_set_auth_manifest::create_auth_manifest_with_metadata_with_svn;
+use crate::test_set_auth_manifest::create_auth_manifest_with_metadata_with_flags_and_svn;
 use anyhow::Context;
 use caliptra_api::{
     mailbox::{
@@ -10,7 +10,8 @@ use caliptra_api::{
     SocManager,
 };
 use caliptra_auth_man_types::{
-    AuthManifestImageMetadata, AuthManifestPreamble, AuthorizationManifest, ImageMetadataFlags,
+    AuthManifestFlags, AuthManifestImageMetadata, AuthManifestPreamble, AuthorizationManifest,
+    ImageMetadataFlags,
 };
 use caliptra_builder::{
     firmware::{APP_WITH_UART_OCP_LOCK, APP_WITH_UART_OCP_LOCK_FPGA, FMC_WITH_UART},
@@ -99,6 +100,18 @@ pub const PQC_KEY_TYPE: [FwVerificationPqcKeyType; 2] = [
 pub const DEFAULT_PQC_KEY_TYPE: FwVerificationPqcKeyType = FwVerificationPqcKeyType::MLDSA;
 
 fn default_soc_manifest(pqc_key_type: FwVerificationPqcKeyType, svn: u32) -> AuthorizationManifest {
+    default_soc_manifest_with_flags(
+        pqc_key_type,
+        svn,
+        AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED,
+    )
+}
+
+fn default_soc_manifest_with_flags(
+    pqc_key_type: FwVerificationPqcKeyType,
+    svn: u32,
+    manifest_flags: AuthManifestFlags,
+) -> AuthorizationManifest {
     // generate a default SoC manifest if one is not provided in subsystem mode
     const IMAGE_SOURCE_IN_REQUEST: u32 = 1;
     let mut flags = ImageMetadataFlags(0);
@@ -111,7 +124,12 @@ fn default_soc_manifest(pqc_key_type: FwVerificationPqcKeyType, svn: u32) -> Aut
         digest,
         ..Default::default()
     }];
-    create_auth_manifest_with_metadata_with_svn(metadata, pqc_key_type, svn)
+    create_auth_manifest_with_metadata_with_flags_and_svn(
+        metadata,
+        manifest_flags,
+        pqc_key_type,
+        svn,
+    )
 }
 
 pub fn soc_manifest_measurements(manifest: &AuthorizationManifest) -> ([u8; 48], [u8; 48]) {
@@ -316,6 +334,8 @@ pub fn start_rt_test_pqc_model(
         opts.pqc_key_type = pqc_key_type;
         opts
     });
+    let debug_image = image_options.vendor_config.debug_image.unwrap_or(false);
+    let owner_config = image_options.owner_config.clone();
 
     let image_info = vec![
         ImageInfo::with_name(
@@ -339,7 +359,22 @@ pub fn start_rt_test_pqc_model(
 
     let image_bundle =
         caliptra_builder::build_and_sign_image(fmc_fwid, runtime_fwid, image_options).unwrap();
-    let (vendor_pk_hash, owner_pk_hash) = image_pk_desc_hash(&image_bundle.manifest);
+    let (vendor_pk_hash, mut owner_pk_hash) = image_pk_desc_hash(&image_bundle.manifest);
+    if debug_image {
+        let owner_config = owner_config.as_ref().unwrap();
+        let mut owner_pub_keys = caliptra_image_types::ImageOwnerPubKeys {
+            ecc_pub_key: owner_config.pub_keys.ecc_pub_key,
+            ..Default::default()
+        };
+        let pqc_pub_key = match pqc_key_type {
+            FwVerificationPqcKeyType::LMS => owner_config.pub_keys.lms_pub_key.as_bytes(),
+            FwVerificationPqcKeyType::MLDSA => owner_config.pub_keys.mldsa_pub_key.0.as_bytes(),
+        };
+        owner_pub_keys.pqc_pub_key.0[..pqc_pub_key.len()].copy_from_slice(pqc_pub_key);
+        owner_pk_hash = Crypto::default()
+            .sha384_digest(owner_pub_keys.as_bytes())
+            .unwrap();
+    }
 
     let mut init_params = args.init_params.unwrap_or_else(|| InitParams {
         rom: &rom,
@@ -379,8 +414,17 @@ pub fn start_rt_test_pqc_model(
 
     let default_manifest_bytes;
     let (soc_manifest, mcu_fw_image) = if args.subsystem_mode && args.soc_manifest.is_none() {
-        default_manifest_bytes =
-            default_soc_manifest_bytes(pqc_key_type, args.soc_manifest_svn.unwrap_or(0));
+        default_manifest_bytes = if debug_image {
+            default_soc_manifest_with_flags(
+                pqc_key_type,
+                args.soc_manifest_svn.unwrap_or(0),
+                AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED | AuthManifestFlags::DEBUG_IMAGE,
+            )
+            .as_bytes()
+            .to_vec()
+        } else {
+            default_soc_manifest_bytes(pqc_key_type, args.soc_manifest_svn.unwrap_or(0))
+        };
         (Some(&default_manifest_bytes[..]), Some(&DEFAULT_MCU_FW[..]))
     } else {
         (args.soc_manifest, args.mcu_fw_image)

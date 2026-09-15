@@ -97,6 +97,8 @@ pub struct FwProcInfo {
 
     pub owner_pub_keys_digest_in_fuses: bool,
 
+    pub debug_image: bool,
+
     pub pqc_key_type: u8,
 }
 
@@ -201,6 +203,8 @@ impl FirmwareProcessor {
             Self::verify_image(&mut venv, manifest, image_size_bytes)
         });
         let info = okref(&info)?;
+        let debug_image =
+            manifest.header.flags & caliptra_image_types::IMAGE_FLAGS_DEBUG_IMAGE != 0;
 
         Self::update_fuse_log(
             &mut env.persistent_data.get_mut().rom.fuse_log,
@@ -216,6 +220,7 @@ impl FirmwareProcessor {
             &env.soc_ifc,
             &mut env.pcr_bank,
             &mut env.sha2_512_384,
+            !debug_image,
         )?;
         report_boot_status(FwProcessorExtendPcrComplete.into());
 
@@ -236,7 +241,7 @@ impl FirmwareProcessor {
         env.soc_ifc.set_rt_fw_rev_id(manifest.runtime.version);
 
         // Get the certificate validity info
-        let (nb, nf) = Self::get_cert_validity_info(manifest);
+        let (nb, nf) = Self::get_cert_validity_info(manifest, debug_image);
 
         Self::populate_fw_key_ladder(env)?;
 
@@ -246,6 +251,7 @@ impl FirmwareProcessor {
             fmc_cert_valid_not_after: nf,
             effective_fuse_svn: info.effective_fuse_svn,
             owner_pub_keys_digest_in_fuses: info.owner_pub_keys_digest_in_fuses,
+            debug_image,
             pqc_key_type: info.pqc_key_type as u8,
         })
     }
@@ -1045,7 +1051,10 @@ impl FirmwareProcessor {
     /// * `NotBefore` - Valid Not Before Time
     /// * `NotAfter`  - Valid Not After Time
     ///
-    fn get_cert_validity_info(manifest: &ImageManifest) -> (NotBefore, NotAfter) {
+    fn get_cert_validity_info(
+        manifest: &ImageManifest,
+        debug_image: bool,
+    ) -> (NotBefore, NotAfter) {
         // If there is a valid value in the manifest for the not_before and not_after times,
         // use those. Otherwise use the default values.
         let mut nb = NotBefore::default();
@@ -1059,8 +1068,9 @@ impl FirmwareProcessor {
             nb.value = manifest.header.vendor_data.vendor_not_before;
         }
 
-        // Owner values take preference.
-        if manifest.header.owner_data.owner_not_after != null_time
+        // Owner values take preference only when the owner authenticated the image.
+        if !debug_image
+            && manifest.header.owner_data.owner_not_after != null_time
             && manifest.header.owner_data.owner_not_before != null_time
         {
             nf.value = manifest.header.owner_data.owner_not_after;

@@ -17,7 +17,7 @@ The Caliptra SOC manifest has two main components: [Preamble](#preamble) and [Im
 | **Preamble Size**                  | 4            | Size of the Preamble in bytes. |
 | **Version**                        | 4            | Manifest version. The current version is `0x00000002`. |
 | **SVN**                            | 4            | Security Version Number used for anti-rollback. The maximum value is vendor-defined and is limited by the maximum size of the Caliptra fuse allocated for anti-rollback. |
-| **Flags**                          | 4            | Manifest feature flags.<br/>**Bit 0** – Vendor Signature Required. If set, the vendor public keys (ECC and PQC) will be used to verify signatures signed with the vendor private keys. If clear, vendor signatures are not used for verification.<br/>**Bits 1–31** – Reserved. |
+| **Flags**                          | 4            | Manifest feature flags.<br/>**Bit 0** – Vendor Signature Required. If set, the vendor public keys (ECC and PQC) will be used to verify signatures signed with the vendor private keys. If clear, vendor signatures are not used for verification.<br/>**Bit 1** – Vendor-authorized debug manifest. This bit requires Bit 0.<br/>**Bits 2–31** – Reserved. |
 | **Vendor ECC Public Key**         | 96           | Vendor ECC P-384 public key used to verify the IMC signature and endorse PQC keys.<br/>**X-Coordinate:** 48 bytes<br/>**Y-Coordinate:** 48 bytes. |
 | **Vendor PQC Public Key (LMS or MLDSA)** | 2592         | Vendor **PQC** public key used to verify the IMC signature and to endorse the vendor measurement keys.<br/>This field is sized to support **MLDSA87** (2592-byte public key).<br/>When:<br/>• **MLDSA87** is used, the field holds the full 2592-byte MLDSA87 public key.<br/>• **LMS** (e.g., LMS-SHA192-H15) is used, the LMS public key (e.g., 48 bytes) is stored at the beginning of the field and the remaining bytes **must be zeroed**. |
 | **Vendor ECC Signature**          | 96           | Vendor ECDSA P-384 signature over the Preamble fields that are covered by policy, typically including Version, SVN, Flags, and vendor ECC/PQC public keys, hashed using SHA2-384.<br/>**R-Coordinate:** 48 bytes<br/>**S-Coordinate:** 48 bytes. |
@@ -38,6 +38,8 @@ Each IME has a digest that matches a SOC image.
 The manifest vendor and owner private keys sign the IMC.
 The Preamble holds the IMC signatures.
 The manifest IMC vendor signatures are optional and are validated only if the **Flags Bit 0 = 1**.
+
+When Flags Bit 1 (`DEBUG_IMAGE`) is set, the firmware-vendor signatures authenticate the Preamble policy and delegated vendor keys, and the delegated vendor signatures authenticate the IMC. Runtime then requires subsystem mode, asserted `SS_DEBUG_INTENT`, and clear `SS_STRAP_GENERIC[3][31]` (`DISABLE_VENDOR_DEBUG_IMAGES`). The owner public keys, owner endorsement signatures, and owner IMC signatures must all be zero. Runtime skips owner authentication for this path while retaining all SVN, metadata, digest, duplicate-ID, and authorization checks.
 Up to 127 image metadata entries are supported.
 
 | Field                            | Size (bytes) | Description                             |

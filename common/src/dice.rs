@@ -200,6 +200,15 @@ pub fn gen_fmc_alias_owner_device_info_hash(
     data_vault: &DataVault,
     sha2_512_384: &mut Sha2_512_384,
 ) -> CaliptraResult<[u8; 48]> {
+    gen_fmc_alias_owner_device_info_hash_with_owner_status(soc_ifc, data_vault, sha2_512_384, true)
+}
+
+pub fn gen_fmc_alias_owner_device_info_hash_with_owner_status(
+    soc_ifc: &SocIfc,
+    data_vault: &DataVault,
+    sha2_512_384: &mut Sha2_512_384,
+    owner_authenticated: bool,
+) -> CaliptraResult<[u8; 48]> {
     // NOTE: The contents of this TCB info and FMC PCR info must stay in sync.
     //       Ordering and grouping is irrelevant but both must contain the same info
 
@@ -215,10 +224,15 @@ pub fn gen_fmc_alias_owner_device_info_hash(
 
     let mut fuse_owner_info_digest = Array4x12::default();
     let mut hasher = sha2_512_384.sha384_digest_init()?;
-    let owner_pub_keys_digest_in_fuses: bool =
-        soc_ifc.fuse_bank().owner_pub_key_hash() != Array4x12::default();
+    let owner_pub_keys_digest_in_fuses =
+        owner_authenticated && soc_ifc.fuse_bank().owner_pub_key_hash() != Array4x12::default();
+    let owner_pk_hash = if owner_authenticated {
+        <[u8; 48]>::from(data_vault.owner_pk_hash())
+    } else {
+        [0; 48]
+    };
 
-    hasher.update(&<[u8; 48]>::from(data_vault.owner_pk_hash()))?;
+    hasher.update(&owner_pk_hash)?;
     hasher.update(&[
         owner_pub_keys_digest_in_fuses as u8,
         soc_ifc.fuse_bank().anti_rollback_disable() as u8,

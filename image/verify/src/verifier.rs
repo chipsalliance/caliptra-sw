@@ -51,6 +51,8 @@ struct HeaderInfo<'a> {
 struct TocInfo<'a> {
     len: u32,
     digest: &'a ImageDigest384,
+    owner_pub_keys_digest: ImageDigest384,
+    owner_pub_keys_digest_in_fuses: bool,
 }
 
 /// Image Info
@@ -66,6 +68,18 @@ pub struct ImageVerifier<Env: ImageVerificationEnv> {
 }
 
 impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
+    fn owner_policy_digest(&self) -> ImageDigest384 {
+        let fuses_digest = self.env.owner_pub_key_digest_fuses();
+        if fuses_digest != *ZERO_DIGEST {
+            fuses_digest
+        } else {
+            self.env
+                .dot_owner_pk_hash()
+                .copied()
+                .unwrap_or(*ZERO_DIGEST)
+        }
+    }
+
     /// Create a new instance `ImageVerifier`
     ///
     /// # Arguments
@@ -123,7 +137,15 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
 
         // Verify Header
         let header = &manifest.header;
-        let toc_info = self.verify_header(header, header_info);
+        let owner_fields_zero = preamble
+            .owner_pub_keys
+            .as_bytes()
+            .iter()
+            .chain(preamble.owner_sigs.as_bytes())
+            .chain(header.owner_data.as_bytes())
+            .all(|byte| *byte == 0);
+        let toc_info =
+            self.verify_header_with_reason(header, header_info, reason, owner_fields_zero);
         let toc_info = okref(&toc_info)?;
 
         // Verify TOC
@@ -143,8 +165,8 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         let info = ImageVerificationInfo {
             vendor_ecc_pub_key_idx: header_info.vendor_ecc_pub_key_idx,
             vendor_pqc_pub_key_idx: header_info.vendor_pqc_pub_key_idx,
-            owner_pub_keys_digest: header_info.owner_pub_keys_digest,
-            owner_pub_keys_digest_in_fuses: header_info.owner_pub_keys_digest_in_fuses,
+            owner_pub_keys_digest: toc_info.owner_pub_keys_digest,
+            owner_pub_keys_digest_in_fuses: toc_info.owner_pub_keys_digest_in_fuses,
             fmc: fmc_info,
             runtime: runtime_info,
             fw_svn: manifest.header.svn,
@@ -207,10 +229,6 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
     ) -> CaliptraResult<HeaderInfo<'a>> {
         // Verify Vendor Public Key Info Digest
         self.verify_vendor_pub_key_info_digest(preamble, pqc_key_type)?;
-
-        // Verify Owner Public Key Info Digest
-        let (owner_pub_keys_digest, owner_pub_keys_digest_in_fuses) =
-            self.verify_owner_pk_digest(reason)?;
 
         // Verify ECC Vendor Key Index
         let (vendor_ecc_pub_key_idx, vendor_ecc_pub_key_revocation) =
@@ -332,8 +350,8 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             vendor_ecc_info,
             vendor_pqc_info,
             owner_pqc_info,
-            owner_pub_keys_digest,
-            owner_pub_keys_digest_in_fuses,
+            owner_pub_keys_digest: self.owner_policy_digest(),
+            owner_pub_keys_digest_in_fuses: false,
             owner_ecc_info,
             vendor_ecc_pub_key_revocation,
             vendor_pqc_pub_key_revocation: vendor_pqc_pub_key_idx_info.key_revocation,
@@ -659,12 +677,23 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         Ok((*actual, fuses_digest != ZERO_DIGEST))
     }
 
-    /// Verify Header
-    #[cfg_attr(all(not(test), feature = "cfi"), cfi_impl_fn)]
+    #[cfg(test)]
     fn verify_header<'a>(
         &mut self,
         header: &'a ImageHeader,
         info: &HeaderInfo,
+    ) -> CaliptraResult<TocInfo<'a>> {
+        self.verify_header_with_reason(header, info, ResetReason::ColdReset, true)
+    }
+
+    /// Verify Header
+    #[cfg_attr(all(not(test), feature = "cfi"), cfi_impl_fn)]
+    fn verify_header_with_reason<'a>(
+        &mut self,
+        header: &'a ImageHeader,
+        info: &HeaderInfo,
+        reason: ResetReason,
+        owner_fields_zero: bool,
     ) -> CaliptraResult<TocInfo<'a>> {
         // Calculate the digest for the header
         let range = ImageManifest::header_range();
@@ -690,22 +719,10 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             mldsa_msg: None,
         };
 
-        let owner_digest_384 = self.env.sha384_acc_digest(
-            range.start,
-            range.len() as u32,
-            CaliptraError::IMAGE_VERIFIER_ERR_HEADER_DIGEST_FAILURE,
-        )?;
-
-        let mut owner_signdata_holder = ImageSignData {
-            digest_384: &owner_digest_384,
-            mldsa_msg: None,
-        };
-
-        // Update vendor_signdata_holder and owner_signdata_holder with data if MLDSA validation is required.
+        // Update vendor_signdata_holder with data if MLDSA validation is required.
         if let PqcKeyInfo::Mldsa(_, _) = info.vendor_pqc_info {
             vendor_signdata_holder.mldsa_msg =
                 Some(header.as_bytes().get(..vendor_header_len).unwrap());
-            owner_signdata_holder.mldsa_msg = Some(header.as_bytes());
         }
 
         // Verify vendor signatures.
@@ -731,7 +748,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             cfi_assert_eq(header.vendor_pqc_pub_key_idx, info.vendor_pqc_pub_key_idx);
         }
 
-        // Debug images can only be loaded in subsystem mode when SS_DEBUG_INTENT is asserted.
+        // Debug images require platform authorization and carry no owner endorsement.
         let debug_image = (header.flags & IMAGE_FLAGS_DEBUG_IMAGE) != 0;
         if cfi_launder(debug_image) {
             cfi_assert_bool(debug_image);
@@ -742,20 +759,47 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
                 Err(CaliptraError::IMAGE_VERIFIER_ERR_DEBUG_IMAGE_NOT_ALLOWED)?;
             }
             cfi_assert_bool(debug_image_allowed);
+            if !cfi_launder(owner_fields_zero) {
+                cfi_assert_bool(!owner_fields_zero);
+                Err(CaliptraError::IMAGE_VERIFIER_ERR_DEBUG_IMAGE_INVALID_OWNER_DATA)?;
+            }
+            cfi_assert_bool(owner_fields_zero);
         } else {
             cfi_assert_bool(!debug_image);
         }
 
-        // Verify owner signatures.
-        self.verify_owner_sig(
-            &owner_signdata_holder,
-            info.owner_ecc_info,
-            &info.owner_pqc_info,
-        )?;
+        let (owner_pub_keys_digest, owner_pub_keys_digest_in_fuses) = if debug_image {
+            (
+                info.owner_pub_keys_digest,
+                info.owner_pub_keys_digest_in_fuses,
+            )
+        } else {
+            let owner_info = self.verify_owner_pk_digest(reason)?;
+            let owner_digest_384 = self.env.sha384_acc_digest(
+                range.start,
+                range.len() as u32,
+                CaliptraError::IMAGE_VERIFIER_ERR_HEADER_DIGEST_FAILURE,
+            )?;
+            let mut owner_signdata_holder = ImageSignData {
+                digest_384: &owner_digest_384,
+                mldsa_msg: None,
+            };
+            if let PqcKeyInfo::Mldsa(_, _) = info.owner_pqc_info {
+                owner_signdata_holder.mldsa_msg = Some(header.as_bytes());
+            }
+            self.verify_owner_sig(
+                &owner_signdata_holder,
+                info.owner_ecc_info,
+                &info.owner_pqc_info,
+            )?;
+            owner_info
+        };
 
         let verif_info = TocInfo {
             len: header.toc_len,
             digest: &header.toc_digest,
+            owner_pub_keys_digest,
+            owner_pub_keys_digest_in_fuses,
         };
 
         Ok(verif_info)
@@ -1949,6 +1993,8 @@ mod tests {
         };
         let binding_vendor_lms_pubkey = vendor_lms_pubkey();
         let binding_vendor_lms_sig = vendor_lms_sig();
+        let owner_ecc_pubkey = ImageEccPubKey::default();
+        let owner_ecc_sig = ImageEccSignature::default();
         let owner_lms_pubkey = ImageLmsPublicKey::default();
         let owner_lms_sig = ImageLmsSignature::default();
         let header_info = HeaderInfo {
@@ -1956,7 +2002,7 @@ mod tests {
             vendor_pqc_pub_key_idx: 0,
             vendor_ecc_info: (&VENDOR_ECC_PUBKEY, &VENDOR_ECC_SIG),
             vendor_pqc_info: PqcKeyInfo::Lms(&binding_vendor_lms_pubkey, &binding_vendor_lms_sig),
-            owner_ecc_info: (&OWNER_ECC_PUBKEY, &OWNER_ECC_SIG),
+            owner_ecc_info: (&owner_ecc_pubkey, &owner_ecc_sig),
             owner_pqc_info: PqcKeyInfo::Lms(&owner_lms_pubkey, &owner_lms_sig),
             owner_pub_keys_digest: ImageDigest384::default(),
             owner_pub_keys_digest_in_fuses: false,
@@ -1964,7 +2010,9 @@ mod tests {
             vendor_pqc_pub_key_revocation: Default::default(),
         };
 
-        assert!(verifier.verify_header(&header, &header_info).is_ok());
+        let info = verifier.verify_header(&header, &header_info).unwrap();
+        assert_eq!(info.owner_pub_keys_digest, ImageDigest384::default());
+        assert!(!info.owner_pub_keys_digest_in_fuses);
     }
 
     #[test]
@@ -1998,6 +2046,44 @@ mod tests {
     }
 
     #[test]
+    fn test_debug_image_rejects_nonzero_owner_data() {
+        let test_env = TestEnv {
+            verify_result: true,
+            verify_pqc_result: true,
+            debug_image_allowed: true,
+            ..Default::default()
+        };
+        let mut verifier = ImageVerifier::new(test_env);
+        let header = ImageHeader {
+            flags: IMAGE_FLAGS_DEBUG_IMAGE,
+            ..Default::default()
+        };
+        let binding_vendor_lms_pubkey = vendor_lms_pubkey();
+        let binding_vendor_lms_sig = vendor_lms_sig();
+        let owner_lms_pubkey = ImageLmsPublicKey::default();
+        let owner_lms_sig = ImageLmsSignature::default();
+        let header_info = HeaderInfo {
+            vendor_ecc_pub_key_idx: 0,
+            vendor_pqc_pub_key_idx: 0,
+            vendor_ecc_info: (&VENDOR_ECC_PUBKEY, &VENDOR_ECC_SIG),
+            vendor_pqc_info: PqcKeyInfo::Lms(&binding_vendor_lms_pubkey, &binding_vendor_lms_sig),
+            owner_ecc_info: (&OWNER_ECC_PUBKEY, &OWNER_ECC_SIG),
+            owner_pqc_info: PqcKeyInfo::Lms(&owner_lms_pubkey, &owner_lms_sig),
+            owner_pub_keys_digest: ImageDigest384::default(),
+            owner_pub_keys_digest_in_fuses: false,
+            vendor_ecc_pub_key_revocation: Default::default(),
+            vendor_pqc_pub_key_revocation: Default::default(),
+        };
+
+        assert_eq!(
+            verifier
+                .verify_header_with_reason(&header, &header_info, ResetReason::ColdReset, false,)
+                .err(),
+            Some(CaliptraError::IMAGE_VERIFIER_ERR_DEBUG_IMAGE_INVALID_OWNER_DATA)
+        );
+    }
+
+    #[test]
     fn test_toc_incorrect_length() {
         let manifest = ImageManifest::default();
         let test_env = TestEnv::default();
@@ -2005,6 +2091,8 @@ mod tests {
         let toc_info = TocInfo {
             len: MAX_TOC_ENTRY_COUNT / 2,
             digest: &ImageDigest384::default(),
+            owner_pub_keys_digest: ImageDigest384::default(),
+            owner_pub_keys_digest_in_fuses: false,
         };
         let result = verifier.verify_toc(&manifest, &toc_info, manifest.size);
         assert_eq!(
@@ -2021,6 +2109,8 @@ mod tests {
         let toc_info = TocInfo {
             len: MAX_TOC_ENTRY_COUNT,
             digest: &DUMMY_DATA,
+            owner_pub_keys_digest: ImageDigest384::default(),
+            owner_pub_keys_digest_in_fuses: false,
         };
         let result = verifier.verify_toc(&manifest, &toc_info, manifest.size);
         assert_eq!(
@@ -2037,6 +2127,8 @@ mod tests {
         let toc_info = TocInfo {
             len: MAX_TOC_ENTRY_COUNT,
             digest: &ImageDigest384::default(),
+            owner_pub_keys_digest: ImageDigest384::default(),
+            owner_pub_keys_digest_in_fuses: false,
         };
 
         // Case 0:
@@ -2167,6 +2259,8 @@ mod tests {
         let toc_info = TocInfo {
             len: MAX_TOC_ENTRY_COUNT,
             digest: &ImageDigest384::default(),
+            owner_pub_keys_digest: ImageDigest384::default(),
+            owner_pub_keys_digest_in_fuses: false,
         };
 
         // FMC size == 0
@@ -2212,6 +2306,8 @@ mod tests {
         let toc_info = TocInfo {
             len: MAX_TOC_ENTRY_COUNT,
             digest: &ImageDigest384::default(),
+            owner_pub_keys_digest: ImageDigest384::default(),
+            owner_pub_keys_digest_in_fuses: false,
         };
 
         // [-FMC--]
@@ -2239,6 +2335,8 @@ mod tests {
         let toc_info = TocInfo {
             len: MAX_TOC_ENTRY_COUNT,
             digest: &ImageDigest384::default(),
+            owner_pub_keys_digest: ImageDigest384::default(),
+            owner_pub_keys_digest_in_fuses: false,
         };
 
         // [-FMC--]
@@ -2266,6 +2364,8 @@ mod tests {
         let toc_info = TocInfo {
             len: MAX_TOC_ENTRY_COUNT,
             digest: &ImageDigest384::default(),
+            owner_pub_keys_digest: ImageDigest384::default(),
+            owner_pub_keys_digest_in_fuses: false,
         };
 
         manifest.fmc.offset = 0;

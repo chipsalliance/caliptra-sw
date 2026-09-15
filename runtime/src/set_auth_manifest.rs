@@ -79,6 +79,7 @@ impl SetAuthManifestCmd {
         drivers: &mut Drivers,
         auth_manifest_preamble: &AuthManifestPreamble,
         update_mode: AuthManifestUpdateMode,
+        debug_image: bool,
     ) -> CaliptraResult<()> {
         if drivers
             .persistent_data
@@ -103,13 +104,17 @@ impl SetAuthManifestCmd {
             vendor_range.start,
             vendor_range.len() as u32,
         )?);
-        let owner_range = AuthManifestPreamble::owner_pub_keys_range();
-        let owner_measurement = Self::digest_to_measurement(&Self::sha384_digest(
-            &mut drivers.sha2_512_384,
-            manifest_bytes,
-            owner_range.start,
-            owner_range.len() as u32,
-        )?);
+        let owner_measurement = if debug_image {
+            [0; SHA384_DIGEST_BYTE_SIZE]
+        } else {
+            let owner_range = AuthManifestPreamble::owner_pub_keys_range();
+            Self::digest_to_measurement(&Self::sha384_digest(
+                &mut drivers.sha2_512_384,
+                manifest_bytes,
+                owner_range.start,
+                owner_range.len() as u32,
+            )?)
+        };
         let pl0_pauser_locality = drivers
             .persistent_data
             .get()
@@ -634,6 +639,8 @@ impl SetAuthManifestCmd {
         mldsa: &mut Mldsa87<'_>,
         pqc_key_type: FwVerificationPqcKeyType,
         verify_only: bool,
+        soc_ifc: &SocIfc,
+        debug_image: bool,
     ) -> CaliptraResult<()> {
         if cmd_buf.len() < size_of::<u32>() {
             Err(CaliptraError::RUNTIME_AUTH_MANIFEST_IMAGE_METADATA_LIST_INVALID_SIZE)?;
@@ -681,16 +688,43 @@ impl SetAuthManifestCmd {
             buf,
         )?;
 
-        Self::verify_owner_image_metadata_col(
-            auth_manifest_preamble,
-            &digest_metadata_col,
-            ecc384,
-            sha256,
-            mldsa,
-            sha2,
-            pqc_key_type,
-            buf,
-        )?;
+        if cfi_launder(debug_image) {
+            cfi_assert_bool(debug_image);
+            let debug_image_allowed = soc_ifc.vendor_debug_image_allowed();
+            if !cfi_launder(debug_image_allowed) {
+                cfi_assert_bool(!debug_image_allowed);
+                Err(CaliptraError::RUNTIME_AUTH_MANIFEST_DEBUG_IMAGE_NOT_ALLOWED)?;
+            }
+            cfi_assert_bool(debug_image_allowed);
+            let owner_fields_zero = auth_manifest_preamble
+                .owner_pub_keys
+                .as_bytes()
+                .iter()
+                .chain(auth_manifest_preamble.owner_pub_keys_signatures.as_bytes())
+                .chain(
+                    auth_manifest_preamble
+                        .owner_image_metdata_signatures
+                        .as_bytes(),
+                )
+                .all(|byte| *byte == 0);
+            if !cfi_launder(owner_fields_zero) {
+                cfi_assert_bool(!owner_fields_zero);
+                Err(CaliptraError::RUNTIME_AUTH_MANIFEST_DEBUG_IMAGE_INVALID_OWNER_DATA)?;
+            }
+            cfi_assert_bool(owner_fields_zero);
+        } else {
+            cfi_assert_bool(!debug_image);
+            Self::verify_owner_image_metadata_col(
+                auth_manifest_preamble,
+                &digest_metadata_col,
+                ecc384,
+                sha256,
+                mldsa,
+                sha2,
+                pqc_key_type,
+                buf,
+            )?;
+        }
 
         // Sort the image metadata list by firmware ID in place. Also check for duplicate firmware IDs.        let slice =
         let slice =
@@ -857,25 +891,24 @@ impl SetAuthManifestCmd {
                 )?;
 
                 let flags = AuthManifestFlags::from(auth_manifest_preamble.flags);
-                if flags.contains(AuthManifestFlags::DEBUG_IMAGE) {
+                let debug_image = flags.contains(AuthManifestFlags::DEBUG_IMAGE);
+                if cfi_launder(debug_image) {
+                    cfi_assert_bool(debug_image);
                     if !flags.contains(AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED) {
                         Err(CaliptraError::RUNTIME_AUTH_MANIFEST_INVALID_FLAGS)?;
                     }
-                    if !drivers.soc_ifc.vendor_debug_image_allowed() {
-                        Err(CaliptraError::RUNTIME_AUTH_MANIFEST_DEBUG_IMAGE_NOT_ALLOWED)?;
-                    }
+                } else {
+                    cfi_assert_bool(!debug_image);
+                    Self::verify_owner_pub_keys(
+                        auth_manifest_preamble,
+                        &persistent_data.rom.manifest1.preamble,
+                        &mut drivers.sha2_512_384,
+                        &mut drivers.ecc384,
+                        &mut drivers.sha256,
+                        &mut mldsa87,
+                        pqc_key_type,
+                    )?;
                 }
-
-                // Verify the owner public keys.
-                Self::verify_owner_pub_keys(
-                    auth_manifest_preamble,
-                    &persistent_data.rom.manifest1.preamble,
-                    &mut drivers.sha2_512_384,
-                    &mut drivers.ecc384,
-                    &mut drivers.sha256,
-                    &mut mldsa87,
-                    pqc_key_type,
-                )?;
 
                 Self::process_image_metadata_col(
                     manifest_buf.get(preamble_size..).ok_or(
@@ -890,11 +923,15 @@ impl SetAuthManifestCmd {
                     &mut mldsa87,
                     pqc_key_type,
                     verify_only,
+                    &drivers.soc_ifc,
+                    debug_image,
                 )
             })?;
         }
 
         if !verify_only {
+            let debug_image = AuthManifestFlags::from(auth_manifest_preamble.flags)
+                .contains(AuthManifestFlags::DEBUG_IMAGE);
             let auth_manifest_digest = drivers.sha2_512_384.sha384_digest(manifest_buf)?.0;
             {
                 let persistent_data = drivers.persistent_data.get_mut();
@@ -905,12 +942,14 @@ impl SetAuthManifestCmd {
             // Store the SoC manifest SVN for use as the MCU RT current_svn
             // when creating the MCU RT DPE context during recovery boot or
             // hitless update.
-            Self::update_soc_manifest_dpe_contexts(drivers, auth_manifest_preamble, update_mode)?;
+            Self::update_soc_manifest_dpe_contexts(
+                drivers,
+                auth_manifest_preamble,
+                update_mode,
+                debug_image,
+            )?;
 
-            drivers.persistent_data.get_mut().fw.auth_manifest_is_debug = U8Bool::new(
-                AuthManifestFlags::from(auth_manifest_preamble.flags)
-                    .contains(AuthManifestFlags::DEBUG_IMAGE),
-            );
+            drivers.persistent_data.get_mut().fw.auth_manifest_is_debug = U8Bool::new(debug_image);
         }
         Ok(())
     }
