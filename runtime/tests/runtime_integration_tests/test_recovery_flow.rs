@@ -2,8 +2,10 @@
 
 #![allow(clippy::result_large_err)]
 
-use crate::common::{run_rt_test, RuntimeTestArgs};
+use crate::common::{run_rt_test, run_rt_test_pqc, RuntimeTestArgs, PQC_KEY_TYPE};
+use crate::test_info::get_fwinfo_allow_attestation_disabled;
 use crate::test_set_auth_manifest::create_auth_manifest_with_metadata;
+use caliptra_auth_man_gen::default_test_manifest::create_test_auth_manifest_with_config;
 use caliptra_auth_man_gen::{
     AuthManifestGenerator, AuthManifestGeneratorConfig, AuthManifestGeneratorKeyConfig,
 };
@@ -12,9 +14,10 @@ use caliptra_auth_man_types::{
     AuthManifestPubKeysConfig, AuthorizationManifest, ImageMetadataFlags,
 };
 use caliptra_common::mailbox_api::{
-    CommandId, MailboxReq, MailboxReqHeader, QuotePcrsEcc384Req, QuotePcrsEcc384Resp,
+    CommandId, FwInfoResp, MailboxReq, MailboxReqHeader, QuotePcrsEcc384Req, QuotePcrsEcc384Resp,
     SetAuthManifestReq,
 };
+use caliptra_drivers::DmaRecovery;
 #[cfg(not(feature = "fpga_subsystem"))]
 use caliptra_emu_bus::{Device, EventData};
 use caliptra_error::CaliptraError;
@@ -29,6 +32,7 @@ use zerocopy::{FromBytes, IntoBytes};
 
 const RT_READY_FOR_COMMANDS: u32 = 0x600;
 const PCR_ID_STASH_MEASUREMENT: usize = 31;
+const DISABLE_VENDOR_DEBUG_IMAGES: u32 = 1 << 31;
 
 #[derive(asn1::Asn1Read)]
 struct Fwid<'a> {
@@ -82,6 +86,28 @@ struct TcbSnapshot {
 
 fn sha384_digest(data: &[u8]) -> [u8; 48] {
     Sha384::digest(data).into()
+}
+
+fn create_recovery_auth_manifest(
+    mcu_fw: &[u8],
+    manifest_flags: AuthManifestFlags,
+    pqc_key_type: FwVerificationPqcKeyType,
+) -> AuthorizationManifest {
+    let mut image_flags = ImageMetadataFlags(0);
+    image_flags.set_image_source(1);
+    let metadata = vec![AuthManifestImageMetadata {
+        fw_id: 2,
+        flags: image_flags.0,
+        digest: sha384_digest(mcu_fw),
+        ..Default::default()
+    }];
+    create_test_auth_manifest_with_config(
+        metadata,
+        manifest_flags,
+        pqc_key_type,
+        0,
+        Crypto::default(),
+    )
 }
 
 fn preamble_range_digest(
@@ -311,6 +337,125 @@ fn test_loads_mcu_fw() {
         }
         assert!(found);
     }
+}
+
+#[cfg_attr(any(feature = "verilator", feature = "fpga_realtime"), ignore)]
+#[test]
+fn test_recovery_flow_reports_debug_auth_manifest() {
+    let mcu_fw = vec![0x37u8; 256];
+    let debug_flags = AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED | AuthManifestFlags::DEBUG_IMAGE;
+
+    for pqc_key_type in PQC_KEY_TYPE {
+        let soc_manifest = create_recovery_auth_manifest(&mcu_fw, debug_flags, pqc_key_type);
+        let rom = crate::common::rom_for_fw_integration_tests().unwrap();
+        let args = RuntimeTestArgs {
+            init_params: Some(InitParams {
+                rom: &rom,
+                subsystem_mode: true,
+                debug_intent: true,
+                ..Default::default()
+            }),
+            subsystem_mode: true,
+            debug_intent: true,
+            soc_manifest: Some(soc_manifest.as_bytes()),
+            mcu_fw_image: Some(&mcu_fw),
+            ..Default::default()
+        };
+        let mut model = run_rt_test_pqc(args, pqc_key_type);
+        model.step_until_boot_status(RT_READY_FOR_COMMANDS, true);
+
+        assert_eq!(
+            get_fwinfo_allow_attestation_disabled(&mut model).debug_policy,
+            FwInfoResp::DEBUG_AUTH_MANIFEST_ACTIVE
+        );
+    }
+}
+
+#[cfg_attr(
+    any(
+        feature = "verilator",
+        feature = "fpga_realtime",
+        feature = "fpga_subsystem"
+    ),
+    ignore
+)]
+#[test]
+fn test_recovery_flow_debug_auth_manifest_requires_debug_intent() {
+    let mcu_fw = vec![0x37u8; 256];
+    let debug_flags = AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED | AuthManifestFlags::DEBUG_IMAGE;
+
+    for pqc_key_type in PQC_KEY_TYPE {
+        let soc_manifest = create_recovery_auth_manifest(&mcu_fw, debug_flags, pqc_key_type);
+        let rom = crate::common::rom_for_fw_integration_tests().unwrap();
+        let args = RuntimeTestArgs {
+            init_params: Some(InitParams {
+                rom: &rom,
+                subsystem_mode: true,
+                debug_intent: false,
+                ..Default::default()
+            }),
+            subsystem_mode: true,
+            debug_intent: false,
+            soc_manifest: Some(soc_manifest.as_bytes()),
+            mcu_fw_image: Some(&mcu_fw),
+            successful_reach_rt: false,
+            ..Default::default()
+        };
+        let mut model = run_rt_test_pqc(args, pqc_key_type);
+        model.step_until_fatal_error(
+            CaliptraError::RUNTIME_AUTH_MANIFEST_DEBUG_IMAGE_NOT_ALLOWED.into(),
+            30_000_000,
+        );
+    }
+}
+
+#[cfg_attr(
+    any(
+        feature = "verilator",
+        feature = "fpga_realtime",
+        feature = "fpga_subsystem"
+    ),
+    ignore
+)]
+#[test]
+fn test_recovery_flow_debug_auth_manifest_disabled_by_strap() {
+    let mcu_fw = vec![0x37u8; 256];
+    let debug_flags = AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED | AuthManifestFlags::DEBUG_IMAGE;
+
+    for pqc_key_type in PQC_KEY_TYPE {
+        let soc_manifest = create_recovery_auth_manifest(&mcu_fw, debug_flags, pqc_key_type);
+        let rom = crate::common::rom_for_fw_integration_tests().unwrap();
+        let args = RuntimeTestArgs {
+            init_params: Some(InitParams {
+                rom: &rom,
+                subsystem_mode: true,
+                debug_intent: true,
+                ..Default::default()
+            }),
+            subsystem_mode: true,
+            debug_intent: true,
+            initial_ss_strap_generic_3: Some(DISABLE_VENDOR_DEBUG_IMAGES),
+            soc_manifest: Some(soc_manifest.as_bytes()),
+            mcu_fw_image: Some(&mcu_fw),
+            successful_reach_rt: false,
+            ..Default::default()
+        };
+        let mut model = run_rt_test_pqc(args, pqc_key_type);
+        model.step_until_fatal_error(
+            CaliptraError::RUNTIME_AUTH_MANIFEST_DEBUG_IMAGE_NOT_ALLOWED.into(),
+            30_000_000,
+        );
+    }
+}
+
+#[test]
+fn test_debug_auth_manifest_recovery_reason() {
+    assert_eq!(
+        DmaRecovery::recovery_reason_from_auth_manifest_error(
+            CaliptraError::RUNTIME_AUTH_MANIFEST_DEBUG_IMAGE_NOT_ALLOWED,
+        ),
+        DmaRecovery::RECOVERY_REASON_DEBUG_IMAGE_NOT_ALLOWED
+    );
 }
 
 #[cfg_attr(
