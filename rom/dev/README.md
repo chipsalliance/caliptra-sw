@@ -227,13 +227,7 @@ The header contains the security version and SHA2-384 hash of the table of conte
 | Vendor Data | 40 | Vendor Data. <br> **Not Before:** Vendor Start Date [ASN1 Time Format] For Alias FMC and Alias RT certificates (15 bytes) <br> **Not After:** Vendor End Date [ASN1 Time Format] For Alias FMC and Alias RT certificates (15 bytes) <br> **Reserved:** (10 bytes) |
 | Owner Data | 40 | Owner Data. <br> **Not Before:** Owner Start Date [ASN1 Time Format] For Alias FMC and Alias RT certificates. Takes preference over vendor start date (15 bytes) <br> **Not After:** Owner End Date [ASN1 Time Format] For Alias FMC and Alias RT certificates. Takes preference over vendor end date (15 bytes) <br> **Reserved:** (10 bytes) |
 
-ROM treats the debug-image flag as trusted only after the manufacturer ECC and selected PQC header signatures have been verified. A firmware bundle marked as a debug image can only be loaded in subsystem mode when `SS_DEBUG_INTENT` is asserted and the active-high `SS_STRAP_GENERIC[3][31]` (`DISABLE_VENDOR_DEBUG_IMAGES`) opt-out is clear. Otherwise, verification fails with `IMAGE_VERIFIER_ERR_DEBUG_IMAGE_NOT_ALLOWED`. A normal image is unaffected by Debug Intent and the opt-out strap.
-
-An authorized debug bundle skips owner public-key and owner header-signature verification. Its owner public keys, owner signatures, and owner header data must use the canonical all-zero encoding; otherwise, verification fails with `IMAGE_VERIFIER_ERR_DEBUG_IMAGE_INVALID_OWNER_DATA`. ROM continues all TOC, payload-digest, SVN, address, size, entry-point, overlap, and update-reset checks. Owner-derived reporting and measurements are zeroed while debug firmware is active.
-
-On update reset, a successfully loaded bundle replaces the active manifest and its debug classification. A rejected update does not replace the active manifest.
-
-ROM retains an immutable owner-policy digest internally while debug firmware is active so a later normal update can prove owner continuity without treating the debug artifact as owner-endorsed. If no owner policy was established by fuse or DOT before a debug cold boot, switching to owner-authenticated normal firmware requires a cold reset.
+ROM treats the debug-image flag as trusted only after the manufacturer ECC and selected PQC header signatures have been verified. A firmware bundle marked as a debug image can only be loaded in subsystem mode when `SS_DEBUG_INTENT` is asserted and the active-high `SS_STRAP_GENERIC[3][31]` (`DISABLE_VENDOR_DEBUG_IMAGES`) opt-out is clear. Otherwise, verification fails with `IMAGE_VERIFIER_ERR_DEBUG_IMAGE_NOT_ALLOWED`. A normal image is unaffected by Debug Intent and the opt-out strap, and debug images continue through the existing owner-signature and image-integrity checks.
 
 #### Table of contents
 
@@ -1263,7 +1257,8 @@ The basic flow for validating the firmware involves the following:
 - Validating the owner keys with the hash in the key descriptors.
 - Validating the active manufacturer keys against the key revocation fuses.
 - Validating the Manifest Header using the active manufacturer keys against the manufacturer signatures.
-- If the manufacturer-signed header marks the bundle as a debug image, requiring subsystem mode, asserted `SS_DEBUG_INTENT`, and clear `SS_STRAP_GENERIC[3][31]`; otherwise, validating the Manifest Header using the owner keys against the owner signatures.
+- If the manufacturer-signed header marks the bundle as a debug image, requiring subsystem mode, asserted `SS_DEBUG_INTENT`, and clear `SS_STRAP_GENERIC[3][31]`.
+- Validating the Manifest Header using the owner keys against the owner signatures.
 - On the completion of these validations, it is assured that the header portion is authentic.
 - Loading the FMC and Rutime (RT) TOC entries from the mailbox.
 - Validating the TOCs against the TOC hash in the header.

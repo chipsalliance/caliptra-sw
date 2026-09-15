@@ -93,27 +93,6 @@ fn build_debug_image_model(
 fn test_debug_image_cold_boot_allowed() {
     for pqc_key_type in helpers::PQC_KEY_TYPE {
         let (mut model, image_bundle) = build_debug_image_model(pqc_key_type, true, true, false);
-        assert!(image_bundle
-            .manifest
-            .preamble
-            .owner_pub_keys
-            .as_bytes()
-            .iter()
-            .all(|byte| *byte == 0));
-        assert!(image_bundle
-            .manifest
-            .preamble
-            .owner_sigs
-            .as_bytes()
-            .iter()
-            .all(|byte| *byte == 0));
-        assert!(image_bundle
-            .manifest
-            .header
-            .owner_data
-            .as_bytes()
-            .iter()
-            .all(|byte| *byte == 0));
         helpers::test_upload_firmware(&mut model, &image_bundle.to_bytes().unwrap(), pqc_key_type);
         model.step_until_boot_status(u32::from(ColdResetComplete), true);
         assert_eq!(model.soc_ifc().cptra_fw_error_fatal().read(), 0);
@@ -155,21 +134,6 @@ fn test_debug_image_cold_boot_disabled_by_strap() {
             pqc_key_type,
             &image_bundle.to_bytes().unwrap(),
             CaliptraError::IMAGE_VERIFIER_ERR_DEBUG_IMAGE_NOT_ALLOWED,
-        );
-    }
-}
-
-#[test]
-fn test_debug_image_cold_boot_rejects_nonzero_owner_data() {
-    for pqc_key_type in helpers::PQC_KEY_TYPE {
-        let (mut model, mut image_bundle) =
-            build_debug_image_model(pqc_key_type, true, true, false);
-        image_bundle.manifest.header.owner_data.owner_not_before[0] = 1;
-        helpers::assert_fatal_fw_load(
-            &mut model,
-            pqc_key_type,
-            &image_bundle.to_bytes().unwrap(),
-            CaliptraError::IMAGE_VERIFIER_ERR_DEBUG_IMAGE_INVALID_OWNER_DATA,
         );
     }
 }

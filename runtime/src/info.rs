@@ -45,12 +45,7 @@ impl FwInfoCmd {
         resp.rom_sha256_digest = rom_info.sha256_digest;
         resp.fmc_sha384_digest = pdata.rom.manifest1.fmc.digest;
         resp.runtime_sha384_digest = pdata.rom.manifest1.runtime.digest;
-        resp.owner_pub_key_hash = if pdata.rom.manifest1.header.flags & IMAGE_FLAGS_DEBUG_IMAGE != 0
-        {
-            [0; 12]
-        } else {
-            pdata.rom.data_vault.owner_pk_hash().into()
-        };
+        resp.owner_pub_key_hash = pdata.rom.data_vault.owner_pk_hash().into();
         resp.authman_sha384_digest = pdata.fw.auth_manifest_digest;
         resp.vendor_pub_key_hash = drivers
             .soc_ifc

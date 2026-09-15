@@ -164,7 +164,6 @@ impl UpdateResetFlow {
                 &env.soc_ifc,
                 &mut env.pcr_bank,
                 &mut env.sha2_512_384,
-                manifest.header.flags & caliptra_image_types::IMAGE_FLAGS_DEBUG_IMAGE == 0,
             )?;
             report_boot_status(UpdateResetExtendPcrComplete.into());
 

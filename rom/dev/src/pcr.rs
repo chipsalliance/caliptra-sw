@@ -71,14 +71,9 @@ pub(crate) fn extend_pcrs(
     soc_ifc: &SocIfc,
     pcr_bank: &mut PcrBank,
     sha2_512_384: &mut Sha2_512_384,
-    owner_authenticated: bool,
 ) -> CaliptraResult<()> {
     let data_vault = &persistent_data.rom.data_vault;
-    let owner_pk_hash = if owner_authenticated {
-        <[u8; 48]>::from(&data_vault.owner_pk_hash())
-    } else {
-        [0; 48]
-    };
+    let owner_pk_hash = <[u8; 48]>::from(&data_vault.owner_pk_hash());
     let fmc_tci = <[u8; 48]>::from(&data_vault.fmc_tci());
 
     // Reset the PCR log size to zero.
@@ -91,8 +86,8 @@ pub(crate) fn extend_pcrs(
         .fuse_bank()
         .vendor_lms_pub_key_revocation()
         .to_le_bytes();
-    let owner_pub_keys_digest_in_fuses =
-        owner_authenticated && soc_ifc.fuse_bank().owner_pub_key_hash() != Array4x12::default();
+    let owner_pub_keys_digest_in_fuses: bool =
+        soc_ifc.fuse_bank().owner_pub_key_hash() != Array4x12::default();
 
     // NOTE: The contents of this PCR and the FMC Alias TCB info must stay in sync.
     //       Ordering and grouping is irrelevant but both must contain the same info

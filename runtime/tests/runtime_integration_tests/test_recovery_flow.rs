@@ -347,24 +347,6 @@ fn test_recovery_flow_reports_debug_auth_manifest() {
 
     for pqc_key_type in PQC_KEY_TYPE {
         let soc_manifest = create_recovery_auth_manifest(&mcu_fw, debug_flags, pqc_key_type);
-        assert!(soc_manifest
-            .preamble
-            .owner_pub_keys
-            .as_bytes()
-            .iter()
-            .all(|byte| *byte == 0));
-        assert!(soc_manifest
-            .preamble
-            .owner_pub_keys_signatures
-            .as_bytes()
-            .iter()
-            .all(|byte| *byte == 0));
-        assert!(soc_manifest
-            .preamble
-            .owner_image_metdata_signatures
-            .as_bytes()
-            .iter()
-            .all(|byte| *byte == 0));
         let rom = crate::common::rom_for_fw_integration_tests().unwrap();
         let args = RuntimeTestArgs {
             init_params: Some(InitParams {
@@ -386,8 +368,6 @@ fn test_recovery_flow_reports_debug_auth_manifest() {
             get_fwinfo_allow_attestation_disabled(&mut model).debug_policy,
             FwInfoResp::DEBUG_AUTH_MANIFEST_ACTIVE
         );
-        let snapshots = dpe_tcb_snapshots(&mut model);
-        assert_eq!(find_tcb_snapshot(&snapshots, b"SOMO").digest, Some([0; 48]));
     }
 }
 

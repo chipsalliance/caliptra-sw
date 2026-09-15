@@ -8,7 +8,6 @@ use caliptra_common::{
     dice, x509,
 };
 use caliptra_drivers::{okmutref, CaliptraError, CaliptraResult, Ecc384Signature};
-use caliptra_image_types::IMAGE_FLAGS_DEBUG_IMAGE;
 use caliptra_x509::{
     Ecdsa384CsrBuilder, Ecdsa384Signature, FmcAliasCsrTbsEcc384, FmcAliasCsrTbsEcc384Params,
     FmcAliasTbsMlDsa87, FmcAliasTbsMlDsa87Params, MlDsa87CsrBuilder,
@@ -95,14 +94,8 @@ fn make_ecc_csr(env: &mut FmcEnv, output: &DiceOutput) -> CaliptraResult<()> {
     let key_pair = &output.ecc_subj_key_pair;
 
     let svn = data_vault.cold_boot_fw_svn() as u8;
-    let owner_authenticated =
-        env.persistent_data.get().rom.manifest1.header.flags & IMAGE_FLAGS_DEBUG_IMAGE == 0;
-    let owner_device_info_hash = dice::gen_fmc_alias_owner_device_info_hash_with_owner_status(
-        soc_ifc,
-        data_vault,
-        sha2_512_384,
-        owner_authenticated,
-    )?;
+    let owner_device_info_hash =
+        dice::gen_fmc_alias_owner_device_info_hash(soc_ifc, data_vault, sha2_512_384)?;
     let vendor_device_info_hash =
         dice::gen_fmc_alias_vendor_device_info_hash(soc_ifc, data_vault, sha2_512_384)?;
 
@@ -158,14 +151,8 @@ fn make_mldsa_csr(env: &mut FmcEnv, output: &DiceOutput) -> CaliptraResult<()> {
     let key_pair = &output.mldsa_subj_key_pair;
 
     let svn = data_vault.cold_boot_fw_svn() as u8;
-    let owner_authenticated =
-        env.persistent_data.get().rom.manifest1.header.flags & IMAGE_FLAGS_DEBUG_IMAGE == 0;
-    let owner_device_info_hash = dice::gen_fmc_alias_owner_device_info_hash_with_owner_status(
-        soc_ifc,
-        data_vault,
-        sha2_512_384,
-        owner_authenticated,
-    )?;
+    let owner_device_info_hash =
+        dice::gen_fmc_alias_owner_device_info_hash(soc_ifc, data_vault, sha2_512_384)?;
     let vendor_device_info_hash =
         dice::gen_fmc_alias_vendor_device_info_hash(soc_ifc, data_vault, sha2_512_384)?;
 

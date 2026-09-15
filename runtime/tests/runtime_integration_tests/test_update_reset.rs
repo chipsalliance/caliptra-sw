@@ -260,12 +260,10 @@ fn test_fw_info_debug_policy_tracks_update_reset() {
     model.step_until(|model| {
         model.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
     });
-    let info = get_fwinfo_allow_attestation_disabled(&mut model);
     assert_eq!(
-        info.debug_policy,
-        FwInfoResp::DEBUG_FIRMWARE_ACTIVE | FwInfoResp::DEBUG_AUTH_MANIFEST_ACTIVE
+        get_fwinfo_allow_attestation_disabled(&mut model).debug_policy,
+        FwInfoResp::DEBUG_FIRMWARE_ACTIVE
     );
-    assert_eq!(info.owner_pub_key_hash, [0; 12]);
 
     let request = external_fw_load_req(0, normal_image.len());
     model
@@ -275,9 +273,10 @@ fn test_fw_info_debug_policy_tracks_update_reset() {
         )
         .unwrap();
     model.step_until_ready_for_runtime();
-    let info = get_fwinfo_allow_attestation_disabled(&mut model);
-    assert_eq!(info.debug_policy, FwInfoResp::DEBUG_AUTH_MANIFEST_ACTIVE);
-    assert_ne!(info.owner_pub_key_hash, [0; 12]);
+    assert_eq!(
+        get_fwinfo_allow_attestation_disabled(&mut model).debug_policy,
+        0
+    );
 
     let request = external_fw_load_req(debug_image_offset, debug_image.len());
     model
@@ -287,12 +286,10 @@ fn test_fw_info_debug_policy_tracks_update_reset() {
         )
         .unwrap();
     model.step_until_ready_for_runtime();
-    let info = get_fwinfo_allow_attestation_disabled(&mut model);
     assert_eq!(
-        info.debug_policy,
-        FwInfoResp::DEBUG_FIRMWARE_ACTIVE | FwInfoResp::DEBUG_AUTH_MANIFEST_ACTIVE
+        get_fwinfo_allow_attestation_disabled(&mut model).debug_policy,
+        FwInfoResp::DEBUG_FIRMWARE_ACTIVE
     );
-    assert_eq!(info.owner_pub_key_hash, [0; 12]);
 }
 
 #[cfg_attr(any(feature = "fpga_realtime", feature = "fpga_subsystem"), ignore)]

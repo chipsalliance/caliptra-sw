@@ -248,9 +248,7 @@ The manifest begins with the Preamble section, which contains new manifest ECC a
 
 The IMC is a collection of Image Metadata entries (IME). Each IME has a hash that matches one of the multiple SoC images. The manifest vendor and owner private keys sign the IMC. The Preamble holds the IMC signatures. The manifest IMC vendor signatures are optional and are validated only if the Flags field Bit 0 is set to 1. Up to 127 image hashes will be supported.
 
-An authorization manifest may set the vendor-signed `DEBUG_IMAGE` flag to identify a vendor-authorized debug manifest. `DEBUG_IMAGE` requires `VENDOR_SIGNATURE_REQUIRED`, subsystem mode, asserted `SS_DEBUG_INTENT`, and clear `SS_STRAP_GENERIC[3][31]` (`DISABLE_VENDOR_DEBUG_IMAGES`). Runtime evaluates the platform policy only after authenticating both the firmware-vendor-signed preamble and delegated vendor IMC signatures.
-
-An authorized debug manifest skips owner-key endorsement and owner IMC signature verification. Its owner public keys and owner signatures must use the canonical all-zero encoding. Runtime continues all SVN, size, entry-count, duplicate-ID, metadata, digest, and authorization checks. The SOMO DPE measurement is zero for an active debug authorization manifest.
+An authorization manifest may set the vendor-signed `DEBUG_IMAGE` flag to identify a vendor-authorized debug manifest. `DEBUG_IMAGE` requires `VENDOR_SIGNATURE_REQUIRED`, subsystem mode, asserted `SS_DEBUG_INTENT`, and clear `SS_STRAP_GENERIC[3][31]` (`DISABLE_VENDOR_DEBUG_IMAGES`). Runtime evaluates this policy only after authenticating the firmware-vendor-signed preamble fields. Existing owner endorsement and IMC signature verification remain required.
 
 #### Caliptra Measurement Manifest Keys Endorsement Verification Steps
 
@@ -1197,7 +1195,7 @@ Command Code: `0x494E_464F` ("INFO")
 | rom_sha256_digest           | u32[8]   | Digest of ROM binary. See [Byte order of cryptographic fields](#byte-order-of-cryptographic-fields).                                                |
 | fmc_sha384_digest           | u32[12]  | Digest of FMC binary. See [Byte order of cryptographic fields](#byte-order-of-cryptographic-fields).                                                |
 | runtime_sha384_digest       | u32[12]  | Digest of runtime binary. See [Byte order of cryptographic fields](#byte-order-of-cryptographic-fields).                                            |
-| owner_pub_key_hash          | u32[12]  | Hash of the owner public keys that authenticated the active image bundle, or zero when debug firmware is active. See [Byte order of cryptographic fields](#byte-order-of-cryptographic-fields). |
+| owner_pub_key_hash          | u32[12]  | Hash of the owner public keys provided in the image bundle manifest. See [Byte order of cryptographic fields](#byte-order-of-cryptographic-fields). |
 | authman_sha384_digest       | u32[12]  | Hash of the authorization manifest provided by SET_AUTH_MANIFEST. See [Byte order of cryptographic fields](#byte-order-of-cryptographic-fields).    |
 | most_recent_fw_error        | u32      | Most recent FW non-fatal error (shows current non-fatal error if non-zero)                                                                          |
 | vendor_pub_key_hash         | u32[12]  | Hash of the vendor public key used to verify firmware. **Only present in FW 2.0.2+ and 2.1.1+.**                                                    |
@@ -1208,7 +1206,7 @@ Command Code: `0x494E_464F` ("INFO")
 | soc_manifest_min_svn        | u32      | Minimum SoC manifest SVN encoded in `FUSE_SOC_MANIFEST_SVN` and enforced by `SET_AUTH_MANIFEST` when anti-rollback checks are enabled.               |
 | owner_auth_manifest_current_svn | u32   | SVN of the owner authorization manifest accepted by `SET_OWNER_AUTH_MANIFEST`, or zero if none has been accepted.                                  |
 | owner_auth_manifest_min_svn | u32      | Minimum owner authorization manifest SVN encoded in `SS_STRAP_GENERIC[3][15:8]` and enforced by `SET_OWNER_AUTH_MANIFEST` when anti-rollback checks are enabled. |
-| debug_policy                | u32      | Active vendor-authorized debug policy. Bit 0 (`DEBUG_FIRMWARE_ACTIVE`) indicates that the active firmware bundle was accepted without owner authentication. Bit 1 (`DEBUG_AUTH_MANIFEST_ACTIVE`) indicates that the installed SoC authorization manifest was accepted without owner authentication. Bits 31:2 are zero. |
+| debug_policy                | u32      | Active vendor-authorized debug policy. Bit 0 (`DEBUG_FIRMWARE_ACTIVE`) indicates that the active firmware bundle is marked as debug. Bit 1 (`DEBUG_AUTH_MANIFEST_ACTIVE`) indicates that the installed SoC authorization manifest is marked as debug. Bits 31:2 are zero. |
 
 ### VERSION
 
@@ -1449,7 +1447,7 @@ Command Code: `0x4154_4D4E` ("ATMN")
 | VENDOR_SIGNATURE_REQUIRED | 1 << 0    |
 | DEBUG_IMAGE               | 1 << 1    |
 
-`DEBUG_IMAGE` is valid only when `VENDOR_SIGNATURE_REQUIRED` is also set. Runtime rejects an invalid combination with `RUNTIME_AUTH_MANIFEST_INVALID_FLAGS`. After authenticating the firmware-vendor-signed preamble and delegated vendor IMC signatures, Runtime rejects a debug manifest unless it is running in subsystem mode with `SS_DEBUG_INTENT` asserted and `SS_STRAP_GENERIC[3][31]` clear, returning `RUNTIME_AUTH_MANIFEST_DEBUG_IMAGE_NOT_ALLOWED`. Nonzero owner fields are rejected with `RUNTIME_AUTH_MANIFEST_DEBUG_IMAGE_INVALID_OWNER_DATA`.
+`DEBUG_IMAGE` is valid only when `VENDOR_SIGNATURE_REQUIRED` is also set. Runtime rejects an invalid combination with `RUNTIME_AUTH_MANIFEST_INVALID_FLAGS`. Runtime rejects a debug manifest unless it is running in subsystem mode with `SS_DEBUG_INTENT` asserted and `SS_STRAP_GENERIC[3][31]` clear, returning `RUNTIME_AUTH_MANIFEST_DEBUG_IMAGE_NOT_ALLOWED`. Existing vendor and owner authentication remain required.
 
 After a successful `SET_AUTH_MANIFEST`, Runtime sets `FW_INFO.debug_policy[1]` for a debug manifest and clears it for a normal manifest. Failed installations and `VERIFY_AUTH_MANIFEST` do not change the active bit. The bit survives warm and update resets, is cleared on cold reset, and is not modified by `SET_OWNER_AUTH_MANIFEST`.
 

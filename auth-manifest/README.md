@@ -39,7 +39,7 @@ The manifest vendor and owner private keys sign the IMC.
 The Preamble holds the IMC signatures.
 The manifest IMC vendor signatures are optional and are validated only if the **Flags Bit 0 = 1**.
 
-When Flags Bit 1 (`DEBUG_IMAGE`) is set, the firmware-vendor signatures authenticate the Preamble policy and delegated vendor keys, and the delegated vendor signatures authenticate the IMC. Runtime then requires subsystem mode, asserted `SS_DEBUG_INTENT`, and clear `SS_STRAP_GENERIC[3][31]` (`DISABLE_VENDOR_DEBUG_IMAGES`). The owner public keys, owner endorsement signatures, and owner IMC signatures must all be zero. Runtime skips owner authentication for this path while retaining all SVN, metadata, digest, duplicate-ID, and authorization checks.
+When Flags Bit 1 (`DEBUG_IMAGE`) is set, Runtime requires Flags Bit 0, subsystem mode, asserted `SS_DEBUG_INTENT`, and clear `SS_STRAP_GENERIC[3][31]` (`DISABLE_VENDOR_DEBUG_IMAGES`). Vendor and owner authentication remain required, along with all SVN, metadata, digest, duplicate-ID, and authorization checks.
 Up to 127 image metadata entries are supported.
 
 | Field                            | Size (bytes) | Description                             |
