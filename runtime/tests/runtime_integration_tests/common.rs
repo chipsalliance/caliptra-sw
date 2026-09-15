@@ -36,7 +36,7 @@ use caliptra_dpe::{
     response::{CertifyKeyResp, DpeErrorCode, Response, ResponseHdr, SignResp},
 };
 use caliptra_dpe_crypto::{Digest, Mu, PrecomputedSignData, Sha384};
-use caliptra_drivers::MfgFlags;
+use caliptra_drivers::{IdevidCertAttr, MfgFlags};
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{
     flash_image::build_flash_image_bytes, BootParams, CodeRange, DefaultHwModel, DeviceLifecycle,
@@ -167,6 +167,7 @@ pub struct RuntimeTestArgs<'a> {
     pub soc_manifest_svn: Option<u32>,
     pub soc_manifest_max_svn: Option<u32>,
     pub hek_seed: Option<[u32; 8]>,
+    pub ueid: Option<[u8; 17]>,
     pub subsystem_mode: bool,
     pub successful_reach_rt: bool,
     pub ocp_lock_en: bool,
@@ -218,6 +219,7 @@ impl Default for RuntimeTestArgs<'_> {
             soc_manifest_svn: None,
             soc_manifest_max_svn: None,
             hek_seed: None,
+            ueid: None,
             subsystem_mode: cfg!(feature = "fpga_subsystem"),
             successful_reach_rt: true,
             ocp_lock_en: cfg!(feature = "ocp-lock"),
@@ -288,6 +290,15 @@ pub fn start_rt_test_pqc_model(
     args: RuntimeTestArgs,
     pqc_key_type: FwVerificationPqcKeyType,
 ) -> (DefaultHwModel, ImageBundle) {
+    let mut idevid_cert_attr = [0u32; 24];
+    if let Some(ueid) = args.ueid {
+        idevid_cert_attr[IdevidCertAttr::UeidType as usize] = ueid[0] as u32;
+        for (index, word) in ueid[1..].chunks_exact(4).enumerate() {
+            idevid_cert_attr[IdevidCertAttr::ManufacturerSerialNumber1 as usize + index] =
+                u32::from_le_bytes(word.try_into().unwrap());
+        }
+    }
+
     let fpga = cfg!(any(feature = "fpga_realtime", feature = "fpga_subsystem"));
     let ocp_lock = args.ocp_lock_en || cfg!(feature = "ocp-lock");
     let default_rt_fwid = if fpga {
@@ -363,6 +374,7 @@ pub fn start_rt_test_pqc_model(
         soc_manifest_max_svn: args.soc_manifest_max_svn.unwrap_or(127) as u8,
         fw_svn: svn_to_bitmap(production_state.fw_svn),
         hek_seed: args.hek_seed.unwrap_or([0xABDEu32; 8]),
+        idevid_cert_attr,
         ..Default::default()
     };
 

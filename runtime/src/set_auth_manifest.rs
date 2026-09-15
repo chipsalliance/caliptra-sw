@@ -19,7 +19,8 @@ use crate::{drivers::CaliptraManagedDpeContext, manifest::sorted_metadata_lists_
 use caliptra_auth_man_types::{
     AuthManifestFlags, AuthManifestImageMetadata, AuthManifestImageMetadataCollection,
     AuthManifestPreamble, OwnerAuthManifestImageMetadataCollection,
-    AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT, AUTH_MANIFEST_MARKER,
+    AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT, AUTH_MANIFEST_MARKER, AUTH_MANIFEST_UEID_FW_ID,
+    AUTH_MANIFEST_UEID_LEN,
 };
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_cfi_lib::{
@@ -621,12 +622,37 @@ impl SetAuthManifestCmd {
         Ok(())
     }
 
+    fn verify_ueid(
+        image_metadata_list: &[AuthManifestImageMetadata],
+        device_ueid: &[u8; AUTH_MANIFEST_UEID_LEN],
+    ) -> CaliptraResult<()> {
+        let Some(ueid_metadata) = image_metadata_list
+            .iter()
+            .find(|metadata| metadata.fw_id == AUTH_MANIFEST_UEID_FW_ID)
+        else {
+            return Ok(());
+        };
+
+        let expected_digest = AuthManifestImageMetadata::new_ueid(device_ueid).digest;
+        if cfi_launder(ueid_metadata.digest) != expected_digest {
+            Err(CaliptraError::RUNTIME_AUTH_MANIFEST_UEID_MISMATCH)?;
+        } else {
+            caliptra_cfi_lib::cfi_assert_eq_12_words(
+                &Array4x12::from(ueid_metadata.digest).0,
+                &Array4x12::from(expected_digest).0,
+            );
+        }
+
+        Ok(())
+    }
+
     #[allow(clippy::too_many_arguments)]
     fn process_image_metadata_col(
         cmd_buf: &[u8],
         auth_manifest_preamble: &AuthManifestPreamble,
         metadata_persistent: &mut AuthManifestImageMetadataCollection,
         owner_metadata_persistent: &OwnerAuthManifestImageMetadataCollection,
+        device_ueid: &[u8; AUTH_MANIFEST_UEID_LEN],
         sha2: &mut Sha2_512_384,
         ecc384: &mut Ecc384,
         sha256: &mut Sha256,
@@ -696,6 +722,7 @@ impl SetAuthManifestCmd {
             &mut metadata_mailbox.image_metadata_list[..metadata_mailbox.entry_count as usize];
 
         Self::sort_and_check_duplicate_fwid(slice)?;
+        Self::verify_ueid(slice, device_ueid)?;
 
         let owner_slice = owner_metadata_persistent
             .image_metadata_list
@@ -841,6 +868,8 @@ impl SetAuthManifestCmd {
             fuse_pqc_key_type
         };
 
+        let device_ueid = drivers.soc_ifc.fuse_bank().ueid();
+
         {
             let persistent_data = drivers.persistent_data.get_mut();
             drivers.abr.with_mldsa87(|mut mldsa87| {
@@ -873,6 +902,7 @@ impl SetAuthManifestCmd {
                     auth_manifest_preamble,
                     &mut persistent_data.fw.auth_manifest_image_metadata_col,
                     &persistent_data.fw.owner_auth_manifest_image_metadata_col,
+                    &device_ueid,
                     &mut drivers.sha2_512_384,
                     &mut drivers.ecc384,
                     &mut drivers.sha256,
@@ -973,6 +1003,46 @@ mod tests {
         assert_eq!(
             resp.unwrap_err(),
             CaliptraError::RUNTIME_AUTH_MANIFEST_IMAGE_METADATA_LIST_DUPLICATE_FIRMWARE_ID
+        );
+    }
+
+    #[test]
+    fn test_verify_ueid_optional() {
+        let metadata = [AuthManifestImageMetadata {
+            fw_id: 7,
+            ..Default::default()
+        }];
+
+        assert!(SetAuthManifestCmd::verify_ueid(&metadata, &[0xA5; 17]).is_ok());
+    }
+
+    #[test]
+    fn test_verify_ueid_matches_device() {
+        let device_ueid = [0xA5; 17];
+        let metadata = [AuthManifestImageMetadata::new_ueid(&device_ueid)];
+
+        assert!(SetAuthManifestCmd::verify_ueid(&metadata, &device_ueid).is_ok());
+    }
+
+    #[test]
+    fn test_verify_ueid_rejects_mismatch() {
+        let metadata = [AuthManifestImageMetadata::new_ueid(&[0xA5; 17])];
+
+        assert_eq!(
+            SetAuthManifestCmd::verify_ueid(&metadata, &[0x5A; 17]).unwrap_err(),
+            CaliptraError::RUNTIME_AUTH_MANIFEST_UEID_MISMATCH
+        );
+    }
+
+    #[test]
+    fn test_verify_ueid_rejects_nonzero_padding() {
+        let device_ueid = [0xA5; 17];
+        let mut metadata = AuthManifestImageMetadata::new_ueid(&device_ueid);
+        metadata.digest[AUTH_MANIFEST_UEID_LEN] = 1;
+
+        assert_eq!(
+            SetAuthManifestCmd::verify_ueid(&[metadata], &device_ueid).unwrap_err(),
+            CaliptraError::RUNTIME_AUTH_MANIFEST_UEID_MISMATCH
         );
     }
 }
