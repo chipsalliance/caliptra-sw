@@ -678,3 +678,285 @@ struct caliptra_invoke_dpe_resp
         uint8_t data[0];
     };
 };
+
+#define OCP_LOCK_MAX_HPKE_HANDLES 3
+#define OCP_LOCK_MAX_HPKE_PUBKEY_LEN 1665
+#define OCP_LOCK_WRAPPED_KEY_MAX_METADATA_LEN 32
+#define OCP_LOCK_WRAPPED_KEY_MAX_INFO_LEN 256
+#define OCP_LOCK_MAX_ENC_LEN 1665
+#define OCP_LOCK_ENCRYPTION_ENGINE_METADATA_SIZE 20
+#define OCP_LOCK_ENCRYPTION_ENGINE_AUX_SIZE 32
+#define OCP_LOCK_ENCRYPTION_ENGINE_MAX_MEK_SIZE 64
+
+struct caliptra_ocp_lock_hpke_handle
+{
+    uint32_t handle;
+    uint32_t hpke_algorithm;
+};
+
+struct caliptra_ocp_lock_wrapped_key
+{
+    uint16_t key_type;
+    uint16_t reserved;
+    uint8_t salt[12];
+    uint32_t metadata_len;
+    uint32_t key_len;
+    uint8_t iv[12];
+    uint8_t metadata[OCP_LOCK_WRAPPED_KEY_MAX_METADATA_LEN];
+    uint8_t ciphertext_and_auth_tag[80];
+};
+
+struct caliptra_ocp_lock_sealed_access_key
+{
+    struct caliptra_ocp_lock_hpke_handle hpke_handle;
+    uint32_t access_key_len;
+    uint32_t info_len;
+    uint8_t info[OCP_LOCK_WRAPPED_KEY_MAX_INFO_LEN];
+    uint8_t kem_ciphertext[OCP_LOCK_MAX_ENC_LEN];
+    uint8_t _padding[3];
+    uint8_t ak_ciphertext[48];
+};
+
+struct caliptra_ocp_lock_report_hek_metadata_req
+{
+    struct caliptra_req_header hdr;
+    uint32_t reserved0;
+    uint16_t total_slots;
+    uint16_t active_slots;
+    uint16_t seed_state;
+    uint16_t padding0;
+};
+
+struct caliptra_ocp_lock_report_hek_metadata_resp
+{
+    struct caliptra_resp_header hdr;
+    uint32_t flags;
+    uint32_t reserved[3];
+};
+
+struct caliptra_ocp_lock_get_algorithms_resp
+{
+    struct caliptra_resp_header hdr;
+    uint32_t reserved[4];
+    uint32_t hpke_algorithms;
+    uint32_t access_key_sizes;
+};
+
+struct caliptra_ocp_lock_initialize_mek_secret_req
+{
+    struct caliptra_req_header hdr;
+    uint32_t reserved;
+    uint8_t sek[32];
+    uint8_t dpk[32];
+};
+
+struct caliptra_ocp_lock_initialize_mek_secret_resp
+{
+    struct caliptra_resp_header hdr;
+    uint32_t reserved;
+};
+
+struct caliptra_ocp_lock_mix_mpk_req
+{
+    struct caliptra_req_header hdr;
+    uint32_t reserved;
+    struct caliptra_ocp_lock_wrapped_key enabled_mpk;
+};
+
+struct caliptra_ocp_lock_mix_mpk_resp
+{
+    struct caliptra_resp_header hdr;
+    uint32_t reserved;
+};
+
+struct caliptra_ocp_lock_derive_mek_req
+{
+    struct caliptra_req_header hdr;
+    uint32_t reserved;
+    uint8_t mek_checksum[16];
+    uint8_t metadata[20];
+    uint8_t aux_metadata[32];
+    uint32_t cmd_timeout;
+};
+
+struct caliptra_ocp_lock_derive_mek_resp
+{
+    struct caliptra_resp_header hdr;
+    uint32_t reserved;
+    uint8_t mek_checksum[16];
+};
+
+struct caliptra_ocp_lock_enumerate_hpke_handles_req
+{
+    struct caliptra_req_header hdr;
+    uint32_t reserved;
+};
+
+struct caliptra_ocp_lock_enumerate_hpke_handles_resp
+{
+    struct caliptra_resp_header hdr;
+    uint32_t reserved;
+    uint32_t hpke_handle_count;
+    struct caliptra_ocp_lock_hpke_handle hpke_handles[OCP_LOCK_MAX_HPKE_HANDLES];
+};
+
+struct caliptra_ocp_lock_rotate_hpke_key_req
+{
+    struct caliptra_req_header hdr;
+    uint32_t reserved;
+    uint32_t hpke_handle;
+};
+
+struct caliptra_ocp_lock_rotate_hpke_key_resp
+{
+    struct caliptra_resp_header hdr;
+    uint32_t reserved;
+    uint32_t hpke_handle;
+};
+
+struct caliptra_ocp_lock_generate_mek_req
+{
+    struct caliptra_req_header hdr;
+    uint32_t reserved;
+};
+
+struct caliptra_ocp_lock_generate_mek_resp
+{
+    struct caliptra_resp_header hdr;
+    uint32_t reserved;
+    struct caliptra_ocp_lock_wrapped_key wrapped_mek;
+};
+
+struct caliptra_ocp_lock_get_hpke_pub_key_req
+{
+    struct caliptra_req_header hdr;
+    uint32_t reserved;
+    uint32_t hpke_handle;
+};
+
+struct caliptra_ocp_lock_get_hpke_pub_key_resp
+{
+    struct caliptra_resp_header hdr;
+    uint32_t reserved;
+    uint32_t pub_key_len;
+    uint8_t pub_key[OCP_LOCK_MAX_HPKE_PUBKEY_LEN];
+    uint8_t padding[3];
+};
+
+struct caliptra_ocp_lock_generate_mpk_req
+{
+    struct caliptra_req_header hdr;
+    uint32_t reserved;
+    uint8_t sek[32];
+    uint32_t metadata_len;
+    uint8_t metadata[OCP_LOCK_WRAPPED_KEY_MAX_METADATA_LEN];
+    struct caliptra_ocp_lock_sealed_access_key sealed_access_key;
+};
+
+struct caliptra_ocp_lock_generate_mpk_resp
+{
+    struct caliptra_resp_header hdr;
+    uint32_t reserved;
+    struct caliptra_ocp_lock_wrapped_key wrapped_mek;
+};
+
+struct caliptra_ocp_lock_rewrap_mpk_req
+{
+    struct caliptra_req_header hdr;
+    uint32_t reserved;
+    uint8_t sek[32];
+    struct caliptra_ocp_lock_wrapped_key current_locked_mpk;
+    struct caliptra_ocp_lock_sealed_access_key sealed_access_key;
+    uint8_t new_ak_ciphertext[48];
+};
+
+struct caliptra_ocp_lock_rewrap_mpk_resp
+{
+    struct caliptra_resp_header hdr;
+    uint32_t reserved;
+    struct caliptra_ocp_lock_wrapped_key wrapped_mek;
+};
+
+struct caliptra_ocp_lock_enable_mpk_req
+{
+    struct caliptra_req_header hdr;
+    uint32_t reserved;
+    uint8_t sek[32];
+    struct caliptra_ocp_lock_sealed_access_key sealed_access_key;
+    struct caliptra_ocp_lock_wrapped_key locked_mpk;
+};
+
+struct caliptra_ocp_lock_enable_mpk_resp
+{
+    struct caliptra_resp_header hdr;
+    uint32_t reserved;
+    struct caliptra_ocp_lock_wrapped_key enabled_mpk;
+};
+
+struct caliptra_ocp_lock_test_access_key_req
+{
+    struct caliptra_req_header hdr;
+    uint32_t reserved;
+    uint8_t sek[32];
+    uint8_t nonce[32];
+    struct caliptra_ocp_lock_wrapped_key locked_mpk;
+    struct caliptra_ocp_lock_sealed_access_key sealed_access_key;
+};
+
+struct caliptra_ocp_lock_test_access_key_resp
+{
+    struct caliptra_resp_header hdr;
+    uint32_t reserved;
+    uint8_t digest[48];
+};
+
+struct caliptra_ocp_lock_get_status_resp
+{
+    struct caliptra_resp_header hdr;
+    uint32_t reserved[4];
+    uint32_t ctrl_register;
+};
+
+struct caliptra_ocp_lock_clear_key_cache_req
+{
+    struct caliptra_req_header hdr;
+    uint32_t reserved;
+    uint32_t cmd_timeout;
+};
+
+struct caliptra_ocp_lock_clear_key_cache_resp
+{
+    struct caliptra_resp_header hdr;
+    uint32_t reserved;
+};
+
+struct caliptra_ocp_lock_unload_mek_req
+{
+    struct caliptra_req_header hdr;
+    uint32_t reserved;
+    uint8_t metadata[OCP_LOCK_ENCRYPTION_ENGINE_METADATA_SIZE];
+    uint32_t cmd_timeout;
+};
+
+struct caliptra_ocp_lock_unload_mek_resp
+{
+    struct caliptra_resp_header hdr;
+    uint32_t reserved;
+};
+
+struct caliptra_ocp_lock_load_mek_req
+{
+    struct caliptra_req_header hdr;
+    uint32_t reserved;
+    uint8_t metadata[OCP_LOCK_ENCRYPTION_ENGINE_METADATA_SIZE];
+    uint8_t aux_metadata[OCP_LOCK_ENCRYPTION_ENGINE_AUX_SIZE];
+    struct caliptra_ocp_lock_wrapped_key wrapped_mek;
+    uint32_t cmd_timeout;
+};
+
+struct caliptra_ocp_lock_load_mek_resp
+{
+    struct caliptra_resp_header hdr;
+    uint32_t reserved;
+};
+

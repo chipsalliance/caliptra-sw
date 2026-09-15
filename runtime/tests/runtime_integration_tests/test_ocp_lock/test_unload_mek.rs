@@ -3,8 +3,7 @@
 use caliptra_api::mailbox::{
     CommandId, MailboxReq, MailboxReqHeader, MailboxRespHeader, OcpLockGenerateMekReq,
     OcpLockGenerateMekResp, OcpLockInitializeMekSecretReq, OcpLockLoadMekReq, OcpLockLoadMekResp,
-    OcpLockUnloadMekReq, OcpLockUnloadMekResp, OCP_LOCK_ENCRYPTION_ENGINE_AUX_SIZE,
-    OCP_LOCK_ENCRYPTION_ENGINE_METADATA_SIZE,
+    OcpLockUnloadMekReq, OcpLockUnloadMekResp,
 };
 use caliptra_api::SocManager;
 use caliptra_error::CaliptraError;
@@ -12,14 +11,9 @@ use caliptra_hw_model::{HwModel, ModelError};
 use zerocopy::{FromBytes, IntoBytes};
 
 use super::{
-    boot_ocp_lock_runtime, validate_ocp_lock_response, InitializeMekSecretParams, OcpLockBootParams,
+    boot_ocp_lock_runtime, validate_ocp_lock_response, InitializeMekSecretParams,
+    OcpLockBootParams, TEST_AUX, TEST_METADATA,
 };
-
-const TEST_METADATA: [u8; OCP_LOCK_ENCRYPTION_ENGINE_METADATA_SIZE] =
-    [0xDE; OCP_LOCK_ENCRYPTION_ENGINE_METADATA_SIZE];
-
-const TEST_AUX: [u8; OCP_LOCK_ENCRYPTION_ENGINE_AUX_SIZE] =
-    [0xFE; OCP_LOCK_ENCRYPTION_ENGINE_AUX_SIZE];
 
 #[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 #[test]

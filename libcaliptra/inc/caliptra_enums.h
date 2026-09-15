@@ -169,3 +169,33 @@ enum dpe_profile {
     P256Sha256 = DPE_PROFILE_256,
     P384Sha384 = DPE_PROFILE_384,
 };
+
+/**
+ * ocp_lock_report_hek_metadata_resp_flags
+ *
+ * OCP_LOCK_REPORT_HEK_METADATA response flags.
+ */
+enum ocp_lock_report_hek_metadata_resp_flags {
+    HEK_AVAILABLE = (1UL << 31),
+};
+
+/**
+ * hpke_algorithms
+ *
+ * OCP LOCK HPKE algorithms.
+ */
+enum hpke_algorithms {
+    ECDH_P384_HKDF_SHA384_AES_256_GCM             = (1UL << 0),
+    ML_KEM_1024_HKDF_SHA384_AES_256_GCM           = (1UL << 1),
+    ML_KEM_1024_ECDH_P384_HKDF_SHA384_AES_256_GCM = (1UL << 2),
+};
+
+/**
+ * access_key_sizes
+ *
+ * OCP LOCK access key sizes.
+ */
+enum access_key_sizes {
+    LEN_256 = (1UL << 0),
+};
+

@@ -72,6 +72,14 @@ filter = 'test(test_populate_idev_ecc_cert_after_warm_reset)'
 slow-timeout = { period = "30s", terminate-after = 10 }
 
 [[profile.fpga-subsystem.overrides]]
+filter = 'test(test_export_cdi_attestation_not_disabled_after_update_reset)'
+slow-timeout = { period = "30s", terminate-after = 15 }
+
+[[profile.fpga-subsystem.overrides]]
+filter = 'test(test_capabilities_after_warm_reset)'
+slow-timeout = { period = "30s", terminate-after = 15 }
+
+[[profile.fpga-subsystem.overrides]]
 filter = 'test(test_stress_update)'
 slow-timeout = { period = "30s", terminate-after = 100 }
 
