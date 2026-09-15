@@ -517,7 +517,7 @@ impl Commands {
         match (key_usage, cmd.input_size) {
             (CmKeyUsage::Aes | CmKeyUsage::Mldsa, 32) => (),
             (CmKeyUsage::Ecdsa, 48) => (),
-            (CmKeyUsage::Hmac, 48 | 64) => (),
+            (CmKeyUsage::Hmac, 32 | 48 | 64) => (),
             (CmKeyUsage::Mlkem, 64) => (),
             _ => Err(CaliptraError::RUNTIME_CMB_INVALID_KEY_USAGE_AND_SIZE)?,
         }
