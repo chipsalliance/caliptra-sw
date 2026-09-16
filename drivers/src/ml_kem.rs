@@ -23,7 +23,8 @@ use crate::{
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_cfi_derive::Launder;
 use caliptra_registers::abr::{AbrReg, RegisterBlock};
-use zeroize::Zeroize;
+use zerocopy::IntoBytes;
+use zeroize::{Zeroize, ZeroizeOnDrop};
 
 #[must_use]
 #[repr(u32)]
@@ -37,7 +38,44 @@ pub enum MlKemResult {
 pub type MlKem1024EncapsKey = LEArray4x392;
 
 /// ML-KEM-1024 Decapsulation Key (3168 bytes)
-pub type MlKem1024DecapsKey = LEArray4x792;
+#[repr(transparent)]
+#[derive(Zeroize, ZeroizeOnDrop)]
+pub struct MlKem1024DecapsKey(LEArray4x792);
+
+impl MlKem1024DecapsKey {
+    fn read_from_reg<
+        TReg: caliptra_ureg::ReadableReg<ReadVal = u32, Raw = u32>,
+        TMmio: caliptra_ureg::Mmio + Copy,
+    >(
+        reg_array: caliptra_ureg::Array<792, caliptra_ureg::RegRef<TReg, TMmio>>,
+    ) -> Self {
+        Self(LEArray4x792::read_from_reg(reg_array))
+    }
+
+    fn write_to_reg<
+        TReg: caliptra_ureg::ResettableReg + caliptra_ureg::WritableReg<WriteVal = u32, Raw = u32>,
+        TMmio: caliptra_ureg::MmioMut + Copy,
+    >(
+        &self,
+        reg_array: caliptra_ureg::Array<792, caliptra_ureg::RegRef<TReg, TMmio>>,
+    ) {
+        self.0.write_to_reg(reg_array);
+    }
+
+    pub(crate) fn as_bytes(&self) -> &[u8] {
+        self.0.as_bytes()
+    }
+
+    #[cfg(feature = "cavp-test-harness")]
+    pub fn is_zero(&self) -> bool {
+        self.0 .0.iter().all(|word| *word == 0)
+    }
+
+    #[cfg(feature = "cavp-test-harness")]
+    pub fn matches(&self, expected: &[u32; 792]) -> bool {
+        self.0 .0 == *expected
+    }
+}
 
 /// ML-KEM-1024 Ciphertext (1568 bytes)
 pub type MlKem1024Ciphertext = LEArray4x392;
