@@ -76,7 +76,7 @@ mod sha256;
 pub mod sha2_512_384;
 mod sha2_512_384acc;
 mod sha3;
-mod soc_ifc;
+pub mod soc_ifc;
 mod trng;
 mod trng_ext;
 

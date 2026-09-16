@@ -2,7 +2,10 @@
 
 use caliptra_api::SocManager;
 use caliptra_builder::ImageOptions;
-use caliptra_common::mailbox_api::{CommandId, MailboxReqHeader, StashMeasurementReq};
+use caliptra_common::mailbox_api::{
+    CmDeriveStableKeyReq, CommandId, EcdsaVerifyReq, MailboxReqHeader, StashMeasurementReq,
+    CM_STABLE_KEY_INFO_SIZE_BYTES,
+};
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{BootParams, Fuses, HwModel, InitParams, ModelError, SecurityState};
 use zerocopy::IntoBytes;
@@ -267,14 +270,11 @@ fn test_mailbox_reserved_pauser() {
 }
 
 #[test]
-#[cfg(feature = "stash-measurement-registers")]
-fn test_stash_measurement_command_becomes_invalid_when_feature_is_on() {
+fn test_stash_measurement_command_is_invalid() {
     let security_state = *SecurityState::default()
         .set_device_lifecycle(caliptra_api_types::DeviceLifecycle::Production);
-    let rom = caliptra_builder::build_firmware_rom(
-        &caliptra_builder::firmware::rom_tests::ROM_WITH_STASH_MEASUREMENT_FEATURE,
-    )
-    .unwrap();
+    let rom =
+        caliptra_builder::build_firmware_rom(&caliptra_builder::firmware::ROM_WITH_UART).unwrap();
     let mut hw = caliptra_hw_model::new(
         InitParams {
             rom: &rom,

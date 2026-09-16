@@ -461,6 +461,10 @@ pub struct BootParams<'a> {
     /// Use encrypted firmware boot (RI_DOWNLOAD_ENCRYPTED_FIRMWARE instead of RI_DOWNLOAD_FIRMWARE).
     /// This sets BootMode::EncryptedFirmware and skips MCU activation in the recovery flow.
     pub encrypted_boot: bool,
+    /// Do not automatically assert end-of-stash when a `fw_image` is provided.
+    /// This gives tests the time to submit measurements while runtime waits to
+    /// drain them.
+    pub skip_assert_end_of_stash: bool,
 }
 
 impl Default for BootParams<'_> {
@@ -478,6 +482,7 @@ impl Default for BootParams<'_> {
             soc_manifest: Default::default(),
             mcu_fw_image: Default::default(),
             encrypted_boot: false,
+            skip_assert_end_of_stash: false,
         }
     }
 }
@@ -1003,6 +1008,11 @@ pub trait HwModel: SocManager {
                     "passive"
                 }
             )?;
+
+            if !boot_params.skip_assert_end_of_stash {
+                self.assert_end_of_stash();
+            }
+
             if subsystem_mode {
                 if boot_params.encrypted_boot {
                     self.upload_firmware_rri_encrypted(
