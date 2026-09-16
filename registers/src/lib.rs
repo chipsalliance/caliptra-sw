@@ -20,3 +20,14 @@ pub use caliptra_registers_rev_2_1::*;
 
 #[cfg(hw_rev = "2.0")]
 compile_error!("TODO: add v2.0 HW register definitions");
+
+// Unify the names that change across revisions.
+#[cfg(not(hw_rev = "2.2"))]
+pub use crate::soc_ifc::regs::{
+    CptraItrngEntropyConfig0WriteVal, CptraItrngEntropyConfig1WriteVal,
+};
+#[cfg(hw_rev = "2.2")]
+pub use crate::soc_ifc::regs::{
+    EntropyConfig0WriteVal as CptraItrngEntropyConfig0WriteVal,
+    EntropyConfig1WriteVal as CptraItrngEntropyConfig1WriteVal,
+};
