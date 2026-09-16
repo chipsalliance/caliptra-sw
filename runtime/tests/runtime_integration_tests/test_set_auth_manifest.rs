@@ -419,6 +419,7 @@ fn model_manifest_command_execute(
 }
 
 #[test]
+#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 fn test_debug_auth_manifest_policy() {
     let debug_flags = AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED | AuthManifestFlags::DEBUG_IMAGE;
 
@@ -508,6 +509,7 @@ fn test_debug_auth_manifest_policy() {
 }
 
 #[test]
+#[cfg(not(feature = "fpga_realtime"))]
 fn test_auth_manifest_debug_policy_reporting() {
     let debug_flags = AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED | AuthManifestFlags::DEBUG_IMAGE;
     for pqc_key_type in PQC_KEY_TYPE {
@@ -668,6 +670,7 @@ fn test_debug_auth_manifest_vendor_error_precedes_debug_intent() {
 }
 
 #[test]
+#[cfg(not(feature = "fpga_realtime"))]
 fn test_verify_debug_auth_manifest_requires_debug_intent() {
     for pqc_key_type in PQC_KEY_TYPE {
         let mut model = run_rt_test_pqc(

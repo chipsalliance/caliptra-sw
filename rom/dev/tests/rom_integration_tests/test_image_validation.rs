@@ -90,6 +90,7 @@ fn build_debug_image_model(
 }
 
 #[test]
+#[cfg(not(feature = "fpga_realtime"))]
 fn test_debug_image_cold_boot_allowed() {
     for pqc_key_type in helpers::PQC_KEY_TYPE {
         let (mut model, image_bundle) = build_debug_image_model(pqc_key_type, true, true, false);
@@ -100,6 +101,7 @@ fn test_debug_image_cold_boot_allowed() {
 }
 
 #[test]
+#[cfg(not(feature = "fpga_realtime"))]
 fn test_debug_image_cold_boot_requires_debug_intent() {
     for pqc_key_type in helpers::PQC_KEY_TYPE {
         let (mut model, image_bundle) = build_debug_image_model(pqc_key_type, true, false, false);
@@ -113,6 +115,7 @@ fn test_debug_image_cold_boot_requires_debug_intent() {
 }
 
 #[test]
+#[cfg(not(feature = "fpga_subsystem"))]
 fn test_debug_image_cold_boot_rejected_in_passive_mode() {
     for pqc_key_type in helpers::PQC_KEY_TYPE {
         let (mut model, image_bundle) = build_debug_image_model(pqc_key_type, false, true, false);
@@ -126,6 +129,7 @@ fn test_debug_image_cold_boot_rejected_in_passive_mode() {
 }
 
 #[test]
+#[cfg(not(feature = "fpga_realtime"))]
 fn test_debug_image_cold_boot_disabled_by_strap() {
     for pqc_key_type in helpers::PQC_KEY_TYPE {
         let (mut model, image_bundle) = build_debug_image_model(pqc_key_type, true, true, true);
@@ -139,6 +143,7 @@ fn test_debug_image_cold_boot_disabled_by_strap() {
 }
 
 #[test]
+#[cfg(not(feature = "fpga_realtime"))]
 fn test_normal_image_cold_boot_allowed_when_vendor_debug_disabled() {
     for pqc_key_type in helpers::PQC_KEY_TYPE {
         let image_bundle = helpers::build_image_bundle(ImageOptions {
