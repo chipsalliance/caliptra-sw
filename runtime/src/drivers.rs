@@ -30,6 +30,8 @@ use crate::{
     PL1_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD,
 };
 
+#[cfg(feature = "stash-measurement-registers")]
+use crate::stash_measurement::{CaliptraManagedContextAccess, StashMeasurementCmd};
 use arrayvec::ArrayVec;
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_cfi_lib::{
@@ -39,6 +41,8 @@ use caliptra_common::cfi_check;
 use caliptra_common::crypto::Crypto;
 use caliptra_common::dice::{copy_ldevid_ecc384_cert, copy_ldevid_mldsa87_cert};
 use caliptra_common::mailbox_api::AddSubjectAltNameReq;
+#[cfg(feature = "stash-measurement-registers")]
+use caliptra_common::{start_wdt, stop_wdt, WdtTimeout};
 use caliptra_dpe::commands::{Command, DeriveContextCmd};
 use caliptra_dpe::context::{Context, ContextState, ContextType};
 use caliptra_dpe::response::DeriveContextResp;
@@ -1379,5 +1383,35 @@ impl Drivers {
         let mut initialization_values_hash = Array4x12::default();
         digest_op.finalize(&mut initialization_values_hash)?;
         Ok(initialization_values_hash)
+    }
+
+    #[cfg(feature = "stash-measurement-registers")]
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
+    pub fn drain_stash_measurements(&mut self) -> CaliptraResult<()> {
+        let gen = self.soc_ifc.caliptra_generation();
+        if !(gen.major_version() > 2 || (gen.major_version() == 2 && gen.minor_version() >= 2)) {
+            return Ok(());
+        }
+
+        start_wdt(&mut self.soc_ifc, WdtTimeout::default());
+        self.soc_ifc.poll_end_stash()?;
+        stop_wdt(&mut self.soc_ifc);
+
+        for slot in self.soc_ifc.stash_measurement_iter()? {
+            let m = slot?;
+            StashMeasurementCmd::stash_measurement(
+                self,
+                &m.metadata,
+                &m.measurement,
+                m.svn,
+                PauserPrivileges::PL0,
+                self.persistent_data.get().rom.manifest1.header.pl0_pauser,
+                CaliptraManagedContextAccess::Denied,
+            )?;
+        }
+
+        self.soc_ifc.lock_stash_measurement_bank();
+
+        Ok(())
     }
 }
