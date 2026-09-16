@@ -1857,7 +1857,7 @@ impl Commands {
         )?;
 
         match (cmk.length, CmKeyUsage::from(cmk.key_usage as u32)) {
-            (48 | 64, CmKeyUsage::Hmac) => Ok(cmk),
+            (32 | 48 | 64, CmKeyUsage::Hmac) => Ok(cmk),
             _ => Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS),
         }
     }
