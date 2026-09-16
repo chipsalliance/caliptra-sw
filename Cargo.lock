@@ -1178,6 +1178,7 @@ dependencies = [
  "bitfield",
  "bitflags 2.11.0",
  "caliptra-api",
+ "caliptra-api-types",
  "caliptra-auth-man-gen",
  "caliptra-auth-man-types",
  "caliptra-builder",

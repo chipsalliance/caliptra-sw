@@ -4,6 +4,7 @@
 // ahead of time for executing tests on hosts that can't compile rust code.
 
 use crate::{FirmwareType, FwId};
+use caliptra_hw_model_types::CaliptraHwVersion;
 
 pub fn rom_from_env() -> &'static FwId<'static> {
     match std::env::var("CPTRA_ROM_TYPE").as_ref().map(|s| s.as_str()) {
@@ -230,6 +231,20 @@ pub const APP_WITH_UART_OCP_LOCK_FPGA: FwId = FwId {
     fw_type: FirmwareType::Source {
         features: &["emu", "fips_self_test", "fpga_realtime", "ocp-lock", "cfi"],
         hw_revision: None,
+    },
+};
+
+pub const APP_WITH_UART_STASH_MEASUREMENT_REGISTERS: FwId = FwId {
+    crate_name: "caliptra-runtime",
+    bin_name: "caliptra-runtime",
+    fw_type: FirmwareType::Source {
+        features: &[
+            "emu",
+            "fips_self_test",
+            "stash-measurement-registers",
+            "cfi",
+        ],
+        hw_revision: Some(CaliptraHwVersion::V2_2),
     },
 };
 
@@ -816,6 +831,7 @@ pub const REGISTERED_FW: &[&FwId] = &[
     &APP_WITH_UART_FIPS_TEST_HOOKS_FPGA,
     &APP_WITH_UART_OCP_LOCK_FPGA,
     &APP_WITH_UART_FPGA,
+    &APP_WITH_UART_STASH_MEASUREMENT_REGISTERS,
     &APP_ZEROS,
     &FMC_ZEROS,
     &caliptra_builder_tests::FWID,
