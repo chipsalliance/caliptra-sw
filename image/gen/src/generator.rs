@@ -18,15 +18,23 @@ use zerocopy::IntoBytes;
 
 use crate::*;
 
+fn image_header_flags(vendor_config: &ImageGeneratorVendorConfig) -> u32 {
+    let mut flags = 0;
+    if vendor_config.pl0_pauser.is_some() {
+        flags |= IMAGE_FLAGS_PL0_PAUSER;
+    }
+    if vendor_config.debug_image.unwrap_or(false) {
+        flags |= IMAGE_FLAGS_DEBUG_IMAGE;
+    }
+    flags
+}
+
 /// Image generator
 pub struct ImageGenerator<Crypto: ImageGeneratorCrypto> {
     crypto: Crypto,
 }
 
 impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
-    const DEFAULT_FLAGS: u32 = 0;
-    const PL0_PAUSER_FLAG: u32 = (1 << 0);
-
     /// Create an instance `ImageGenerator`
     pub fn new(crypto: Crypto) -> Self {
         Self { crypto }
@@ -298,7 +306,7 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
         let mut header = ImageHeader {
             vendor_ecc_pub_key_idx: ecc_key_idx,
             vendor_pqc_pub_key_idx: lms_key_idx,
-            flags: Self::DEFAULT_FLAGS,
+            flags: image_header_flags(&config.vendor_config),
             toc_len: MAX_TOC_ENTRY_COUNT,
             toc_digest: digest,
             svn: config.fw_svn,
@@ -309,7 +317,6 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
         header.vendor_data.vendor_not_after = config.vendor_config.not_after;
 
         if let Some(pauser) = config.vendor_config.pl0_pauser {
-            header.flags |= Self::PL0_PAUSER_FLAG;
             header.pl0_pauser = pauser;
         }
 
@@ -398,5 +405,39 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
         toc_content.extend_from_slice(fmc_toc.as_bytes());
         toc_content.extend_from_slice(rt_toc.as_bytes());
         self.crypto.sha384_digest(&toc_content)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_optional_debug_image_header_flag() {
+        for debug_image in [None, Some(false)] {
+            let config = ImageGeneratorVendorConfig {
+                debug_image,
+                ..Default::default()
+            };
+            assert_eq!(image_header_flags(&config) & IMAGE_FLAGS_DEBUG_IMAGE, 0);
+        }
+
+        let config = ImageGeneratorVendorConfig {
+            debug_image: Some(true),
+            ..Default::default()
+        };
+        assert_eq!(
+            image_header_flags(&config) & IMAGE_FLAGS_DEBUG_IMAGE,
+            IMAGE_FLAGS_DEBUG_IMAGE
+        );
+
+        let config = ImageGeneratorVendorConfig {
+            pl0_pauser: Some(1),
+            ..Default::default()
+        };
+        assert_eq!(
+            image_header_flags(&config) & IMAGE_FLAGS_PL0_PAUSER,
+            IMAGE_FLAGS_PL0_PAUSER
+        );
     }
 }

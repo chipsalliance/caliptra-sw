@@ -168,6 +168,7 @@ pub struct RuntimeTestArgs<'a> {
     pub soc_manifest_max_svn: Option<u32>,
     pub hek_seed: Option<[u32; 8]>,
     pub subsystem_mode: bool,
+    pub debug_intent: bool,
     pub successful_reach_rt: bool,
     pub ocp_lock_en: bool,
     pub stable_owner_key_en: bool,
@@ -219,6 +220,7 @@ impl Default for RuntimeTestArgs<'_> {
             soc_manifest_max_svn: None,
             hek_seed: None,
             subsystem_mode: cfg!(feature = "fpga_subsystem"),
+            debug_intent: false,
             successful_reach_rt: true,
             ocp_lock_en: cfg!(feature = "ocp-lock"),
             stable_owner_key_en: false,
@@ -345,6 +347,7 @@ pub fn start_rt_test_pqc_model(
         test_sram: args.test_sram,
         security_state: args.security_state.unwrap_or_default(),
         subsystem_mode: args.subsystem_mode,
+        debug_intent: args.debug_intent,
         ocp_lock_en: ocp_lock,
         stable_owner_key_en: args.stable_owner_key_en,
         ss_init_params: SubsystemInitParams {

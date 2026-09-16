@@ -5,6 +5,7 @@
 
 use std::mem::size_of;
 
+use caliptra_api::mailbox::ExternalMailboxCmdReq;
 pub use caliptra_api::SocManager;
 use caliptra_builder::{
     firmware::{
@@ -29,12 +30,14 @@ use caliptra_hw_model::{
     DefaultHwModel, DeviceLifecycle, HwModel, InitParams, ModelError, SecurityState,
 };
 use caliptra_image_types::FwVerificationPqcKeyType;
-use caliptra_runtime::{ContextState, PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD};
+use caliptra_runtime::{ContextState, RtBootStatus, PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD};
 use zerocopy::{FromBytes, IntoBytes, TryFromBytes};
 
 use crate::common::{
     calculate_cptra_config_init_vals_hash, run_rt_test, run_rt_test_return_fw, RuntimeTestArgs,
 };
+use crate::test_activate_firmware::TEST_SRAM_BASE;
+use crate::test_info::get_fwinfo_allow_attestation_disabled;
 
 pub fn update_fw(model: &mut DefaultHwModel, rt_fw: &FwId<'static>, image_opts: ImageOptions) {
     let image = caliptra_builder::build_and_sign_image(&FMC_WITH_UART, rt_fw, image_opts)
@@ -44,6 +47,20 @@ pub fn update_fw(model: &mut DefaultHwModel, rt_fw: &FwId<'static>, image_opts: 
     model
         .mailbox_execute(u32::from(CommandId::FIRMWARE_LOAD), &image)
         .unwrap();
+}
+
+fn external_fw_load_req(staging_offset: usize, image_size: usize) -> MailboxReq {
+    let staging_address =
+        ((TEST_SRAM_BASE.hi as u64) << 32) | (TEST_SRAM_BASE.lo as u64 + staging_offset as u64);
+    let mut request = MailboxReq::ExternalMailboxCmd(ExternalMailboxCmdReq {
+        command_id: u32::from(CommandId::FIRMWARE_LOAD),
+        command_size: image_size as u32,
+        axi_address_start_low: staging_address as u32,
+        axi_address_start_high: (staging_address >> 32) as u32,
+        ..Default::default()
+    });
+    request.populate_chksum().unwrap();
+    request
 }
 
 pub fn mbox_test_image() -> &'static FwId<'static> {
@@ -76,6 +93,7 @@ const OPCODE_READ_CACHED_DPE_CCIV_CONTEXT_MEASUREMENT: u32 = 0x6000_0006;
 const OPCODE_READ_CACHED_DPE_CCIV_CONTEXT_CUMULATIVE: u32 = 0x6000_0007;
 const OPCODE_READ_CACHED_DPE_MCU_RT_CONTEXT_MEASUREMENT: u32 = 0x6000_0008;
 const OPCODE_READ_CACHED_DPE_MCU_RT_CONTEXT_CUMULATIVE: u32 = 0x6000_0009;
+const DISABLE_VENDOR_DEBUG_IMAGES: u32 = 1 << 31;
 
 fn read_48_byte_test_response(model: &mut DefaultHwModel, cmd: u32) -> [u8; 48] {
     model
@@ -200,6 +218,167 @@ fn test_rt_journey_pcr_not_updated_with_bad_fw() {
     let new_rt_journey_pcr: [u8; 48] = new_rt_journey_pcr_resp.as_bytes().try_into().unwrap();
 
     assert_eq!(orig_rt_journey_pcr, new_rt_journey_pcr);
+}
+
+#[cfg_attr(any(feature = "fpga_realtime", feature = "fpga_subsystem"), ignore)]
+#[test]
+fn test_fw_info_debug_policy_tracks_update_reset() {
+    let normal_image_options = ImageOptions::default();
+    let mut debug_image_options = normal_image_options.clone();
+    debug_image_options.vendor_config.debug_image = Some(true);
+
+    let normal_image = caliptra_builder::build_and_sign_image(
+        &FMC_WITH_UART,
+        app_test_image(),
+        normal_image_options,
+    )
+    .unwrap()
+    .to_bytes()
+    .unwrap();
+    let debug_image = caliptra_builder::build_and_sign_image(
+        &FMC_WITH_UART,
+        app_test_image(),
+        debug_image_options.clone(),
+    )
+    .unwrap()
+    .to_bytes()
+    .unwrap();
+
+    let debug_image_offset = normal_image.len().next_multiple_of(4);
+    let mut test_sram = vec![0u8; debug_image_offset + debug_image.len()];
+    test_sram[..normal_image.len()].copy_from_slice(&normal_image);
+    test_sram[debug_image_offset..].copy_from_slice(&debug_image);
+
+    let mut model = run_rt_test(RuntimeTestArgs {
+        test_fwid: Some(app_test_image()),
+        test_image_options: Some(debug_image_options),
+        test_sram: Some(&test_sram),
+        subsystem_mode: true,
+        debug_intent: true,
+        ..Default::default()
+    });
+    model.step_until(|model| {
+        model.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+    assert_eq!(
+        get_fwinfo_allow_attestation_disabled(&mut model).debug_policy,
+        FwInfoResp::DEBUG_FIRMWARE_ACTIVE
+    );
+
+    let request = external_fw_load_req(0, normal_image.len());
+    model
+        .mailbox_execute(
+            u32::from(CommandId::EXTERNAL_MAILBOX_CMD),
+            request.as_bytes().unwrap(),
+        )
+        .unwrap();
+    model.step_until_ready_for_runtime();
+    assert_eq!(
+        get_fwinfo_allow_attestation_disabled(&mut model).debug_policy,
+        0
+    );
+
+    let request = external_fw_load_req(debug_image_offset, debug_image.len());
+    model
+        .mailbox_execute(
+            u32::from(CommandId::EXTERNAL_MAILBOX_CMD),
+            request.as_bytes().unwrap(),
+        )
+        .unwrap();
+    model.step_until_ready_for_runtime();
+    assert_eq!(
+        get_fwinfo_allow_attestation_disabled(&mut model).debug_policy,
+        FwInfoResp::DEBUG_FIRMWARE_ACTIVE
+    );
+}
+
+#[cfg_attr(any(feature = "fpga_realtime", feature = "fpga_subsystem"), ignore)]
+#[test]
+fn test_rejected_debug_update_preserves_fw_info_policy() {
+    let mut debug_image_options = ImageOptions::default();
+    debug_image_options.vendor_config.debug_image = Some(true);
+    let debug_image = caliptra_builder::build_and_sign_image(
+        &FMC_WITH_UART,
+        app_test_image(),
+        debug_image_options,
+    )
+    .unwrap()
+    .to_bytes()
+    .unwrap();
+
+    let mut model = run_rt_test(RuntimeTestArgs {
+        test_fwid: Some(app_test_image()),
+        test_sram: Some(&debug_image),
+        subsystem_mode: true,
+        debug_intent: false,
+        ..Default::default()
+    });
+    assert_eq!(
+        get_fwinfo_allow_attestation_disabled(&mut model).debug_policy,
+        0
+    );
+
+    let request = external_fw_load_req(0, debug_image.len());
+    assert_eq!(
+        model.mailbox_execute(
+            u32::from(CommandId::EXTERNAL_MAILBOX_CMD),
+            request.as_bytes().unwrap(),
+        ),
+        Err(ModelError::MailboxCmdFailed(
+            CaliptraError::IMAGE_VERIFIER_ERR_DEBUG_IMAGE_NOT_ALLOWED.into()
+        ))
+    );
+
+    model.step_until_ready_for_runtime();
+    assert_eq!(
+        model.soc_ifc().cptra_fw_error_non_fatal().read(),
+        u32::from(CaliptraError::IMAGE_VERIFIER_ERR_DEBUG_IMAGE_NOT_ALLOWED)
+    );
+    assert_eq!(
+        get_fwinfo_allow_attestation_disabled(&mut model).debug_policy,
+        0
+    );
+}
+
+#[cfg_attr(any(feature = "fpga_realtime", feature = "fpga_subsystem"), ignore)]
+#[test]
+fn test_debug_update_disabled_by_strap_preserves_fw_info_policy() {
+    let mut debug_image_options = ImageOptions::default();
+    debug_image_options.vendor_config.debug_image = Some(true);
+    let debug_image = caliptra_builder::build_and_sign_image(
+        &FMC_WITH_UART,
+        app_test_image(),
+        debug_image_options,
+    )
+    .unwrap()
+    .to_bytes()
+    .unwrap();
+
+    let mut model = run_rt_test(RuntimeTestArgs {
+        test_fwid: Some(app_test_image()),
+        test_sram: Some(&debug_image),
+        subsystem_mode: true,
+        debug_intent: true,
+        initial_ss_strap_generic_3: Some(DISABLE_VENDOR_DEBUG_IMAGES),
+        ..Default::default()
+    });
+
+    let request = external_fw_load_req(0, debug_image.len());
+    assert_eq!(
+        model.mailbox_execute(
+            u32::from(CommandId::EXTERNAL_MAILBOX_CMD),
+            request.as_bytes().unwrap(),
+        ),
+        Err(ModelError::MailboxCmdFailed(
+            CaliptraError::IMAGE_VERIFIER_ERR_DEBUG_IMAGE_NOT_ALLOWED.into()
+        ))
+    );
+
+    model.step_until_ready_for_runtime();
+    assert_eq!(
+        get_fwinfo_allow_attestation_disabled(&mut model).debug_policy,
+        0
+    );
 }
 
 #[test]
