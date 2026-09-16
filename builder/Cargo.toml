@@ -35,6 +35,7 @@ default = ["openssl"]
 slow_tests = []
 openssl = ["caliptra-image-crypto/openssl"]
 rustcrypto = ["caliptra-image-crypto/rustcrypto"]
+stash-measurement-registers = []
 
 [[bin]]
 name = "image"
