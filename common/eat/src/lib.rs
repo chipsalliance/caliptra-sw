@@ -88,6 +88,7 @@ pub use claim_keys::*;
 // Used to create signed EAT tokens with protected/unprotected headers
 pub use cose::{
     header_params,  // COSE header parameter constants (ALG, CONTENT_TYPE, KID, X5CHAIN)
+    CoseAlgorithm,  // Concrete COSE signing algorithm
     CoseHeaderPair, // Key-value pair for unprotected headers
     CoseSign1,      // COSE Sign1 encoder with default buffer
     CoseSign1WithBuffer, // COSE Sign1 encoder with custom buffer size
@@ -117,9 +118,10 @@ pub use ocp_profile::{
     MeasurementMap,    // Single measurement entry
     MeasurementValue,  // Measurement value with digests/raw values
     // OCP EAT claims and metadata
-    OcpEatClaims, // Complete OCP EAT token payload
-    PrivateClaim, // Custom private claims (keys < -65536)
-    VersionMap,   // Version map with version string and optional scheme
+    OcpEatClaims,  // Complete OCP EAT token payload
+    OcpEatProfile, // OCP profile policy and OID
+    PrivateClaim,  // Custom private claims (keys < -65536)
+    VersionMap,    // Version map with version string and optional scheme
 };
 
 // Re-export Attested CSR EAT types for provisioning workflows

@@ -23,6 +23,42 @@ pub mod cose_alg {
     pub const MLDSA87: i32 = -50; // CBOR Object Signing Algorithm for ML-DSA-87
 }
 
+/// Raw COSE signature sizes.
+pub mod signature_size {
+    pub const ESP384: usize = 96;
+    pub const MLDSA87: usize = 4627;
+}
+
+/// Concrete COSE signing algorithm.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CoseAlgorithm {
+    Esp384,
+    Mldsa87,
+}
+
+impl CoseAlgorithm {
+    pub const fn id(self) -> i32 {
+        match self {
+            Self::Esp384 => cose_alg::ESP384,
+            Self::Mldsa87 => cose_alg::MLDSA87,
+        }
+    }
+
+    pub const fn signature_size(self) -> usize {
+        match self {
+            Self::Esp384 => signature_size::ESP384,
+            Self::Mldsa87 => signature_size::MLDSA87,
+        }
+    }
+
+    pub fn protected_header(self) -> ProtectedHeader<'static> {
+        match self {
+            Self::Esp384 => ProtectedHeader::new_es384(),
+            Self::Mldsa87 => ProtectedHeader::new_mldsa87(),
+        }
+    }
+}
+
 /// COSE content type constants
 pub mod content_type {
     pub const APPLICATION_EAT_CWT: u16 = 263; // "application/eat+cwt"
@@ -307,8 +343,22 @@ mod tests {
 
     #[test]
     fn test_protected_header_new_es384() {
-        let header = ProtectedHeader::new_es384();
+        let algorithm = CoseAlgorithm::Esp384;
+        let header = algorithm.protected_header();
         assert_eq!(header.alg, cose_alg::ESP384);
+        assert_eq!(algorithm.id(), cose_alg::ESP384);
+        assert_eq!(algorithm.signature_size(), 96);
+        assert_eq!(header.content_type, content_type::APPLICATION_EAT_CWT);
+        assert!(header.kid.is_none());
+    }
+
+    #[test]
+    fn test_protected_header_new_mldsa87() {
+        let algorithm = CoseAlgorithm::Mldsa87;
+        let header = algorithm.protected_header();
+        assert_eq!(header.alg, cose_alg::MLDSA87);
+        assert_eq!(algorithm.id(), cose_alg::MLDSA87);
+        assert_eq!(algorithm.signature_size(), 4627);
         assert_eq!(header.content_type, content_type::APPLICATION_EAT_CWT);
         assert!(header.kid.is_none());
     }
