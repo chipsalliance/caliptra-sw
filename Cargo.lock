@@ -1040,6 +1040,7 @@ version = "0.1.0"
 dependencies = [
  "caliptra-registers-latest",
  "caliptra-registers-rev-2-1",
+ "caliptra-registers-rev-2-2",
 ]
 
 [[package]]
