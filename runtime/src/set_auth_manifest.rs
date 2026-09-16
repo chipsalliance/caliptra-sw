@@ -30,6 +30,7 @@ use caliptra_cfi_lib::{
     cfi_assert, cfi_assert_bool, cfi_assert_eq, cfi_assert_ge, cfi_assert_le, cfi_launder,
 };
 use caliptra_common::mailbox_api::SetAuthManifestReq;
+use caliptra_dpe::U8Bool;
 use caliptra_drivers::{
     Array4x12, Array4xN, CaliptraError, CaliptraResult, Ecc384, Ecc384PubKey, Ecc384Signature,
     HashValue, Lifecycle, Lms, Mldsa87, Mldsa87PubKey, Mldsa87Result, Mldsa87Signature, Sha256,
@@ -832,6 +833,16 @@ impl SetAuthManifestCmd {
             pqc_key_type,
         )?;
 
+        let flags = AuthManifestFlags::from(auth_manifest_preamble.flags);
+        if flags.contains(AuthManifestFlags::DEBUG_IMAGE) {
+            if !flags.contains(AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED) {
+                Err(CaliptraError::RUNTIME_AUTH_MANIFEST_INVALID_FLAGS)?;
+            }
+            if !drivers.soc_ifc.vendor_debug_image_allowed() {
+                Err(CaliptraError::RUNTIME_AUTH_MANIFEST_DEBUG_IMAGE_NOT_ALLOWED)?;
+            }
+        }
+
         // Verify the owner public keys.
         Self::verify_owner_pub_keys(
             &auth_manifest_preamble,
@@ -864,6 +875,8 @@ impl SetAuthManifestCmd {
                 let persistent_data = drivers.persistent_data.get_mut();
                 persistent_data.auth_manifest_digest = auth_manifest_digest;
                 persistent_data.auth_manifest_svn = auth_manifest_preamble.svn;
+                persistent_data.auth_manifest_is_debug =
+                    U8Bool::new(flags.contains(AuthManifestFlags::DEBUG_IMAGE));
             }
             // Store the SoC manifest SVN for use as the MCU RT current_svn
             // when creating the MCU RT DPE context during recovery boot or

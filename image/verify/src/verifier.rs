@@ -731,6 +731,21 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             cfi_assert_eq(header.vendor_pqc_pub_key_idx, info.vendor_pqc_pub_key_idx);
         }
 
+        // Debug images can only be loaded in subsystem mode when SS_DEBUG_INTENT is asserted.
+        let debug_image = (header.flags & IMAGE_FLAGS_DEBUG_IMAGE) != 0;
+        if cfi_launder(debug_image) {
+            cfi_assert_bool(debug_image);
+
+            let debug_image_allowed = self.env.debug_image_allowed();
+            if !cfi_launder(debug_image_allowed) {
+                cfi_assert_bool(!debug_image_allowed);
+                Err(CaliptraError::IMAGE_VERIFIER_ERR_DEBUG_IMAGE_NOT_ALLOWED)?;
+            }
+            cfi_assert_bool(debug_image_allowed);
+        } else {
+            cfi_assert_bool(!debug_image);
+        }
+
         // Verify owner signatures.
         self.verify_owner_sig(
             &owner_signdata_holder,
@@ -1885,6 +1900,104 @@ mod tests {
     }
 
     #[test]
+    fn test_debug_image_rejected_without_permission() {
+        let test_env = TestEnv {
+            verify_result: true,
+            verify_pqc_result: true,
+            ..Default::default()
+        };
+        let mut verifier = ImageVerifier::new(test_env);
+        let header = ImageHeader {
+            flags: IMAGE_FLAGS_DEBUG_IMAGE,
+            ..Default::default()
+        };
+        let binding_vendor_lms_pubkey = vendor_lms_pubkey();
+        let binding_vendor_lms_sig = vendor_lms_sig();
+        let owner_lms_pubkey = ImageLmsPublicKey::default();
+        let owner_lms_sig = ImageLmsSignature::default();
+        let header_info = HeaderInfo {
+            vendor_ecc_pub_key_idx: 0,
+            vendor_pqc_pub_key_idx: 0,
+            vendor_ecc_info: (&VENDOR_ECC_PUBKEY, &VENDOR_ECC_SIG),
+            vendor_pqc_info: PqcKeyInfo::Lms(&binding_vendor_lms_pubkey, &binding_vendor_lms_sig),
+            owner_ecc_info: (&ImageEccPubKey::default(), &ImageEccSignature::default()),
+            owner_pqc_info: PqcKeyInfo::Lms(&owner_lms_pubkey, &owner_lms_sig),
+            owner_pub_keys_digest: ImageDigest384::default(),
+            owner_pub_keys_digest_in_fuses: false,
+            vendor_ecc_pub_key_revocation: Default::default(),
+            vendor_pqc_pub_key_revocation: Default::default(),
+        };
+
+        assert_eq!(
+            verifier.verify_header(&header, &header_info).err(),
+            Some(CaliptraError::IMAGE_VERIFIER_ERR_DEBUG_IMAGE_NOT_ALLOWED)
+        );
+    }
+
+    #[test]
+    fn test_debug_image_allowed_with_permission() {
+        let test_env = TestEnv {
+            verify_result: true,
+            verify_pqc_result: true,
+            debug_image_allowed: true,
+            ..Default::default()
+        };
+        let mut verifier = ImageVerifier::new(test_env);
+        let header = ImageHeader {
+            flags: IMAGE_FLAGS_DEBUG_IMAGE,
+            ..Default::default()
+        };
+        let binding_vendor_lms_pubkey = vendor_lms_pubkey();
+        let binding_vendor_lms_sig = vendor_lms_sig();
+        let owner_lms_pubkey = ImageLmsPublicKey::default();
+        let owner_lms_sig = ImageLmsSignature::default();
+        let header_info = HeaderInfo {
+            vendor_ecc_pub_key_idx: 0,
+            vendor_pqc_pub_key_idx: 0,
+            vendor_ecc_info: (&VENDOR_ECC_PUBKEY, &VENDOR_ECC_SIG),
+            vendor_pqc_info: PqcKeyInfo::Lms(&binding_vendor_lms_pubkey, &binding_vendor_lms_sig),
+            owner_ecc_info: (&OWNER_ECC_PUBKEY, &OWNER_ECC_SIG),
+            owner_pqc_info: PqcKeyInfo::Lms(&owner_lms_pubkey, &owner_lms_sig),
+            owner_pub_keys_digest: ImageDigest384::default(),
+            owner_pub_keys_digest_in_fuses: false,
+            vendor_ecc_pub_key_revocation: Default::default(),
+            vendor_pqc_pub_key_revocation: Default::default(),
+        };
+
+        assert!(verifier.verify_header(&header, &header_info).is_ok());
+    }
+
+    #[test]
+    fn test_debug_image_vendor_error_precedes_permission_error() {
+        let mut verifier = ImageVerifier::new(TestEnv::default());
+        let header = ImageHeader {
+            flags: IMAGE_FLAGS_DEBUG_IMAGE,
+            ..Default::default()
+        };
+        let binding_vendor_lms_pubkey = vendor_lms_pubkey();
+        let binding_vendor_lms_sig = vendor_lms_sig();
+        let owner_lms_pubkey = ImageLmsPublicKey::default();
+        let owner_lms_sig = ImageLmsSignature::default();
+        let header_info = HeaderInfo {
+            vendor_ecc_pub_key_idx: 0,
+            vendor_pqc_pub_key_idx: 0,
+            vendor_ecc_info: (&VENDOR_ECC_PUBKEY, &VENDOR_ECC_SIG),
+            vendor_pqc_info: PqcKeyInfo::Lms(&binding_vendor_lms_pubkey, &binding_vendor_lms_sig),
+            owner_ecc_info: (&ImageEccPubKey::default(), &ImageEccSignature::default()),
+            owner_pqc_info: PqcKeyInfo::Lms(&owner_lms_pubkey, &owner_lms_sig),
+            owner_pub_keys_digest: ImageDigest384::default(),
+            owner_pub_keys_digest_in_fuses: false,
+            vendor_ecc_pub_key_revocation: Default::default(),
+            vendor_pqc_pub_key_revocation: Default::default(),
+        };
+
+        assert_eq!(
+            verifier.verify_header(&header, &header_info).err(),
+            Some(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_SIGNATURE_INVALID)
+        );
+    }
+
+    #[test]
     fn test_toc_incorrect_length() {
         let manifest = ImageManifest::default();
         let test_env = TestEnv::default();
@@ -2331,6 +2444,7 @@ mod tests {
         owner_pub_key_digest: ImageDigest384,
         lifecycle: Lifecycle,
         pqc_key_type: FwVerificationPqcKeyType,
+        debug_image_allowed: bool,
     }
 
     impl Default for TestEnv {
@@ -2347,6 +2461,7 @@ mod tests {
                 owner_pub_key_digest: ImageDigest384::default(),
                 lifecycle: Lifecycle::Unprovisioned,
                 pqc_key_type: FwVerificationPqcKeyType::MLDSA,
+                debug_image_allowed: false,
             }
         }
     }
@@ -2480,6 +2595,10 @@ mod tests {
 
         fn dot_owner_pk_hash(&self) -> Option<&ImageDigest384> {
             Some(&self.owner_pub_key_digest)
+        }
+
+        fn debug_image_allowed(&self) -> bool {
+            self.debug_image_allowed
         }
     }
 }

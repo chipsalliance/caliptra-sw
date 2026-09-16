@@ -267,6 +267,9 @@ pub struct ImageGeneratorVendorConfig {
     pub not_after: [u8; 15],
 
     pub pl0_pauser: Option<u32>,
+
+    /// Generate a vendor-authorized debug image when set to `Some(true)`.
+    pub debug_image: Option<bool>,
 }
 
 /// Image Generator Owner Configuration

@@ -1672,6 +1672,12 @@ pub struct FwInfoResp {
     pub soc_manifest_min_svn: u32,
     pub owner_auth_manifest_current_svn: u32,
     pub owner_auth_manifest_min_svn: u32,
+    pub debug_policy: u32,
+}
+
+impl FwInfoResp {
+    pub const DEBUG_FIRMWARE_ACTIVE: u32 = 1 << 0;
+    pub const DEBUG_AUTH_MANIFEST_ACTIVE: u32 = 1 << 1;
 }
 
 // CAPABILITIES

@@ -6,7 +6,7 @@ pub use caliptra_api::SocManager;
 use caliptra_builder::{
     firmware::{
         runtime_tests::{MBOX, MBOX_FPGA, MBOX_WITHOUT_UART, MBOX_WITHOUT_UART_FPGA},
-        APP_WITH_UART, FMC_FAKE_WITH_UART, FMC_WITH_UART,
+        APP_WITH_UART, APP_WITH_UART_FPGA, FMC_FAKE_WITH_UART, FMC_WITH_UART,
     },
     FwId, ImageOptions,
 };
@@ -26,12 +26,14 @@ use caliptra_hw_model::{
     DefaultHwModel, DeviceLifecycle, HwModel, InitParams, ModelError, SecurityState,
 };
 use caliptra_image_types::FwVerificationPqcKeyType;
-use caliptra_runtime::{ContextState, PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD};
+use caliptra_runtime::{ContextState, RtBootStatus, PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD};
 use zerocopy::{FromBytes, IntoBytes, TryFromBytes};
 
 use crate::common::{
-    calculate_cptra_config_init_vals_hash, run_rt_test, run_rt_test_return_fw, RuntimeTestArgs,
+    calculate_cptra_config_init_vals_hash, default_soc_manifest_bytes, run_rt_test,
+    run_rt_test_return_fw, RuntimeTestArgs, DEFAULT_MCU_FW,
 };
+use crate::test_info::get_fwinfo_allow_attestation_disabled;
 
 pub fn update_fw(model: &mut DefaultHwModel, rt_fw: &FwId<'static>, image_opts: ImageOptions) {
     let image = caliptra_builder::build_and_sign_image(&FMC_WITH_UART, rt_fw, image_opts)
@@ -59,12 +61,21 @@ pub fn mbox_test_image_without_uart() -> &'static FwId<'static> {
     }
 }
 
+fn app_test_image() -> &'static FwId<'static> {
+    if cfg!(any(feature = "fpga_realtime", feature = "fpga_subsystem")) {
+        &APP_WITH_UART_FPGA
+    } else {
+        &APP_WITH_UART
+    }
+}
+
 const OPCODE_INVALIDATE_DPE_INDEX_CACHE: u32 = 0x6000_0004;
 const OPCODE_READ_DPE_INDEX_CACHE: u32 = 0x6000_0005;
 const OPCODE_READ_CACHED_DPE_CCIV_CONTEXT_MEASUREMENT: u32 = 0x6000_0006;
 const OPCODE_READ_CACHED_DPE_CCIV_CONTEXT_CUMULATIVE: u32 = 0x6000_0007;
 const OPCODE_READ_CACHED_DPE_MCU_RT_CONTEXT_MEASUREMENT: u32 = 0x6000_0008;
 const OPCODE_READ_CACHED_DPE_MCU_RT_CONTEXT_CUMULATIVE: u32 = 0x6000_0009;
+const DISABLE_VENDOR_DEBUG_IMAGES: u32 = 1 << 31;
 
 fn read_48_byte_test_response(model: &mut DefaultHwModel, cmd: u32) -> [u8; 48] {
     model
@@ -197,6 +208,159 @@ fn test_rt_journey_pcr_not_updated_with_bad_fw() {
     let new_rt_journey_pcr: [u8; 48] = new_rt_journey_pcr_resp.as_bytes().try_into().unwrap();
 
     assert_eq!(orig_rt_journey_pcr, new_rt_journey_pcr);
+}
+
+#[cfg_attr(any(feature = "fpga_realtime", feature = "fpga_subsystem"), ignore)]
+#[test]
+fn test_fw_info_debug_policy_tracks_update_reset() {
+    let normal_image_options = ImageOptions {
+        pqc_key_type: FwVerificationPqcKeyType::LMS,
+        ..Default::default()
+    };
+    let mut debug_image_options = normal_image_options.clone();
+    debug_image_options.vendor_config.debug_image = Some(true);
+
+    let normal_image = caliptra_builder::build_and_sign_image(
+        &FMC_WITH_UART,
+        app_test_image(),
+        normal_image_options,
+    )
+    .unwrap()
+    .to_bytes()
+    .unwrap();
+    let debug_image = caliptra_builder::build_and_sign_image(
+        &FMC_WITH_UART,
+        app_test_image(),
+        debug_image_options.clone(),
+    )
+    .unwrap()
+    .to_bytes()
+    .unwrap();
+
+    let mut model = run_rt_test(RuntimeTestArgs {
+        test_fwid: Some(app_test_image()),
+        test_image_options: Some(debug_image_options),
+        subsystem_mode: true,
+        debug_intent: true,
+        ..Default::default()
+    });
+    model.step_until(|model| {
+        model.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+    assert_eq!(
+        get_fwinfo_allow_attestation_disabled(&mut model).debug_policy,
+        FwInfoResp::DEBUG_FIRMWARE_ACTIVE
+    );
+
+    let soc_manifest = default_soc_manifest_bytes(FwVerificationPqcKeyType::LMS, 0);
+    model
+        .put_firmware_in_rri(&normal_image, Some(&soc_manifest), Some(DEFAULT_MCU_FW))
+        .unwrap();
+    model
+        .mailbox_execute(u32::from(CommandId::FIRMWARE_LOAD), &normal_image)
+        .unwrap();
+    model.step_until_ready_for_runtime();
+    assert_eq!(
+        get_fwinfo_allow_attestation_disabled(&mut model).debug_policy,
+        0
+    );
+
+    model
+        .put_firmware_in_rri(&debug_image, Some(&soc_manifest), Some(DEFAULT_MCU_FW))
+        .unwrap();
+    model
+        .mailbox_execute(u32::from(CommandId::FIRMWARE_LOAD), &debug_image)
+        .unwrap();
+    model.step_until_ready_for_runtime();
+    assert_eq!(
+        get_fwinfo_allow_attestation_disabled(&mut model).debug_policy,
+        FwInfoResp::DEBUG_FIRMWARE_ACTIVE
+    );
+}
+
+#[cfg_attr(any(feature = "fpga_realtime", feature = "fpga_subsystem"), ignore)]
+#[test]
+fn test_rejected_debug_update_preserves_fw_info_policy() {
+    let mut debug_image_options = ImageOptions {
+        pqc_key_type: FwVerificationPqcKeyType::LMS,
+        ..Default::default()
+    };
+    debug_image_options.vendor_config.debug_image = Some(true);
+    let debug_image = caliptra_builder::build_and_sign_image(
+        &FMC_WITH_UART,
+        app_test_image(),
+        debug_image_options,
+    )
+    .unwrap()
+    .to_bytes()
+    .unwrap();
+
+    let mut model = run_rt_test(RuntimeTestArgs {
+        test_fwid: Some(app_test_image()),
+        subsystem_mode: true,
+        debug_intent: false,
+        ..Default::default()
+    });
+    assert_eq!(
+        get_fwinfo_allow_attestation_disabled(&mut model).debug_policy,
+        0
+    );
+
+    assert_eq!(
+        model.mailbox_execute(u32::from(CommandId::FIRMWARE_LOAD), &debug_image),
+        Err(ModelError::MailboxCmdFailed(
+            CaliptraError::IMAGE_VERIFIER_ERR_DEBUG_IMAGE_NOT_ALLOWED.into()
+        ))
+    );
+
+    model.step_until_ready_for_runtime();
+    assert_eq!(
+        model.soc_ifc().cptra_fw_error_non_fatal().read(),
+        u32::from(CaliptraError::IMAGE_VERIFIER_ERR_DEBUG_IMAGE_NOT_ALLOWED)
+    );
+    assert_eq!(
+        get_fwinfo_allow_attestation_disabled(&mut model).debug_policy,
+        0
+    );
+}
+
+#[cfg_attr(any(feature = "fpga_realtime", feature = "fpga_subsystem"), ignore)]
+#[test]
+fn test_debug_update_disabled_by_strap_preserves_fw_info_policy() {
+    let mut debug_image_options = ImageOptions {
+        pqc_key_type: FwVerificationPqcKeyType::LMS,
+        ..Default::default()
+    };
+    debug_image_options.vendor_config.debug_image = Some(true);
+    let debug_image = caliptra_builder::build_and_sign_image(
+        &FMC_WITH_UART,
+        app_test_image(),
+        debug_image_options,
+    )
+    .unwrap()
+    .to_bytes()
+    .unwrap();
+
+    let mut model = run_rt_test(RuntimeTestArgs {
+        test_fwid: Some(app_test_image()),
+        subsystem_mode: true,
+        debug_intent: true,
+        initial_ss_strap_generic_3: Some(DISABLE_VENDOR_DEBUG_IMAGES),
+        ..Default::default()
+    });
+
+    assert_eq!(
+        model.mailbox_execute(u32::from(CommandId::FIRMWARE_LOAD), &debug_image),
+        Err(ModelError::MailboxCmdFailed(
+            CaliptraError::IMAGE_VERIFIER_ERR_DEBUG_IMAGE_NOT_ALLOWED.into()
+        ))
+    );
+
+    model.step_until_ready_for_runtime();
+    assert_eq!(
+        get_fwinfo_allow_attestation_disabled(&mut model).debug_policy,
+        0
+    );
 }
 
 #[test]

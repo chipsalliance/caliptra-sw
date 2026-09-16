@@ -15,7 +15,7 @@ use caliptra_common::{
     memory_layout::{ICCM_ORG, ICCM_SIZE},
     RomBootStatus::*,
 };
-use caliptra_drivers::{Array4x12, IdevidCertAttr, MfgFlags};
+use caliptra_drivers::{Array4x12, DmaRecovery, IdevidCertAttr, MfgFlags};
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{
     BootParams, DefaultHwModel, DeviceLifecycle, Fuses, HwModel, InitParams, SecurityState,
@@ -47,6 +47,139 @@ use zerocopy::{FromBytes, IntoBytes};
 use crate::helpers;
 
 const ICCM_END_ADDR: u32 = ICCM_ORG + ICCM_SIZE - 1;
+const DISABLE_VENDOR_DEBUG_IMAGES: u32 = 1 << 31;
+
+fn build_debug_image_model(
+    pqc_key_type: FwVerificationPqcKeyType,
+    subsystem_mode: bool,
+    debug_intent: bool,
+    disable_vendor_debug_images: bool,
+) -> (DefaultHwModel, ImageBundle) {
+    let image_options = ImageOptions {
+        vendor_config: ImageGeneratorVendorConfig {
+            debug_image: Some(true),
+            ..VENDOR_CONFIG_KEY_0
+        },
+        pqc_key_type,
+        ..Default::default()
+    };
+    let image_bundle = helpers::build_image_bundle(image_options);
+    let rom = caliptra_builder::build_firmware_rom(helpers::rom_from_env()).unwrap();
+    let model = caliptra_hw_model::new(
+        InitParams {
+            fuses: Fuses {
+                fuse_pqc_key_type: pqc_key_type as u32,
+                ..Default::default()
+            },
+            rom: &rom,
+            subsystem_mode,
+            debug_intent,
+            ..Default::default()
+        },
+        BootParams {
+            initial_ss_strap_generic_3: disable_vendor_debug_images
+                .then_some(DISABLE_VENDOR_DEBUG_IMAGES),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    (model, image_bundle)
+}
+
+#[test]
+#[cfg(not(feature = "fpga_realtime"))]
+fn test_debug_image_cold_boot_allowed() {
+    for pqc_key_type in helpers::PQC_KEY_TYPE {
+        let (mut model, image_bundle) = build_debug_image_model(pqc_key_type, true, true, false);
+        helpers::test_upload_firmware(&mut model, &image_bundle.to_bytes().unwrap(), pqc_key_type);
+        model.step_until_boot_status(u32::from(ColdResetComplete), true);
+        assert_eq!(model.soc_ifc().cptra_fw_error_fatal().read(), 0);
+    }
+}
+
+#[test]
+#[cfg(not(feature = "fpga_realtime"))]
+fn test_debug_image_cold_boot_requires_debug_intent() {
+    for pqc_key_type in helpers::PQC_KEY_TYPE {
+        let (mut model, image_bundle) = build_debug_image_model(pqc_key_type, true, false, false);
+        helpers::assert_fatal_fw_load(
+            &mut model,
+            pqc_key_type,
+            &image_bundle.to_bytes().unwrap(),
+            CaliptraError::IMAGE_VERIFIER_ERR_DEBUG_IMAGE_NOT_ALLOWED,
+        );
+    }
+}
+
+#[test]
+#[cfg(not(feature = "fpga_subsystem"))]
+fn test_debug_image_cold_boot_rejected_in_passive_mode() {
+    for pqc_key_type in helpers::PQC_KEY_TYPE {
+        let (mut model, image_bundle) = build_debug_image_model(pqc_key_type, false, true, false);
+        helpers::assert_fatal_fw_load(
+            &mut model,
+            pqc_key_type,
+            &image_bundle.to_bytes().unwrap(),
+            CaliptraError::IMAGE_VERIFIER_ERR_DEBUG_IMAGE_NOT_ALLOWED,
+        );
+    }
+}
+
+#[test]
+#[cfg(not(feature = "fpga_realtime"))]
+fn test_debug_image_cold_boot_disabled_by_strap() {
+    for pqc_key_type in helpers::PQC_KEY_TYPE {
+        let (mut model, image_bundle) = build_debug_image_model(pqc_key_type, true, true, true);
+        helpers::assert_fatal_fw_load(
+            &mut model,
+            pqc_key_type,
+            &image_bundle.to_bytes().unwrap(),
+            CaliptraError::IMAGE_VERIFIER_ERR_DEBUG_IMAGE_NOT_ALLOWED,
+        );
+    }
+}
+
+#[test]
+#[cfg(not(feature = "fpga_realtime"))]
+fn test_normal_image_cold_boot_allowed_when_vendor_debug_disabled() {
+    for pqc_key_type in helpers::PQC_KEY_TYPE {
+        let image_bundle = helpers::build_image_bundle(ImageOptions {
+            pqc_key_type,
+            ..Default::default()
+        });
+        let rom = caliptra_builder::build_firmware_rom(helpers::rom_from_env()).unwrap();
+        let mut model = caliptra_hw_model::new(
+            InitParams {
+                fuses: Fuses {
+                    fuse_pqc_key_type: pqc_key_type as u32,
+                    ..Default::default()
+                },
+                rom: &rom,
+                subsystem_mode: true,
+                debug_intent: true,
+                ..Default::default()
+            },
+            BootParams {
+                initial_ss_strap_generic_3: Some(DISABLE_VENDOR_DEBUG_IMAGES),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        helpers::test_upload_firmware(&mut model, &image_bundle.to_bytes().unwrap(), pqc_key_type);
+        model.step_until_boot_status(u32::from(ColdResetComplete), true);
+        assert_eq!(model.soc_ifc().cptra_fw_error_fatal().read(), 0);
+    }
+}
+
+#[test]
+fn test_debug_image_recovery_reason() {
+    assert_eq!(
+        DmaRecovery::recovery_reason_from_firmware_verification_error(
+            CaliptraError::IMAGE_VERIFIER_ERR_DEBUG_IMAGE_NOT_ALLOWED,
+        ),
+        DmaRecovery::RECOVERY_REASON_DEBUG_IMAGE_NOT_ALLOWED
+    );
+}
 
 const PUB_KEY_X: [u8; 48] = [
     0xD7, 0x9C, 0x6D, 0x97, 0x2B, 0x34, 0xA1, 0xDF, 0xC9, 0x16, 0xA7, 0xB6, 0xE0, 0xA9, 0x9B, 0x6B,
