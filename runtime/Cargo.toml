@@ -48,6 +48,7 @@ aes.workspace = true
 aes-gcm.workspace = true
 anyhow.workspace = true
 caliptra-api.workspace = true
+caliptra-api-types.workspace = true
 caliptra-builder.workspace = true
 caliptra-common = { workspace = true, default-features = false, features = [
     "std",

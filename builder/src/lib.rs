@@ -924,22 +924,6 @@ mod test {
                         hw_revision: None,
                     },
                 },
-                &FwId {
-                    crate_name: "test-fw3",
-                    bin_name: "test5",
-                    fw_type: FirmwareType::Source {
-                        features: &["stash-measurement-registers"],
-                        hw_revision: Some(CaliptraHwVersion::V2_2),
-                    },
-                },
-                &FwId {
-                    crate_name: "test-fw3",
-                    bin_name: "test5",
-                    fw_type: FirmwareType::Source {
-                        features: &["stash-measurement-registers"],
-                        hw_revision: None,
-                    },
-                },
             ];
 
             assert_eq!(
@@ -1036,32 +1020,6 @@ mod test {
                             },
                         },],
                         hw_revision: None,
-                    },
-                    CargoInvocation {
-                        features: &["stash-measurement-registers"],
-                        crate_name: "test-fw3",
-                        fwids: vec![&FwId {
-                            crate_name: "test-fw3",
-                            bin_name: "test5",
-                            fw_type: FirmwareType::Source {
-                                features: &["stash-measurement-registers"],
-                                hw_revision: None,
-                            },
-                        },],
-                        hw_revision: None,
-                    },
-                    CargoInvocation {
-                        features: &["stash-measurement-registers"],
-                        crate_name: "test-fw3",
-                        fwids: vec![&FwId {
-                            crate_name: "test-fw3",
-                            bin_name: "test5",
-                            fw_type: FirmwareType::Source {
-                                features: &["stash-measurement-registers"],
-                                hw_revision: Some(CaliptraHwVersion::V2_2),
-                            },
-                        },],
-                        hw_revision: Some(CaliptraHwVersion::V2_2),
                     },
                 ],
                 cargo_invocations_from_fwids(&fwids).unwrap()

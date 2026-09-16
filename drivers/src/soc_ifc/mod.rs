@@ -885,3 +885,5 @@ mod iccm_region_tests {
         }
     }
 }
+
+pub mod stash_measurement;

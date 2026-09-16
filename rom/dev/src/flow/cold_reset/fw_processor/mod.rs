@@ -62,8 +62,6 @@ mod report_hek_metadata;
 mod ri_download_firmware;
 mod self_test;
 mod shutdown;
-#[cfg(not(feature = "stash-measurement-registers"))]
-mod stash_measurement;
 mod version;
 mod zeroize_uds_fe;
 
@@ -80,8 +78,6 @@ use report_hek_metadata::OcpLockReportHekMetadataCmd;
 use ri_download_firmware::RiDownloadFirmwareCmd;
 use self_test::{SelfTestGetResultsCmd, SelfTestStartCmd};
 use shutdown::ShutdownCmd;
-#[cfg(not(feature = "stash-measurement-registers"))]
-use stash_measurement::StashMeasurementCmd;
 use version::VersionCmd;
 use zeroize_uds_fe::ZeroizeUdsFeCmd;
 
@@ -274,7 +270,7 @@ impl FirmwareProcessor {
     /// This prevents a race condition where the SoC reads FW_ERROR_NON_FATAL
     /// immediately after the mailbox transaction fails,
     /// but before caliptra has set the FW_ERROR_NON_FATAL register.
-    #[cfg_attr(feature = "stash-measurement-registers", allow(unused_variables))]
+    #[allow(unused_variables)]
     fn process_mailbox_commands<'a>(
         soc_ifc: &mut SocIfc,
         mbox: &'a mut Mailbox,
@@ -406,26 +402,6 @@ impl FirmwareProcessor {
                     }
                     CommandId::MLDSA87_SIGNATURE_VERIFY => {
                         MldsaVerifyCmd::execute(cmd_bytes, env.mldsa87, resp)?
-                    }
-                    #[cfg(not(feature = "stash-measurement-registers"))]
-                    CommandId::STASH_MEASUREMENT => {
-                        if persistent_data.rom.fht.meas_log_index == MEASUREMENT_MAX_COUNT as u32 {
-                            cprintln!("[fwproc] Max # of measurements received.");
-                            txn.complete(false)?;
-
-                            // Raise a fatal error on hitting the max. limit.
-                            // This ensures that any SOC ROM/FW couldn't send a stash measurement
-                            // that wasn't properly stored within Caliptra.
-                            return Err(CaliptraError::FW_PROC_MAILBOX_STASH_MEASUREMENT_MAX_LIMIT);
-                        }
-
-                        StashMeasurementCmd::execute(
-                            cmd_bytes,
-                            pcr_bank,
-                            env.sha2_512_384,
-                            persistent_data,
-                            resp,
-                        )?
                     }
                     CommandId::GET_IDEV_ECC384_CSR => {
                         GetIdevEcc384CsrCmd::execute(cmd_bytes, persistent_data, resp)?

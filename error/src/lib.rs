@@ -2063,6 +2063,21 @@ impl CaliptraError {
             0x000E00B5,
             "Runtime Error: UDS/FE zeroization requires subsystem mode"
         ),
+        (
+            RUNTIME_STASH_MEASUREMENT_BANK_INVALID_STATUS,
+            0x000E00B6,
+            "Runtime Error: Stash measurement bank status is invalid"
+        ),
+        (
+            RUNTIME_STASH_MEASUREMENT_SLOT_OUT_OF_BOUNDS,
+            0x000E00B7,
+            "Runtime Error: Stash measurement slot out of bounds"
+        ),
+        (
+            RUNTIME_STASH_MEASUREMENT_SLOT_SIZE_ERROR,
+            0x000E00B8,
+            "Runtime Error: Stash measurement slot size error"
+        ),
         // FMC Errors
         (FMC_GLOBAL_NMI, 0x000F0001, "FMC Error: Global NMI"),
         (
