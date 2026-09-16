@@ -25,7 +25,7 @@ use caliptra_api::mailbox::{
 };
 #[cfg(feature = "cfi")]
 use caliptra_cfi_derive::cfi_impl_fn;
-use caliptra_cfi_lib::{cfi_assert_bool, cfi_assert_ne, CfiCounter};
+use caliptra_cfi_lib::{cfi_assert_bool, cfi_assert_eq, cfi_assert_ne, cfi_launder, CfiCounter};
 use caliptra_common::{
     crypto::{Crypto, EncryptedCmk, UnencryptedCmk},
     mailbox_api::{CommandId, MailboxReqHeader, ZeroizeUdsFeResp},
@@ -296,6 +296,7 @@ impl FirmwareProcessor {
                     return Err(CaliptraError::FW_PROC_MAILBOX_RESERVED_PAUSER);
                 }
                 cfi_assert_ne(txn.id(), RESERVED_PAUSER);
+                let pauser = txn.id();
 
                 cprintln!("[fwproc] Recv command 0x{:08x}", txn.cmd());
 
@@ -435,6 +436,22 @@ impl FirmwareProcessor {
                             && !soc_ifc.stable_owner_key_available()
                         {
                             Err(CaliptraError::CMB_STABLE_OWNER_KEY_NOT_AVAILABLE)?;
+                        }
+                        if key_type == CmStableKeyType::OwnerKey {
+                            let dma_recovery = DmaRecovery::new(
+                                soc_ifc.recovery_interface_base_addr().into(),
+                                soc_ifc.caliptra_base_axi_addr().into(),
+                                soc_ifc.mci_base_addr().into(),
+                                dma,
+                            );
+                            let pl0_pauser = dma_recovery.mcu_lsu_axi_user()?;
+                            if cfi_launder(pauser) != pl0_pauser {
+                                Err(
+                                    CaliptraError::FW_PROC_MAILBOX_INCORRECT_PAUSER_PRIVILEGE_LEVEL,
+                                )?;
+                            } else {
+                                cfi_assert_eq(pauser, pl0_pauser);
+                            }
                         }
                         CmDeriveStableKeyCmd::execute(
                             cmd_bytes,

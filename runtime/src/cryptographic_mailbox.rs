@@ -2586,9 +2586,11 @@ impl Commands {
 
         let key_type: CmStableKeyType = request.key_type.into();
 
-        // Reject OwnerKey if the Stable Owner Key feature is not available.
-        if key_type == CmStableKeyType::OwnerKey && !drivers.soc_ifc.stable_owner_key_available() {
-            Err(CaliptraError::CMB_STABLE_OWNER_KEY_NOT_AVAILABLE)?;
+        if key_type == CmStableKeyType::OwnerKey {
+            drivers.ensure_pl0()?;
+            if !drivers.soc_ifc.stable_owner_key_available() {
+                Err(CaliptraError::CMB_STABLE_OWNER_KEY_NOT_AVAILABLE)?;
+            }
         }
 
         let aes_key = match key_type {

@@ -187,6 +187,7 @@ behavior or checks state/data without expecting a ROM error code.
 | Reject stable-key derivation with an invalid key type | `test_derive_stable_key_invalid_key_type` | `DOT_INVALID_KEY_TYPE` |
 | Verify different info values produce different stable owner keys | `test_derive_stable_owner_key_different_info` | N/A |
 | Reject stable owner key derivation in passive mode | `test_derive_stable_owner_key_rejected_in_passive_mode` | `CMB_STABLE_OWNER_KEY_NOT_AVAILABLE` |
+| Reject stable owner key derivation from a non-MCU PAUSER | `test_derive_stable_owner_key_rejected_from_non_mcu_pauser` | `FW_PROC_MAILBOX_INCORRECT_PAUSER_PRIVILEGE_LEVEL` |
 | Generate random output through the ROM random command | `test_random_generate` | N/A |
 | Reject an unknown mailbox command as fatal | `test_unknown_command_is_fatal` | `FW_PROC_MAILBOX_INVALID_COMMAND` |
 | Verify mailbox command state after fatal firmware-load error | `test_mailbox_command_aborted_after_handle_fatal_error` | `FW_PROC_INVALID_IMAGE_SIZE` |

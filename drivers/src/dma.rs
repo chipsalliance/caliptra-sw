@@ -24,6 +24,7 @@ use caliptra_registers::axi_dma::{
     AxiDmaReg, RegisterBlock,
 };
 use caliptra_registers::i3ccsr::RegisterBlock as I3CRegisterBlock;
+use caliptra_registers::mci::RegisterBlock as MciRegisterBlock;
 use caliptra_registers::otp_ctrl::RegisterBlock as FuseCtrlRegisterBlock;
 use caliptra_registers::sha512_acc::enums::ShaCmdE;
 use caliptra_registers::sha512_acc::RegisterBlock as ShaAccRegisterBlock;
@@ -748,6 +749,14 @@ impl<'a> DmaRecovery<'a> {
         };
         let t = f(regs);
         mmio.check_error(t)
+    }
+
+    pub fn mcu_lsu_axi_user(&self) -> CaliptraResult<u32> {
+        let mmio = DmaMmio::new(self.mci_base, self.dma);
+        // SAFETY: DMA-backed MMIO interprets the pointer as an MCI register offset.
+        let regs = unsafe { MciRegisterBlock::new_with_mmio(core::ptr::null_mut(), &mmio) };
+        let pauser = regs.mcu_lsu_axi_user().read();
+        mmio.check_error(pauser)
     }
 
     fn with_sha_acc<T, F>(&self, f: F) -> CaliptraResult<T>

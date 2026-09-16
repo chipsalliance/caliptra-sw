@@ -2954,6 +2954,11 @@ fn test_derive_stable_key_from_rom() {
                 continue;
             }
 
+            if key_type == CmStableKeyType::OwnerKey {
+                let pl0_pauser = model.mci().mcu_lsu_axi_user().read();
+                model.set_axi_user(pl0_pauser);
+            }
+
             let mut derive_request = MailboxReq::CmDeriveStableKey(CmDeriveStableKeyReq {
                 key_type: key_type.into(),
                 ..Default::default()
@@ -3005,6 +3010,7 @@ fn test_derive_stable_key_from_rom() {
             let rom_hmac: [u8; 48] = resp.mac[..resp.hdr.data_len as usize].try_into().unwrap();
 
             // now step until runtime
+            model.set_axi_user(image_bundle.manifest.header.pl0_pauser);
             crate::common::test_upload_firmware(
                 &mut model,
                 &fw_image,
@@ -3126,6 +3132,8 @@ fn test_derive_stable_owner_key_different_info() {
         if !rom_stable_owner_key_available(&mut model) {
             continue;
         }
+        let pl0_pauser = model.mci().mcu_lsu_axi_user().read();
+        model.set_axi_user(pl0_pauser);
 
         // Derive with info_a
         let info_a = [0x42u8; 32];
@@ -3279,6 +3287,56 @@ fn test_derive_stable_owner_key_rejected_when_ocp_lock_enabled() {
         resp.hdr.fips_status,
         MailboxRespHeader::FIPS_STATUS_APPROVED
     );
+}
+
+#[cfg_attr(
+    any(
+        feature = "ocp-lock",
+        feature = "fpga_realtime",
+        feature = "fpga_subsystem"
+    ),
+    ignore
+)]
+#[test]
+fn test_derive_stable_owner_key_rejected_from_pl1() {
+    let mut model = run_rt_test(RuntimeTestArgs {
+        subsystem_mode: true,
+        stable_owner_key_en: true,
+        ..Default::default()
+    });
+    assert!(model.subsystem_mode());
+    assert_ne!(model.soc_ifc().ss_strap_generic().at(3).read() & 1, 0);
+    assert!(!model.supports_ocp_lock());
+
+    model.set_axi_user(2);
+    let mut derive_request = MailboxReq::CmDeriveStableKey(CmDeriveStableKeyReq {
+        key_type: CmStableKeyType::OwnerKey.into(),
+        ..Default::default()
+    });
+    derive_request.populate_chksum().unwrap();
+    let err = model
+        .mailbox_execute(
+            CommandId::CM_DERIVE_STABLE_KEY.into(),
+            derive_request.as_bytes().unwrap(),
+        )
+        .unwrap_err();
+    assert_error(
+        &mut model,
+        caliptra_drivers::CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL,
+        err,
+    );
+
+    let mut derive_request = MailboxReq::CmDeriveStableKey(CmDeriveStableKeyReq {
+        key_type: CmStableKeyType::IDevId.into(),
+        ..Default::default()
+    });
+    derive_request.populate_chksum().unwrap();
+    assert!(model
+        .mailbox_execute(
+            CommandId::CM_DERIVE_STABLE_KEY.into(),
+            derive_request.as_bytes().unwrap(),
+        )
+        .is_ok());
 }
 
 /// Test deriving keys of different usages (AES, HMAC, ECDSA, MLDSA) from the

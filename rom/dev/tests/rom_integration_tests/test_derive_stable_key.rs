@@ -131,6 +131,10 @@ fn test_derive_stable_key() {
                 u32::from(CommandId::CM_DERIVE_STABLE_KEY),
                 &request.as_bytes()[core::mem::size_of_val(&request.hdr.chksum)..],
             );
+            if *key_type == CmStableKeyType::OwnerKey {
+                let pl0_pauser = hw.mci().mcu_lsu_axi_user().read();
+                hw.set_axi_user(pl0_pauser);
+            }
             let response = hw
                 .mailbox_execute(CommandId::CM_DERIVE_STABLE_KEY.into(), request.as_bytes())
                 .unwrap()
@@ -250,6 +254,8 @@ fn test_derive_stable_owner_key_different_info() {
         if subsystem_mode != hw.subsystem_mode() {
             continue;
         }
+        let pl0_pauser = hw.mci().mcu_lsu_axi_user().read();
+        hw.set_axi_user(pl0_pauser);
 
         // Derive with info_a
         let mut request_a = CmDeriveStableKeyReq {
@@ -324,6 +330,46 @@ fn test_derive_stable_owner_key_different_info() {
             "Different info must produce different keys"
         );
     }
+}
+
+#[test]
+#[cfg_attr(feature = "fpga_subsystem", ignore)]
+fn test_derive_stable_owner_key_rejected_from_non_mcu_pauser() {
+    let rom = caliptra_builder::build_firmware_rom(crate::helpers::rom_from_env()).unwrap();
+    let mut hw = caliptra_hw_model::new(
+        InitParams {
+            rom: &rom,
+            subsystem_mode: true,
+            ocp_lock_en: false,
+            stable_owner_key_en: true,
+            ..Default::default()
+        },
+        BootParams::default(),
+    )
+    .unwrap();
+
+    if !hw.subsystem_mode() {
+        return;
+    }
+
+    let pl0_pauser = hw.mci().mcu_lsu_axi_user().read();
+    let pl1_pauser = if pl0_pauser == 2 { 3 } else { 2 };
+    hw.set_axi_user(pl1_pauser);
+
+    let mut request = CmDeriveStableKeyReq {
+        key_type: CmStableKeyType::OwnerKey.into(),
+        ..Default::default()
+    };
+    request.hdr.chksum = caliptra_common::checksum::calc_checksum(
+        u32::from(CommandId::CM_DERIVE_STABLE_KEY),
+        &request.as_bytes()[core::mem::size_of_val(&request.hdr.chksum)..],
+    );
+    assert_eq!(
+        hw.mailbox_execute(CommandId::CM_DERIVE_STABLE_KEY.into(), request.as_bytes()),
+        Err(ModelError::MailboxCmdFailed(
+            CaliptraError::FW_PROC_MAILBOX_INCORRECT_PAUSER_PRIVILEGE_LEVEL.into()
+        ))
+    );
 }
 
 #[test]

@@ -136,6 +136,10 @@ When the feature is available, ROM derives the Stable Owner Root Key during the 
 
 If subsystem mode is not active, the strap is clear, or OCP LOCK is enabled, ROM skips this derivation and `CM_DERIVE_STABLE_KEY` with `key_type = OwnerKey` is unavailable.
 
+Stable OwnerKey derivation is restricted to PL0. Before a firmware manifest is
+available, ROM identifies PL0 as the hardware-latched MCU LSU AXI user in
+`MCI.MCU_LSU_AXI_USER`; requests from any other PAUSER are rejected.
+
 The following diagram summarizes the ROM-populated stable roots, including IDevID, LDevID, and the optional Owner root:
 
 ![Stable Root Key Derivation](doc/svg/stable-root-derivation.svg)

@@ -2234,6 +2234,11 @@ impl CaliptraError {
             "Firmware Processor Error: Mailbox invalid parameters"
         ),
         (
+            FW_PROC_MAILBOX_INCORRECT_PAUSER_PRIVILEGE_LEVEL,
+            0x0102000F,
+            "Firmware Processor Error: Mailbox incorrect PAUSER privilege level"
+        ),
+        (
             FMC_ALIAS_CERT_VERIFY_FAILURE,
             0x01030001,
             "FMC Alias Layer Error: Certificate verification failure"
