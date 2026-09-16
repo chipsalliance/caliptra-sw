@@ -49,6 +49,7 @@ cfi = []
 fake-rom = []
 fips-test-hooks = []
 cavp-test-harness = []
+stash-measurement-registers = []
 
 [dev-dependencies]
 caliptra-api.workspace = true

@@ -173,10 +173,17 @@ pub fn build_firmware_elf_uncached(workspace_dir: Option<&Path>, id: &FwId) -> i
     Ok(result.into_iter().next().unwrap().1)
 }
 
-fn default_features(hw_revision: CaliptraHwVersion, _crate_name: &str) -> Vec<&str> {
-    let features = vec![];
+pub fn default_features(hw_revision: CaliptraHwVersion, crate_name: &str) -> Vec<&str> {
+    let mut features = vec![];
     match hw_revision {
-        CaliptraHwVersion::Latest | CaliptraHwVersion::V2_2 => (),
+        CaliptraHwVersion::Latest | CaliptraHwVersion::V2_2 => {
+            features.push("caliptra-drivers/stash-measurement-registers");
+            match crate_name {
+                "caliptra-runtime" => features.push("caliptra-runtime/stash-measurement-registers"),
+                "caliptra-rom" => features.push("caliptra-rom/stash-measurement-registers"),
+                _ => (),
+            }
+        }
         _ => (),
     }
     features

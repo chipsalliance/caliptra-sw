@@ -95,7 +95,7 @@ fips-test-hooks = [
   "caliptra-image-verify/fips-test-hooks",
   "caliptra-kat/fips-test-hooks",
 ]
-stash-measurement-registers = []
+stash-measurement-registers = ["caliptra-drivers/stash-measurement-registers"]
 
 [[bin]]
 name = "asm_tests"
