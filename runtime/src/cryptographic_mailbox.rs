@@ -2584,9 +2584,10 @@ impl Commands {
         let request = CmDeriveStableKeyReq::ref_from_bytes(cmd_bytes)
             .map_err(|_| CaliptraError::RUNTIME_INTERNAL)?;
 
+        drivers.ensure_pl0()?;
+
         let key_type: CmStableKeyType = request.key_type.into();
 
-        // Reject OwnerKey if the Stable Owner Key feature is not available.
         if key_type == CmStableKeyType::OwnerKey && !drivers.soc_ifc.stable_owner_key_available() {
             Err(CaliptraError::CMB_STABLE_OWNER_KEY_NOT_AVAILABLE)?;
         }

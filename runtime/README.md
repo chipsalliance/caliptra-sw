@@ -2807,6 +2807,9 @@ Key strap is enabled (`SS_STRAP_GENERIC[3]` bit 0 set to 1) and OCP LOCK is not
 enabled. If these requirements are not met, the command fails with
 `CMB_STABLE_OWNER_KEY_NOT_AVAILABLE`.
 
+In Runtime, this command is restricted to the PL0 PAUSER authenticated by the
+firmware manifest for all key types.
+
 For `OwnerKey`, this command derives from the ROM-populated Stable Owner Root
 Key. It first runs AES-256-CMAC KDF with `info` as the input data to produce an
 intermediate key, then runs HMAC-SHA512 KDF with `b"Stable Owner Key" || info`

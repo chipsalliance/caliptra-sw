@@ -3150,6 +3150,7 @@ fn test_derive_stable_key_from_rom() {
             let rom_hmac: [u8; 48] = resp.mac[..resp.hdr.data_len as usize].try_into().unwrap();
 
             // now step until runtime
+            model.set_axi_user(image_bundle.manifest.header.pl0_pauser);
             crate::common::test_upload_firmware(
                 &mut model,
                 &fw_image,
@@ -3424,6 +3425,35 @@ fn test_derive_stable_owner_key_rejected_when_ocp_lock_enabled() {
         resp.hdr.fips_status,
         MailboxRespHeader::FIPS_STATUS_APPROVED
     );
+}
+
+#[test]
+fn test_derive_stable_key_rejected_from_pl1() {
+    let mut model = run_rt_test(RuntimeTestArgs::default());
+
+    model.set_axi_user(2);
+    for key_type in [
+        CmStableKeyType::IDevId,
+        CmStableKeyType::LDevId,
+        CmStableKeyType::OwnerKey,
+    ] {
+        let mut derive_request = MailboxReq::CmDeriveStableKey(CmDeriveStableKeyReq {
+            key_type: key_type.into(),
+            ..Default::default()
+        });
+        derive_request.populate_chksum().unwrap();
+        let err = model
+            .mailbox_execute(
+                CommandId::CM_DERIVE_STABLE_KEY.into(),
+                derive_request.as_bytes().unwrap(),
+            )
+            .unwrap_err();
+        assert_error(
+            &mut model,
+            caliptra_drivers::CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL,
+            err,
+        );
+    }
 }
 
 /// Test deriving keys of different usages (AES, HMAC, ECDSA, MLDSA) from the
