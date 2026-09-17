@@ -220,6 +220,10 @@ impl RecoveryFlow {
 
                 // we're done with recovery, but MCU will handle its own boot after decryption
                 dma_recovery.set_recovery_status(DmaRecovery::RECOVERY_STATUS_SUCCESSFUL, 0)?;
+                dma_recovery.set_device_status_with_recovery_reason(
+                    DmaRecovery::DEVICE_STATUS_HEALTHY,
+                    0,
+                )?;
                 return Ok(());
             }
 
