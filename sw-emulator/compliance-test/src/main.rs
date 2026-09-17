@@ -125,9 +125,9 @@ fn check_reference_data(expected_txt: &str, bus: &mut impl Bus) -> std::io::Resu
         };
         if expected_word != actual_word {
             return Err(std::io::Error::other(format!(
-                    "At addr {:#x}, expected {:#010x} but was {:#010x}",
-                    addr, expected_word, actual_word
-                )));
+                "At addr {:#x}, expected {:#010x} but was {:#010x}",
+                addr, expected_word, actual_word
+            )));
         }
         addr += 4;
     }

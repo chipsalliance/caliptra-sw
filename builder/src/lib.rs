@@ -54,11 +54,11 @@ fn run_cmd(cmd: &mut Command) -> io::Result<()> {
         Ok(())
     } else {
         Err(io::Error::other(format!(
-                "Process {:?} {:?} exited with status code {:?}",
-                cmd.get_program(),
-                cmd.get_args(),
-                status.code()
-            )))
+            "Process {:?} {:?} exited with status code {:?}",
+            cmd.get_program(),
+            cmd.get_args(),
+            status.code()
+        )))
     }
 }
 

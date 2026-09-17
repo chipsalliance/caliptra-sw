@@ -37,9 +37,9 @@ fn check_file_contents(path: &Path, contents: impl BufRead) -> Result<(), Error>
             return Ok(());
         }
     }
-    Err(Error::other(
-        format!("File {path:?} doesn't contain {REQUIRED_TEXT:?} in the first {N} lines"),
-    ))
+    Err(Error::other(format!(
+        "File {path:?} doesn't contain {REQUIRED_TEXT:?} in the first {N} lines"
+    )))
 }
 
 fn check_file(path: &Path) -> Result<(), Error> {

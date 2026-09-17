@@ -98,10 +98,7 @@ mod tests {
             mmio.write_volatile(8 as *mut u16, 0x39af);
             mmio.write_volatile(10 as *mut u8, 0xf3);
 
-            assert_eq!(
-                mmio.read_volatile(std::ptr::dangling::<u32>()),
-                0x3abc_9321
-            );
+            assert_eq!(mmio.read_volatile(std::ptr::dangling::<u32>()), 0x3abc_9321);
             assert_eq!(mmio.read_volatile(8 as *const u16), 0x39af);
             assert_eq!(mmio.read_volatile(10 as *const u8), 0xf3);
         }

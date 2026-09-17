@@ -8,9 +8,9 @@ pub fn expect_line(expected_val: &str, line: Option<&str>) -> io::Result<()> {
             return Ok(());
         }
     }
-    Err(io::Error::other(
-        format!("Expected line with contents {expected_val:?}; was {line:?}"),
-    ))
+    Err(io::Error::other(format!(
+        "Expected line with contents {expected_val:?}; was {line:?}"
+    )))
 }
 
 pub fn expect_line_with_prefix<'a>(prefix: &str, line: Option<&'a str>) -> io::Result<&'a str> {
@@ -19,9 +19,9 @@ pub fn expect_line_with_prefix<'a>(prefix: &str, line: Option<&'a str>) -> io::R
             return Ok(stripped);
         }
     };
-    Err(io::Error::other(
-        format!("Expected line with prefix {prefix:?}; was {line:?}"),
-    ))
+    Err(io::Error::other(format!(
+        "Expected line with prefix {prefix:?}; was {line:?}"
+    )))
 }
 
 pub fn expect_line_with_prefix_ignore_case<'a>(
@@ -35,9 +35,9 @@ pub fn expect_line_with_prefix_ignore_case<'a>(
             }
         }
     };
-    Err(io::Error::other(
-        format!("Expected line with prefix {prefix:?}; was {line:?}"),
-    ))
+    Err(io::Error::other(format!(
+        "Expected line with prefix {prefix:?}; was {line:?}"
+    )))
 }
 
 pub fn hex(bytes: &[u8]) -> String {
