@@ -536,6 +536,7 @@ impl<'a> DmaRecovery<'a> {
     pub const RECOVERY_REASON_FIRMWARE_IMAGE_LAYOUT_INVALID: u32 = 0x86;
     pub const RECOVERY_REASON_PQC_CONFIGURATION_INVALID: u32 = 0x87;
     pub const RECOVERY_REASON_FIRMWARE_VERSION_INVALID: u32 = 0x88;
+    pub const RECOVERY_REASON_DEBUG_IMAGE_NOT_ALLOWED: u32 = 0x89;
 
     pub const RECOVERY_STATUS_AWAITING_RECOVERY_IMAGE: u32 = 0x1;
     const RECOVERY_STATUS_BOOTING_RECOVERY_IMAGE: u32 = 0x2;
@@ -640,6 +641,9 @@ impl<'a> DmaRecovery<'a> {
             CaliptraError::IMAGE_VERIFIER_ERR_FIRMWARE_SVN_LESS_THAN_FUSE => {
                 Self::RECOVERY_REASON_ANTI_ROLLBACK_FAILURE
             }
+            CaliptraError::IMAGE_VERIFIER_ERR_DEBUG_IMAGE_NOT_ALLOWED => {
+                Self::RECOVERY_REASON_DEBUG_IMAGE_NOT_ALLOWED
+            }
             CaliptraError::IMAGE_VERIFIER_ERR_INVALID_PQC_KEY_TYPE_IN_FUSE
             | CaliptraError::IMAGE_VERIFIER_ERR_PQC_KEY_TYPE_INVALID
             | CaliptraError::IMAGE_VERIFIER_ERR_PQC_KEY_TYPE_MISMATCH
@@ -686,6 +690,9 @@ impl<'a> DmaRecovery<'a> {
             }
             CaliptraError::IMAGE_VERIFIER_ERR_FIRMWARE_SVN_LESS_THAN_FUSE => {
                 Self::RECOVERY_REASON_KEY_MANIFEST_ANTI_ROLLBACK_FAILURE
+            }
+            CaliptraError::RUNTIME_AUTH_MANIFEST_DEBUG_IMAGE_NOT_ALLOWED => {
+                Self::RECOVERY_REASON_DEBUG_IMAGE_NOT_ALLOWED
             }
             CaliptraError::RUNTIME_AUTH_MANIFEST_VENDOR_ECC_SIGNATURE_INVALID
             | CaliptraError::RUNTIME_AUTH_MANIFEST_VENDOR_LMS_SIGNATURE_INVALID

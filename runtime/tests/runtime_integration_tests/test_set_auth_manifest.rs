@@ -16,7 +16,9 @@ use caliptra_auth_man_types::{
     AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT,
 };
 use caliptra_builder::ImageOptions;
-use caliptra_common::mailbox_api::{CommandId, MailboxReq, MailboxReqHeader, SetAuthManifestReq};
+use caliptra_common::mailbox_api::{
+    CommandId, FwInfoResp, MailboxReq, MailboxReqHeader, SetAuthManifestReq, VerifyAuthManifestReq,
+};
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{DefaultHwModel, DeviceLifecycle, HwModel, SecurityState};
 use caliptra_image_crypto::OsslCrypto as Crypto;
@@ -24,6 +26,8 @@ use caliptra_image_types::FwVerificationPqcKeyType;
 use caliptra_runtime::RtBootStatus;
 use sha2::{Digest, Sha384};
 use zerocopy::IntoBytes;
+
+const DISABLE_VENDOR_DEBUG_IMAGES: u32 = 1 << 31;
 
 pub struct AuthManifestBuilderCfg {
     pub manifest_flags: AuthManifestFlags,
@@ -378,25 +382,316 @@ fn model_set_manifest_command_execute(
     manifest: AuthorizationManifest,
     expected_err: Option<CaliptraError>,
 ) {
+    model_manifest_command_execute(model, manifest, CommandId::SET_AUTH_MANIFEST, expected_err);
+}
+
+fn model_manifest_command_execute(
+    model: &mut DefaultHwModel,
+    manifest: AuthorizationManifest,
+    command: CommandId,
+    expected_err: Option<CaliptraError>,
+) {
     let buf = manifest.as_bytes();
     let mut auth_manifest_slice = [0u8; SetAuthManifestReq::MAX_MAN_SIZE];
     auth_manifest_slice[..buf.len()].copy_from_slice(buf);
 
-    let mut set_auth_manifest_cmd = MailboxReq::SetAuthManifest(SetAuthManifestReq {
-        hdr: MailboxReqHeader { chksum: 0 },
-        manifest_size: buf.len() as u32,
-        manifest: auth_manifest_slice,
-    });
-    set_auth_manifest_cmd.populate_chksum().unwrap();
+    let mut auth_manifest_cmd = if command == CommandId::VERIFY_AUTH_MANIFEST {
+        MailboxReq::VerifyAuthManifest(VerifyAuthManifestReq {
+            hdr: MailboxReqHeader { chksum: 0 },
+            manifest_size: buf.len() as u32,
+            manifest: auth_manifest_slice,
+        })
+    } else {
+        MailboxReq::SetAuthManifest(SetAuthManifestReq {
+            hdr: MailboxReqHeader { chksum: 0 },
+            manifest_size: buf.len() as u32,
+            manifest: auth_manifest_slice,
+        })
+    };
+    auth_manifest_cmd.populate_chksum().unwrap();
 
-    let result = model.mailbox_execute(
-        u32::from(CommandId::SET_AUTH_MANIFEST),
-        set_auth_manifest_cmd.as_bytes().unwrap(),
-    );
+    let result = model.mailbox_execute(u32::from(command), auth_manifest_cmd.as_bytes().unwrap());
     if let Some(expected_err) = expected_err {
         assert_error(model, expected_err, result.unwrap_err());
     } else {
         result.unwrap().expect("We should have received a response");
+    }
+}
+
+#[test]
+#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
+fn test_debug_auth_manifest_policy() {
+    let debug_flags = AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED | AuthManifestFlags::DEBUG_IMAGE;
+
+    for pqc_key_type in PQC_KEY_TYPE {
+        let mut model = run_rt_test_pqc(
+            RuntimeTestArgs {
+                subsystem_mode: true,
+                debug_intent: true,
+                ..Default::default()
+            },
+            pqc_key_type,
+        );
+        model_set_manifest_command_execute(
+            &mut model,
+            create_auth_manifest(&AuthManifestBuilderCfg {
+                manifest_flags: debug_flags,
+                pqc_key_type,
+                ..Default::default()
+            }),
+            None,
+        );
+
+        let mut model = run_rt_test_pqc(
+            RuntimeTestArgs {
+                subsystem_mode: true,
+                debug_intent: false,
+                ..Default::default()
+            },
+            pqc_key_type,
+        );
+        model_set_manifest_command_execute(
+            &mut model,
+            create_auth_manifest(&AuthManifestBuilderCfg {
+                manifest_flags: debug_flags,
+                pqc_key_type,
+                ..Default::default()
+            }),
+            Some(CaliptraError::RUNTIME_AUTH_MANIFEST_DEBUG_IMAGE_NOT_ALLOWED),
+        );
+
+        let mut model = run_rt_test_pqc(
+            RuntimeTestArgs {
+                subsystem_mode: false,
+                debug_intent: true,
+                ..Default::default()
+            },
+            pqc_key_type,
+        );
+        model_set_manifest_command_execute(
+            &mut model,
+            create_auth_manifest(&AuthManifestBuilderCfg {
+                manifest_flags: debug_flags,
+                pqc_key_type,
+                ..Default::default()
+            }),
+            Some(CaliptraError::RUNTIME_AUTH_MANIFEST_DEBUG_IMAGE_NOT_ALLOWED),
+        );
+
+        let mut model = run_rt_test_pqc(
+            RuntimeTestArgs {
+                subsystem_mode: true,
+                debug_intent: true,
+                initial_ss_strap_generic_3: Some(DISABLE_VENDOR_DEBUG_IMAGES),
+                ..Default::default()
+            },
+            pqc_key_type,
+        );
+        model_set_manifest_command_execute(
+            &mut model,
+            create_auth_manifest(&AuthManifestBuilderCfg {
+                manifest_flags: debug_flags,
+                pqc_key_type,
+                ..Default::default()
+            }),
+            Some(CaliptraError::RUNTIME_AUTH_MANIFEST_DEBUG_IMAGE_NOT_ALLOWED),
+        );
+        model_set_manifest_command_execute(
+            &mut model,
+            create_auth_manifest(&AuthManifestBuilderCfg {
+                manifest_flags: AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED,
+                pqc_key_type,
+                ..Default::default()
+            }),
+            None,
+        );
+    }
+}
+
+#[test]
+#[cfg(not(feature = "fpga_realtime"))]
+fn test_auth_manifest_debug_policy_reporting() {
+    let debug_flags = AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED | AuthManifestFlags::DEBUG_IMAGE;
+    for pqc_key_type in PQC_KEY_TYPE {
+        let mut model = run_rt_test_pqc(
+            RuntimeTestArgs {
+                subsystem_mode: true,
+                debug_intent: true,
+                ..Default::default()
+            },
+            pqc_key_type,
+        );
+
+        assert_eq!(get_fwinfo(&mut model).debug_policy, 0);
+
+        model_set_manifest_command_execute(
+            &mut model,
+            create_auth_manifest(&AuthManifestBuilderCfg {
+                manifest_flags: debug_flags,
+                pqc_key_type,
+                ..Default::default()
+            }),
+            None,
+        );
+        assert_eq!(
+            get_fwinfo(&mut model).debug_policy,
+            FwInfoResp::DEBUG_AUTH_MANIFEST_ACTIVE
+        );
+
+        model.warm_reset_flow().unwrap();
+        assert_eq!(
+            get_fwinfo_allow_attestation_disabled(&mut model).debug_policy,
+            FwInfoResp::DEBUG_AUTH_MANIFEST_ACTIVE
+        );
+
+        model_manifest_command_execute(
+            &mut model,
+            create_auth_manifest(&AuthManifestBuilderCfg {
+                manifest_flags: AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED,
+                pqc_key_type,
+                ..Default::default()
+            }),
+            CommandId::VERIFY_AUTH_MANIFEST,
+            None,
+        );
+        assert_eq!(
+            get_fwinfo_allow_attestation_disabled(&mut model).debug_policy,
+            FwInfoResp::DEBUG_AUTH_MANIFEST_ACTIVE
+        );
+
+        model_set_manifest_command_execute(
+            &mut model,
+            create_auth_manifest(&AuthManifestBuilderCfg {
+                manifest_flags: AuthManifestFlags::DEBUG_IMAGE,
+                pqc_key_type,
+                ..Default::default()
+            }),
+            Some(CaliptraError::RUNTIME_AUTH_MANIFEST_INVALID_FLAGS),
+        );
+        assert_eq!(
+            get_fwinfo_allow_attestation_disabled(&mut model).debug_policy,
+            FwInfoResp::DEBUG_AUTH_MANIFEST_ACTIVE
+        );
+
+        model_set_manifest_command_execute(
+            &mut model,
+            create_auth_manifest(&AuthManifestBuilderCfg {
+                manifest_flags: AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED,
+                pqc_key_type,
+                ..Default::default()
+            }),
+            None,
+        );
+        assert_eq!(
+            get_fwinfo_allow_attestation_disabled(&mut model).debug_policy,
+            0
+        );
+
+        model_manifest_command_execute(
+            &mut model,
+            create_auth_manifest(&AuthManifestBuilderCfg {
+                manifest_flags: debug_flags,
+                pqc_key_type,
+                ..Default::default()
+            }),
+            CommandId::VERIFY_AUTH_MANIFEST,
+            None,
+        );
+        assert_eq!(
+            get_fwinfo_allow_attestation_disabled(&mut model).debug_policy,
+            0
+        );
+    }
+}
+
+#[test]
+fn test_debug_auth_manifest_requires_vendor_signature() {
+    for pqc_key_type in PQC_KEY_TYPE {
+        let mut model = run_rt_test_pqc(
+            RuntimeTestArgs {
+                subsystem_mode: true,
+                debug_intent: true,
+                ..Default::default()
+            },
+            pqc_key_type,
+        );
+        model_set_manifest_command_execute(
+            &mut model,
+            create_auth_manifest(&AuthManifestBuilderCfg {
+                manifest_flags: AuthManifestFlags::DEBUG_IMAGE,
+                pqc_key_type,
+                ..Default::default()
+            }),
+            Some(CaliptraError::RUNTIME_AUTH_MANIFEST_INVALID_FLAGS),
+        );
+    }
+}
+
+#[test]
+fn test_debug_auth_manifest_vendor_error_precedes_debug_intent() {
+    let debug_flags = AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED | AuthManifestFlags::DEBUG_IMAGE;
+
+    for pqc_key_type in PQC_KEY_TYPE {
+        let mut model = run_rt_test_pqc(
+            RuntimeTestArgs {
+                subsystem_mode: true,
+                debug_intent: false,
+                ..Default::default()
+            },
+            pqc_key_type,
+        );
+
+        let mut auth_manifest = create_auth_manifest(&AuthManifestBuilderCfg {
+            manifest_flags: debug_flags,
+            pqc_key_type,
+            ..Default::default()
+        });
+        auth_manifest.preamble.vendor_pub_keys_signatures.ecc_sig = Default::default();
+        model_set_manifest_command_execute(
+            &mut model,
+            auth_manifest,
+            Some(CaliptraError::RUNTIME_AUTH_MANIFEST_VENDOR_ECC_SIGNATURE_INVALID),
+        );
+
+        let mut auth_manifest = create_auth_manifest(&AuthManifestBuilderCfg {
+            manifest_flags: debug_flags,
+            pqc_key_type,
+            ..Default::default()
+        });
+        auth_manifest.preamble.vendor_pub_keys_signatures.pqc_sig = Default::default();
+        let expected_error = match pqc_key_type {
+            FwVerificationPqcKeyType::LMS => {
+                CaliptraError::RUNTIME_AUTH_MANIFEST_VENDOR_LMS_SIGNATURE_INVALID
+            }
+            FwVerificationPqcKeyType::MLDSA => CaliptraError::DRIVER_MLDSA87_UNSUPPORTED_SIGNATURE,
+        };
+        model_set_manifest_command_execute(&mut model, auth_manifest, Some(expected_error));
+    }
+}
+
+#[test]
+#[cfg(not(feature = "fpga_realtime"))]
+fn test_verify_debug_auth_manifest_requires_debug_intent() {
+    for pqc_key_type in PQC_KEY_TYPE {
+        let mut model = run_rt_test_pqc(
+            RuntimeTestArgs {
+                subsystem_mode: true,
+                debug_intent: false,
+                ..Default::default()
+            },
+            pqc_key_type,
+        );
+        model_manifest_command_execute(
+            &mut model,
+            create_auth_manifest(&AuthManifestBuilderCfg {
+                manifest_flags: AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED
+                    | AuthManifestFlags::DEBUG_IMAGE,
+                pqc_key_type,
+                ..Default::default()
+            }),
+            CommandId::VERIFY_AUTH_MANIFEST,
+            Some(CaliptraError::RUNTIME_AUTH_MANIFEST_DEBUG_IMAGE_NOT_ALLOWED),
+        );
     }
 }
 

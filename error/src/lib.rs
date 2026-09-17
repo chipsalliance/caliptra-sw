@@ -3,7 +3,6 @@
 Licensed under the Apache-2.0 license.
 
 File Name:
-
     error.rs
 
 Abstract:
@@ -941,6 +940,11 @@ impl CaliptraError {
             OCP_LOCK_ENGINE_INVALID_MEK_SIZE,
             0x000b0062,
             "OCP LOCK Encryption Engine Invalid MEK size"
+        ),
+        (
+            IMAGE_VERIFIER_ERR_DEBUG_IMAGE_NOT_ALLOWED,
+            0x000b0063,
+            "Image Verifier Error: Debug image not allowed"
         ),
         (
             DRIVER_LMS_INVALID_LMS_ALGO_TYPE,
@@ -1993,6 +1997,16 @@ impl CaliptraError {
             RUNTIME_STASH_MEASUREMENT_RESERVED_FW_ID,
             0x000E00B0,
             "Runtime Error: Stash measurement firmware ID is reserved for Caliptra internal use"
+        ),
+        (
+            RUNTIME_AUTH_MANIFEST_DEBUG_IMAGE_NOT_ALLOWED,
+            0x000E00B2,
+            "Runtime Error: Auth manifest debug image not allowed"
+        ),
+        (
+            RUNTIME_AUTH_MANIFEST_INVALID_FLAGS,
+            0x000E00B3,
+            "Runtime Error: Auth manifest invalid flags"
         ),
         // FMC Errors
         (FMC_GLOBAL_NMI, 0x000F0001, "FMC Error: Global NMI"),

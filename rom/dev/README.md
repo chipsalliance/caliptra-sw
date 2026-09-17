@@ -220,12 +220,15 @@ The header contains the security version and SHA2-384 hash of the table of conte
 | Revision | 8 | 8-byte version of the firmware image bundle |
 | Vendor ECC public key hash index | 4 | The hint to ROM to indicate which ECC public key hash it should use to validate the active ECC public key. |
 | Vendor LMS or MLDSA public key hash index | 4 | The hint to ROM to indicate which LMS or MLDSA public key hash it should use to validate the active public key. |
-| Flags | 4 | Feature flags. <br> **Bit0:** - Interpret the pl0_pauser field. If not set, all PAUSERs are PL1 <br>**Bit1-Bit31:** Reserved |
+| Flags | 4 | Feature flags. <br> **Bit0:** Interpret the pl0_pauser field. If not set, all PAUSERs are PL1. <br> **Bit1:** Vendor-authorized debug image. <br> **Bit2-Bit31:** Reserved. |
 | TOC Entry Count | 4 | Number of entries in TOC. |
 | PL0 PAUSER | 4 | The PAUSER with PL0 privileges. |
 | TOC Digest | 48 | SHA2-384 Digest of table of contents. |
+| FW SVN | 4 | Security Version Number for the firmware image bundle. Compared to FW SVN fuses during image validation. |
 | Vendor Data | 40 | Vendor Data. <br> **Not Before:** Vendor Start Date [ASN1 Time Format] For Alias FMC and Alias RT certificates (15 bytes) <br> **Not After:** Vendor End Date [ASN1 Time Format] For Alias FMC and Alias RT certificates (15 bytes) <br> **Reserved:** (10 bytes) |
 | Owner Data | 40 | Owner Data. <br> **Not Before:** Owner Start Date [ASN1 Time Format] For Alias FMC and Alias RT certificates. Takes preference over vendor start date (15 bytes) <br> **Not After:** Owner End Date [ASN1 Time Format] For Alias FMC and Alias RT certificates. Takes preference over vendor end date (15 bytes) <br> **Reserved:** (10 bytes) |
+
+ROM treats the debug-image flag as trusted only after the manufacturer ECC and selected PQC header signatures have been verified. A firmware bundle marked as a debug image can only be loaded in subsystem mode when `SS_DEBUG_INTENT` is asserted and the active-high `SS_STRAP_GENERIC[3][31]` (`DISABLE_VENDOR_DEBUG_IMAGES`) opt-out is clear. Otherwise, verification fails with `IMAGE_VERIFIER_ERR_DEBUG_IMAGE_NOT_ALLOWED`. A normal image is unaffected by Debug Intent and the opt-out strap, and debug images continue through the existing owner-signature and image-integrity checks.
 
 #### Table of contents
 
@@ -236,8 +239,7 @@ It contains the image information and SHA-384 hash of individual firmware images
 | Image Type | 4 | Image Type that defines format of the image section <br> **0x0000_0001:** Executable |
 | Image Revision | 20 | Git Commit hash of the build |
 | Image Version | 4 | Firmware release number |
-| Image SVN | 4 | Security Version Number for the image. It is compared to FW SVN fuses. FMC TOC entry's SVN field is ignored. |
-| Reserved | 4 | Reserved field |
+| Reserved | 8 | Reserved field |
 | Image Load Address | 4 | Load address |
 | Image Entry Point | 4 | Entry point to start the execution from  |
 | Image Offset | 4 | Offset from beginning of the image |
@@ -726,7 +728,7 @@ Local Device ID Layer derives the Owner CDI, ECC and MLDSA Keys. This layer repr
 
 1. Derive the stable identity root secret from IDevID and store the resultant MAC in Key Vault Slot 0.
 
-    `hmac512_mac(KvSlot0, b"stable_identity_root_idev", KvSlot6)`
+    `hmac512_kdf(KvSlot6, b"stable_identity_root_idev", KvSlot0)`
 
 2. Derive the LDevID CDI using IDevID CDI in Key Vault Slot 6 as HMAC Key and Field Entropy stored in Key Vault Slot 1 as data. The resultant MAC is stored back in Key Vault Slot 6.
 
@@ -742,7 +744,7 @@ Local Device ID Layer derives the Owner CDI, ECC and MLDSA Keys. This layer repr
 
 4. Derive the stable identity root secret from LDevID and store the resultant MAC in Key Vault Slot 1.
 
-    `hmac512_mac(KvSlot1, b"stable_identity_root_ldev", KvSlot6)`
+    `hmac512_kdf(KvSlot6, b"stable_identity_root_ldev", KvSlot1)`
 
 5. Derive ECDSA Key Pair using CDI in Key Vault Slot 6 and store the generated private key in Key Vault Slot 5.
 
@@ -1255,6 +1257,7 @@ The basic flow for validating the firmware involves the following:
 - Validating the owner keys with the hash in the key descriptors.
 - Validating the active manufacturer keys against the key revocation fuses.
 - Validating the Manifest Header using the active manufacturer keys against the manufacturer signatures.
+- If the manufacturer-signed header marks the bundle as a debug image, requiring subsystem mode, asserted `SS_DEBUG_INTENT`, and clear `SS_STRAP_GENERIC[3][31]`.
 - Validating the Manifest Header using the owner keys against the owner signatures.
 - On the completion of these validations, it is assured that the header portion is authentic.
 - Loading the FMC and Rutime (RT) TOC entries from the mailbox.

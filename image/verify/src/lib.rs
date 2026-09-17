@@ -193,4 +193,7 @@ pub trait ImageVerificationEnv {
     fn pqc_key_type_fuse(&self) -> CaliptraResult<FwVerificationPqcKeyType>;
 
     fn dot_owner_pk_hash(&self) -> Option<&ImageDigest384>;
+
+    /// Whether this boot mode permits vendor-authorized debug images.
+    fn debug_image_allowed(&self) -> bool;
 }

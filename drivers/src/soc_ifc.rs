@@ -28,6 +28,7 @@ const SS_STRAP_GENERIC_3_STABLE_OWNER_KEY_ENABLE: u32 = 1 << 0;
 const SS_STRAP_GENERIC_3_WAIT_FOR_DEVICE_RESET_BEFORE_FATAL_ERROR: u32 = 1 << 1;
 const SS_STRAP_GENERIC_3_OWNER_MANIFEST_MIN_SVN_SHIFT: u32 = 8;
 const SS_STRAP_GENERIC_3_OWNER_MANIFEST_MIN_SVN_MASK: u32 = 0xFF;
+const SS_STRAP_GENERIC_3_DISABLE_VENDOR_DEBUG_IMAGES: u32 = 1 << 31;
 
 pub fn report_boot_status(val: u32) {
     let mut soc_ifc = unsafe { soc_ifc::SocIfcReg::new() };
@@ -87,6 +88,14 @@ impl SocIfc {
     pub fn ss_debug_intent(&self) -> bool {
         let soc_ifc_regs = self.soc_ifc.regs();
         soc_ifc_regs.ss_debug_intent().read().debug_intent()
+    }
+
+    /// Whether the platform permits vendor-authorized debug artifacts.
+    pub fn vendor_debug_image_allowed(&self) -> bool {
+        let vendor_debug_images_disabled = self.soc_ifc.regs().ss_strap_generic().at(3).read()
+            & SS_STRAP_GENERIC_3_DISABLE_VENDOR_DEBUG_IMAGES
+            != 0;
+        self.subsystem_mode() && self.ss_debug_intent() && !vendor_debug_images_disabled
     }
 
     /// Subsystem debug unlock requested
