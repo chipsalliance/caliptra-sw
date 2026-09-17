@@ -164,7 +164,7 @@ impl CmStorage {
     pub fn delete_counter(&mut self, key_id: u32) -> CaliptraResult<()> {
         match self.counters.binary_search_by_key(&key_id, |k| k.key_id) {
             Ok(idx) => {
-                self.counters.remove(idx);
+                let _ = self.counters.pop_at(idx);
                 Ok(())
             }
             Err(_) => Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS),
