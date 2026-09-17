@@ -74,6 +74,12 @@ pub extern "C" fn rom_entry() -> ! {
         Err(e) => handle_fatal_error(e.into()),
     };
 
+    // Run CSRNG KAT before any CSRNG output is consumed
+    #[cfg(not(feature = "fake-rom"))]
+    if let Err(e) = CsrngKat::default().execute(&mut env.trng) {
+        handle_fatal_error(e.into());
+    }
+
     if !cfg!(feature = "no-cfi") {
         cprintln!("[state] CFI Enabled");
         let mut entropy_gen = || env.trng.generate4();
