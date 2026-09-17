@@ -62,6 +62,37 @@ The serialized IME layout follows `AuthManifestImageMetadata` in
 | **Image Staging Address High (`image_staging_address.hi`)** | 4 | High 4 bytes of the 64-bit AXI address where the image will be temporarily written during firmware update download and verification. |
 | **Image Digest (`digest`)** | 48       | SHA2-384 digest of the SOC image. |
 
+#### **Optional Device UEID Entry**
+
+The original SoC manifest can be bound to a device without changing the
+manifest layout. An active IME with `fw_id = 0x44494555` is reserved for this
+purpose. The little-endian encoding of this value is the ASCII FourCC `UEID`.
+This entry is optional, counts toward `entry_count`, and is covered by the
+existing IMC signatures.
+
+The entry's 48-byte `digest` field has the following encoding:
+
+| Digest bytes | Contents |
+| ------------ | -------- |
+| `0..=16` | Device UEID: the UEID type byte followed by the four 32-bit manufacturer serial-number fuse words in little-endian byte order. |
+| `17..=47` | Zero padding. |
+
+The other IME fields are not interpreted for device binding and should retain
+their default values. `AuthManifestImageMetadata::new_ueid` constructs the
+canonical entry for programmatic manifest generation. The authorization
+manifest app can encode the same entry through its existing
+`image_metadata_list` configuration.
+
+After authenticating the IMC, Runtime compares all 48 digest bytes with the
+device UEID and canonical zero padding. A mismatch rejects
+`SET_AUTH_MANIFEST` or `VERIFY_AUTH_MANIFEST` with
+`RUNTIME_AUTH_MANIFEST_UEID_MISMATCH`. Omission preserves the existing
+device-independent behavior. The UEID entry cannot be retrieved or used for
+image authorization or activation.
+
+The reserved ID has no special meaning in an Owner Authorization Manifest and
+does not trigger device UEID validation in `SET_OWNER_AUTH_MANIFEST`.
+
 ## Owner Authorization Manifest
 
 The Owner Authorization Manifest is a smaller, owner-only manifest loaded with

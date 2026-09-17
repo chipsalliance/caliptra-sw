@@ -14,7 +14,7 @@ Abstract:
 
 use caliptra_auth_man_types::{
     AuthManifestImageMetadata, AuthManifestImageMetadataCollection,
-    OwnerAuthManifestImageMetadataCollection,
+    OwnerAuthManifestImageMetadataCollection, AUTH_MANIFEST_UEID_FW_ID,
 };
 
 /// Search for an active metadata entry in the sorted `AuthManifestImageMetadataCollection` that matches the firmware ID.
@@ -37,6 +37,10 @@ pub fn find_metadata_entry(
     auth_manifest_image_metadata_col: &AuthManifestImageMetadataCollection,
     cmd_fw_id: u32,
 ) -> Option<&AuthManifestImageMetadata> {
+    if cmd_fw_id == AUTH_MANIFEST_UEID_FW_ID {
+        return None;
+    }
+
     let image_metadata_list = auth_manifest_image_metadata_col
         .image_metadata_list
         .get(..auth_manifest_image_metadata_col.entry_count as usize)?;
@@ -149,5 +153,32 @@ mod test {
         let second = [entry(2), entry(6), entry(10)];
         assert!(!sorted_metadata_lists_overlap(&first, &second));
         assert!(!sorted_metadata_lists_overlap(&first, &[]));
+    }
+
+    #[test]
+    fn original_manifest_lookup_ignores_ueid_entry() {
+        let mut col = AuthManifestImageMetadataCollection {
+            entry_count: 1,
+            ..Default::default()
+        };
+        col.image_metadata_list[0] = entry(AUTH_MANIFEST_UEID_FW_ID);
+
+        assert!(find_metadata_entry(&col, AUTH_MANIFEST_UEID_FW_ID).is_none());
+    }
+
+    #[test]
+    fn owner_manifest_lookup_does_not_interpret_ueid_id() {
+        let mut col = OwnerAuthManifestImageMetadataCollection {
+            entry_count: 1,
+            ..Default::default()
+        };
+        col.image_metadata_list[0] = entry(AUTH_MANIFEST_UEID_FW_ID);
+
+        assert_eq!(
+            find_owner_metadata_entry(&col, AUTH_MANIFEST_UEID_FW_ID)
+                .unwrap()
+                .fw_id,
+            AUTH_MANIFEST_UEID_FW_ID
+        );
     }
 }

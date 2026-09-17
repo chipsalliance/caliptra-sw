@@ -6,17 +6,19 @@ use crate::{
     test_authorize_and_stash::IMAGE_DIGEST1,
     test_info::{get_fwinfo, get_fwinfo_allow_attestation_disabled},
 };
-use caliptra_api::mailbox::ExternalMailboxCmdReq;
+use caliptra_api::mailbox::{ExternalMailboxCmdReq, GetImageInfoReq};
 use caliptra_api::{mailbox::ImageHashSource, SocManager};
 use caliptra_auth_man_gen::default_test_manifest::{
     create_test_auth_manifest_with_config, create_test_auth_manifest_with_metadata,
 };
 use caliptra_auth_man_types::{
     AuthManifestFlags, AuthManifestImageMetadata, AuthorizationManifest, ImageMetadataFlags,
-    AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT,
+    AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT, AUTH_MANIFEST_UEID_LEN,
 };
 use caliptra_builder::ImageOptions;
-use caliptra_common::mailbox_api::{CommandId, MailboxReq, MailboxReqHeader, SetAuthManifestReq};
+use caliptra_common::mailbox_api::{
+    CommandId, MailboxReq, MailboxReqHeader, SetAuthManifestReq, VerifyAuthManifestReq,
+};
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{DefaultHwModel, DeviceLifecycle, HwModel, SecurityState};
 use caliptra_image_crypto::OsslCrypto as Crypto;
@@ -30,6 +32,11 @@ pub struct AuthManifestBuilderCfg {
     pub pqc_key_type: FwVerificationPqcKeyType,
     pub svn: u32,
 }
+
+const DEVICE_UEID: [u8; AUTH_MANIFEST_UEID_LEN] = [
+    1, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F,
+    0x10,
+];
 
 impl Default for AuthManifestBuilderCfg {
     fn default() -> Self {
@@ -243,6 +250,141 @@ fn test_set_auth_manifest_cmd_pqc_lms() {
 }
 
 #[test]
+fn test_auth_manifest_matching_ueid() {
+    for pqc_key_type in PQC_KEY_TYPE {
+        let metadata = vec![
+            AuthManifestImageMetadata {
+                fw_id: 1,
+                digest: IMAGE_DIGEST1,
+                ..Default::default()
+            },
+            AuthManifestImageMetadata::new_ueid(&DEVICE_UEID),
+        ];
+        let manifest = create_auth_manifest_with_metadata_with_svn(metadata, pqc_key_type, 1);
+        let mut model = run_rt_test_pqc(
+            RuntimeTestArgs {
+                ueid: Some(DEVICE_UEID),
+                ..Default::default()
+            },
+            pqc_key_type,
+        );
+
+        model_manifest_command_execute(&mut model, manifest, CommandId::VERIFY_AUTH_MANIFEST, None);
+        model_set_manifest_command_execute(&mut model, manifest, None);
+
+        let mut get_image_info = MailboxReq::GetImageInfo(GetImageInfoReq {
+            hdr: MailboxReqHeader { chksum: 0 },
+            fw_id: caliptra_auth_man_types::AUTH_MANIFEST_UEID_FW_ID.to_le_bytes(),
+        });
+        get_image_info.populate_chksum().unwrap();
+        let result = model.mailbox_execute(
+            u32::from(CommandId::GET_IMAGE_INFO),
+            get_image_info.as_bytes().unwrap(),
+        );
+        assert_error(
+            &mut model,
+            CaliptraError::RUNTIME_IMAGE_METADATA_NOT_FOUND,
+            result.unwrap_err(),
+        );
+    }
+}
+
+#[test]
+fn test_auth_manifest_mismatched_ueid_preserves_active_manifest() {
+    for pqc_key_type in PQC_KEY_TYPE {
+        let valid_metadata = vec![
+            AuthManifestImageMetadata {
+                fw_id: 1,
+                digest: IMAGE_DIGEST1,
+                ..Default::default()
+            },
+            AuthManifestImageMetadata::new_ueid(&DEVICE_UEID),
+        ];
+        let valid_manifest =
+            create_auth_manifest_with_metadata_with_svn(valid_metadata, pqc_key_type, 1);
+        let mut model = run_rt_test_pqc(
+            RuntimeTestArgs {
+                ueid: Some(DEVICE_UEID),
+                ..Default::default()
+            },
+            pqc_key_type,
+        );
+        model_set_manifest_command_execute(&mut model, valid_manifest, None);
+        let info_before = get_fwinfo(&mut model);
+
+        let invalid_metadata = vec![
+            AuthManifestImageMetadata {
+                fw_id: 2,
+                digest: IMAGE_DIGEST1,
+                ..Default::default()
+            },
+            AuthManifestImageMetadata::new_ueid(&[0xA5; AUTH_MANIFEST_UEID_LEN]),
+        ];
+        let invalid_manifest =
+            create_auth_manifest_with_metadata_with_svn(invalid_metadata, pqc_key_type, 2);
+
+        model_manifest_command_execute(
+            &mut model,
+            invalid_manifest,
+            CommandId::VERIFY_AUTH_MANIFEST,
+            Some(CaliptraError::RUNTIME_AUTH_MANIFEST_UEID_MISMATCH),
+        );
+        model_set_manifest_command_execute(
+            &mut model,
+            invalid_manifest,
+            Some(CaliptraError::RUNTIME_AUTH_MANIFEST_UEID_MISMATCH),
+        );
+
+        let info_after = get_fwinfo(&mut model);
+        assert_eq!(
+            info_after.authman_sha384_digest,
+            info_before.authman_sha384_digest
+        );
+        assert_eq!(
+            info_after.soc_manifest_current_svn,
+            info_before.soc_manifest_current_svn
+        );
+    }
+}
+
+#[test]
+fn test_auth_manifest_duplicate_ueid() {
+    for pqc_key_type in PQC_KEY_TYPE {
+        let ueid = AuthManifestImageMetadata::new_ueid(&[0; AUTH_MANIFEST_UEID_LEN]);
+        let manifest =
+            create_auth_manifest_with_metadata_with_svn(vec![ueid, ueid], pqc_key_type, 1);
+
+        set_manifest_command_execute(
+            manifest,
+            pqc_key_type,
+            Some(CaliptraError::RUNTIME_AUTH_MANIFEST_IMAGE_METADATA_LIST_DUPLICATE_FIRMWARE_ID),
+        );
+    }
+}
+
+#[test]
+fn test_auth_manifest_ueid_nonzero_padding() {
+    for pqc_key_type in PQC_KEY_TYPE {
+        let mut ueid = AuthManifestImageMetadata::new_ueid(&[0; AUTH_MANIFEST_UEID_LEN]);
+        ueid.digest[AUTH_MANIFEST_UEID_LEN] = 1;
+        let manifest = create_auth_manifest_with_metadata_with_svn(vec![ueid], pqc_key_type, 1);
+        let mut model = run_rt_test_pqc(RuntimeTestArgs::default(), pqc_key_type);
+
+        model_manifest_command_execute(
+            &mut model,
+            manifest,
+            CommandId::VERIFY_AUTH_MANIFEST,
+            Some(CaliptraError::RUNTIME_AUTH_MANIFEST_UEID_MISMATCH),
+        );
+        model_set_manifest_command_execute(
+            &mut model,
+            manifest,
+            Some(CaliptraError::RUNTIME_AUTH_MANIFEST_UEID_MISMATCH),
+        );
+    }
+}
+
+#[test]
 fn test_set_auth_manifest_fw_info() {
     let mut rt_args = RuntimeTestArgs::test_productions_args();
     rt_args.soc_manifest_svn = Some(2);
@@ -378,21 +520,35 @@ fn model_set_manifest_command_execute(
     manifest: AuthorizationManifest,
     expected_err: Option<CaliptraError>,
 ) {
+    model_manifest_command_execute(model, manifest, CommandId::SET_AUTH_MANIFEST, expected_err);
+}
+
+fn model_manifest_command_execute(
+    model: &mut DefaultHwModel,
+    manifest: AuthorizationManifest,
+    command: CommandId,
+    expected_err: Option<CaliptraError>,
+) {
     let buf = manifest.as_bytes();
     let mut auth_manifest_slice = [0u8; SetAuthManifestReq::MAX_MAN_SIZE];
     auth_manifest_slice[..buf.len()].copy_from_slice(buf);
 
-    let mut set_auth_manifest_cmd = MailboxReq::SetAuthManifest(SetAuthManifestReq {
-        hdr: MailboxReqHeader { chksum: 0 },
-        manifest_size: buf.len() as u32,
-        manifest: auth_manifest_slice,
-    });
-    set_auth_manifest_cmd.populate_chksum().unwrap();
+    let mut auth_manifest_cmd = if command == CommandId::VERIFY_AUTH_MANIFEST {
+        MailboxReq::VerifyAuthManifest(VerifyAuthManifestReq {
+            hdr: MailboxReqHeader { chksum: 0 },
+            manifest_size: buf.len() as u32,
+            manifest: auth_manifest_slice,
+        })
+    } else {
+        MailboxReq::SetAuthManifest(SetAuthManifestReq {
+            hdr: MailboxReqHeader { chksum: 0 },
+            manifest_size: buf.len() as u32,
+            manifest: auth_manifest_slice,
+        })
+    };
+    auth_manifest_cmd.populate_chksum().unwrap();
 
-    let result = model.mailbox_execute(
-        u32::from(CommandId::SET_AUTH_MANIFEST),
-        set_auth_manifest_cmd.as_bytes().unwrap(),
-    );
+    let result = model.mailbox_execute(u32::from(command), auth_manifest_cmd.as_bytes().unwrap());
     if let Some(expected_err) = expected_err {
         assert_error(model, expected_err, result.unwrap_err());
     } else {
