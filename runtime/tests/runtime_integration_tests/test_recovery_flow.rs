@@ -14,7 +14,7 @@ use caliptra_common::mailbox_api::{
     SetAuthManifestReq,
 };
 #[cfg(not(feature = "fpga_subsystem"))]
-use caliptra_emu_bus::{Device, EventData};
+use caliptra_emu_bus::{Device, Event, EventData, RecoveryCommandCode};
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{DefaultHwModel, HwModel, InitParams};
 use caliptra_image_crypto::OsslCrypto as Crypto;
@@ -27,6 +27,41 @@ use zerocopy::{FromBytes, IntoBytes};
 
 const RT_READY_FOR_COMMANDS: u32 = 0x600;
 const PCR_ID_STASH_MEASUREMENT: usize = 31;
+
+#[cfg(not(feature = "fpga_subsystem"))]
+fn read_recovery_register(
+    model: &mut DefaultHwModel,
+    command_code: RecoveryCommandCode,
+) -> Vec<u8> {
+    model
+        .events_to_caliptra()
+        .send(Event::new(
+            Device::BMC,
+            Device::CaliptraCore,
+            EventData::RecoveryBlockReadRequest {
+                source_addr: 0,
+                target_addr: 0,
+                command_code,
+            },
+        ))
+        .unwrap();
+
+    loop {
+        model.step();
+        for event in model.events_from_caliptra() {
+            if let EventData::RecoveryBlockReadResponse {
+                command_code: response_command_code,
+                payload,
+                ..
+            } = event.event
+            {
+                if response_command_code == command_code {
+                    return payload;
+                }
+            }
+        }
+    }
+}
 
 #[derive(asn1::Asn1Read)]
 struct Fwid<'a> {
@@ -308,6 +343,19 @@ fn test_loads_mcu_fw() {
             }
         }
         assert!(found);
+
+        let device_status = read_recovery_register(&mut model, RecoveryCommandCode::DeviceStatus);
+        assert_eq!(
+            u32::from_le_bytes(device_status[..4].try_into().unwrap()),
+            0x1
+        );
+
+        let recovery_status =
+            read_recovery_register(&mut model, RecoveryCommandCode::RecoveryStatus);
+        assert_eq!(
+            u16::from_le_bytes(recovery_status[..2].try_into().unwrap()),
+            0x3
+        );
     }
 }
 

@@ -475,6 +475,7 @@ impl<'a> DmaRecovery<'a> {
     pub const RECOVERY_STATUS_IMAGE_AUTHENTICATION_ERROR: u32 = 0xD;
     pub const RECOVERY_STATUS_SUCCESSFUL: u32 = 0x3;
 
+    pub const DEVICE_STATUS_HEALTHY: u32 = 0x1;
     pub const DEVICE_STATUS_READY_TO_ACCEPT_RECOVERY_IMAGE_VALUE: u32 = 0x3;
     const DEVICE_STATUS_PENDING: u32 = 0x4;
     pub const DEVICE_STATUS_RUNNING_RECOVERY_IMAGE: u32 = 0x5;
@@ -888,6 +889,11 @@ impl<'a> DmaRecovery<'a> {
                 .indirect_fifo_ctrl_0()
                 .modify(|val| val.reset(Self::RESET_VAL));
         })
+    }
+
+    /// Wait for the payload_available signal to deassert.
+    pub fn wait_for_payload_not_available(&self) {
+        while self.dma.payload_available() {}
     }
 
     pub fn reset_recovery_ctrl_activate_rec_img(&self) -> CaliptraResult<()> {
