@@ -121,7 +121,7 @@ impl<const NPK: usize> AsRef<[u8; NPK]> for EncapsulationKey<NPK> {
 }
 
 /// Serialized Decap key
-#[derive(Debug, ZeroizeOnDrop)]
+#[derive(ZeroizeOnDrop)]
 pub struct DecapsulationKey<const NSK: usize> {
     buf: [u8; NSK],
 }

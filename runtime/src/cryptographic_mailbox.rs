@@ -64,7 +64,7 @@ use caliptra_image_types::{
 };
 use constant_time_eq::constant_time_eq;
 use zerocopy::{transmute, FromBytes, Immutable, IntoBytes, KnownLayout};
-use zeroize::Zeroize;
+use zeroize::{Zeroize, Zeroizing};
 
 pub const GCM_MAX_KEY_USES: u64 = (1 << 32) - 1;
 pub const KEY_USAGE_MAX: usize = 256;
@@ -2245,6 +2245,9 @@ impl Commands {
         if cmd.message_size as usize > cmd.message.len() {
             Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
         }
+        if cmd.signature.last() != Some(&0) {
+            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+        }
         let msg = &cmd.message[..cmd.message_size as usize];
 
         let seed = Self::decrypt_mldsa_seed(drivers, &cmd.cmk)?;
@@ -2517,7 +2520,7 @@ impl Commands {
         // Generate random message from TRNG
         let mut message = {
             let mut message = MlKem1024Message::default();
-            let rnd = drivers.trng.generate()?;
+            let rnd = Zeroizing::new(drivers.trng.generate()?);
             message.0[..].clone_from_slice(&rnd.0[..8]);
             message
         };

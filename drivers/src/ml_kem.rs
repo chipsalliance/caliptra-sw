@@ -96,6 +96,7 @@ const DECAPS: u32 = 3;
 const KEYGEN_DECAPS: u32 = 4;
 
 /// ML-KEM-1024 Seeds
+#[derive(Copy, Clone)]
 pub enum MlKem1024Seeds<'a> {
     /// Array pair (seed_d, seed_z)
     Arrays(&'a MlKem1024Seed, &'a MlKem1024Seed),

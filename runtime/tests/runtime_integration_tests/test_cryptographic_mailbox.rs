@@ -2693,6 +2693,22 @@ fn test_mldsa_sign_verify() {
     let (_, privkey) = ml_dsa_87::try_keygen_with_rng(&mut rng).unwrap();
     let cmk = import_key(&mut model, &seed_bytes, CmKeyUsage::Mldsa);
 
+    let mut req = CmMldsaVerifyReq {
+        cmk: cmk.clone(),
+        ..Default::default()
+    };
+    *req.signature.last_mut().unwrap() = 1;
+    let mut req = MailboxReq::CmMldsaVerify(req);
+    req.populate_chksum().unwrap();
+    let err = model
+        .mailbox_execute(req.cmd_code().into(), req.as_bytes().unwrap())
+        .expect_err("Non-zero ML-DSA padding byte should be rejected");
+    assert_error(
+        &mut model,
+        caliptra_drivers::CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS,
+        err,
+    );
+
     let seed_rng_bytes = [1u8; 32];
     let mut seeded_rng = StdRng::from_seed(seed_rng_bytes);
 

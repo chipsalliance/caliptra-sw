@@ -121,6 +121,10 @@ pub fn validate_debug_unlock_token(
         );
         Err(CaliptraError::SS_DBG_UNLOCK_PROD_INVALID_TOKEN_CHALLENGE)?
     }
+    if token.mldsa_signature.as_bytes().last() != Some(&0) {
+        crate::cprintln!("Invalid ML-DSA signature padding byte");
+        Err(CaliptraError::SS_DBG_UNLOCK_PROD_INVALID_TOKEN_INVALID_SIGNATURE)?;
+    }
 
     // Check if the debug level is same as the request.
     if token.unlock_level != request.unlock_level {
