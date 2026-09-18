@@ -961,7 +961,7 @@ impl<'a> DmaRecovery<'a> {
                     self.dma.setup_dma_read(rd_tx);
                     self.dma.wait_for_dma_complete();
                 }
-                _ => panic!("DMA read target must be AxiWr"),
+                _ => Err(CaliptraError::DRIVER_DMA_TRANSACTION_ERROR)?,
             };
         }
         Ok(())
