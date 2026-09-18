@@ -78,7 +78,9 @@ pub mod cbor_tags {
 pub use error::EatError;
 
 // Re-export CBOR encoder, trait, and common CBOR types for custom encoding
-pub use cbor::{CborEncodable, CborEncoder, TaggedBytes, TaggedOid, TaggedUuid};
+pub use cbor::{
+    bstr_header as cbor_bstr_header, CborEncodable, CborEncoder, TaggedBytes, TaggedOid, TaggedUuid,
+};
 
 // Re-export standard EAT/CWT claim keys (RFC 8392, RFC 9711)
 // These are shared across both OCP Profile EAT and CSR EAT
@@ -126,4 +128,8 @@ pub use ocp_profile::{
 
 // Re-export Attested CSR EAT types for provisioning workflows
 // Reference: https://opencomputeproject.github.io/Security/device-identity-provisioning/
-pub use csr_eat::CsrEatClaims; // CSR EAT token payload with nonce and attributes
+pub use csr_eat::{
+    derivation_components, CsrEatClaims, KeyAttributeEntry, KeyPairInventoryClaims,
+    KeyPairInventoryEntry, CLAIM_KEY_ATTESTED_CSR, CLAIM_KEY_ATTESTED_CSR_KEY_ATTRIB,
+    CLAIM_KEY_KEYPAIR_INVENTORY,
+};
