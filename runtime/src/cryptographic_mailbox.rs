@@ -517,7 +517,7 @@ impl Commands {
         match (key_usage, cmd.input_size) {
             (CmKeyUsage::Aes | CmKeyUsage::Mldsa, 32) => (),
             (CmKeyUsage::Ecdsa, 48) => (),
-            (CmKeyUsage::Hmac, 48 | 64) => (),
+            (CmKeyUsage::Hmac, 32 | 48 | 64) => (),
             (CmKeyUsage::Mlkem, 64) => (),
             _ => Err(CaliptraError::RUNTIME_CMB_INVALID_KEY_USAGE_AND_SIZE)?,
         }
@@ -1857,7 +1857,7 @@ impl Commands {
         )?;
 
         match (cmk.length, CmKeyUsage::from(cmk.key_usage as u32)) {
-            (48 | 64, CmKeyUsage::Hmac) => Ok(cmk),
+            (32 | 48 | 64, CmKeyUsage::Hmac) => Ok(cmk),
             _ => Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS),
         }
     }
@@ -2017,10 +2017,8 @@ impl Commands {
         let ikm = Self::decrypt_hmac_key(drivers, &cmd.ikm)?;
         let salt = Self::decrypt_hmac_key(drivers, &cmd.salt)?;
 
-        match (cm_hash_algorithm, ikm.length) {
-            (CmHashAlgorithm::Sha384, 48) => {}
-            (CmHashAlgorithm::Sha512, 64) => {}
-            _ => return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?,
+        if !matches!(ikm.length, 32 | 48 | 64) {
+            return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
         }
 
         let mut unencrypted_cmk = UnencryptedCmk {
@@ -2037,7 +2035,7 @@ impl Commands {
                 let mut tag = Array4x12::default();
                 hkdf_extract(
                     &mut drivers.hmac,
-                    &ikm.key_material[..48],
+                    &ikm.key_material[..ikm.length as usize],
                     &salt.key_material[..48],
                     &mut drivers.trng,
                     (&mut tag).into(),
@@ -2054,7 +2052,7 @@ impl Commands {
                 let mut tag = Array4x16::default();
                 hkdf_extract(
                     &mut drivers.hmac,
-                    &ikm.key_material[..64],
+                    &ikm.key_material[..ikm.length as usize],
                     &salt.key_material[..64],
                     &mut drivers.trng,
                     (&mut tag).into(),

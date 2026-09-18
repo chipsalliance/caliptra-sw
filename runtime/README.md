@@ -1937,7 +1937,7 @@ Implements HKDF-Extract as specified in [RFC 5869](https://www.rfc-editor.org/rf
 The CMKs for IKM and salt must have been created for HMAC usage. The output will be tagged for HMAC usage.
 
 Use CM_IMPORT to import non-secret (plaintext) salt or IKMs to use
-with HKDF-Extract after right-padding to 48 or 64 bytes with zeros.
+with HKDF-Extract after right-padding to 32, 48 or 64 bytes with zeros.
 
 Command Code: `0x434D_4B54` ("CMKT")
 
