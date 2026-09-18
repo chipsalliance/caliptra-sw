@@ -780,7 +780,7 @@ struct SocRegistersImpl {
     #[register(offset = 0x5c0)]
     ss_dbg_manuf_service_reg_req: ReadWriteRegister<u32, SsDbgManufServiceRegReq::Register>,
 
-    #[register(offset = 0x5c4)]
+    #[register(offset = 0x5c4, write_fn = on_write_ss_dbg_manuf_service_reg_rsp)]
     ss_dbg_manuf_service_reg_rsp: ReadWriteRegister<u32, SsDbgManufServiceRegRsp::Register>,
 
     #[register_array(offset = 0x5c8)]
@@ -882,6 +882,7 @@ struct SocRegistersImpl {
     upload_update_fw: UploadUpdateFwCallback,
 
     bootfsm_go_cb: BootFsmGoCallback,
+    dbg_manuf_service_cb: Box<dyn FnMut(u32)>,
 
     fuses_can_be_written: bool,
 
@@ -1045,6 +1046,7 @@ impl SocRegistersImpl {
             ready_for_fw_cb: args.ready_for_fw_cb.take(),
             upload_update_fw: args.upload_update_fw.take(),
             bootfsm_go_cb: args.bootfsm_go_cb.take(),
+            dbg_manuf_service_cb: args.dbg_manuf_service_cb.take(),
             fuses_can_be_written: true,
             download_idevid_csr_cb: args.download_idevid_csr_cb.take(),
             op_wdt_timer1_expired_action: None,
@@ -1354,6 +1356,26 @@ impl SocRegistersImpl {
         if val != 0 {
             self.notif_internal_intr_r.reg.set(val);
             self.timer.schedule_poll_in(2);
+        }
+        Ok(())
+    }
+
+    fn on_write_ss_dbg_manuf_service_reg_rsp(
+        &mut self,
+        size: RvSize,
+        val: RvData,
+    ) -> Result<(), BusError> {
+        let prev_success = self
+            .ss_dbg_manuf_service_reg_rsp
+            .reg
+            .is_set(SsDbgManufServiceRegRsp::MANUF_DBG_UNLOCK_SUCCESS);
+        self.ss_dbg_manuf_service_reg_rsp.write(size, val)?;
+        let new_success = self
+            .ss_dbg_manuf_service_reg_rsp
+            .reg
+            .is_set(SsDbgManufServiceRegRsp::MANUF_DBG_UNLOCK_SUCCESS);
+        if new_success != prev_success {
+            (self.dbg_manuf_service_cb)(self.ss_dbg_manuf_service_reg_rsp.reg.get());
         }
         Ok(())
     }
