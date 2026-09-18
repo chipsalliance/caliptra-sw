@@ -17,6 +17,7 @@ use caliptra_common::mailbox_api::{
     AlgorithmType, FwInfoResp, GetIdevEcc384InfoResp, GetIdevMldsa87InfoResp, MailboxRespHeader,
 };
 use caliptra_drivers::{get_fw_error_non_fatal, CaliptraResult};
+use caliptra_image_types::IMAGE_FLAGS_DEBUG_IMAGE;
 
 pub struct FwInfoCmd;
 impl FwInfoCmd {
@@ -58,6 +59,13 @@ impl FwInfoCmd {
         resp.soc_manifest_min_svn = drivers.soc_ifc.fuse_bank().soc_manifest_fuse_svn();
         resp.owner_auth_manifest_current_svn = pdata.owner_auth_manifest_svn;
         resp.owner_auth_manifest_min_svn = drivers.soc_ifc.ss_owner_manifest_min_svn();
+        resp.debug_policy = 0;
+        if pdata.manifest1.header.flags & IMAGE_FLAGS_DEBUG_IMAGE != 0 {
+            resp.debug_policy |= FwInfoResp::DEBUG_FIRMWARE_ACTIVE;
+        }
+        if pdata.auth_manifest_is_debug.get() {
+            resp.debug_policy |= FwInfoResp::DEBUG_AUTH_MANIFEST_ACTIVE;
+        }
         resp.most_recent_fw_error = match get_fw_error_non_fatal() {
             0 => drivers.persistent_data.get().cleared_non_fatal_fw_error,
             e => e,

@@ -170,6 +170,7 @@ pub struct RuntimeTestArgs<'a> {
     pub soc_manifest_svn: Option<u32>,
     pub soc_manifest_max_svn: Option<u32>,
     pub subsystem_mode: bool,
+    pub debug_intent: bool,
     pub successful_reach_rt: bool,
     pub initial_ss_strap_generic_3: Option<u32>,
     pub key_type: Option<FwVerificationPqcKeyType>,
@@ -193,6 +194,7 @@ impl Default for RuntimeTestArgs<'_> {
             soc_manifest_svn: None,
             soc_manifest_max_svn: None,
             subsystem_mode: cfg!(feature = "fpga_subsystem"),
+            debug_intent: false,
             successful_reach_rt: true,
             initial_ss_strap_generic_3: None,
             key_type: None,
@@ -301,6 +303,7 @@ pub fn start_rt_test_pqc_model(
         test_sram: args.test_sram,
         security_state: args.security_state.unwrap_or_default(),
         subsystem_mode: args.subsystem_mode,
+        debug_intent: args.debug_intent,
         ss_init_params: SubsystemInitParams {
             enable_mcu_uart_log: args.subsystem_mode,
             ..Default::default()
