@@ -19,7 +19,7 @@ fn test_get_attested_csr_invalid_key_id() {
 
     let mut cmd = MailboxReq::GetAttestedEcc384Csr(GetAttestedEccCsrReq {
         hdr: MailboxReqHeader { chksum: 0 },
-        key_id: 0, // Invalid: valid key IDs are 1, 2, 3
+        key_id: 4, // Invalid: valid key IDs are 0 (discovery), 1, 2, 3
         nonce: [0u8; 32],
     });
     cmd.populate_chksum().unwrap();
@@ -47,7 +47,7 @@ fn test_get_attested_mldsa_csr_invalid_key_id() {
 
     let mut cmd = MailboxReq::GetAttestedMldsa87Csr(GetAttestedMldsaCsrReq {
         hdr: MailboxReqHeader { chksum: 0 },
-        key_id: 0, // Invalid: valid key IDs are 1, 2, 3
+        key_id: 4, // Invalid: valid key IDs are 0 (discovery), 1, 2, 3
         nonce: [0u8; 32],
     });
     cmd.populate_chksum().unwrap();
@@ -64,4 +64,16 @@ fn test_get_attested_mldsa_csr_invalid_key_id() {
         CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS,
         resp,
     );
+}
+
+#[test]
+fn test_get_attested_ecc_csr_discovery() {
+    let mut model = run_rt_test(RuntimeTestArgs::default());
+    super::verify_keypair_inventory_discovery_ecc(&mut model);
+}
+
+#[test]
+fn test_get_attested_mldsa_csr_discovery() {
+    let mut model = run_rt_test(RuntimeTestArgs::default());
+    super::verify_keypair_inventory_discovery_mldsa(&mut model);
 }

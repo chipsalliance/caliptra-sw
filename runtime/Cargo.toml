@@ -36,12 +36,12 @@ zeroize.workspace = true
 bitflags.workspace = true
 memoffset.workspace = true
 caliptra-ureg.workspace = true
-caliptra-ocp-eat.workspace = true
 
 [build-dependencies]
 caliptra-common = { workspace = true, default-features = false }
 caliptra-gen-linker-scripts.workspace = true
 cfg-if.workspace = true
+caliptra-ocp-eat = { workspace = true }
 
 [dev-dependencies]
 anyhow.workspace = true
@@ -52,6 +52,7 @@ caliptra-builder.workspace = true
 caliptra-common = { workspace = true, default-features = false, features = [
     "std",
 ] }
+caliptra-ocp-eat = { workspace = true }
 caliptra-emu-bus.workspace = true
 caliptra-hw-model.workspace = true
 caliptra-image-elf.workspace = true
