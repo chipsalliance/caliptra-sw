@@ -1149,12 +1149,10 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             caliptra_cfi_lib::cfi_assert_eq_12_words(&verify_info.digest, &actual);
         }
 
-        // Overflow/underflow is checked in verify_toc
+        // Size and load-address overflow are checked in verify_toc.
+        let load_addr_end = verify_info.load_addr + verify_info.size - 1;
         if !self.env.iccm_range().contains(&verify_info.load_addr)
-            || !self
-                .env
-                .iccm_range()
-                .contains(&(verify_info.load_addr + verify_info.size - 1))
+            || !self.env.iccm_range().contains(&load_addr_end)
         {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_FMC_LOAD_ADDR_INVALID)?;
         }
@@ -1162,7 +1160,11 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_FMC_LOAD_ADDR_UNALIGNED)?;
         }
 
-        if !self.env.iccm_range().contains(&verify_info.entry_point) {
+        // Verify execution starts within the authenticated FMC image.
+        if !self.env.iccm_range().contains(&verify_info.entry_point)
+            || verify_info.entry_point < verify_info.load_addr
+            || verify_info.entry_point > load_addr_end
+        {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_FMC_ENTRY_POINT_INVALID)?;
         }
         if !verify_info.entry_point.is_multiple_of(4) {
@@ -1217,19 +1219,22 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             caliptra_cfi_lib::cfi_assert_eq_12_words(&verify_info.digest, &actual);
         }
 
-        // Overflow/underflow is checked in verify_toc
+        // Size and load-address overflow are checked in verify_toc.
+        let load_addr_end = verify_info.load_addr + verify_info.size - 1;
         if !self.env.iccm_range().contains(&verify_info.load_addr)
-            || !self
-                .env
-                .iccm_range()
-                .contains(&(verify_info.load_addr + verify_info.size - 1))
+            || !self.env.iccm_range().contains(&load_addr_end)
         {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_LOAD_ADDR_INVALID)?;
         }
         if !verify_info.load_addr.is_multiple_of(4) {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_LOAD_ADDR_UNALIGNED)?;
         }
-        if !self.env.iccm_range().contains(&verify_info.entry_point) {
+
+        // Verify execution starts within the authenticated Runtime image.
+        if !self.env.iccm_range().contains(&verify_info.entry_point)
+            || verify_info.entry_point < verify_info.load_addr
+            || verify_info.entry_point > load_addr_end
+        {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_ENTRY_POINT_INVALID)?;
         }
         if !verify_info.entry_point.is_multiple_of(4) {
@@ -2338,6 +2343,38 @@ mod tests {
     }
 
     #[test]
+    fn test_fmc_entry_point_contained_in_image() {
+        let mut verifier = ImageVerifier::new(TestEnv::default());
+
+        // Entry point is immediately before the FMC image.
+        let mut verify_info = ImageTocEntry {
+            load_addr: ICCM_ORG + 4,
+            entry_point: ICCM_ORG,
+            size: 100,
+            ..Default::default()
+        };
+
+        let result = verifier.verify_fmc(&verify_info, ResetReason::ColdReset);
+        assert_eq!(
+            result.err(),
+            Some(CaliptraError::IMAGE_VERIFIER_ERR_FMC_ENTRY_POINT_INVALID)
+        );
+
+        // Entry point is at the exclusive end of the FMC image.
+        verify_info.entry_point = verify_info.load_addr + verify_info.size;
+        let result = verifier.verify_fmc(&verify_info, ResetReason::ColdReset);
+        assert_eq!(
+            result.err(),
+            Some(CaliptraError::IMAGE_VERIFIER_ERR_FMC_ENTRY_POINT_INVALID)
+        );
+
+        // Entry point is at the last aligned address within the FMC image.
+        verify_info.entry_point = verify_info.load_addr + verify_info.size - 4;
+        let result = verifier.verify_fmc(&verify_info, ResetReason::ColdReset);
+        assert!(result.is_ok());
+    }
+
+    #[test]
     fn test_fmc_digest_mismatch() {
         let test_env = TestEnv::default();
         let mut verifier = ImageVerifier::new(test_env);
@@ -2412,6 +2449,38 @@ mod tests {
 
         let result = verifier.verify_runtime(&verify_info);
         assert_eq!(result.err(), None);
+    }
+
+    #[test]
+    fn test_rt_entry_point_contained_in_image() {
+        let mut verifier = ImageVerifier::new(TestEnv::default());
+
+        // Entry point is immediately before the Runtime image.
+        let mut verify_info = ImageTocEntry {
+            load_addr: ICCM_ORG + 4,
+            entry_point: ICCM_ORG,
+            size: 100,
+            ..Default::default()
+        };
+
+        let result = verifier.verify_runtime(&verify_info);
+        assert_eq!(
+            result.err(),
+            Some(CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_ENTRY_POINT_INVALID)
+        );
+
+        // Entry point is at the exclusive end of the Runtime image.
+        verify_info.entry_point = verify_info.load_addr + verify_info.size;
+        let result = verifier.verify_runtime(&verify_info);
+        assert_eq!(
+            result.err(),
+            Some(CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_ENTRY_POINT_INVALID)
+        );
+
+        // Entry point is at the last aligned address within the Runtime image.
+        verify_info.entry_point = verify_info.load_addr + verify_info.size - 4;
+        let result = verifier.verify_runtime(&verify_info);
+        assert!(result.is_ok());
     }
 
     #[test]

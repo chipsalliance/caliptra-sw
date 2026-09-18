@@ -2284,6 +2284,36 @@ fn test_fmc_invalid_entry_point_after_iccm() {
 }
 
 #[test]
+fn test_fmc_entry_point_outside_image() {
+    for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
+        let image_options = ImageOptions {
+            pqc_key_type: *pqc_key_type,
+            ..Default::default()
+        };
+        let fuses = Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
+            ..Default::default()
+        };
+        let (mut hw, mut image_bundle) =
+            helpers::build_hw_model_and_image_bundle(fuses, image_options);
+
+        let entry_point = image_bundle.manifest.runtime.load_addr;
+        let image = update_entry_point(&mut image_bundle, true, entry_point);
+        helpers::assert_fatal_fw_load(
+            &mut hw,
+            *pqc_key_type,
+            &image,
+            CaliptraError::IMAGE_VERIFIER_ERR_FMC_ENTRY_POINT_INVALID,
+        );
+
+        assert_eq!(
+            hw.soc_ifc().cptra_boot_status().read(),
+            u32::from(FwProcessorManifestLoadComplete)
+        );
+    }
+}
+
+#[test]
 fn test_fmc_entry_point_unaligned() {
     for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
         let image_options = ImageOptions {
@@ -2537,6 +2567,36 @@ fn test_runtime_invalid_entry_point_after_iccm() {
             helpers::build_hw_model_and_image_bundle(fuses, image_options);
 
         let image = update_entry_point(&mut image_bundle, false, ICCM_END_ADDR + 1);
+        helpers::assert_fatal_fw_load(
+            &mut hw,
+            *pqc_key_type,
+            &image,
+            CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_ENTRY_POINT_INVALID,
+        );
+
+        assert_eq!(
+            hw.soc_ifc().cptra_boot_status().read(),
+            u32::from(FwProcessorManifestLoadComplete)
+        );
+    }
+}
+
+#[test]
+fn test_runtime_entry_point_outside_image() {
+    for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
+        let image_options = ImageOptions {
+            pqc_key_type: *pqc_key_type,
+            ..Default::default()
+        };
+        let fuses = Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
+            ..Default::default()
+        };
+        let (mut hw, mut image_bundle) =
+            helpers::build_hw_model_and_image_bundle(fuses, image_options);
+
+        let entry_point = image_bundle.manifest.fmc.load_addr;
+        let image = update_entry_point(&mut image_bundle, false, entry_point);
         helpers::assert_fatal_fw_load(
             &mut hw,
             *pqc_key_type,
