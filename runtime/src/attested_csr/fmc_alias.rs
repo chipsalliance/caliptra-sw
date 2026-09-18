@@ -1,6 +1,5 @@
 // Licensed under the Apache-2.0 license
 
-use super::MAX_CSR_SIZE;
 use crate::Drivers;
 use caliptra_drivers::FmcAliasCsrs;
 use caliptra_error::{CaliptraError, CaliptraResult};
@@ -8,7 +7,7 @@ use caliptra_error::{CaliptraError, CaliptraResult};
 /// Retrieve the FMC Alias ECC384 CSR from persistent data.
 pub fn generate_fmc_alias_ecc_csr(
     drivers: &mut Drivers,
-    csr_buf: &mut [u8; MAX_CSR_SIZE],
+    csr_buf: &mut [u8],
 ) -> CaliptraResult<usize> {
     let csr_persistent_mem = &drivers.persistent_data.get().fw.fmc_alias_csr;
 
@@ -19,6 +18,9 @@ pub fn generate_fmc_alias_ecc_csr(
             let csr = csr_persistent_mem
                 .get_ecc_csr()
                 .ok_or(CaliptraError::RUNTIME_GET_FMC_CSR_UNPROVISIONED)?;
+            if csr_buf.len() < csr.len() {
+                return Err(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY);
+            }
             csr_buf[..csr.len()].copy_from_slice(csr);
             Ok(csr.len())
         }
@@ -28,7 +30,7 @@ pub fn generate_fmc_alias_ecc_csr(
 /// Retrieve the FMC Alias ML-DSA87 CSR from persistent data.
 pub fn generate_fmc_alias_mldsa_csr(
     drivers: &mut Drivers,
-    csr_buf: &mut [u8; MAX_CSR_SIZE],
+    csr_buf: &mut [u8],
 ) -> CaliptraResult<usize> {
     let csr_persistent_mem = &drivers.persistent_data.get().fw.fmc_alias_csr;
 
@@ -39,6 +41,9 @@ pub fn generate_fmc_alias_mldsa_csr(
             let csr = csr_persistent_mem
                 .get_mldsa_csr()
                 .ok_or(CaliptraError::RUNTIME_GET_FMC_CSR_UNPROVISIONED)?;
+            if csr_buf.len() < csr.len() {
+                return Err(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY);
+            }
             csr_buf[..csr.len()].copy_from_slice(csr);
             Ok(csr.len())
         }

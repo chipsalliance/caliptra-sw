@@ -2989,7 +2989,7 @@ Command Code: `0x464d_4452` ("FMDR")
 
 ### GET\_ATTESTED\_ECC384\_CSR
 
-Generates an attested ECC384 certificate signing request (CSR) in Entity Attestation Token (EAT) format as per the [OCP Device Identity Provisioning](https://opencomputeproject.github.io/Security/device-identity-provisioning/HEAD/) specification, signed by the `RT Alias` key for the requested Device Identity Key.
+Generates an attested ECC384 certificate signing request (CSR) in Entity Attestation Token (EAT) format as per the [OCP Device Identity Provisioning](https://opencomputeproject.github.io/Security/device-identity-provisioning/HEAD/) specification, signed by the `RT Alias` key for the requested Device Identity Key, or returns the keypair inventory discovery token when `key_id` is 0.
 
 Command Code: `0x4145_4352` ("AECR")
 
@@ -2998,7 +2998,7 @@ Command Code: `0x4145_4352` ("AECR")
 | **Name**      | **Type** | **Description** |
 | --------      | -------- | --------------- |
 | chksum        | u32      | Checksum over other input arguments, computed by the caller. Little endian.  |
-| key_id        | u32      | Key ID for which CSR is requested.<br> **0x0000_0001:** LDevId <br> **0x0000_0002:** FMC Alias <br> **0x0000_0003:** RT Alias |
+| key_id        | u32      | Key ID for which CSR is requested.<br> **0x0000_0000:** Keypair inventory discovery <br> **0x0000_0001:** LDevId <br> **0x0000_0002:** FMC Alias <br> **0x0000_0003:** RT Alias |
 | nonce         | u8[32]   | Nonce to be included in the CSR EAT.|
 
 *Table: `GET_ATTESTED_ECC384_CSR` output arguments*
@@ -3007,11 +3007,11 @@ Command Code: `0x4145_4352` ("AECR")
 | --------      | -------- | --------------- |
 | chksum        | u32      | Checksum over other output arguments, computed by Caliptra. Little endian. |
 | data\_size     | u32      | Length in bytes of the valid data in the data field.                      |
-| data          | u8[...]  | DER-encoded ECC384 attested certificate signing request.            |
+| data          | u8[...]  | COSE Sign1 signed EAT token containing attested CSR (or keypair inventory when key_id = 0). |
 
 ### GET\_ATTESTED\_MLDSA87\_CSR
 
-Generates an attested MLDSA87 certificate signing request (CSR) in Entity Attestation Token (EAT) format as per the [OCP Device Identity Provisioning](https://opencomputeproject.github.io/Security/device-identity-provisioning/HEAD/) specification, signed by the `RT Alias` key for the requested Device Identity Key.
+Generates an attested MLDSA87 certificate signing request (CSR) in Entity Attestation Token (EAT) format as per the [OCP Device Identity Provisioning](https://opencomputeproject.github.io/Security/device-identity-provisioning/HEAD/) specification, signed by the `RT Alias` key for the requested Device Identity Key, or returns the keypair inventory discovery token when `key_id` is 0.
 
 Command Code: `0x414D_4352` ("AMCR")
 
@@ -3020,7 +3020,7 @@ Command Code: `0x414D_4352` ("AMCR")
 | **Name**      | **Type** | **Description** |
 | --------      | -------- | --------------- |
 | chksum        | u32      | Checksum over other input arguments, computed by the caller. Little endian.  |
-| key_id        | u32      | Key ID for which CSR is requested.<br> **0x0000_0001:** LDevId <br> **0x0000_0002:** FMC Alias <br> **0x0000_0003:** RT Alias |
+| key_id        | u32      | Key ID for which CSR is requested.<br> **0x0000_0000:** Keypair inventory discovery <br> **0x0000_0001:** LDevId <br> **0x0000_0002:** FMC Alias <br> **0x0000_0003:** RT Alias |
 | nonce         | u8[32]   | Nonce to be included in the CSR EAT. |
 
 *Table: `GET_ATTESTED_MLDSA87_CSR` output arguments*
@@ -3029,7 +3029,7 @@ Command Code: `0x414D_4352` ("AMCR")
 | --------      | -------- | --------------- |
 | chksum        | u32      | Checksum over other output arguments, computed by Caliptra. Little endian. |
 | data\_size     | u32      | Length in bytes of the valid data in the data field.                      |
-| data          | u8[...]  | DER-encoded MLDSA87 attested certificate signing request.            |
+| data          | u8[...]  | COSE Sign1 signed EAT token containing attested CSR (or keypair inventory when key_id = 0). |
 
 ### SIGN\_WITH\_EXPORTED\_ECDSA
 
