@@ -17,7 +17,9 @@ use crate::{invoke_dpe::invoke_dpe_cmd, CaliptraDpeProfile, Drivers};
 use caliptra_api::mailbox::CertifyKeyChunksRespInfo;
 use caliptra_common::mailbox_api::{CertifyKeyChunksReq, CertifyKeyChunksResp};
 use caliptra_dpe::commands::{CertifyKeyCommand, CertifyKeyMldsa87Cmd, CertifyKeyP384Cmd, Command};
-use caliptra_dpe::response::{CertifyKeyMldsa87Resp, CertifyKeyP384Resp};
+use caliptra_dpe::response::{
+    CertifyKeyMldsa87Resp, CertifyKeyMldsa87RespHdr, CertifyKeyP384Resp, CertifyKeyP384RespHdr,
+};
 use caliptra_error::{CaliptraError, CaliptraResult};
 use memoffset::span_of;
 use zerocopy::FromBytes;
@@ -68,11 +70,11 @@ impl CertifyKeyChunksCmd {
         let (min_resp_size, handle_range) = match profile {
             CaliptraDpeProfile::Ecc384 => (
                 size_of::<CertifyKeyP384Resp>(),
-                span_of!(CertifyKeyP384Resp, new_context_handle..derived_pubkey_x),
+                span_of!(CertifyKeyP384RespHdr, new_context_handle..derived_pubkey_x),
             ),
             CaliptraDpeProfile::Mldsa87 => (
                 size_of::<CertifyKeyMldsa87Resp>(),
-                span_of!(CertifyKeyMldsa87Resp, new_context_handle..pubkey),
+                span_of!(CertifyKeyMldsa87RespHdr, new_context_handle..pubkey),
             ),
         };
 
@@ -91,10 +93,7 @@ impl CertifyKeyChunksCmd {
             certify_key_resp_bytes,
         )
         .map_err(|e| {
-            // If there is extended error info, populate CPTRA_FW_EXTENDED_ERROR_INFO
-            if let Some(ext_err) = e.get_error_detail() {
-                drivers.soc_ifc.set_fw_extended_error(ext_err);
-            }
+            drivers.soc_ifc.set_fw_extended_error(e.get_error_code());
             CaliptraError::RUNTIME_CERTIFY_KEY_EXTENDED_FAILED
         })?;
 

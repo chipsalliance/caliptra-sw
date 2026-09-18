@@ -31,8 +31,11 @@ fn verify_mldsa_signature(
     data: &[u8],
 ) -> bool {
     let (_, cert_parsed) = X509Certificate::from_der(
-        &exported_cdi_resp.new_certificate
-            [..exported_cdi_resp.certificate_size.try_into().unwrap()],
+        &exported_cdi_resp.new_certificate[..exported_cdi_resp
+            .header
+            .certificate_size
+            .try_into()
+            .unwrap()],
     )
     .unwrap();
     let raw_pubkey = cert_parsed
@@ -78,7 +81,7 @@ fn test_sign_with_exported_cdi_mldsa() {
 
     let mut cmd = MailboxReq::SignWithExportedMldsa(SignWithExportedMldsaReq {
         hdr: MailboxReqHeader { chksum: 0 },
-        exported_cdi_handle: derive_resp.exported_cdi,
+        exported_cdi_handle: derive_resp.header.exported_cdi,
         sign_type: MldsaSignType::Mu.into(),
         tbs_size: 64,
         tbs: [0u8; 1024],
@@ -198,7 +201,7 @@ fn test_sign_with_exported_cdi_measurement_update_duplicate_cdi_mldsa() {
 
     let mut cmd = MailboxReq::SignWithExportedMldsa(SignWithExportedMldsaReq {
         hdr: MailboxReqHeader { chksum: 0 },
-        exported_cdi_handle: original_cdi_resp.exported_cdi,
+        exported_cdi_handle: original_cdi_resp.header.exported_cdi,
         sign_type: MldsaSignType::Mu.into(),
         tbs_size: 64,
         tbs: [0u8; 1024],
@@ -247,7 +250,7 @@ fn test_sign_with_exported_cdi_measurement_update_duplicate_cdi_mldsa() {
     };
     assert_eq!(
         e.status,
-        caliptra_dpe::response::DpeErrorCode::Crypto(
+        caliptra_dpe::error::DpeErrorCode::Crypto(
             caliptra_dpe_crypto::CryptoError::ExportedCdiHandleDuplicateCdi
         )
         .get_error_code()
@@ -255,7 +258,7 @@ fn test_sign_with_exported_cdi_measurement_update_duplicate_cdi_mldsa() {
 
     let mut cmd = MailboxReq::SignWithExportedMldsa(SignWithExportedMldsaReq {
         hdr: MailboxReqHeader { chksum: 0 },
-        exported_cdi_handle: original_cdi_resp.exported_cdi,
+        exported_cdi_handle: original_cdi_resp.header.exported_cdi,
         sign_type: MldsaSignType::Mu.into(),
         tbs_size: 64,
         tbs: [0u8; 1024],
@@ -321,7 +324,7 @@ fn test_sign_with_exported_cdi_measurement_update_mldsa() {
 
     let mut cmd = MailboxReq::RevokeExportedCdiHandle(RevokeExportedCdiHandleReq {
         hdr: MailboxReqHeader { chksum: 0 },
-        exported_cdi_handle: original_cdi_resp.exported_cdi,
+        exported_cdi_handle: original_cdi_resp.header.exported_cdi,
     });
     cmd.populate_chksum().unwrap();
 
@@ -344,7 +347,7 @@ fn test_sign_with_exported_cdi_measurement_update_mldsa() {
 
     let mut cmd = MailboxReq::SignWithExportedMldsa(SignWithExportedMldsaReq {
         hdr: MailboxReqHeader { chksum: 0 },
-        exported_cdi_handle: updated_cdi_resp.exported_cdi,
+        exported_cdi_handle: updated_cdi_resp.header.exported_cdi,
         sign_type: MldsaSignType::Mu.into(),
         tbs_size: 64,
         tbs: [0u8; 1024],
@@ -374,8 +377,8 @@ fn test_sign_with_exported_cdi_measurement_update_mldsa() {
     ));
     assert_ne!(original_cdi_resp, updated_cdi_resp);
     assert_ne!(
-        original_cdi_resp.exported_cdi,
-        updated_cdi_resp.exported_cdi
+        original_cdi_resp.header.exported_cdi,
+        updated_cdi_resp.header.exported_cdi
     );
     assert_ne!(
         original_cdi_resp.new_certificate,
@@ -406,7 +409,7 @@ fn test_sign_with_revoked_exported_cdi_mldsa() {
 
     let mut sign_cmd = MailboxReq::SignWithExportedMldsa(SignWithExportedMldsaReq {
         hdr: MailboxReqHeader { chksum: 0 },
-        exported_cdi_handle: cdi_resp.exported_cdi,
+        exported_cdi_handle: cdi_resp.header.exported_cdi,
         sign_type: MldsaSignType::Mu.into(),
         tbs_size: 64,
         tbs: [0u8; 1024],
@@ -430,7 +433,7 @@ fn test_sign_with_revoked_exported_cdi_mldsa() {
 
     let mut revoke_cmd = MailboxReq::RevokeExportedCdiHandle(RevokeExportedCdiHandleReq {
         hdr: MailboxReqHeader { chksum: 0 },
-        exported_cdi_handle: cdi_resp.exported_cdi,
+        exported_cdi_handle: cdi_resp.header.exported_cdi,
     });
     revoke_cmd.populate_chksum().unwrap();
 
@@ -479,7 +482,7 @@ fn test_sign_with_disabled_attestation_mldsa() {
 
     let mut sign_cmd = MailboxReq::SignWithExportedMldsa(SignWithExportedMldsaReq {
         hdr: MailboxReqHeader { chksum: 0 },
-        exported_cdi_handle: cdi_resp.exported_cdi,
+        exported_cdi_handle: cdi_resp.header.exported_cdi,
         sign_type: MldsaSignType::Mu.into(),
         tbs_size: 64,
         tbs: [0u8; 1024],
@@ -569,7 +572,7 @@ fn test_sign_with_exported_cdi_warm_reset_mldsa() {
 
     let mut cmd = MailboxReq::SignWithExportedMldsa(SignWithExportedMldsaReq {
         hdr: MailboxReqHeader { chksum: 0 },
-        exported_cdi_handle: derive_resp.exported_cdi,
+        exported_cdi_handle: derive_resp.header.exported_cdi,
         sign_type: MldsaSignType::Mu.into(),
         tbs_size: 64,
         tbs: [0u8; 1024],
@@ -605,7 +608,7 @@ fn test_sign_with_exported_cdi_warm_reset_mldsa() {
 
     let mut cmd = MailboxReq::SignWithExportedMldsa(SignWithExportedMldsaReq {
         hdr: MailboxReqHeader { chksum: 0 },
-        exported_cdi_handle: derive_resp.exported_cdi,
+        exported_cdi_handle: derive_resp.header.exported_cdi,
         sign_type: MldsaSignType::Mu.into(),
         tbs_size: 64,
         tbs: [0u8; 1024],
@@ -697,7 +700,7 @@ fn test_sign_with_exported_cdi_warm_reset_parent_mldsa() {
 
     let mut cmd = MailboxReq::SignWithExportedMldsa(SignWithExportedMldsaReq {
         hdr: MailboxReqHeader { chksum: 0 },
-        exported_cdi_handle: derive_resp.exported_cdi,
+        exported_cdi_handle: derive_resp.header.exported_cdi,
         sign_type: MldsaSignType::Mu.into(),
         tbs_size: 64,
         tbs: [0u8; 1024],
@@ -733,7 +736,7 @@ fn test_sign_with_exported_cdi_warm_reset_parent_mldsa() {
 
     let mut cmd = MailboxReq::SignWithExportedMldsa(SignWithExportedMldsaReq {
         hdr: MailboxReqHeader { chksum: 0 },
-        exported_cdi_handle: derive_resp.exported_cdi,
+        exported_cdi_handle: derive_resp.header.exported_cdi,
         sign_type: MldsaSignType::Mu.into(),
         tbs_size: 64,
         tbs: [0u8; 1024],
@@ -780,7 +783,7 @@ fn test_sign_with_exported_cdi_mldsa_raw() {
 
     let mut cmd = MailboxReq::SignWithExportedMldsa(SignWithExportedMldsaReq {
         hdr: MailboxReqHeader { chksum: 0 },
-        exported_cdi_handle: derive_resp.exported_cdi,
+        exported_cdi_handle: derive_resp.header.exported_cdi,
         sign_type: MldsaSignType::Raw.into(),
         tbs_size: 100,
         tbs: {

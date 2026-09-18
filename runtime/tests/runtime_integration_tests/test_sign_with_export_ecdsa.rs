@@ -10,9 +10,8 @@ use caliptra_common::mailbox_api::{
 use caliptra_dpe::{
     commands::{Command, DeriveContextCmd, DeriveContextFlags, RotateCtxCmd, RotateCtxFlags},
     context::ContextHandle,
-    response::{
-        DeriveContextExportedCdiResp, DeriveContextResp, DpeErrorCode, NewHandleResp, Response,
-    },
+    error::DpeErrorCode,
+    response::{DeriveContextExportedCdiResp, DeriveContextResp, NewHandleResp, Response},
     TCI_SIZE,
 };
 use caliptra_dpe_crypto::{CryptoError, MAX_EXPORTED_CDI_SIZE};
@@ -44,8 +43,11 @@ fn check_certificate_signature(
 
     // Verify that the certificate from DeriveContext can verify the signature.
     let x509 = X509::from_der(
-        &exported_cdi_resp.new_certificate
-            [..exported_cdi_resp.certificate_size.try_into().unwrap()],
+        &exported_cdi_resp.new_certificate[..exported_cdi_resp
+            .header
+            .certificate_size
+            .try_into()
+            .unwrap()],
     )
     .unwrap();
     let ec_pub_key = x509.public_key().unwrap().ec_key().unwrap();
@@ -93,7 +95,7 @@ fn test_sign_with_exported_cdi() {
 
     let mut cmd = MailboxReq::SignWithExportedEcdsa(SignWithExportedEcdsaReq {
         hdr: MailboxReqHeader { chksum: 0 },
-        exported_cdi_handle: derive_resp.exported_cdi,
+        exported_cdi_handle: derive_resp.header.exported_cdi,
         tbs: TEST_DIGEST,
     });
     cmd.populate_chksum().unwrap();
@@ -213,7 +215,7 @@ fn test_sign_with_exported_cdi_measurement_update_duplicate_cdi() {
 
     let mut cmd = MailboxReq::SignWithExportedEcdsa(SignWithExportedEcdsaReq {
         hdr: MailboxReqHeader { chksum: 0 },
-        exported_cdi_handle: original_cdi_resp.exported_cdi,
+        exported_cdi_handle: original_cdi_resp.header.exported_cdi,
         tbs: TEST_DIGEST,
     });
     cmd.populate_chksum().unwrap();
@@ -262,7 +264,7 @@ fn test_sign_with_exported_cdi_measurement_update_duplicate_cdi() {
 
     let mut cmd = MailboxReq::SignWithExportedEcdsa(SignWithExportedEcdsaReq {
         hdr: MailboxReqHeader { chksum: 0 },
-        exported_cdi_handle: original_cdi_resp.exported_cdi,
+        exported_cdi_handle: original_cdi_resp.header.exported_cdi,
         tbs: TEST_DIGEST,
     });
     cmd.populate_chksum().unwrap();
@@ -335,7 +337,7 @@ fn test_sign_with_exported_cdi_measurement_update() {
 
     let mut cmd = MailboxReq::RevokeExportedCdiHandle(RevokeExportedCdiHandleReq {
         hdr: MailboxReqHeader { chksum: 0 },
-        exported_cdi_handle: original_cdi_resp.exported_cdi,
+        exported_cdi_handle: original_cdi_resp.header.exported_cdi,
     });
     cmd.populate_chksum().unwrap();
 
@@ -358,7 +360,7 @@ fn test_sign_with_exported_cdi_measurement_update() {
 
     let mut cmd = MailboxReq::SignWithExportedEcdsa(SignWithExportedEcdsaReq {
         hdr: MailboxReqHeader { chksum: 0 },
-        exported_cdi_handle: updated_cdi_resp.exported_cdi,
+        exported_cdi_handle: updated_cdi_resp.header.exported_cdi,
         tbs: TEST_DIGEST,
     });
     cmd.populate_chksum().unwrap();
@@ -376,8 +378,8 @@ fn test_sign_with_exported_cdi_measurement_update() {
     assert!(check_certificate_signature(sign_resp, &updated_cdi_resp));
     assert_ne!(original_cdi_resp, updated_cdi_resp);
     assert_ne!(
-        original_cdi_resp.exported_cdi,
-        updated_cdi_resp.exported_cdi
+        original_cdi_resp.header.exported_cdi,
+        updated_cdi_resp.header.exported_cdi
     );
     assert_ne!(
         original_cdi_resp.new_certificate,
@@ -414,7 +416,7 @@ fn test_sign_with_revoked_exported_cdi() {
 
     let mut sign_cmd = MailboxReq::SignWithExportedEcdsa(SignWithExportedEcdsaReq {
         hdr: MailboxReqHeader { chksum: 0 },
-        exported_cdi_handle: cdi_resp.exported_cdi,
+        exported_cdi_handle: cdi_resp.header.exported_cdi,
         tbs: TEST_DIGEST,
     });
     sign_cmd.populate_chksum().unwrap();
@@ -431,7 +433,7 @@ fn test_sign_with_revoked_exported_cdi() {
 
     let mut revoke_cmd = MailboxReq::RevokeExportedCdiHandle(RevokeExportedCdiHandleReq {
         hdr: MailboxReqHeader { chksum: 0 },
-        exported_cdi_handle: cdi_resp.exported_cdi,
+        exported_cdi_handle: cdi_resp.header.exported_cdi,
     });
     revoke_cmd.populate_chksum().unwrap();
 
@@ -485,7 +487,7 @@ fn test_sign_with_disabled_attestation() {
 
     let mut sign_cmd = MailboxReq::SignWithExportedEcdsa(SignWithExportedEcdsaReq {
         hdr: MailboxReqHeader { chksum: 0 },
-        exported_cdi_handle: cdi_resp.exported_cdi,
+        exported_cdi_handle: cdi_resp.header.exported_cdi,
         tbs: TEST_DIGEST,
     });
     sign_cmd.populate_chksum().unwrap();
@@ -567,7 +569,7 @@ fn test_sign_with_exported_cdi_warm_reset() {
 
     let mut cmd = MailboxReq::SignWithExportedEcdsa(SignWithExportedEcdsaReq {
         hdr: MailboxReqHeader { chksum: 0 },
-        exported_cdi_handle: derive_resp.exported_cdi,
+        exported_cdi_handle: derive_resp.header.exported_cdi,
         tbs: TEST_DIGEST,
     });
     cmd.populate_chksum().unwrap();
@@ -596,7 +598,7 @@ fn test_sign_with_exported_cdi_warm_reset() {
 
     let mut cmd = MailboxReq::SignWithExportedEcdsa(SignWithExportedEcdsaReq {
         hdr: MailboxReqHeader { chksum: 0 },
-        exported_cdi_handle: derive_resp.exported_cdi,
+        exported_cdi_handle: derive_resp.header.exported_cdi,
         tbs: TEST_DIGEST,
     });
     cmd.populate_chksum().unwrap();
@@ -684,7 +686,7 @@ fn test_sign_with_exported_cdi_warm_reset_parent() {
 
     let mut cmd = MailboxReq::SignWithExportedEcdsa(SignWithExportedEcdsaReq {
         hdr: MailboxReqHeader { chksum: 0 },
-        exported_cdi_handle: derive_resp.exported_cdi,
+        exported_cdi_handle: derive_resp.header.exported_cdi,
         tbs: TEST_DIGEST,
     });
     cmd.populate_chksum().unwrap();
@@ -713,7 +715,7 @@ fn test_sign_with_exported_cdi_warm_reset_parent() {
 
     let mut cmd = MailboxReq::SignWithExportedEcdsa(SignWithExportedEcdsaReq {
         hdr: MailboxReqHeader { chksum: 0 },
-        exported_cdi_handle: derive_resp.exported_cdi,
+        exported_cdi_handle: derive_resp.header.exported_cdi,
         tbs: TEST_DIGEST,
     });
     cmd.populate_chksum().unwrap();

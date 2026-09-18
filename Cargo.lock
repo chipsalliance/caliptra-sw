@@ -152,11 +152,21 @@ dependencies = [
 
 [[package]]
 name = "asn1"
+version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2affba5e62ee09eeba078f01a00c4aed45ac4287e091298eccbb0d4802efbdc5"
+dependencies = [
+ "asn1_derive 0.13.0",
+ "chrono",
+]
+
+[[package]]
+name = "asn1"
 version = "0.23.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bcb25db9258497df3a24e939c160b4fa3477d0a4f22402a73e610a4c056786fe"
 dependencies = [
- "asn1_derive",
+ "asn1_derive 0.23.0",
  "itoa",
 ]
 
@@ -193,6 +203,17 @@ name = "asn1-rs-impl"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2777730b2039ac0f95f093556e61b6d26cebed5393ca6f152717777cec3a42ed"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 1.0.109",
+]
+
+[[package]]
+name = "asn1_derive"
+version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bfab79c195875e5aef2bd20b4c8ed8d43ef9610bcffefbbcf66f88f555cc78af"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -570,13 +591,16 @@ dependencies = [
 [[package]]
 name = "caliptra-dpe"
 version = "0.1.0"
-source = "git+https://github.com/chipsalliance/caliptra-dpe?rev=3b036b495f2f2e1e995602b4d299a18363a07ba5#3b036b495f2f2e1e995602b4d299a18363a07ba5"
+source = "git+https://github.com/chipsalliance/caliptra-dpe?rev=a4c78155bf58666d655be73e3b5ae25018d81789#a4c78155bf58666d655be73e3b5ae25018d81789"
 dependencies = [
+ "arrayvec",
+ "asn1 0.13.0",
  "bitflags 2.11.0",
  "caliptra-cfi-derive",
  "caliptra-cfi-lib",
  "caliptra-dpe-crypto",
  "caliptra-dpe-platform",
+ "caliptra-dpe-response-buffer",
  "cfg-if",
  "constant_time_eq",
  "ufmt",
@@ -587,11 +611,12 @@ dependencies = [
 [[package]]
 name = "caliptra-dpe-crypto"
 version = "0.1.0"
-source = "git+https://github.com/chipsalliance/caliptra-dpe?rev=3b036b495f2f2e1e995602b4d299a18363a07ba5#3b036b495f2f2e1e995602b4d299a18363a07ba5"
+source = "git+https://github.com/chipsalliance/caliptra-dpe?rev=a4c78155bf58666d655be73e3b5ae25018d81789#a4c78155bf58666d655be73e3b5ae25018d81789"
 dependencies = [
  "arrayvec",
  "caliptra-cfi-derive",
  "caliptra-cfi-lib",
+ "caliptra-dpe-response-buffer",
  "constant_time_eq",
  "zerocopy",
  "zeroize",
@@ -600,13 +625,18 @@ dependencies = [
 [[package]]
 name = "caliptra-dpe-platform"
 version = "0.1.0"
-source = "git+https://github.com/chipsalliance/caliptra-dpe?rev=3b036b495f2f2e1e995602b4d299a18363a07ba5#3b036b495f2f2e1e995602b4d299a18363a07ba5"
+source = "git+https://github.com/chipsalliance/caliptra-dpe?rev=a4c78155bf58666d655be73e3b5ae25018d81789#a4c78155bf58666d655be73e3b5ae25018d81789"
 dependencies = [
  "arrayvec",
  "caliptra-dpe-crypto",
  "cfg-if",
  "ufmt",
 ]
+
+[[package]]
+name = "caliptra-dpe-response-buffer"
+version = "0.1.0"
+source = "git+https://github.com/chipsalliance/caliptra-dpe?rev=a4c78155bf58666d655be73e3b5ae25018d81789#a4c78155bf58666d655be73e3b5ae25018d81789"
 
 [[package]]
 name = "caliptra-drivers"
@@ -1135,7 +1165,7 @@ dependencies = [
  "aes-gcm",
  "anyhow",
  "arrayvec",
- "asn1",
+ "asn1 0.23.0",
  "bitfield",
  "bitflags 2.11.0",
  "caliptra-api",
@@ -1149,6 +1179,7 @@ dependencies = [
  "caliptra-dpe",
  "caliptra-dpe-crypto",
  "caliptra-dpe-platform",
+ "caliptra-dpe-response-buffer",
  "caliptra-drivers",
  "caliptra-emu-bus",
  "caliptra-error",
@@ -1235,7 +1266,7 @@ version = "0.1.0"
 dependencies = [
  "aes-gcm",
  "anyhow",
- "asn1",
+ "asn1 0.23.0",
  "caliptra-api",
  "caliptra-api-types",
  "caliptra-auth-man-gen",
@@ -1332,7 +1363,7 @@ dependencies = [
 name = "caliptra-x509-gen"
 version = "0.1.0"
 dependencies = [
- "asn1",
+ "asn1 0.23.0",
  "bitfield",
  "const-oid 0.9.6",
  "convert_case",
