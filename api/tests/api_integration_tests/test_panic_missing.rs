@@ -5,8 +5,7 @@ use caliptra_builder::firmware;
 /// Verify that the caliptra-api mailbox functions are panic-free.
 #[test]
 fn test_panic_missing() {
-    let api_elf =
-        caliptra_builder::build_firmware_elf_uncached(None, &firmware::api_tests::MAILBOX).unwrap();
+    let api_elf = caliptra_builder::build_firmware_elf(&firmware::api_tests::MAILBOX).unwrap();
     let symbols = caliptra_builder::elf_symbols(&api_elf).unwrap();
     if symbols.iter().any(|s| s.name.contains("panic_is_possible")) {
         panic!(
