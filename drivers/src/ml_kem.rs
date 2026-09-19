@@ -23,7 +23,8 @@ use crate::{
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_cfi_derive::Launder;
 use caliptra_registers::abr::{AbrReg, RegisterBlock};
-use zeroize::Zeroize;
+use zerocopy::IntoBytes;
+use zeroize::{Zeroize, ZeroizeOnDrop};
 
 #[must_use]
 #[repr(u32)]
@@ -37,7 +38,44 @@ pub enum MlKemResult {
 pub type MlKem1024EncapsKey = LEArray4x392;
 
 /// ML-KEM-1024 Decapsulation Key (3168 bytes)
-pub type MlKem1024DecapsKey = LEArray4x792;
+#[repr(transparent)]
+#[derive(Zeroize, ZeroizeOnDrop)]
+pub struct MlKem1024DecapsKey(LEArray4x792);
+
+impl MlKem1024DecapsKey {
+    fn read_from_reg<
+        TReg: caliptra_ureg::ReadableReg<ReadVal = u32, Raw = u32>,
+        TMmio: caliptra_ureg::Mmio + Copy,
+    >(
+        reg_array: caliptra_ureg::Array<792, caliptra_ureg::RegRef<TReg, TMmio>>,
+    ) -> Self {
+        Self(LEArray4x792::read_from_reg(reg_array))
+    }
+
+    fn write_to_reg<
+        TReg: caliptra_ureg::ResettableReg + caliptra_ureg::WritableReg<WriteVal = u32, Raw = u32>,
+        TMmio: caliptra_ureg::MmioMut + Copy,
+    >(
+        &self,
+        reg_array: caliptra_ureg::Array<792, caliptra_ureg::RegRef<TReg, TMmio>>,
+    ) {
+        self.0.write_to_reg(reg_array);
+    }
+
+    pub(crate) fn as_bytes(&self) -> &[u8] {
+        self.0.as_bytes()
+    }
+
+    #[cfg(feature = "cavp-test-harness")]
+    pub fn is_zero(&self) -> bool {
+        self.0 .0.iter().all(|word| *word == 0)
+    }
+
+    #[cfg(feature = "cavp-test-harness")]
+    pub fn matches(&self, expected: &[u32; 792]) -> bool {
+        self.0 .0 == *expected
+    }
+}
 
 /// ML-KEM-1024 Ciphertext (1568 bytes)
 pub type MlKem1024Ciphertext = LEArray4x392;
@@ -58,7 +96,7 @@ const DECAPS: u32 = 3;
 const KEYGEN_DECAPS: u32 = 4;
 
 /// ML-KEM-1024 Seeds
-#[derive(Debug, Copy, Clone)]
+#[derive(Copy, Clone)]
 pub enum MlKem1024Seeds<'a> {
     /// Array pair (seed_d, seed_z)
     Arrays(&'a MlKem1024Seed, &'a MlKem1024Seed),
@@ -82,7 +120,7 @@ impl From<KeyReadArgs> for MlKem1024Seeds<'_> {
 }
 
 /// ML-KEM-1024 Message source
-#[derive(Debug, Copy, Clone)]
+#[derive(Copy, Clone)]
 pub enum MlKem1024MessageSource<'a> {
     /// Array
     Array(&'a MlKem1024Message),
@@ -106,7 +144,6 @@ impl From<KeyReadArgs> for MlKem1024MessageSource<'_> {
 }
 
 /// ML-KEM-1024 Shared Key output
-#[derive(Debug)]
 pub enum MlKem1024SharedKeyOut<'a> {
     /// Array
     Array(&'a mut MlKem1024SharedKey),
@@ -203,20 +240,20 @@ impl<'a> MlKem1024<'a> {
         seeds: MlKem1024Seeds,
         pct_kv: Option<MlKemPctKvContext<'_>>,
     ) -> CaliptraResult<(MlKem1024EncapsKey, MlKem1024DecapsKey)> {
-        let kv_seeds = matches!(seeds, MlKem1024Seeds::Key(_));
+        let kv_seeds = matches!(&seeds, MlKem1024Seeds::Key(_));
 
         self.zeroize_internal()?;
 
         let mlkem = self.mlkem.regs_mut();
 
         // Copy seeds to the hardware
-        match seeds {
+        match &seeds {
             MlKem1024Seeds::Arrays(seed_d, seed_z) => {
                 seed_d.write_to_reg(mlkem.mlkem_seed_d());
                 seed_z.write_to_reg(mlkem.mlkem_seed_z());
             }
             MlKem1024Seeds::Key(key) => KvAccess::copy_from_kv(
-                key,
+                *key,
                 mlkem.kv_mlkem_seed_rd_status(),
                 mlkem.kv_mlkem_seed_rd_ctrl(),
             )
@@ -231,12 +268,15 @@ impl<'a> MlKem1024<'a> {
 
         // Copy keys
         let encaps_key = MlKem1024EncapsKey::read_from_reg(mlkem.mlkem_encaps_key());
-        let decaps_key = MlKem1024DecapsKey::read_from_reg(mlkem.mlkem_decaps_key());
+        let mut decaps_key = MlKem1024DecapsKey::read_from_reg(mlkem.mlkem_decaps_key());
 
         // Clear the keygen hardware state before PCT operations.
         mlkem.mlkem_ctrl().write(|w| w.zeroize(true));
 
-        self.pct(&encaps_key, &decaps_key, kv_seeds, seeds, pct_kv)?;
+        if let Err(err) = self.pct(&encaps_key, &decaps_key, kv_seeds, seeds, pct_kv) {
+            decaps_key.zeroize();
+            return Err(err);
+        }
 
         Ok((encaps_key, decaps_key))
     }
