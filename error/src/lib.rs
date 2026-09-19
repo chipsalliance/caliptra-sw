@@ -947,6 +947,16 @@ impl CaliptraError {
             "Image Verifier Error: Debug image not allowed"
         ),
         (
+            IMAGE_VERIFIER_ERR_FMC_OFFSET_INVALID,
+            0x000b0064,
+            "Image Verifier Error: FMC offset invalid (gap between manifest and FMC)"
+        ),
+        (
+            IMAGE_VERIFIER_ERR_UPDATE_RESET_FMC_LOAD_ADDR_MISMATCH,
+            0x000b0065,
+            "Image Verifier Error: Update reset FMC load address or size mismatch"
+        ),
+        (
             DRIVER_LMS_INVALID_LMS_ALGO_TYPE,
             0x000c0001,
             "Driver Error: LMS invalid LMS algorithm type"
