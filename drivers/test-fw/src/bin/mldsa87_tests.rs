@@ -18,13 +18,15 @@ Abstract:
 use caliptra_cfi_lib::CfiCounter;
 use caliptra_drivers::{
     Array4x12, Array4x16, Hmac, HmacData, HmacKey, HmacMode, HmacTag, KeyId, KeyReadArgs, KeyUsage,
-    KeyWriteArgs, LEArray4x16, LEArray4x8, Mldsa87, Mldsa87Msg, Mldsa87PrivKey, Mldsa87PubKey,
-    Mldsa87Result, Mldsa87Seed, Mldsa87SignRnd, Mldsa87Signature, PersistentDataAccessor, Trng,
+    KeyWriteArgs, LEArray4x16, LEArray4x8, Mldsa87, Mldsa87Msg, Mldsa87Mu, Mldsa87PrivKey,
+    Mldsa87PubKey, Mldsa87Result, Mldsa87Seed, Mldsa87SignRnd, Mldsa87Signature,
+    PersistentDataAccessor, Sha3, Trng,
 };
 use caliptra_registers::abr::AbrReg;
 use caliptra_registers::csrng::CsrngReg;
 use caliptra_registers::entropy_src::EntropySrcReg;
 use caliptra_registers::hmac::HmacReg;
+use caliptra_registers::kmac::Kmac as KmacReg;
 use caliptra_registers::soc_ifc::SocIfcReg;
 use caliptra_registers::soc_ifc_trng::SocIfcTrngReg;
 use caliptra_test_harness::test_suite;
@@ -1006,6 +1008,56 @@ fn test_sign_var_no_verify() {
     assert_eq!(signature, Mldsa87Signature::from(MLDSA_SIGN));
 }
 
+fn test_sign_external_mu_op_matches_sign_var() {
+    let mut abr_reg = unsafe { AbrReg::new() };
+    let mut ml_dsa87 = Mldsa87::new(&mut abr_reg);
+    let mut sha3 = unsafe { Sha3::new(KmacReg::new()) };
+
+    let mut trng = unsafe {
+        Trng::new(
+            CsrngReg::new(),
+            EntropySrcReg::new(),
+            SocIfcTrngReg::new(),
+            &SocIfcReg::new(),
+            PersistentDataAccessor::new(),
+        )
+        .unwrap()
+    };
+
+    let sign_rnd = Mldsa87SignRnd::default();
+    let pub_key = Mldsa87PubKey::from(MLDSA_PUBKEY);
+    let seed = LEArray4x8::from(MLDSA_SEED);
+    let msg: [u8; 64] = LEArray4x16::from(MLDSA_MSG).into();
+
+    let sig_var = ml_dsa87
+        .sign_var(
+            Mldsa87Seed::Array4x8(&seed),
+            &pub_key,
+            &msg,
+            &sign_rnd,
+            &mut trng,
+        )
+        .unwrap();
+
+    let mut mu_op = sha3.mldsa_external_mu_init(pub_key.as_bytes()).unwrap();
+    mu_op.update(&msg[..25]).unwrap();
+    mu_op.update(&msg[25..]).unwrap();
+    let mut mu = Mldsa87Mu::default();
+    mu_op.finalize(&mut mu).unwrap();
+
+    let sig_ext_mu = ml_dsa87
+        .sign_external_mu(
+            Mldsa87Seed::Array4x8(&seed),
+            &pub_key,
+            &mu,
+            &sign_rnd,
+            &mut trng,
+        )
+        .unwrap();
+
+    assert_eq!(sig_ext_mu, sig_var);
+}
+
 test_suite! {
     test_mldsa_name,
     test_gen_key_pair,
@@ -1018,4 +1070,5 @@ test_suite! {
     test_verify,
     test_verify_failure,
     test_sign_var_no_verify,
+    test_sign_external_mu_op_matches_sign_var,
 }
