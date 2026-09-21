@@ -65,6 +65,9 @@ impl UpdateResetFlow {
             Self::load_manifest(env.persistent_data.get_mut(), &mut recv_txn)?;
             report_boot_status(UpdateResetLoadManifestComplete.into());
 
+            // The update must keep the FMC that was loaded on cold boot in place.
+            let cold_reset_fmc = env.persistent_data.get().manifest1.fmc;
+
             let mut venv = FirmwareImageVerificationEnv {
                 sha256: &mut env.sha256,
                 sha384: &mut env.sha384,
@@ -73,6 +76,8 @@ impl UpdateResetFlow {
                 data_vault: &mut env.data_vault,
                 pcr_bank: &mut env.pcr_bank,
                 image: recv_txn.raw_mailbox_contents(),
+                cold_reset_fmc_load_addr: cold_reset_fmc.load_addr,
+                cold_reset_fmc_size: cold_reset_fmc.size,
             };
 
             let info = {
@@ -152,6 +157,8 @@ impl UpdateResetFlow {
             data_vault: env.data_vault,
             ecc384: env.ecc384,
             image: env.image,
+            cold_reset_fmc_load_addr: env.cold_reset_fmc_load_addr,
+            cold_reset_fmc_size: env.cold_reset_fmc_size,
         };
 
         let mut verifier = ImageVerifier::new(env);

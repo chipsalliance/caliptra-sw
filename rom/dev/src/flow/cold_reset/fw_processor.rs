@@ -113,6 +113,9 @@ impl FirmwareProcessor {
             data_vault: &mut env.data_vault,
             pcr_bank: &mut env.pcr_bank,
             image: txn.raw_mailbox_contents(),
+            // Only used on update reset; the cold-boot manifest is the one being verified here.
+            cold_reset_fmc_load_addr: manifest.fmc.load_addr,
+            cold_reset_fmc_size: manifest.fmc.size,
         };
 
         // Verify the image
@@ -376,6 +379,8 @@ impl FirmwareProcessor {
             data_vault: venv.data_vault,
             ecc384: venv.ecc384,
             image: venv.image,
+            cold_reset_fmc_load_addr: venv.cold_reset_fmc_load_addr,
+            cold_reset_fmc_size: venv.cold_reset_fmc_size,
         };
 
         // Random delay for CFI glitch protection.
