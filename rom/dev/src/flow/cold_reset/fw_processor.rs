@@ -57,7 +57,7 @@ use caliptra_image_verify::{
 use caliptra_kat::KatsEnv;
 use caliptra_registers::doe::DoeReg;
 use caliptra_x509::{NotAfter, NotBefore};
-use core::mem::{size_of, ManuallyDrop};
+use core::mem::ManuallyDrop;
 use zerocopy::{transmute, FromBytes, IntoBytes};
 use zeroize::Zeroize;
 
@@ -770,6 +770,7 @@ impl FirmwareProcessor {
             mldsa87: venv.mldsa87,
             image: venv.image,
             dma: venv.dma,
+            persistent_data: venv.persistent_data,
         };
 
         // Random delay for CFI glitch protection.
@@ -961,7 +962,7 @@ impl FirmwareProcessor {
             let addr = (manifest.fmc.load_addr) as *mut u8;
             core::slice::from_raw_parts_mut(addr, manifest.fmc.size as usize)
         };
-        let start = size_of::<ImageManifest>();
+        let start = manifest.fmc.offset as usize;
         let end = start + fmc_dest.len();
         if start > end || mbox_sram.len() < end {
             Err(CaliptraError::FW_PROC_INVALID_IMAGE_SIZE)?;
@@ -979,7 +980,7 @@ impl FirmwareProcessor {
             let addr = (manifest.runtime.load_addr) as *mut u8;
             core::slice::from_raw_parts_mut(addr, manifest.runtime.size as usize)
         };
-        let start = size_of::<ImageManifest>() + manifest.fmc.size as usize;
+        let start = manifest.runtime.offset as usize;
         let end = start + runtime_dest.len();
         if start > end || mbox_sram.len() < end {
             Err(CaliptraError::FW_PROC_INVALID_IMAGE_SIZE)?;

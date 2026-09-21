@@ -121,6 +121,14 @@ impl ImageVerificationEnv for TestEnv {
         self.fmc_digest
     }
 
+    fn get_cold_reset_fmc_load_addr(&self) -> u32 {
+        ICCM_ORG
+    }
+
+    fn get_cold_reset_fmc_size(&self) -> u32 {
+        ICCM_SIZE
+    }
+
     fn iccm_range(&self) -> Range<u32> {
         Range {
             start: ICCM_ORG,

@@ -18,9 +18,66 @@ use caliptra_common::RomBootStatus::*;
 use caliptra_drivers::DataVault;
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{BootParams, Fuses, HwModel, InitParams};
+use caliptra_image_crypto::OsslCrypto as Crypto;
+use caliptra_image_elf::ElfExecutable;
 use caliptra_image_fake_keys::VENDOR_CONFIG_KEY_0;
-use caliptra_image_gen::ImageGeneratorVendorConfig;
+use caliptra_image_gen::{ImageGenerator, ImageGeneratorConfig, ImageGeneratorVendorConfig};
+use caliptra_image_types::{FwVerificationPqcKeyType, ImageBundle, ImageSignData};
 use zerocopy::{FromBytes, IntoBytes};
+
+/// Re-sign the header after modifying the TOC entries, then return the image bytes.
+fn rebuild_image_after_toc_change(image_bundle: &mut ImageBundle) -> Vec<u8> {
+    let gen = ImageGenerator::new(Crypto::default());
+
+    image_bundle.manifest.header.toc_digest = gen
+        .toc_digest(&image_bundle.manifest.fmc, &image_bundle.manifest.runtime)
+        .unwrap();
+
+    let pqc_key_type =
+        FwVerificationPqcKeyType::from_u8(image_bundle.manifest.pqc_key_type).unwrap();
+    let config = ImageGeneratorConfig {
+        fmc: ElfExecutable::default(),
+        runtime: ElfExecutable::default(),
+        vendor_config: caliptra_image_fake_keys::VENDOR_CONFIG_KEY_0,
+        owner_config: Some(caliptra_image_fake_keys::OWNER_CONFIG),
+        pqc_key_type,
+        fw_svn: 0,
+    };
+
+    let vendor_header_digest_384 = gen
+        .vendor_header_digest_384(&image_bundle.manifest.header)
+        .unwrap();
+    let vendor_header_bytes = gen.vendor_header_bytes(&image_bundle.manifest.header);
+    let vendor_header_digest_holder = ImageSignData {
+        digest_384: &vendor_header_digest_384,
+        mldsa_msg: Some(vendor_header_bytes),
+    };
+
+    let owner_header_digest_384 = gen
+        .owner_header_digest_384(&image_bundle.manifest.header)
+        .unwrap();
+    let owner_header_bytes = image_bundle.manifest.header.as_bytes();
+    let owner_header_digest_holder = ImageSignData {
+        digest_384: &owner_header_digest_384,
+        mldsa_msg: Some(owner_header_bytes),
+    };
+
+    image_bundle.manifest.preamble = gen
+        .gen_preamble(
+            &config,
+            image_bundle.manifest.preamble.vendor_ecc_pub_key_idx,
+            image_bundle.manifest.preamble.vendor_pqc_pub_key_idx,
+            &vendor_header_digest_holder,
+            &owner_header_digest_holder,
+        )
+        .unwrap();
+
+    let mut image = vec![];
+    image.extend_from_slice(image_bundle.manifest.as_bytes());
+    image.extend_from_slice(&image_bundle.fmc);
+    image.extend_from_slice(&image_bundle.runtime);
+    image
+}
 
 const TEST_FMC_CMD_RESET_FOR_UPDATE: u32 = 0x1000_0004;
 const TEST_FMC_CMD_RESET_FOR_UPDATE_KEEP_MBOX_CMD: u32 = 0x1000_000B;
@@ -728,5 +785,54 @@ fn test_update_reset_max_fw_image() {
             assert_eq!(iccm_cmp.len(), 1);
             assert_eq!(iccm_cmp[0], 0);
         }
+    }
+}
+
+#[test]
+fn test_update_reset_fmc_load_addr_mismatch() {
+    for &subsystem_mode in &HW_MODEL_MODES_SUBSYSTEM {
+        let rom = caliptra_builder::build_firmware_rom(crate::helpers::rom_from_env()).unwrap();
+        let image_bundle = caliptra_builder::build_and_sign_image(
+            &TEST_FMC_INTERACTIVE,
+            &APP_WITH_UART_FPGA,
+            ImageOptions::default(),
+        )
+        .unwrap();
+
+        let mut hw = caliptra_hw_model::new(
+            InitParams {
+                rom: &rom,
+                subsystem_mode,
+                ..Default::default()
+            },
+            BootParams {
+                fw_image: Some(&image_bundle.to_bytes().unwrap()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+
+        hw.step_until_boot_status(ColdResetComplete.into(), true);
+
+        // FMC bytes are identical so the digest check passes, but the shifted
+        // load_addr must be rejected by the placement check.
+        let mut tampered = ImageBundle {
+            manifest: image_bundle.manifest,
+            fmc: image_bundle.fmc.clone(),
+            runtime: image_bundle.runtime.clone(),
+        };
+        tampered.manifest.fmc.load_addr += 4;
+        tampered.manifest.fmc.entry_point += 4;
+        let tampered_bytes = rebuild_image_after_toc_change(&mut tampered);
+
+        assert_eq!(
+            hw.mailbox_execute(u32::from(CommandId::FIRMWARE_LOAD), &tampered_bytes,),
+            Err(caliptra_hw_model::ModelError::MailboxCmdFailed(
+                CaliptraError::IMAGE_VERIFIER_ERR_UPDATE_RESET_FMC_LOAD_ADDR_MISMATCH.into()
+            ))
+        );
+
+        hw.mailbox_execute(0x1000_000C, &[]).unwrap();
+        hw.step_until_exit_success().unwrap();
     }
 }
