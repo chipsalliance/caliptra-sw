@@ -12,7 +12,7 @@ use caliptra_builder::{
         runtime_tests::{MBOX, MBOX_FPGA, MBOX_WITHOUT_UART, MBOX_WITHOUT_UART_FPGA},
         APP_WITH_UART, APP_WITH_UART_FPGA, FMC_FAKE_WITH_UART, FMC_WITH_UART,
     },
-    FwId, ImageOptions,
+    get_ci_rom_version, CiRomVersion, FwId, ImageOptions,
 };
 use caliptra_common::mailbox_api::{
     CommandId, FwInfoResp, IncrementPcrResetCounterReq, MailboxReq, MailboxReqHeader, TagTciReq,
@@ -319,25 +319,38 @@ fn test_rejected_debug_update_preserves_fw_info_policy() {
     );
 
     let request = external_fw_load_req(0, debug_image.len());
-    assert_eq!(
-        model.mailbox_execute(
-            u32::from(CommandId::EXTERNAL_MAILBOX_CMD),
-            request.as_bytes().unwrap(),
-        ),
-        Err(ModelError::MailboxCmdFailed(
-            CaliptraError::IMAGE_VERIFIER_ERR_DEBUG_IMAGE_NOT_ALLOWED.into()
-        ))
+    let result = model.mailbox_execute(
+        u32::from(CommandId::EXTERNAL_MAILBOX_CMD),
+        request.as_bytes().unwrap(),
     );
 
-    model.step_until_ready_for_runtime();
-    assert_eq!(
-        model.soc_ifc().cptra_fw_error_non_fatal().read(),
-        u32::from(CaliptraError::IMAGE_VERIFIER_ERR_DEBUG_IMAGE_NOT_ALLOWED)
-    );
-    assert_eq!(
-        get_fwinfo_allow_attestation_disabled(&mut model).debug_policy,
-        0
-    );
+    match get_ci_rom_version() {
+        CiRomVersion::Rom2_1_0 | CiRomVersion::Rom2_1_1 | CiRomVersion::Rom2_1_2 => {
+            assert_eq!(result, Ok(None));
+            model.step_until_ready_for_runtime();
+            assert_eq!(
+                get_fwinfo_allow_attestation_disabled(&mut model).debug_policy,
+                FwInfoResp::DEBUG_FIRMWARE_ACTIVE
+            );
+        }
+        _ => {
+            assert_eq!(
+                result,
+                Err(ModelError::MailboxCmdFailed(
+                    CaliptraError::IMAGE_VERIFIER_ERR_DEBUG_IMAGE_NOT_ALLOWED.into()
+                ))
+            );
+            model.step_until_ready_for_runtime();
+            assert_eq!(
+                model.soc_ifc().cptra_fw_error_non_fatal().read(),
+                u32::from(CaliptraError::IMAGE_VERIFIER_ERR_DEBUG_IMAGE_NOT_ALLOWED)
+            );
+            assert_eq!(
+                get_fwinfo_allow_attestation_disabled(&mut model).debug_policy,
+                0
+            );
+        }
+    }
 }
 
 #[cfg_attr(any(feature = "fpga_realtime", feature = "fpga_subsystem"), ignore)]
@@ -364,21 +377,34 @@ fn test_debug_update_disabled_by_strap_preserves_fw_info_policy() {
     });
 
     let request = external_fw_load_req(0, debug_image.len());
-    assert_eq!(
-        model.mailbox_execute(
-            u32::from(CommandId::EXTERNAL_MAILBOX_CMD),
-            request.as_bytes().unwrap(),
-        ),
-        Err(ModelError::MailboxCmdFailed(
-            CaliptraError::IMAGE_VERIFIER_ERR_DEBUG_IMAGE_NOT_ALLOWED.into()
-        ))
+    let result = model.mailbox_execute(
+        u32::from(CommandId::EXTERNAL_MAILBOX_CMD),
+        request.as_bytes().unwrap(),
     );
 
-    model.step_until_ready_for_runtime();
-    assert_eq!(
-        get_fwinfo_allow_attestation_disabled(&mut model).debug_policy,
-        0
-    );
+    match get_ci_rom_version() {
+        CiRomVersion::Rom2_1_0 | CiRomVersion::Rom2_1_1 | CiRomVersion::Rom2_1_2 => {
+            assert_eq!(result, Ok(None));
+            model.step_until_ready_for_runtime();
+            assert_eq!(
+                get_fwinfo_allow_attestation_disabled(&mut model).debug_policy,
+                FwInfoResp::DEBUG_FIRMWARE_ACTIVE
+            );
+        }
+        _ => {
+            assert_eq!(
+                result,
+                Err(ModelError::MailboxCmdFailed(
+                    CaliptraError::IMAGE_VERIFIER_ERR_DEBUG_IMAGE_NOT_ALLOWED.into()
+                ))
+            );
+            model.step_until_ready_for_runtime();
+            assert_eq!(
+                get_fwinfo_allow_attestation_disabled(&mut model).debug_policy,
+                0
+            );
+        }
+    }
 }
 
 #[test]
