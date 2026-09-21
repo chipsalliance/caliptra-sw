@@ -1221,14 +1221,17 @@ pub enum AuthManifestSource {
     Owner = 1,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct InvalidAuthManifestSource;
+
 impl TryFrom<u32> for AuthManifestSource {
-    type Error = ();
+    type Error = InvalidAuthManifestSource;
 
     fn try_from(value: u32) -> Result<Self, Self::Error> {
         match value {
             0 => Ok(Self::VendorOwner),
             1 => Ok(Self::Owner),
-            _ => Err(()),
+            _ => Err(InvalidAuthManifestSource),
         }
     }
 }
@@ -1241,7 +1244,7 @@ impl AuthManifestSource {
         (self as u32) << Self::FLAG_SHIFT
     }
 
-    pub fn from_flags(flags: u32) -> Result<Self, ()> {
+    pub fn from_flags(flags: u32) -> Result<Self, InvalidAuthManifestSource> {
         Self::try_from((flags & Self::FLAG_MASK) >> Self::FLAG_SHIFT)
     }
 }
@@ -6127,8 +6130,14 @@ mod tests {
             AuthManifestSource::from_flags(1 << 1),
             Ok(AuthManifestSource::Owner)
         );
-        assert_eq!(AuthManifestSource::from_flags(2 << 1), Err(()));
-        assert_eq!(AuthManifestSource::from_flags(3 << 1), Err(()));
+        assert_eq!(
+            AuthManifestSource::from_flags(2 << 1),
+            Err(InvalidAuthManifestSource)
+        );
+        assert_eq!(
+            AuthManifestSource::from_flags(3 << 1),
+            Err(InvalidAuthManifestSource)
+        );
     }
 
     #[test]
