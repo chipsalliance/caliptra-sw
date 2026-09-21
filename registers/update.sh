@@ -19,4 +19,4 @@ if [[ ! -f $"../hw/$1/rtl/.git" ]]; then
 fi
 
 
-cargo run --manifest-path bin/generator/Cargo.toml -- ../hw/$1/rtl bin/extra-rdl/ ../hw/$1/i3c-core-rtl ../hw/$1/caliptra-ss ../hw/$1/registers/src/
+cargo run --manifest-path bin/generator/Cargo.toml -- $1 ../hw/$1/rtl bin/extra-rdl/ ../hw/$1/i3c-core-rtl ../hw/$1/caliptra-ss ../hw/$1/registers/src/
