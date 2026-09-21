@@ -69,6 +69,7 @@ hkdf.workspace = true
 hmac.workspace = true
 ml-dsa.workspace = true
 ml-dsa-01.workspace = true
+ml-kem.workspace = true
 openssl.workspace = true
 p384.workspace = true
 sha2 = { version = "0.10.2", default-features = false, features = ["compress"] }

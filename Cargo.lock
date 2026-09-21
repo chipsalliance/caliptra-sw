@@ -1181,6 +1181,7 @@ dependencies = [
  "memoffset 0.8.0",
  "ml-dsa 0.0.4",
  "ml-dsa 0.1.0-rc.9",
+ "ml-kem",
  "openssl",
  "p384",
  "rand 0.8.5",
