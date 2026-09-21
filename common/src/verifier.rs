@@ -250,4 +250,8 @@ impl ImageVerificationEnv for &mut FirmwareImageVerificationEnv<'_, '_> {
             None
         }
     }
+
+    fn debug_image_allowed(&self) -> bool {
+        self.soc_ifc.vendor_debug_image_allowed()
+    }
 }

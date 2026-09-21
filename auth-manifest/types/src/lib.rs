@@ -30,6 +30,7 @@ bitflags::bitflags! {
     #[derive(Default, Copy, Clone, Debug)]
     pub struct AuthManifestFlags : u32 {
         const VENDOR_SIGNATURE_REQUIRED = 0b1;
+        const DEBUG_IMAGE = 0b10;
     }
 }
 
@@ -87,7 +88,7 @@ pub struct AuthManifestPreamble {
 
     pub svn: u32,
 
-    pub flags: u32, // AuthManifestFlags(VENDOR_SIGNATURE_REQUIRED)
+    pub flags: u32, // AuthManifestFlags(VENDOR_SIGNATURE_REQUIRED, DEBUG_IMAGE)
 
     pub vendor_pub_keys: AuthManifestPubKeys,
 

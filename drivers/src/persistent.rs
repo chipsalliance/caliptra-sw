@@ -420,8 +420,13 @@ pub struct PersistentData {
     // Survives warm and update resets and is cleared on cold reset with the manifest metadata.
     pub auth_manifest_svn: u32,
     #[cfg(feature = "runtime")]
+    pub auth_manifest_is_debug: U8Bool,
+    #[cfg(feature = "runtime")]
     reserved9: [u8; AUTH_MAN_IMAGE_METADATA_MAX_SIZE as usize
-        - (SHA384_HASH_SIZE + size_of::<AuthManifestImageMetadataCollection>() + size_of::<u32>())],
+        - (SHA384_HASH_SIZE
+            + size_of::<AuthManifestImageMetadataCollection>()
+            + size_of::<u32>()
+            + size_of::<U8Bool>())],
 
     #[cfg(not(feature = "runtime"))]
     pub auth_manifest_image_metadata_col: [u8; AUTH_MAN_PERSISTENT_DATA_SIZE as usize],
