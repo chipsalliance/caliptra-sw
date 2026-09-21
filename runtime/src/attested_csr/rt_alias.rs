@@ -1,6 +1,5 @@
 // Licensed under the Apache-2.0 license
 
-use super::MAX_CSR_SIZE;
 use crate::Drivers;
 use caliptra_common::{crypto::PubKey, x509};
 use caliptra_drivers::{KeyReadArgs, Mldsa87Seed, Mldsa87SignRnd};
@@ -15,7 +14,7 @@ use zerocopy::IntoBytes;
 /// Generate an RT Alias ECC384 CSR, signed with the RT Alias ECC private key.
 pub fn generate_rt_alias_ecc_csr(
     drivers: &mut Drivers,
-    csr_buf: &mut [u8; MAX_CSR_SIZE],
+    csr_buf: &mut [u8],
 ) -> CaliptraResult<usize> {
     let pub_key = drivers.persistent_data.get().rom.fht.rt_dice_ecc_pub_key;
     let subject_sn = x509::subj_sn(&mut drivers.sha256, &PubKey::Ecc(&pub_key))?;
@@ -61,7 +60,7 @@ pub fn generate_rt_alias_ecc_csr(
 /// Generate an RT Alias ML-DSA-87 CSR, signed with the RT Alias ML-DSA private key.
 pub fn generate_rt_alias_mldsa_csr(
     drivers: &mut Drivers,
-    csr_buf: &mut [u8; MAX_CSR_SIZE],
+    csr_buf: &mut [u8],
 ) -> CaliptraResult<usize> {
     let pub_key = Drivers::get_key_id_rt_mldsa_pub_key(drivers);
     let pub_key = caliptra_drivers::okref(&pub_key)?;
@@ -98,7 +97,9 @@ pub fn generate_rt_alias_mldsa_csr(
     })?;
 
     let mldsa_sig = MlDsa87Signature {
-        sig: signature.as_bytes()[..4627].try_into().unwrap(),
+        sig: signature.as_bytes()[..4627]
+            .try_into()
+            .map_err(|_| CaliptraError::RUNTIME_INTERNAL)?,
     };
 
     let csr_builder = MlDsa87CsrBuilder::new(tbs.tbs(), &mldsa_sig)

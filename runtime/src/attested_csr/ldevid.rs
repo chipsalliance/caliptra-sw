@@ -1,6 +1,5 @@
 // Licensed under the Apache-2.0 license
 
-use super::MAX_CSR_SIZE;
 use crate::Drivers;
 use caliptra_common::x509;
 use caliptra_error::{CaliptraError, CaliptraResult};
@@ -12,10 +11,7 @@ use caliptra_x509::{
 /// Build a null-signed LDevID ECC384 CSR.
 /// Null CSR is encapsulated in COSE Sign1 structure, signed by
 /// RT alias key.
-pub fn generate_ldevid_ecc_csr(
-    drivers: &mut Drivers,
-    csr_buf: &mut [u8; MAX_CSR_SIZE],
-) -> CaliptraResult<usize> {
+pub fn generate_ldevid_ecc_csr(drivers: &mut Drivers, csr_buf: &mut [u8]) -> CaliptraResult<usize> {
     let pub_key = drivers
         .persistent_data
         .get()
@@ -45,7 +41,7 @@ pub fn generate_ldevid_ecc_csr(
 /// Build a null-signed LDevID ML-DSA87 CSR.
 pub fn generate_ldevid_mldsa_csr(
     drivers: &mut Drivers,
-    csr_buf: &mut [u8; MAX_CSR_SIZE],
+    csr_buf: &mut [u8],
 ) -> CaliptraResult<usize> {
     let pub_key = drivers
         .persistent_data

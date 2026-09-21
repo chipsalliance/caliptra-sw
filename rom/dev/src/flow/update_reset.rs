@@ -29,7 +29,6 @@ use caliptra_drivers::{AxiAddr, DataVault, Dma};
 use caliptra_error::{CaliptraError, CaliptraResult};
 use caliptra_image_types::ImageManifest;
 use caliptra_image_verify::{ImageVerificationInfo, ImageVerifier};
-use core::mem::size_of;
 use zerocopy::{FromBytes, FromZeros, IntoBytes};
 
 #[derive(Default)]
@@ -245,6 +244,7 @@ impl UpdateResetFlow {
                 }
                 _ => panic!("Image source cannot be fips test"),
             },
+            persistent_data: env.persistent_data,
         };
 
         let mut verifier = ImageVerifier::new(env);
@@ -302,7 +302,7 @@ impl UpdateResetFlow {
             let addr = (manifest.runtime.load_addr) as *mut u8;
             core::slice::from_raw_parts_mut(addr, manifest.runtime.size as usize)
         };
-        let start = size_of::<ImageManifest>() + manifest.fmc.size as usize;
+        let start = manifest.runtime.offset as usize;
         let end = start + runtime_dest.len();
         if start > end || mbox_sram.len() < end {
             Err(CaliptraError::ROM_UPDATE_RESET_FLOW_MAILBOX_ACCESS_FAILURE)?;
@@ -344,7 +344,7 @@ impl UpdateResetFlow {
                 runtime_size_words,
             )
         };
-        let runtime_offset = size_of::<ImageManifest>() + manifest.fmc.size as usize;
+        let runtime_offset = manifest.runtime.offset as usize;
         let source_addr = AxiAddr::from(staging_addr + runtime_offset as u64);
         dma.read_buffer(source_addr, runtime_words);
 
