@@ -28,6 +28,10 @@ pub struct FirmwareImageVerificationEnv<'a, 'b> {
     pub data_vault: &'a mut DataVault,
     pub pcr_bank: &'a mut PcrBank,
     pub image: &'b [u8],
+    /// FMC load address from the cold-boot manifest (checked on update reset)
+    pub cold_reset_fmc_load_addr: u32,
+    /// FMC size from the cold-boot manifest (checked on update reset)
+    pub cold_reset_fmc_size: u32,
 }
 
 impl<'a, 'b> ImageVerificationEnv for &mut FirmwareImageVerificationEnv<'a, 'b> {
@@ -136,6 +140,16 @@ impl<'a, 'b> ImageVerificationEnv for &mut FirmwareImageVerificationEnv<'a, 'b> 
     // Get Runtime fuse SVN
     fn runtime_fuse_svn(&self) -> u32 {
         self.soc_ifc.fuse_bank().runtime_fuse_svn()
+    }
+
+    // Get FMC load address from the cold boot
+    fn get_cold_reset_fmc_load_addr(&self) -> u32 {
+        self.cold_reset_fmc_load_addr
+    }
+
+    // Get FMC size from the cold boot
+    fn get_cold_reset_fmc_size(&self) -> u32 {
+        self.cold_reset_fmc_size
     }
 
     fn iccm_range(&self) -> Range<u32> {

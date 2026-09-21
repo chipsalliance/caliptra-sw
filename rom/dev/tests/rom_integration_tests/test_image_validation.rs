@@ -1209,12 +1209,13 @@ fn test_toc_fmc_size_zero() {
 #[test]
 fn test_toc_fmc_range_overlap() {
     // Case 1: FMC offset == Runtime offset
+    // (fmc.offset must stay valid, so move the runtime onto the FMC)
     let (mut hw, mut image_bundle) =
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
-    let fmc_new_offset = image_bundle.manifest.runtime.offset;
+    let runtime_new_offset = image_bundle.manifest.fmc.offset;
     // These are unchanged.
+    let fmc_new_offset = image_bundle.manifest.fmc.offset;
     let fmc_new_size = image_bundle.manifest.fmc.size;
-    let runtime_new_offset = image_bundle.manifest.runtime.offset;
     let runtime_new_size = image_bundle.manifest.runtime.size;
 
     let image = update_fmc_runtime_ranges(
@@ -1233,10 +1234,10 @@ fn test_toc_fmc_range_overlap() {
     // Case 2: FMC offset > Runtime offset
     let (mut hw, mut image_bundle) =
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
-    let fmc_new_offset = image_bundle.manifest.runtime.offset + 1;
+    let runtime_new_offset = image_bundle.manifest.fmc.offset - 1;
     // These are unchanged.
+    let fmc_new_offset = image_bundle.manifest.fmc.offset;
     let fmc_new_size = image_bundle.manifest.fmc.size;
-    let runtime_new_offset = image_bundle.manifest.runtime.offset;
     let runtime_new_size = image_bundle.manifest.runtime.size;
     let image = update_fmc_runtime_ranges(
         &mut image_bundle,
@@ -1283,17 +1284,18 @@ fn test_toc_fmc_range_overlap() {
 fn test_toc_fmc_range_incorrect_order() {
     let (mut hw, mut image_bundle) =
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
-    let fmc_new_offset = image_bundle.manifest.runtime.offset;
-    let fmc_new_size = image_bundle.manifest.runtime.size;
-    let runtime_new_offset = image_bundle.manifest.fmc.offset;
-    let runtime_new_size = image_bundle.manifest.fmc.size;
+    // Keep fmc.offset valid (= IMAGE_MANIFEST_BYTE_SIZE). Place runtime
+    // entirely before FMC in the bundle (offset=0, small size) so the
+    // ranges don't overlap but fmc.end > runtime.start -> INCORRECT_ORDER.
+    let fmc_new_offset = image_bundle.manifest.fmc.offset;
+    let fmc_new_size = image_bundle.manifest.fmc.size;
 
     let image = update_fmc_runtime_ranges(
         &mut image_bundle,
         fmc_new_offset,
         fmc_new_size,
-        runtime_new_offset,
-        runtime_new_size,
+        0,   // runtime before FMC in bundle
+        100, // small enough that runtime.end < fmc.offset
     );
     assert_eq!(
         ModelError::MailboxCmdFailed(
@@ -1305,6 +1307,34 @@ fn test_toc_fmc_range_incorrect_order() {
     assert_eq!(
         hw.soc_ifc().cptra_boot_status().read(),
         u32::from(FwProcessorManifestLoadComplete)
+    );
+}
+
+#[test]
+fn test_fmc_offset_invalid_gap() {
+    let (mut hw, mut image_bundle) =
+        helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
+
+    // Shift both offsets forward to introduce a gap after the manifest.
+    let gap_size: u32 = 0x100;
+    image_bundle.manifest.fmc.offset += gap_size;
+    image_bundle.manifest.runtime.offset += gap_size;
+
+    let gen = ImageGenerator::new(Crypto::default());
+    image_bundle.manifest.header.toc_digest = gen
+        .toc_digest(&image_bundle.manifest.fmc, &image_bundle.manifest.runtime)
+        .unwrap();
+    update_header(&mut image_bundle);
+
+    // Physically insert the gap between the manifest and FMC.
+    let mut image = image_bundle.manifest.as_bytes().to_vec();
+    image.extend(vec![0u8; gap_size as usize]);
+    image.extend_from_slice(&image_bundle.fmc);
+    image.extend_from_slice(&image_bundle.runtime);
+
+    assert_eq!(
+        ModelError::MailboxCmdFailed(CaliptraError::IMAGE_VERIFIER_ERR_FMC_OFFSET_INVALID.into()),
+        hw.upload_firmware(&image).unwrap_err()
     );
 }
 

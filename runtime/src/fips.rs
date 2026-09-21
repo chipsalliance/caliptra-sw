@@ -118,6 +118,9 @@ pub mod fips_self_test_cmd {
             data_vault: &mut env.data_vault,
             pcr_bank: &mut env.pcr_bank,
             image: env.mbox.raw_mailbox_contents(),
+            // FIPS self-test verifies the already-loaded cold-boot manifest.
+            cold_reset_fmc_load_addr: env.persistent_data.get().manifest1.fmc.load_addr,
+            cold_reset_fmc_size: env.persistent_data.get().manifest1.fmc.size,
         };
 
         let mut verifier = ImageVerifier::new(&mut venv);

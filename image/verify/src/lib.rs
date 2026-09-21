@@ -157,6 +157,12 @@ pub trait ImageVerificationEnv {
     // Get Runtime fuse SVN
     fn runtime_fuse_svn(&self) -> u32;
 
+    // Get the cold-boot FMC load address from the persisted manifest
+    fn get_cold_reset_fmc_load_addr(&self) -> u32;
+
+    // Get the cold-boot FMC size from the persisted manifest
+    fn get_cold_reset_fmc_size(&self) -> u32;
+
     // ICCM Range
     fn iccm_range(&self) -> Range<u32>;
 
