@@ -135,17 +135,25 @@ fn real_main() -> Result<(), Box<dyn Error>> {
 
     if args.len() < 6 {
         Err(
-            "Usage: codegen [--check] <caliptra_rtl_dir> <extra_rdl_dir> <dest_i3c> <caliptra_ss_dir> <dir_core_dir>",
+            "Usage: codegen [--check] <hw_version> <caliptra_rtl_dir> <extra_rdl_dir> <dest_i3c> <caliptra_ss_dir> <dir_core_dir>",
         )?;
     }
 
-    let rtl_dir = Path::new(&args[1]);
+    let hw_version = &args[1];
+    let rtl_dir = Path::new(&args[2]);
 
     let mut rdl_files: Vec<PathBuf> = CALIPTRA_RDL_FILES
         .iter()
         .map(|p| rtl_dir.join(p))
         .filter(|p| p.exists())
         .collect();
+
+    if hw_version.as_str() >= "rev-2_2" {
+        let f = rtl_dir.join("src/entropy_combiner/rtl/entropy_combiner_reg.rdl");
+        if f.exists() {
+            rdl_files.push(f);
+        }
+    }
 
     let adamsbridge_rdl_dir = rtl_dir.join("submodules").join("adams-bridge");
     let mut adamsbridge_rdl_files: Vec<PathBuf> = ADAMSBRIDGE_RDL_FILES
@@ -155,7 +163,7 @@ fn real_main() -> Result<(), Box<dyn Error>> {
         .collect();
     rdl_files.append(&mut adamsbridge_rdl_files);
 
-    let i3c_core_rdl_dir = Path::new(&args[3]);
+    let i3c_core_rdl_dir = Path::new(&args[4]);
     let mut i3c_core_rdl_files: Vec<PathBuf> = I3C_CORE_RDL_FILES
         .iter()
         .map(|p| i3c_core_rdl_dir.join(p))
@@ -163,7 +171,7 @@ fn real_main() -> Result<(), Box<dyn Error>> {
         .collect();
     rdl_files.append(&mut i3c_core_rdl_files);
 
-    let caliptra_ss_dir = Path::new(&args[4]);
+    let caliptra_ss_dir = Path::new(&args[5]);
     let mut caliptra_ss_files: Vec<PathBuf> = CALIPTRA_SS_RDL_FILES
         .iter()
         .map(|p| caliptra_ss_dir.join(p))
@@ -176,7 +184,7 @@ fn real_main() -> Result<(), Box<dyn Error>> {
         rdl_files.push(integration_rdl_file);
     }
 
-    let extra_rdl_dir = Path::new(&args[2]);
+    let extra_rdl_dir = Path::new(&args[3]);
     let mut extra_rdl_files: Vec<PathBuf> = CALIPTRA_EXTRA_RDL_FILES
         .iter()
         .map(|p| extra_rdl_dir.join(p))
