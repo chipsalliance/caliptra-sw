@@ -1052,6 +1052,11 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_SIZE_ZERO)?;
         }
 
+        // Verify the FMC immediately follows the manifest with no gap
+        if manifest.fmc.offset != IMAGE_MANIFEST_BYTE_SIZE as u32 {
+            Err(CaliptraError::IMAGE_VERIFIER_ERR_FMC_OFFSET_INVALID)?;
+        }
+
         // Image length does not exceed the Image Bundle size
         let img_len: u64 = manifest.size as u64
             + manifest.fmc.image_size() as u64
@@ -1174,6 +1179,13 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
                 Err(CaliptraError::IMAGE_VERIFIER_ERR_UPDATE_RESET_FMC_DIGEST_MISMATCH)?;
             } else {
                 cfi_assert_eq(actual, self.env.get_fmc_digest_dv());
+            }
+
+            // Ensure FMC load address and size are unchanged from cold boot
+            if cfi_launder(verify_info.load_addr) != self.env.get_cold_reset_fmc_load_addr()
+                || cfi_launder(verify_info.size) != self.env.get_cold_reset_fmc_size()
+            {
+                Err(CaliptraError::IMAGE_VERIFIER_ERR_UPDATE_RESET_FMC_LOAD_ADDR_MISMATCH)?;
             }
         } else {
             cfi_assert_ne(reason, ResetReason::UpdateReset);
@@ -1390,6 +1402,7 @@ mod tests {
             owner_pub_key_digest: DUMMY_DATA,
             digest_384: DUMMY_DATA,
             fmc_digest: DUMMY_DATA,
+            cold_reset_fmc_size: 100,
             ..Default::default()
         };
 
@@ -2039,12 +2052,15 @@ mod tests {
             digest: &ImageDigest384::default(),
         };
 
+        // Must use valid FMC offset or failure code will not be what is intended
+        let manifest_sz = IMAGE_MANIFEST_BYTE_SIZE as u32;
+
         // Case 0:
         // [-FMC--]
         // [--RT--]
-        manifest.fmc.offset = 0;
+        manifest.fmc.offset = manifest_sz;
         manifest.fmc.size = 100;
-        manifest.runtime.offset = 0;
+        manifest.runtime.offset = manifest_sz;
         manifest.runtime.size = 100;
         let result = verifier.verify_toc(
             &manifest,
@@ -2059,9 +2075,9 @@ mod tests {
         // Case 1:
         // [-FMC--]
         //        [--RT--]
-        manifest.fmc.offset = 0;
+        manifest.fmc.offset = manifest_sz;
         manifest.fmc.size = 100;
-        manifest.runtime.offset = 99;
+        manifest.runtime.offset = manifest_sz + 99;
         manifest.runtime.size = 200;
         let result = verifier.verify_toc(
             &manifest,
@@ -2076,9 +2092,9 @@ mod tests {
         // Case 2:
         // [-FMC--]
         //   [-RT-]
-        manifest.fmc.offset = 0;
+        manifest.fmc.offset = manifest_sz;
         manifest.fmc.size = 100;
-        manifest.runtime.offset = 5;
+        manifest.runtime.offset = manifest_sz + 5;
         manifest.runtime.size = 100;
         let result = verifier.verify_toc(
             &manifest,
@@ -2093,9 +2109,9 @@ mod tests {
         // Case 3:
         //   [-FMC-]
         // [---RT--]
-        manifest.fmc.offset = 5;
+        manifest.fmc.offset = manifest_sz;
         manifest.fmc.size = 100;
-        manifest.runtime.offset = 0;
+        manifest.runtime.offset = manifest_sz - 5;
         manifest.runtime.size = 100;
         let result = verifier.verify_toc(
             &manifest,
@@ -2110,9 +2126,9 @@ mod tests {
         // Case 4:
         //        [-FMC--]
         // [--RT--]
-        manifest.runtime.offset = 0;
+        manifest.runtime.offset = manifest_sz - 99;
         manifest.runtime.size = 100;
-        manifest.fmc.offset = 99;
+        manifest.fmc.offset = manifest_sz;
         manifest.fmc.size = 200;
         let result = verifier.verify_toc(
             &manifest,
@@ -2127,9 +2143,9 @@ mod tests {
         // Case 5:
         //  [---FMC---]
         //    [-RT-]
-        manifest.fmc.offset = 100;
+        manifest.fmc.offset = manifest_sz;
         manifest.fmc.size = 500;
-        manifest.runtime.offset = 150;
+        manifest.runtime.offset = manifest_sz + 50;
         manifest.runtime.size = 200;
         let result = verifier.verify_toc(
             &manifest,
@@ -2144,9 +2160,9 @@ mod tests {
         // Case 6:
         //  [----RT----]
         //    [-FMC-]
-        manifest.runtime.offset = 0;
+        manifest.runtime.offset = manifest_sz - 20;
         manifest.runtime.size = 200;
-        manifest.fmc.offset = 20;
+        manifest.fmc.offset = manifest_sz;
         manifest.fmc.size = 30;
         let result = verifier.verify_toc(
             &manifest,
@@ -2160,7 +2176,7 @@ mod tests {
     }
 
     #[test]
-    fn test_size_failure() {
+    fn test_toc_fmc_offset_invalid() {
         let mut manifest = ImageManifest::default();
         let test_env = TestEnv::default();
         let mut verifier = ImageVerifier::new(test_env);
@@ -2169,10 +2185,48 @@ mod tests {
             digest: &ImageDigest384::default(),
         };
 
-        // FMC size == 0
+        // FMC offset is zero (gap or missing manifest prefix)
         manifest.fmc.offset = 0;
-        manifest.fmc.size = 0;
+        manifest.fmc.size = 100;
         manifest.runtime.offset = 100;
+        manifest.runtime.size = 200;
+        let result = verifier.verify_toc(
+            &manifest,
+            &toc_info,
+            manifest.size + manifest.fmc.image_size() + manifest.runtime.image_size(),
+        );
+        assert_eq!(
+            result.err(),
+            Some(CaliptraError::IMAGE_VERIFIER_ERR_FMC_OFFSET_INVALID)
+        );
+
+        // FMC offset has a gap after the manifest
+        manifest.fmc.offset = IMAGE_MANIFEST_BYTE_SIZE as u32 + 0x100;
+        let result = verifier.verify_toc(
+            &manifest,
+            &toc_info,
+            manifest.size + manifest.fmc.image_size() + manifest.runtime.image_size(),
+        );
+        assert_eq!(
+            result.err(),
+            Some(CaliptraError::IMAGE_VERIFIER_ERR_FMC_OFFSET_INVALID)
+        );
+    }
+
+    #[test]
+    fn test_size_failure() {
+        let mut manifest = ImageManifest::default();
+        let test_env = TestEnv::default();
+        let mut verifier = ImageVerifier::new(test_env);
+        let toc_info = TocInfo {
+            len: MAX_TOC_ENTRY_COUNT,
+            digest: &ImageDigest384::default(),
+        };
+        let manifest_sz = IMAGE_MANIFEST_BYTE_SIZE as u32;
+
+        manifest.fmc.offset = manifest_sz;
+        manifest.fmc.size = 0;
+        manifest.runtime.offset = manifest_sz + 100;
         manifest.runtime.size = 200;
         let result = verifier.verify_toc(&manifest, &toc_info, 500);
         assert_eq!(
@@ -2181,9 +2235,9 @@ mod tests {
         );
 
         // RT size == 0
-        manifest.fmc.offset = 0;
+        manifest.fmc.offset = manifest_sz;
         manifest.fmc.size = 100;
-        manifest.runtime.offset = 100;
+        manifest.runtime.offset = manifest_sz + 100;
         manifest.runtime.size = 0;
         let result = verifier.verify_toc(&manifest, &toc_info, 500);
         assert_eq!(
@@ -2193,9 +2247,9 @@ mod tests {
 
         // [-FMC--]
         // [--RT--]
-        manifest.fmc.offset = 0;
+        manifest.fmc.offset = manifest_sz;
         manifest.fmc.size = 100;
-        manifest.runtime.offset = 100;
+        manifest.runtime.offset = manifest_sz + 100;
         manifest.runtime.size = 200;
         let result = verifier.verify_toc(&manifest, &toc_info, 100);
         assert_eq!(
@@ -2213,12 +2267,11 @@ mod tests {
             len: MAX_TOC_ENTRY_COUNT,
             digest: &ImageDigest384::default(),
         };
+        let manifest_sz = IMAGE_MANIFEST_BYTE_SIZE as u32;
 
-        // [-FMC--]
-        // [--RT--]
-        manifest.fmc.offset = 0;
+        manifest.fmc.offset = manifest_sz;
         manifest.fmc.size = 100;
-        manifest.runtime.offset = 100;
+        manifest.runtime.offset = manifest_sz + 100;
         manifest.runtime.size = 200;
         manifest.fmc.load_addr = 0x1000;
         manifest.runtime.load_addr = 0x2000;
@@ -2240,12 +2293,13 @@ mod tests {
             len: MAX_TOC_ENTRY_COUNT,
             digest: &ImageDigest384::default(),
         };
+        let manifest_sz = IMAGE_MANIFEST_BYTE_SIZE as u32;
 
         // [-FMC--]
         // [--RT--]
-        manifest.runtime.offset = 0;
+        manifest.runtime.offset = manifest_sz - 100;
         manifest.runtime.size = 100;
-        manifest.fmc.offset = 100;
+        manifest.fmc.offset = manifest_sz;
         manifest.fmc.size = 200;
         let result = verifier.verify_toc(
             &manifest,
@@ -2267,10 +2321,11 @@ mod tests {
             len: MAX_TOC_ENTRY_COUNT,
             digest: &ImageDigest384::default(),
         };
+        let manifest_sz = IMAGE_MANIFEST_BYTE_SIZE as u32;
 
-        manifest.fmc.offset = 0;
+        manifest.fmc.offset = manifest_sz;
+        manifest.runtime.offset = manifest_sz + 100;
         manifest.fmc.size = 100;
-        manifest.runtime.offset = 100;
         manifest.runtime.size = 200;
 
         // Case 1:
@@ -2445,6 +2500,8 @@ mod tests {
         lifecycle: Lifecycle,
         pqc_key_type: FwVerificationPqcKeyType,
         debug_image_allowed: bool,
+        cold_reset_fmc_load_addr: u32,
+        cold_reset_fmc_size: u32,
     }
 
     impl Default for TestEnv {
@@ -2462,6 +2519,8 @@ mod tests {
                 lifecycle: Lifecycle::Unprovisioned,
                 pqc_key_type: FwVerificationPqcKeyType::MLDSA,
                 debug_image_allowed: false,
+                cold_reset_fmc_load_addr: ICCM_ORG,
+                cold_reset_fmc_size: ICCM_SIZE,
             }
         }
     }
@@ -2574,6 +2633,14 @@ mod tests {
 
         fn get_fmc_digest_dv(&self) -> ImageDigest384 {
             self.fmc_digest
+        }
+
+        fn get_cold_reset_fmc_load_addr(&self) -> u32 {
+            self.cold_reset_fmc_load_addr
+        }
+
+        fn get_cold_reset_fmc_size(&self) -> u32 {
+            self.cold_reset_fmc_size
         }
 
         fn fw_fuse_svn(&self) -> u32 {

@@ -27,6 +27,7 @@ use caliptra_error::{CaliptraError, CaliptraResult};
 use caliptra_image_types::ImageManifest;
 use caliptra_image_verify::{ImageVerificationInfo, ImageVerifier};
 use zerocopy::IntoBytes;
+use zerocopy::{FromBytes, FromZeros, IntoBytes};
 
 #[derive(Default)]
 pub struct UpdateResetFlow {}
@@ -162,6 +163,16 @@ impl UpdateResetFlow {
             mldsa87: env.mldsa87,
             image: env.image,
             dma: env.dma,
+            image_source: match &env.image_source {
+                caliptra_common::verifier::ImageSource::MboxMemory(img) => {
+                    crate::flow::fake::ImageSource::Memory(img)
+                }
+                caliptra_common::verifier::ImageSource::Axi { dma, axi_start: _ } => {
+                    crate::flow::fake::ImageSource::McuSram(dma)
+                }
+                _ => panic!("Image source cannot be fips test"),
+            },
+            persistent_data: env.persistent_data,
         };
 
         let mut verifier = ImageVerifier::new(env);
@@ -193,11 +204,32 @@ impl UpdateResetFlow {
             let addr = (manifest.runtime.load_addr) as *mut u32;
             core::slice::from_raw_parts_mut(addr, manifest.runtime.size as usize / 4)
         };
+        let start = manifest.runtime.offset as usize;
+        let end = start + runtime_dest.len();
+        if start > end || mbox_sram.len() < end {
+            Err(CaliptraError::ROM_UPDATE_RESET_FLOW_MAILBOX_ACCESS_FAILURE)?;
+        }
+        runtime_dest.copy_from_slice(&mbox_sram[start..end]);
 
         txn.copy_request(runtime_dest.as_mut_bytes())?;
 
         //Call the complete here to reset the execute bit
         txn.complete(true)?;
+        // Load Runtime from staging area
+        let runtime_dest = unsafe {
+            let addr = (manifest.runtime.load_addr) as *mut u8;
+            core::slice::from_raw_parts_mut(addr, manifest.runtime.size as usize)
+        };
+        let runtime_size_words = runtime_dest.len().div_ceil(4);
+        let runtime_words = unsafe {
+            core::slice::from_raw_parts_mut(
+                runtime_dest.as_mut_ptr() as *mut u32,
+                runtime_size_words,
+            )
+        };
+        let runtime_offset = manifest.runtime.offset as usize;
+        let source_addr = AxiAddr::from(staging_addr + runtime_offset as u64);
+        dma.read_buffer(source_addr, runtime_words);
 
         Ok(())
     }
