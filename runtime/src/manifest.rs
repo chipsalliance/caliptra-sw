@@ -16,6 +16,7 @@ use caliptra_auth_man_types::{
     AuthManifestImageMetadata, AuthManifestImageMetadataCollection,
     OwnerAuthManifestImageMetadataCollection,
 };
+use caliptra_common::mailbox_api::AuthManifestSource;
 
 /// Search for an active metadata entry in the sorted `AuthManifestImageMetadataCollection` that matches the firmware ID.
 ///
@@ -68,6 +69,23 @@ pub fn find_owner_metadata_entry(
     list.binary_search_by(|metadata| metadata.fw_id.cmp(&cmd_fw_id))
         .ok()
         .map(|index| &list[index])
+}
+
+/// Search the metadata collection selected by the manifest-source flag bits.
+pub fn find_metadata_entry_by_type<'a>(
+    auth_manifest_image_metadata_col: &'a AuthManifestImageMetadataCollection,
+    owner_auth_manifest_image_metadata_col: &'a OwnerAuthManifestImageMetadataCollection,
+    cmd_fw_id: u32,
+    manifest_source: AuthManifestSource,
+) -> Option<&'a AuthManifestImageMetadata> {
+    match manifest_source {
+        AuthManifestSource::VendorOwner => {
+            find_metadata_entry(auth_manifest_image_metadata_col, cmd_fw_id)
+        }
+        AuthManifestSource::Owner => {
+            find_owner_metadata_entry(owner_auth_manifest_image_metadata_col, cmd_fw_id)
+        }
+    }
 }
 
 /// Return whether two firmware-ID-sorted metadata lists contain the same ID.
@@ -134,6 +152,41 @@ mod test {
         let col = OwnerAuthManifestImageMetadataCollection::default();
         assert!(find_owner_metadata_entry(&col, 0).is_none());
         assert!(find_owner_metadata_entry(&col, 100).is_none());
+    }
+
+    #[test]
+    fn find_metadata_entry_by_type_selects_manifest() {
+        let mut auth_col = AuthManifestImageMetadataCollection {
+            entry_count: 1,
+            ..Default::default()
+        };
+        auth_col.image_metadata_list[0] = entry(5);
+        let mut owner_col = OwnerAuthManifestImageMetadataCollection {
+            entry_count: 1,
+            ..Default::default()
+        };
+        owner_col.image_metadata_list[0] = entry(9);
+
+        let vendor_entry =
+            find_metadata_entry_by_type(&auth_col, &owner_col, 5, AuthManifestSource::VendorOwner)
+                .unwrap();
+        assert_eq!(vendor_entry.fw_id, 5);
+        assert!(find_metadata_entry_by_type(
+            &auth_col,
+            &owner_col,
+            9,
+            AuthManifestSource::VendorOwner,
+        )
+        .is_none());
+
+        let owner_entry =
+            find_metadata_entry_by_type(&auth_col, &owner_col, 9, AuthManifestSource::Owner)
+                .unwrap();
+        assert_eq!(owner_entry.fw_id, 9);
+        assert!(
+            find_metadata_entry_by_type(&auth_col, &owner_col, 5, AuthManifestSource::Owner,)
+                .is_none()
+        );
     }
 
     #[test]

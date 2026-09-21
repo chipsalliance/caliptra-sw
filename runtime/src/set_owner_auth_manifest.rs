@@ -326,7 +326,11 @@ impl SetOwnerAuthManifestCmd {
 
     #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
-    pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<usize> {
+    pub(crate) fn execute(
+        drivers: &mut Drivers,
+        cmd_args: &[u8],
+        verify_only: bool,
+    ) -> CaliptraResult<usize> {
         // Restrict to PL0
         drivers.ensure_pl0()?;
 
@@ -355,13 +359,14 @@ impl SetOwnerAuthManifestCmd {
                 .ok_or(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?
         };
 
-        Self::set_owner_auth_manifest(drivers, manifest_buf)?;
+        Self::process_owner_auth_manifest(drivers, manifest_buf, verify_only)?;
         Ok(0)
     }
 
-    pub(crate) fn set_owner_auth_manifest(
+    fn process_owner_auth_manifest(
         drivers: &mut Drivers,
         manifest_buf: &[u8],
+        verify_only: bool,
     ) -> CaliptraResult<()> {
         let preamble_size = size_of::<OwnerAuthManifestPreamble>();
         let preamble = {
@@ -411,7 +416,13 @@ impl SetOwnerAuthManifestCmd {
             fuse_pqc_key_type
         };
 
+        let mut verified_imc = OwnerAuthManifestImageMetadataCollection::default();
         let persistent_data = drivers.persistent_data.get_mut();
+        let owner_imc = if verify_only {
+            &mut verified_imc
+        } else {
+            &mut persistent_data.fw.owner_auth_manifest_image_metadata_col
+        };
         drivers.abr.with_mldsa87(|mut mldsa87| {
             // Step 1: verify manifest's owner pub keys against the
             // firmware-image owner trust anchor.
@@ -432,7 +443,7 @@ impl SetOwnerAuthManifestCmd {
                     .get(preamble_size..)
                     .ok_or(CaliptraError::RUNTIME_OWNER_AUTH_MANIFEST_IMC_INVALID_SIZE)?,
                 preamble,
-                &mut persistent_data.fw.owner_auth_manifest_image_metadata_col,
+                owner_imc,
                 &persistent_data.fw.auth_manifest_image_metadata_col,
                 &mut drivers.sha2_512_384,
                 &mut drivers.ecc384,
@@ -442,10 +453,12 @@ impl SetOwnerAuthManifestCmd {
             )
         })?;
 
-        // Record the digest of the full manifest buffer for attestation.
-        persistent_data.fw.owner_auth_manifest_digest =
-            drivers.sha2_512_384.sha384_digest(manifest_buf)?.0;
-        persistent_data.fw.owner_auth_manifest_svn = preamble.svn;
+        if !verify_only {
+            // Record the digest of the full manifest buffer for attestation.
+            persistent_data.fw.owner_auth_manifest_digest =
+                drivers.sha2_512_384.sha384_digest(manifest_buf)?.0;
+            persistent_data.fw.owner_auth_manifest_svn = preamble.svn;
+        }
 
         Ok(())
     }

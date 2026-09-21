@@ -12,15 +12,15 @@ Abstract:
 
 --*/
 
-use crate::manifest::{find_metadata_entry, find_owner_metadata_entry};
+use crate::manifest::find_metadata_entry_by_type;
 use crate::stash_measurement::CaliptraManagedContextAccess;
 use crate::{mutrefbytes, Drivers, PauserPrivileges, StashMeasurementCmd};
 use caliptra_auth_man_types::ImageMetadataFlags;
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_cfi_lib::{cfi_assert, cfi_assert_bool, cfi_launder};
 use caliptra_common::mailbox_api::{
-    AuthAndStashFlags, AuthorizeAndStashReq, AuthorizeAndStashResp, ImageHashSource,
-    MailboxRespHeader,
+    AuthAndStashFlags, AuthManifestSource, AuthorizeAndStashReq, AuthorizeAndStashResp,
+    ImageHashSource, MailboxRespHeader,
 };
 use caliptra_dpe::response::DpeErrorCode;
 use caliptra_drivers::{AesDmaMode, DmaRecovery};
@@ -141,16 +141,21 @@ impl AuthorizeAndStashCmd {
 
         let cmd_fw_id = u32::from_le_bytes(cmd.fw_id);
         let mut stash_measurement = cmd.measurement;
-        let (metadata_entry, success_code) =
-            if let Some(entry) = find_metadata_entry(auth_manifest_image_metadata_col, cmd_fw_id) {
-                (entry, IMAGE_AUTHORIZED_VENDOR_OWNER)
-            } else if let Some(entry) =
-                find_owner_metadata_entry(owner_auth_manifest_image_metadata_col, cmd_fw_id)
-            {
-                (entry, IMAGE_AUTHORIZED_OWNER_ONLY)
-            } else {
-                return Ok((IMAGE_NOT_AUTHORIZED, stash_measurement));
-            };
+        let manifest_source = AuthManifestSource::from_flags(cmd.flags)
+            .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+        let metadata_entry = find_metadata_entry_by_type(
+            auth_manifest_image_metadata_col,
+            owner_auth_manifest_image_metadata_col,
+            cmd_fw_id,
+            manifest_source,
+        );
+        let Some(metadata_entry) = metadata_entry else {
+            return Ok((IMAGE_NOT_AUTHORIZED, stash_measurement));
+        };
+        let success_code = match manifest_source {
+            AuthManifestSource::VendorOwner => IMAGE_AUTHORIZED_VENDOR_OWNER,
+            AuthManifestSource::Owner => IMAGE_AUTHORIZED_OWNER_ONLY,
+        };
 
         // If 'ignore_auth_check' is set, then skip the image digest comparison and authorize the image.
         let flags = ImageMetadataFlags(metadata_entry.flags);
