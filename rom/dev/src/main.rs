@@ -16,17 +16,18 @@ Abstract:
 #![cfg_attr(feature = "fake-rom", allow(unused_imports))]
 #![cfg_attr(feature = "fips-test-hooks", allow(dead_code))]
 
+use crate::rom_env::RomEnvFips;
 use crate::{lock::lock_registers, print::HexBytes};
 use caliptra_cfi_lib::{cfi_assert_eq, CfiCounter};
 use caliptra_common::RomBootStatus::{KatComplete, KatStarted};
-use caliptra_common::{handle_fatal_error, CptraGeneration, RomBootStatus};
+use caliptra_common::{handle_fatal_error, RomBootStatus};
 use caliptra_kat::*;
 use caliptra_registers::soc_ifc::SocIfcReg;
 use core::hint::black_box;
 
 use crate::lock::lock_cold_reset_reg;
 use caliptra_drivers::{
-    cprintln, report_boot_status, report_fw_error_non_fatal, CaliptraError, ResetReason,
+    cprintln, report_boot_status, report_fw_error_non_fatal, CaliptraError, ResetReason, Sha1,
     ShaAccLockState, Trng,
 };
 use caliptra_error::CaliptraResult;
@@ -69,41 +70,47 @@ extern "C" {
 pub extern "C" fn rom_entry() -> ! {
     cprintln!("{}", BANNER);
 
-    let mut env = match unsafe { rom_env::RomEnv::new_from_registers() } {
+    // Create TRNG first for CFI initialization
+    let mut trng = match unsafe { rom_env::RomEnv::create_trng() } {
+        Ok(trng) => trng,
+        Err(e) => handle_fatal_error(e.into()),
+    };
+
+    // Run CSRNG KAT before any CSRNG output is consumed
+    #[cfg(not(feature = "fake-rom"))]
+    if let Err(e) = CsrngKat::default().execute(&mut trng) {
+        handle_fatal_error(e.into());
+    }
+
+    // Initialize CFI before creating the rest of the environment
+    // (AesGcm::new runs KATs which have CFI annotations)
+    if cfg!(feature = "cfi") {
+        let mut entropy_gen = || {
+            trng.generate4()
+                .map_err(|e| caliptra_cfi_lib::CfiError(u32::from(e)))
+        };
+        CfiCounter::reset(&mut entropy_gen);
+        CfiCounter::reset(&mut entropy_gen);
+        CfiCounter::reset(&mut entropy_gen);
+    }
+
+    // Report CFI initialized immediately after CFI counters are reset,
+    // before any code that might use memcpy/memset (like AES KATs).
+    report_boot_status(RomBootStatus::CfiInitialized.into());
+
+    // Now create the rest of the environment (includes WDT start and AES KATs)
+    let mut env = match unsafe { rom_env::RomEnv::new_from_registers(trng) } {
         Ok(env) => env,
         Err(e) => handle_fatal_error(e.into()),
     };
 
-    if !cfg!(feature = "no-cfi") {
-        cprintln!("[state] CFI Enabled");
-        let mut entropy_gen = || env.trng.generate4();
-        CfiCounter::reset(&mut entropy_gen);
-        CfiCounter::reset(&mut entropy_gen);
-        CfiCounter::reset(&mut entropy_gen);
-    } else {
-        cprintln!("[state] CFI Disabled");
+    // Seed the ABR entropy registers for SCA countermeasures
+    if let Err(e) = env.abr.seed_entropy(&mut env.trng) {
+        handle_fatal_error(e.into());
     }
 
     // Check if TRNG is correctly sourced as per hw config.
     validate_trng_config(&mut env);
-
-    report_boot_status(RomBootStatus::CfiInitialized.into());
-
-    if let Err(err) = env.aes.seed_entropy_if(&mut env.trng) {
-        handle_fatal_error(err.into());
-    }
-
-    // Check if HW version is supported.
-    let cptra_gen = env.soc_ifc.caliptra_generation();
-    if !is_supported_hw_version(&cptra_gen) {
-        cprintln!(
-            "[state] Unsupported Caliptra Generation: {}.{}.{} (minimum required: 2.0.2)",
-            cptra_gen.major_version(),
-            cptra_gen.minor_version(),
-            cptra_gen.patch_version()
-        );
-        handle_fatal_error(CaliptraError::ROM_GLOBAL_UNSUPPORTED_HW_VERSION.into());
-    }
 
     let reset_reason = env.soc_ifc.reset_reason();
 
@@ -112,13 +119,13 @@ pub extern "C" fn rom_entry() -> ! {
         lock_cold_reset_reg(&mut env);
     }
 
-    let lifecyle = match env.soc_ifc.lifecycle() {
+    let lifecycle = match env.soc_ifc.lifecycle() {
         caliptra_drivers::Lifecycle::Unprovisioned => "Unprovisioned",
         caliptra_drivers::Lifecycle::Manufacturing => "Manufacturing",
         caliptra_drivers::Lifecycle::Production => "Production",
         caliptra_drivers::Lifecycle::Reserved2 => "Unknown",
     };
-    cprintln!("[state] LifecycleState = {}", lifecyle);
+    cprintln!("[state] LifecycleState = {}", lifecycle);
 
     // UDS programming.
     if let Err(err) = crate::flow::UdsProgrammingFlow::program_uds(&mut env) {
@@ -129,7 +136,6 @@ pub extern "C" fn rom_entry() -> ! {
         && (env.soc_ifc.lifecycle() == caliptra_drivers::Lifecycle::Production)
         && !(env.soc_ifc.prod_en_in_fake_mode())
     {
-        cprintln!("Fake ROM in Prod lifecycle disabled");
         handle_fatal_error(CaliptraError::ROM_GLOBAL_FAKE_ROM_IN_PRODUCTION.into());
     }
 
@@ -142,6 +148,10 @@ pub extern "C" fn rom_entry() -> ! {
         }
     );
 
+    if env.soc_ifc.ocp_lock_enabled() {
+        cprintln!("[ROM] OCP-LOCK Supported");
+    }
+
     // Set the ROM version
     let rom_info = unsafe { &CALIPTRA_ROM_INFO };
     if !cfg!(feature = "fake-rom") {
@@ -153,53 +163,62 @@ pub extern "C" fn rom_entry() -> ! {
     // Start the watchdog timer
     wdt::start_wdt(&mut env.soc_ifc);
 
-    if !cfg!(feature = "fake-rom") {
-        let mut kats_env = caliptra_kat::KatsEnv {
-            // SHA1 Engine
-            sha1: &mut env.sha1,
-
-            // sha256
-            sha256: &mut env.sha256,
-
-            // SHA2-512/384 Engine
-            sha2_512_384: &mut env.sha2_512_384,
-
-            // SHA2-512/384 Accelerator
-            sha2_512_384_acc: &mut env.sha2_512_384_acc,
-
-            // Hmac-512/384 Engine
-            hmac: &mut env.hmac,
-
-            // Cryptographically Secure Random Number Generator
-            trng: &mut env.trng,
-
-            // LMS Engine
-            lms: &mut env.lms,
-
-            // MLDSA87 Engine
-            mldsa87: &mut env.mldsa87,
-
-            // Ecc384 Engine
-            ecc384: &mut env.ecc384,
-
-            // AES Engine
-            aes: &mut env.aes,
-
-            // SHA Acc lock state.
-            // SHA Acc is guaranteed to be locked on Cold and Warm Resets;
-            // On an Update Reset, it is expected to be unlocked.
-            // Not having it unlocked will result in a fatal error.
-            sha_acc_lock_state: if reset_reason == ResetReason::UpdateReset {
-                ShaAccLockState::NotAcquired
-            } else {
-                ShaAccLockState::AssumedLocked
-            },
-        };
-        let result = run_fips_tests(&mut kats_env);
-        if let Err(err) = result {
-            handle_fatal_error(err.into());
+    let initialized = if cfg!(feature = "fake-rom") {
+        InitializedDrivers {
+            sha1: Sha1::new().unwrap(),
         }
-    }
+    } else {
+        let result = env.abr.with_mldsa87(|mut mldsa87| {
+            let mut kats_env = caliptra_kat::KatsEnv {
+                // sha256
+                sha256: &mut env.sha256,
+
+                // SHA2-512/384 Engine
+                sha2_512_384: &mut env.sha2_512_384,
+
+                // SHA2-512/384 Accelerator
+                sha2_512_384_acc: &mut env.sha2_512_384_acc,
+
+                // SHA3/SHAKE
+                sha3: &mut env.sha3,
+
+                // Hmac-512/384 Engine
+                hmac: &mut env.hmac,
+
+                // Cryptographically Secure Random Number Generator
+                trng: &mut env.trng,
+
+                // LMS Engine
+                lms: &mut env.lms,
+
+                // MLDSA87 Engine
+                mldsa87: &mut mldsa87,
+
+                // Ecc384 Engine
+                ecc384: &mut env.ecc384,
+
+                // AES-GCM Engine (for GCM and CMAC-KDF KATs)
+                aes_gcm: &mut env.aes_gcm,
+
+                // SHA Acc lock state.
+                // SHA Acc is guaranteed to be locked on Cold and Warm Resets;
+                // On an Update Reset, it is expected to be unlocked.
+                // Not having it unlocked will result in a fatal error.
+                sha_acc_lock_state: if reset_reason == ResetReason::UpdateReset {
+                    ShaAccLockState::NotAcquired
+                } else {
+                    ShaAccLockState::AssumedLocked
+                },
+            };
+            run_fips_tests(&mut kats_env)
+        });
+        match result {
+            Err(err) => handle_fatal_error(err.into()),
+            Ok(initialized) => initialized,
+        }
+    };
+
+    let mut env = RomEnvFips::from_non_crypto(env, initialized);
 
     // Only run DBG unlock after KAT succeed since we use the sha acc peripherals
     if let Err(err) = crate::flow::debug_unlock::debug_unlock(&mut env) {
@@ -223,7 +242,7 @@ pub extern "C" fn rom_entry() -> ! {
     lock_registers(&mut env, reset_reason);
 
     // Reset the CFI counter.
-    if !cfg!(feature = "no-cfi") {
+    if cfg!(feature = "cfi") {
         CfiCounter::corrupt();
     }
 
@@ -238,7 +257,7 @@ pub extern "C" fn rom_entry() -> ! {
     caliptra_drivers::ExitCtrl::exit(0);
 }
 
-fn run_fips_tests(env: &mut KatsEnv) -> CaliptraResult<()> {
+fn run_fips_tests(env: &mut KatsEnv<'_, '_>) -> CaliptraResult<InitializedDrivers> {
     report_boot_status(KatStarted.into());
 
     cprintln!("[kat] SHA2-256");
@@ -255,14 +274,14 @@ fn run_fips_tests(env: &mut KatsEnv) -> CaliptraResult<()> {
     let rom_info = unsafe { &CALIPTRA_ROM_INFO };
     rom_integrity_test(env, &rom_info.sha256_digest)?;
 
-    caliptra_kat::execute_kat(env)?;
+    let initialized_drivers = caliptra_kat::execute_kat(env)?;
 
     report_boot_status(KatComplete.into());
 
-    Ok(())
+    Ok(initialized_drivers)
 }
 
-fn rom_integrity_test(env: &mut KatsEnv, expected_digest: &[u32; 8]) -> CaliptraResult<()> {
+fn rom_integrity_test(env: &mut KatsEnv<'_, '_>, expected_digest: &[u32; 8]) -> CaliptraResult<()> {
     // WARNING: It is undefined behavior to dereference a zero (null) pointer in
     // rust code. This is only safe because the dereference is being done by an
     // an assembly routine ([`caliptra_ureg::opt_riscv::copy_16_words`]) rather
@@ -275,7 +294,6 @@ fn rom_integrity_test(env: &mut KatsEnv, expected_digest: &[u32; 8]) -> Caliptra
     cprintln!("ROM Digest: {}", HexBytes(&<[u8; 32]>::from(digest)));
     if digest.0 != *expected_digest {
         digest.zeroize();
-        cprintln!("ROM integrity test failed");
         return Err(CaliptraError::ROM_INTEGRITY_FAILURE);
     }
     digest.zeroize();
@@ -289,7 +307,7 @@ fn launch_fmc(env: &mut RomEnv) -> ! {
     }
 
     // Get the fmc entry point from data vault
-    let entry = env.persistent_data.get().data_vault.fmc_entry_point();
+    let entry = env.persistent_data.get().rom.data_vault.fmc_entry_point();
 
     cprintln!("[exit] Launching FMC @ 0x{:08X}", entry);
 
@@ -360,7 +378,6 @@ extern "C" fn nmi_handler(exception: &exception::ExceptionRecord) {
 
     let wdt_status = soc_ifc.regs().cptra_wdt_status().read();
     if wdt_status.t1_timeout() || wdt_status.t2_timeout() {
-        cprintln!("WDT Expired");
         error = CaliptraError::ROM_GLOBAL_WDT_EXPIRED;
     }
 
@@ -430,17 +447,4 @@ fn validate_trng_config(env: &mut RomEnv) {
         env.soc_ifc.mfg_flag_rng_unavailable() & !env.soc_ifc.debug_locked(),
         matches!(env.trng, Trng::MfgMode()),
     );
-}
-
-/// Check if the hardware version is supported
-/// Supports 2.0.2+ and 2.1.0+
-fn is_supported_hw_version(cptra_gen: &CptraGeneration) -> bool {
-    !matches!(
-        (
-            cptra_gen.major_version(),
-            cptra_gen.minor_version(),
-            cptra_gen.patch_version()
-        ),
-        (2, 0, 0..=1)
-    )
 }
