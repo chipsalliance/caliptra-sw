@@ -143,14 +143,10 @@ impl Context {
     }
 
     fn granularity(&self) -> Granularity {
-        // Get granularity from generic_input_wires[0] bit 31
-        // Bit 31 = 0 → 64-bit granularity
-        // Bit 31 = 1 → 32-bit granularity
-        let input_wires = self.soc_reg.get_generic_input_wires();
-        if (input_wires[0] >> 31) & 1 == 0 {
-            Granularity::Bits64
-        } else {
+        if self.soc_reg.get_hw_config().fuse_granularity() {
             Granularity::Bits32
+        } else {
+            Granularity::Bits64
         }
     }
 }
@@ -519,6 +515,35 @@ mod tests {
             &mut fuse_controller,
             fe_partition_0 + FE_PARTITION_SIZE_BYTES as RvAddr,
         );
+        assert_eq!(
+            fuse_controller.read(RvSize::Word, STATUS).unwrap(),
+            Status::DAI_IDLE::Idle.value
+        );
+        assert_eq!(
+            fuse_controller.read(RvSize::Word, DAI_ERROR_CODE).unwrap(),
+            0
+        );
+    }
+
+    #[test]
+    fn test_32_bit_granularity_uses_hw_config() {
+        let mut fuse_controller = new_fuse_controller();
+        fuse_controller
+            .state_machine
+            .context
+            .soc_reg
+            .set_hw_config(2.into());
+
+        fuse_controller
+            .write(RvSize::Word, DIRECT_ACCESS_ADDRESS, UDS_SEED_BASE_OFFSET)
+            .unwrap();
+        fuse_controller
+            .write(RvSize::Word, DIRECT_ACCESS_WDATA_0, 0x1122_3344)
+            .unwrap();
+        fuse_controller
+            .write(RvSize::Word, DIRECT_ACCESS_CMD, DaiCmd::Write as u32)
+            .unwrap();
+
         assert_eq!(
             fuse_controller.read(RvSize::Word, STATUS).unwrap(),
             Status::DAI_IDLE::Idle.value

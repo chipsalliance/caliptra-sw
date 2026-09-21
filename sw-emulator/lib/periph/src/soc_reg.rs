@@ -427,6 +427,10 @@ impl SocRegistersInternal {
         };
     }
 
+    pub fn get_hw_config(&self) -> CptraHwConfigReadVal {
+        self.regs.borrow().cptra_hw_config.reg.get().into()
+    }
+
     pub fn set_generic_input_wires(&mut self, val: &[u32; CPTRA_GENERIC_INPUT_WIRES_SIZE / 4]) {
         self.regs.borrow_mut().cptra_generic_input_wires = *val;
     }
