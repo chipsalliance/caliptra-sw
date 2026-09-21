@@ -85,6 +85,7 @@ fn test_fe_programming_invalid_partition() {
     );
 }
 
+#[cfg_attr(feature = "fpga_subsystem", ignore)]
 #[test]
 fn test_fe_programming_cannot_be_called_from_pl1() {
     let rom = crate::common::rom_for_fw_integration_tests().unwrap();

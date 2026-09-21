@@ -1036,6 +1036,7 @@ fn test_set_owner_auth_manifest_cannot_be_called_from_pl1() {
 }
 
 #[test]
+#[cfg_attr(feature = "fpga_subsystem", ignore)]
 fn test_disable_attestation_cannot_be_called_from_pl1() {
     let mut image_opts = ImageOptions::default();
     image_opts.vendor_config.pl0_pauser = None;
