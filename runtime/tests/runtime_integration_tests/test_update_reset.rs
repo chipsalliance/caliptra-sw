@@ -12,7 +12,7 @@ use caliptra_builder::{
         runtime_tests::{MBOX, MBOX_FPGA, MBOX_WITHOUT_UART, MBOX_WITHOUT_UART_FPGA},
         APP_WITH_UART, APP_WITH_UART_FPGA, FMC_FAKE_WITH_UART, FMC_WITH_UART,
     },
-    FwId, ImageOptions,
+    get_ci_rom_version, CiRomVersion, FwId, ImageOptions,
 };
 use caliptra_common::mailbox_api::{
     CommandId, FwInfoResp, IncrementPcrResetCounterReq, MailboxReq, MailboxReqHeader, TagTciReq,
@@ -94,6 +94,13 @@ const OPCODE_READ_CACHED_DPE_CCIV_CONTEXT_CUMULATIVE: u32 = 0x6000_0007;
 const OPCODE_READ_CACHED_DPE_MCU_RT_CONTEXT_MEASUREMENT: u32 = 0x6000_0008;
 const OPCODE_READ_CACHED_DPE_MCU_RT_CONTEXT_CUMULATIVE: u32 = 0x6000_0009;
 const DISABLE_VENDOR_DEBUG_IMAGES: u32 = 1 << 31;
+
+fn rom_supports_vendor_debug_image_enforcement() -> bool {
+    match get_ci_rom_version() {
+        CiRomVersion::Rom2_1_0 | CiRomVersion::Rom2_1_1 | CiRomVersion::Rom2_1_2 => false,
+        CiRomVersion::Latest => true,
+    }
+}
 
 fn read_48_byte_test_response(model: &mut DefaultHwModel, cmd: u32) -> [u8; 48] {
     model
@@ -295,6 +302,10 @@ fn test_fw_info_debug_policy_tracks_update_reset() {
 #[cfg_attr(any(feature = "fpga_realtime", feature = "fpga_subsystem"), ignore)]
 #[test]
 fn test_rejected_debug_update_preserves_fw_info_policy() {
+    if !rom_supports_vendor_debug_image_enforcement() {
+        return;
+    }
+
     let mut debug_image_options = ImageOptions::default();
     debug_image_options.vendor_config.debug_image = Some(true);
     let debug_image = caliptra_builder::build_and_sign_image(
@@ -343,6 +354,10 @@ fn test_rejected_debug_update_preserves_fw_info_policy() {
 #[cfg_attr(any(feature = "fpga_realtime", feature = "fpga_subsystem"), ignore)]
 #[test]
 fn test_debug_update_disabled_by_strap_preserves_fw_info_policy() {
+    if !rom_supports_vendor_debug_image_enforcement() {
+        return;
+    }
+
     let mut debug_image_options = ImageOptions::default();
     debug_image_options.vendor_config.debug_image = Some(true);
     let debug_image = caliptra_builder::build_and_sign_image(
