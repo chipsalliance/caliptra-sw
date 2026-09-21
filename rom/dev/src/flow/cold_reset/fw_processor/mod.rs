@@ -42,7 +42,7 @@ use caliptra_image_verify::{
 use caliptra_kat::KatsEnv;
 use caliptra_registers::doe::DoeReg;
 use caliptra_x509::{NotAfter, NotBefore};
-use core::mem::{size_of, ManuallyDrop};
+use core::mem::ManuallyDrop;
 use dma::AesDmaMode;
 use zerocopy::{FromBytes, IntoBytes};
 use zeroize::Zeroize;
@@ -670,6 +670,7 @@ impl FirmwareProcessor {
                 }
                 _ => panic!("Image source cannot be fips test"),
             },
+            persistent_data: venv.persistent_data,
         };
 
         // Random delay for CFI glitch protection.
@@ -891,7 +892,7 @@ impl FirmwareProcessor {
             let addr = (manifest.fmc.load_addr) as *mut u8;
             core::slice::from_raw_parts_mut(addr, manifest.fmc.size as usize)
         };
-        let start = size_of::<ImageManifest>();
+        let start = manifest.fmc.offset as usize;
         let end = start + fmc_dest.len();
         if start > end || mbox_sram.len() < end {
             Err(CaliptraError::FW_PROC_INVALID_IMAGE_SIZE)?;
@@ -909,7 +910,7 @@ impl FirmwareProcessor {
             let addr = (manifest.runtime.load_addr) as *mut u8;
             core::slice::from_raw_parts_mut(addr, manifest.runtime.size as usize)
         };
-        let start = size_of::<ImageManifest>() + manifest.fmc.size as usize;
+        let start = manifest.runtime.offset as usize;
         let end = start + runtime_dest.len();
         if start > end || mbox_sram.len() < end {
             Err(CaliptraError::FW_PROC_INVALID_IMAGE_SIZE)?;
@@ -957,8 +958,8 @@ impl FirmwareProcessor {
         let fmc_words = unsafe {
             core::slice::from_raw_parts_mut(manifest.fmc.load_addr as *mut u32, fmc_size_words)
         };
-        let fmc_offset = size_of::<ImageManifest>();
-        dma_recovery.load_from_mcu_to_buffer(fmc_offset as u64, fmc_words)?;
+        let fmc_offset = manifest.fmc.offset as u64;
+        dma_recovery.load_from_mcu_to_buffer(fmc_offset, fmc_words)?;
 
         cprintln!(
             "[fwproc] Load Runtime at address 0x{:08x} len {}",
@@ -974,8 +975,8 @@ impl FirmwareProcessor {
                 runtime_size_words,
             )
         };
-        let runtime_offset = size_of::<ImageManifest>() + manifest.fmc.size as usize;
-        dma_recovery.load_from_mcu_to_buffer(runtime_offset as u64, runtime_words)?;
+        let runtime_offset = manifest.runtime.offset as u64;
+        dma_recovery.load_from_mcu_to_buffer(runtime_offset, runtime_words)?;
 
         report_boot_status(FwProcessorLoadImageComplete.into());
         Ok(())
