@@ -13,12 +13,11 @@ Abstract:
 --*/
 
 use crate::Drivers;
-use crate::{
-    manifest::{find_metadata_entry, find_owner_metadata_entry},
-    mutrefbytes,
-};
+use crate::{manifest::find_metadata_entry_by_type, mutrefbytes};
 use caliptra_cfi_derive::cfi_impl_fn;
-use caliptra_common::mailbox_api::{GetImageInfoReq, GetImageInfoResp, MailboxRespHeader};
+use caliptra_common::mailbox_api::{
+    AuthManifestSource, GetImageInfoFlags, GetImageInfoReq, GetImageInfoResp, MailboxRespHeader,
+};
 use caliptra_drivers::{CaliptraError, CaliptraResult};
 use zerocopy::FromBytes;
 
@@ -32,17 +31,20 @@ impl GetImageInfoCmd {
         resp: &mut [u8],
     ) -> CaliptraResult<usize> {
         if let Ok(cmd) = GetImageInfoReq::ref_from_bytes(cmd_args) {
+            if cmd.flags & !GetImageInfoFlags::all().bits() != 0 {
+                return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
+            }
             let persistent_data = drivers.persistent_data.get();
             let fw_id = u32::from_le_bytes(cmd.fw_id);
-            let metadata =
-                find_metadata_entry(&persistent_data.fw.auth_manifest_image_metadata_col, fw_id)
-                    .or_else(|| {
-                        find_owner_metadata_entry(
-                            &persistent_data.fw.owner_auth_manifest_image_metadata_col,
-                            fw_id,
-                        )
-                    })
-                    .ok_or(CaliptraError::RUNTIME_IMAGE_METADATA_NOT_FOUND)?;
+            let manifest_source = AuthManifestSource::from_flags(cmd.flags)
+                .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+            let metadata = find_metadata_entry_by_type(
+                &persistent_data.fw.auth_manifest_image_metadata_col,
+                &persistent_data.fw.owner_auth_manifest_image_metadata_col,
+                fw_id,
+                manifest_source,
+            )
+            .ok_or(CaliptraError::RUNTIME_IMAGE_METADATA_NOT_FOUND)?;
 
             let resp = mutrefbytes::<GetImageInfoResp>(resp)?;
             resp.hdr = MailboxRespHeader::default();
