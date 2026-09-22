@@ -48,3 +48,8 @@ required-features = ["riscv"]
 name = "lms_24"
 path = "src/bin/lms_24_tests.rs"
 required-features = ["riscv"]
+
+[[bin]]
+name = "mldsa87"
+path = "src/bin/mldsa87_tests.rs"
+required-features = ["riscv"]

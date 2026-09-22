@@ -143,3 +143,53 @@ Output:
 - `LMS_SIGVER:00` — signature invalid
 
 The runner maps these to `true` / `false` in the response file.
+
+---
+
+### ML-DSA-87 (`test_acvp_mldsa87`)
+
+The operation is selected by the first line of the stimulus.
+
+**KEYGEN** — derive a key pair from a seed:
+
+```
+MLDSA_KEYGEN
+<hex seed, 32 bytes>
+```
+
+Output: `MLDSA_PUBKEY:<hex>` (2592 bytes) then `MLDSA_PRIVKEY:<hex>` (4896 bytes).
+
+**SIGGEN** — sign a message with a private key, skipping the post-sign verification
+that the driver normally performs (the ACVP vector set supplies no public key):
+
+```
+MLDSA_SIGGEN
+<hex private key, 4896 bytes>
+<hex message>
+```
+
+Output: `MLDSA_SIGGEN:<hex>` (4627 bytes).
+
+**SIGVER** — verify a signature:
+
+```
+MLDSA_SIGVER
+<hex public key, 2592 bytes>
+<hex message>
+<hex signature, 4627 bytes>
+```
+
+Output: `MLDSA_SIGVER:01` (valid) or `MLDSA_SIGVER:00` (invalid).
+
+Notes:
+
+- Keys and signatures are emitted as a **single uppercase hex string**. The runner
+  scrapes them with `[0-9A-F]+`, so lowercase output would silently match nothing.
+- The signature is 4627 bytes per FIPS 204, but the driver stores it in `[u32; 1157]`
+  = 4628 bytes; the trailing padding byte is excluded from the output.
+- Deterministic signing is used (`sign_rnd` all zeros) and contextLength is always 0,
+  matching the vector sets, which carry no context field.
+- `SIGGEN` uses `sign_var_no_verify`, which requires the `cavp-test-harness` feature on
+  `caliptra-drivers`. That is already enabled in this crate's `Cargo.toml`.
+- `test_mldsa_name` runs first because it performs the `CfiCounter::reset` that the
+  CFI-instrumented verification path depends on.
