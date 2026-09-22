@@ -105,7 +105,7 @@ caliptra-cfi-derive = { git = "https://github.com/chipsalliance/caliptra-cfi.git
 
 caliptra-common = { path = "common", default-features = false }
 caliptra-coverage = { path = "coverage" }
-caliptra-builder = { path = "builder" }
+caliptra-builder = { path = "builder", default-features = false }
 caliptra-cpu = { path = "cpu" }
 caliptra-drivers = { path = "drivers" }
 caliptra-drivers-test-bin = { path = "drivers/test-fw" }
@@ -142,7 +142,7 @@ caliptra-registers-latest = { path = "hw/latest/registers" }
 caliptra-registers-rev-2-1 = { path = "hw/rev-2_1/registers" }
 caliptra-runtime = { path = "runtime", default-features = false }
 caliptra-systemrdl = { path = "systemrdl" }
-caliptra-test = { path = "test" }
+caliptra-test = { path = "test", default-features = false }
 caliptra-test-harness = { path = "test-harness" }
 caliptra-test-harness-types = { path = "test-harness/types" }
 caliptra-ureg = { path = "ureg" }

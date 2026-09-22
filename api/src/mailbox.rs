@@ -2209,7 +2209,9 @@ pub struct QuotePcrsEcc384Resp {
     pub digest: [u8; 48],
     pub signature_r: [u8; 48],
     pub signature_s: [u8; 48],
+    #[cfg(not(feature = "2.1"))]
     pub pub_key_x: [u8; ECC384_SCALAR_BYTE_SIZE],
+    #[cfg(not(feature = "2.1"))]
     pub pub_key_y: [u8; ECC384_SCALAR_BYTE_SIZE],
 }
 
@@ -2238,6 +2240,7 @@ pub struct QuotePcrsMldsa87Resp {
     pub reset_ctrs: [u32; 32],
     pub digest: [u8; 64],
     pub signature: [u8; MLDSA87_SIGNATURE_BYTE_SIZE],
+    #[cfg(not(feature = "2.1"))]
     pub pub_key: [u8; MLDSA87_PUB_KEY_BYTE_SIZE],
 }
 

@@ -6,6 +6,14 @@
 
 #include "caliptra_enums.h"
 
+#if defined(CALIPTRA_VERSION_2_1) && defined(CALIPTRA_VERSION_2_2)
+#error "CALIPTRA_VERSION_2_1 and CALIPTRA_VERSION_2_2 are mutually exclusive"
+#endif
+
+#if !defined(CALIPTRA_VERSION_2_1) && !defined(CALIPTRA_VERSION_2_2)
+#define CALIPTRA_VERSION_2_2 1
+#endif
+
 typedef uint32_t caliptra_checksum;
 
 /**
@@ -272,8 +280,10 @@ struct caliptra_quote_pcrs_ecc384_resp
     uint8_t digest[48];
     uint8_t signature_r[48];
     uint8_t signature_s[48];
+#if defined(CALIPTRA_VERSION_2_2)
     uint8_t pub_key_x[48];
     uint8_t pub_key_y[48];
+#endif
 };
 
 struct caliptra_quote_pcrs_mldsa87_resp
@@ -284,7 +294,9 @@ struct caliptra_quote_pcrs_mldsa87_resp
     uint32_t reset_ctrs[32];
     uint8_t digest[64];
     uint8_t signature[4628];
+#if defined(CALIPTRA_VERSION_2_2)
     uint8_t pub_key[2592];
+#endif
 };
 
 struct caliptra_extend_pcr_req

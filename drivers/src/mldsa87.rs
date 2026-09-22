@@ -45,6 +45,10 @@ pub type Mldsa87PrivKey = LEArray4x1224;
 
 /// MLDSA-87 Signature
 pub type Mldsa87Signature = LEArray4x1157;
+#[cfg(feature = "2.1")]
+pub type Mldsa87PcrSignResult = Mldsa87Signature;
+#[cfg(not(feature = "2.1"))]
+pub type Mldsa87PcrSignResult = (Mldsa87Signature, Mldsa87PubKey);
 
 /// MLDSA-87 Message (64 Bytes)
 pub type Mldsa87Msg = LEArray4x16;
@@ -665,12 +669,9 @@ impl<'a> Mldsa87<'a> {
     ///
     /// # Returns
     ///
-    /// * `(Mldsa87Signature, Mldsa87PubKey)` - Generated signature and public key
+    /// * `Mldsa87PcrSignResult` - Version-specific PCR signing result
     #[cfg_attr(feature = "cfi", cfi_impl_fn)]
-    pub fn pcr_sign_flow(
-        &mut self,
-        trng: &mut Trng,
-    ) -> CaliptraResult<(Mldsa87Signature, Mldsa87PubKey)> {
+    pub fn pcr_sign_flow(&mut self, trng: &mut Trng) -> CaliptraResult<Mldsa87PcrSignResult> {
         let mldsa = self.mldsa87.regs_mut();
 
         // Wait for hardware ready
@@ -688,12 +689,16 @@ impl<'a> Mldsa87<'a> {
 
         // Copy signature
         let signature = Mldsa87Signature::read_from_reg(mldsa.mldsa_signature());
+        #[cfg(not(feature = "2.1"))]
         let pub_key = Mldsa87PubKey::read_from_reg(mldsa.mldsa_pubkey());
 
         // Clear the hardware.
         mldsa.mldsa_ctrl().write(|w| w.zeroize(true));
 
-        Ok((signature, pub_key))
+        #[cfg(feature = "2.1")]
+        return Ok(signature);
+        #[cfg(not(feature = "2.1"))]
+        return Ok((signature, pub_key));
     }
 
     /// Zeroize the hardware registers.

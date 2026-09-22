@@ -25,9 +25,10 @@ use crate::HandOff;
 use caliptra_common::cfi_check;
 use caliptra_common::cprintln;
 use caliptra_common::crypto::{Crypto, Ecc384KeyPair, MlDsaKeyPair, PubKey};
+#[cfg(not(feature = "2.1"))]
+use caliptra_common::keyids::{KEY_ID_PCR_ECDSA_PRIV_KEY, KEY_ID_PCR_MLDSA_KEYPAIR_SEED};
 use caliptra_common::keyids::{
-    KEY_ID_PCR_ECDSA_PRIV_KEY, KEY_ID_PCR_MLDSA_KEYPAIR_SEED, KEY_ID_RT_CDI,
-    KEY_ID_RT_ECDSA_PRIV_KEY, KEY_ID_RT_MLDSA_KEYPAIR_SEED, KEY_ID_TMP,
+    KEY_ID_RT_CDI, KEY_ID_RT_ECDSA_PRIV_KEY, KEY_ID_RT_MLDSA_KEYPAIR_SEED, KEY_ID_TMP,
 };
 use caliptra_common::HexBytes;
 use caliptra_drivers::{
@@ -39,6 +40,7 @@ use caliptra_x509::{
     RtAliasCertTbsMlDsa87Params,
 };
 use zerocopy::IntoBytes;
+#[cfg(not(feature = "2.1"))]
 use zeroize::Zeroize;
 
 #[derive(Default)]
@@ -170,6 +172,7 @@ impl RtAliasLayer {
             if reset_reason == ResetReason::WarmReset && debug_not_locked {
                 cfi_assert_eq(reset_reason, ResetReason::WarmReset);
                 cfi_assert_bool(debug_not_locked);
+                #[cfg(not(feature = "2.1"))]
                 Self::regenerate_pcr_signing_key_pairs(env)?;
                 Self::regenerate_fmc_key_pairs(env)?
             } else {
@@ -639,6 +642,7 @@ impl RtAliasLayer {
         Ok((ecc_key_pair, mldsa_key_pair))
     }
 
+    #[cfg(not(feature = "2.1"))]
     fn regenerate_pcr_signing_key_pairs(env: &mut FmcEnv) -> CaliptraResult<()> {
         let fmc_cdi = HandOff::fmc_cdi(env);
         let mut ecc_key_pair = Crypto::ecc384_key_gen(

@@ -13,7 +13,7 @@ fpga_subsystem = []
 anyhow.workspace = true
 bitstream-downloader.workspace = true
 caliptra-auth-man-gen.workspace = true
-caliptra-builder.workspace = true
+caliptra-builder = { workspace = true, features = ["openssl"] }
 caliptra-image-crypto.workspace = true
 caliptra-image-types.workspace = true
 clap.workspace = true

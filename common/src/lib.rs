@@ -2,6 +2,9 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
+#[cfg(all(feature = "2.1", feature = "2.2"))]
+compile_error!("features `2.1` and `2.2` are mutually exclusive");
+
 #[cfg(all(
     target_arch = "riscv32",
     not(clippy),

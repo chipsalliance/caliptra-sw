@@ -155,11 +155,13 @@ The Major and Minor version numbers of the Firmware Handoff Table. All FHT versi
 Therefore, fields must remain at constant offsets, and no fields may be redefined. It is possible to deprecate existing fields or define new fields within the
 reserved space at the end of the table by incrementing the Minor version number
 
-FHT version 1.1 indicates that ROM generated dedicated PCR signing keys in Key
-Vault slots 7 and 8, retained the ECC public key in ROM persistent data, and
-moved the FMC Alias ECC and MLDSA private material referenced by the existing
-handles to slots 13 and 14. The MLDSA public key is regenerated from the seed in
-slot 8 as part of each PCR quote.
+The FHT layout and version do not change for the dedicated PCR signing-key flow.
+For Caliptra 2.1, the existing handles reference the FMC Alias keys in Key Vault
+slots 7 and 8. For Caliptra 2.2, ROM generates dedicated PCR signing keys in
+slots 7 and 8, retains the ECC public key in ROM persistent data, and moves the
+FMC Alias ECC and MLDSA private material referenced by those handles to slots 13
+and 14. The ROM persistent-data minor version is 1 for 2.1 and 2 for 2.2. The
+2.2 MLDSA public key is regenerated from the seed in slot 8 for each PCR quote.
 
 For example, a Caliptra ROM is be frozen with FHT version 1.0. During later stages of development, it is found that an additional 4 byte data field must be
 passed from FMC to Runtime. During boot, the ROM will populate the FHT as version 1.0. When FMC executes, it will update the table version to 1.1 and add the

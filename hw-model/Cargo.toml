@@ -9,6 +9,8 @@ edition = "2021"
 
 [features]
 default = []
+"2.1" = ["caliptra-api/2.1", "caliptra-builder/2.1"]
+"2.2" = ["caliptra-api/2.2", "caliptra-builder/2.2"]
 verilator = ["dep:caliptra-verilated"]
 fpga_realtime = ["dep:uio"]
 fpga_subsystem  = ["dep:uio"]
@@ -56,7 +58,7 @@ deser-hjson.workspace = true
 serde = { workspace = true, features = ["derive"] }
 
 [dev-dependencies]
-caliptra-builder.workspace = true
+caliptra-builder = { workspace = true, default-features = false, features = ["openssl"] }
 caliptra-registers.workspace = true
 caliptra-test-harness-types.workspace = true
 nix.workspace = true

@@ -20,6 +20,8 @@ cfg-if.workspace = true
 
 [features]
 default = ["std"]
+"2.1" = ["caliptra-common/2.1", "caliptra-drivers/2.1", "caliptra-x509/2.1"]
+"2.2" = ["caliptra-common/2.2", "caliptra-drivers/2.2", "caliptra-x509/2.2"]
 emu = ["caliptra-drivers/emu"]
 cfi = ["caliptra-drivers/cfi"]
 interactive_test_fmc = []

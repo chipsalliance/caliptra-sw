@@ -4,6 +4,7 @@ use crate::common::{
     get_ecc_fmc_alias_cert, get_mldsa_fmc_alias_cert, run_rt_test, RuntimeTestArgs,
 };
 use caliptra_api::SocManager;
+#[cfg(not(feature = "2.1"))]
 use caliptra_builder::firmware::runtime_tests;
 
 use caliptra_common::mailbox_api::{
@@ -11,21 +12,28 @@ use caliptra_common::mailbox_api::{
     MailboxReqHeader, QuotePcrsEcc384Req, QuotePcrsEcc384Resp, QuotePcrsMldsa87Req,
     QuotePcrsMldsa87Resp,
 };
+#[cfg(not(feature = "2.1"))]
 use caliptra_common::x509::{PCR_SIGNING_KEY_BINDING_FLAGS, PCR_SIGNING_KEY_BINDING_VERSION};
 use caliptra_drivers::{PcrId, PcrLogArray};
 use caliptra_error::CaliptraError;
-use caliptra_hw_model::{DefaultHwModel, DeviceLifecycle, HwModel, ModelError, SecurityState};
+use caliptra_hw_model::{DefaultHwModel, HwModel, ModelError};
+#[cfg(not(feature = "2.1"))]
+use caliptra_hw_model::{DeviceLifecycle, SecurityState};
+#[cfg(not(feature = "2.1"))]
 use caliptra_test::x509::get_cert_extension;
 use ml_dsa::signature::Verifier;
 use ml_dsa::{MlDsa87, Signature, VerifyingKey};
 use openssl::{
     bn::BigNum,
-    ec::{EcGroup, EcKey},
     ecdsa::EcdsaSig,
     hash::{Hasher, MessageDigest},
+    x509::X509,
+};
+#[cfg(not(feature = "2.1"))]
+use openssl::{
+    ec::{EcGroup, EcKey},
     nid::Nid,
     sha::Sha384,
-    x509::X509,
 };
 use spki::DecodePublicKey;
 use x509_cert::certificate::Certificate;
@@ -40,14 +48,20 @@ fn extend_pcr(current: &[u8; 48], data: &[u8; 48]) -> [u8; 48] {
     res.as_bytes().try_into().unwrap()
 }
 
+#[cfg(not(feature = "2.1"))]
 const PCR_SIGNING_ECC384_DOMAIN: &[u8] = b"CALIPTRA_PCR_SIGNING_PUBLIC_KEY_ECC384";
+#[cfg(not(feature = "2.1"))]
 const PCR_SIGNING_MLDSA87_DOMAIN: &[u8] = b"CALIPTRA_PCR_SIGNING_PUBLIC_KEY_MLDSA87";
+#[cfg(not(feature = "2.1"))]
 const PCR_SIGNING_ECC384_PUB_KEY_DIGEST_OID: asn1::ObjectIdentifier =
     asn1::oid!(1, 3, 6, 1, 4, 1, 42623, 2, 1);
+#[cfg(not(feature = "2.1"))]
 const PCR_SIGNING_MLDSA87_PUB_KEY_DIGEST_OID: asn1::ObjectIdentifier =
     asn1::oid!(1, 3, 6, 1, 4, 1, 42623, 2, 2);
+#[cfg(not(feature = "2.1"))]
 const OPCODE_READ_PCR_SIGNING_KEY_LOCKS: u32 = 0xF200_0000;
 
+#[cfg(not(feature = "2.1"))]
 fn pcr_signing_key_digest(
     domain: &[u8],
     version: u32,
@@ -64,6 +78,8 @@ fn pcr_signing_key_digest(
     hasher.finish()
 }
 
+#[cfg(not(feature = "2.1"))]
+#[allow(clippy::result_large_err)]
 fn cert_pcr_signing_key_digest(cert_der: &[u8], oid: &asn1::ObjectIdentifier) -> [u8; 48] {
     let extension = get_cert_extension(cert_der, oid).unwrap().unwrap();
     asn1::parse(extension, |parser| parser.read_element::<&[u8]>())
@@ -72,6 +88,7 @@ fn cert_pcr_signing_key_digest(cert_der: &[u8], oid: &asn1::ObjectIdentifier) ->
         .unwrap()
 }
 
+#[cfg(not(feature = "2.1"))]
 fn get_pcr_signing_ecc384_pub_key(model: &mut DefaultHwModel) -> ([u8; 48], [u8; 48]) {
     let mut cmd = MailboxReq::QuotePcrsEcc384(QuotePcrsEcc384Req {
         hdr: MailboxReqHeader { chksum: 0 },
@@ -89,6 +106,7 @@ fn get_pcr_signing_ecc384_pub_key(model: &mut DefaultHwModel) -> ([u8; 48], [u8;
     (response.pub_key_x, response.pub_key_y)
 }
 
+#[cfg(not(feature = "2.1"))]
 fn get_pcr_signing_mldsa87_pub_key(model: &mut DefaultHwModel) -> [u8; 2592] {
     let mut cmd = MailboxReq::QuotePcrsMldsa87(QuotePcrsMldsa87Req {
         hdr: MailboxReqHeader { chksum: 0 },
@@ -108,6 +126,7 @@ fn get_pcr_signing_mldsa87_pub_key(model: &mut DefaultHwModel) -> [u8; 2592] {
 }
 
 #[test]
+#[cfg(not(feature = "2.1"))]
 fn test_pcr_signing_keys_are_write_and_use_locked() {
     let security_state = *SecurityState::default()
         .set_debug_locked(true)
@@ -205,26 +224,34 @@ fn test_pcr_quote_ecc() {
     let fmc_resp = get_ecc_fmc_alias_cert(&mut model);
     let fmc_cert_der = &fmc_resp.data[..fmc_resp.data_size as usize];
     let fmc_cert: X509 = X509::from_der(fmc_cert_der).unwrap();
-    let fmc_key = fmc_cert.public_key().unwrap().ec_key().unwrap();
-    assert!(!sig.verify(&resp.digest, &fmc_key).unwrap());
+    #[cfg(feature = "2.1")]
+    {
+        let fmc_key = fmc_cert.public_key().unwrap().ec_key().unwrap();
+        assert!(sig.verify(&resp.digest, &fmc_key).unwrap());
+    }
+    #[cfg(not(feature = "2.1"))]
+    {
+        let fmc_key = fmc_cert.public_key().unwrap().ec_key().unwrap();
+        assert!(!sig.verify(&resp.digest, &fmc_key).unwrap());
 
-    assert_eq!(
-        cert_pcr_signing_key_digest(fmc_cert_der, &PCR_SIGNING_ECC384_PUB_KEY_DIGEST_OID),
-        pcr_signing_key_digest(
-            PCR_SIGNING_ECC384_DOMAIN,
-            PCR_SIGNING_KEY_BINDING_VERSION,
-            PCR_SIGNING_KEY_BINDING_FLAGS,
-            &[&resp.pub_key_x, &resp.pub_key_y],
+        assert_eq!(
+            cert_pcr_signing_key_digest(fmc_cert_der, &PCR_SIGNING_ECC384_PUB_KEY_DIGEST_OID),
+            pcr_signing_key_digest(
+                PCR_SIGNING_ECC384_DOMAIN,
+                PCR_SIGNING_KEY_BINDING_VERSION,
+                PCR_SIGNING_KEY_BINDING_FLAGS,
+                &[&resp.pub_key_x, &resp.pub_key_y],
+            )
+        );
+
+        let pcr_signing_key = EcKey::from_public_key_affine_coordinates(
+            &EcGroup::from_curve_name(Nid::SECP384R1).unwrap(),
+            &BigNum::from_slice(&resp.pub_key_x).unwrap(),
+            &BigNum::from_slice(&resp.pub_key_y).unwrap(),
         )
-    );
-
-    let pcr_signing_key = EcKey::from_public_key_affine_coordinates(
-        &EcGroup::from_curve_name(Nid::SECP384R1).unwrap(),
-        &BigNum::from_slice(&resp.pub_key_x).unwrap(),
-        &BigNum::from_slice(&resp.pub_key_y).unwrap(),
-    )
-    .unwrap();
-    assert!(sig.verify(&resp.digest, &pcr_signing_key).unwrap());
+        .unwrap();
+        assert!(sig.verify(&resp.digest, &pcr_signing_key).unwrap());
+    }
 }
 
 #[test]
@@ -293,24 +320,30 @@ fn test_pcr_quote_mldsa() {
     let fmc_key = VerifyingKey::<MlDsa87>::from_public_key_der(&pk_bytes).unwrap();
     let signature_bytes: [u8; 4627] = resp.signature[..4627].try_into().unwrap();
     let signature = Signature::<MlDsa87>::decode((&signature_bytes).into()).unwrap();
-    assert!(fmc_key.verify(&resp.digest, &signature).is_err());
+    #[cfg(feature = "2.1")]
+    fmc_key.verify(&resp.digest, &signature).unwrap();
+    #[cfg(not(feature = "2.1"))]
+    {
+        assert!(fmc_key.verify(&resp.digest, &signature).is_err());
 
-    assert_eq!(
-        cert_pcr_signing_key_digest(fmc_cert_der, &PCR_SIGNING_MLDSA87_PUB_KEY_DIGEST_OID),
-        pcr_signing_key_digest(
-            PCR_SIGNING_MLDSA87_DOMAIN,
-            PCR_SIGNING_KEY_BINDING_VERSION,
-            PCR_SIGNING_KEY_BINDING_FLAGS,
-            &[&resp.pub_key],
-        )
-    );
+        assert_eq!(
+            cert_pcr_signing_key_digest(fmc_cert_der, &PCR_SIGNING_MLDSA87_PUB_KEY_DIGEST_OID),
+            pcr_signing_key_digest(
+                PCR_SIGNING_MLDSA87_DOMAIN,
+                PCR_SIGNING_KEY_BINDING_VERSION,
+                PCR_SIGNING_KEY_BINDING_FLAGS,
+                &[&resp.pub_key],
+            )
+        );
 
-    let pcr_signing_key =
-        VerifyingKey::<MlDsa87>::decode(resp.pub_key.as_slice().try_into().unwrap());
-    pcr_signing_key.verify(&resp.digest, &signature).unwrap();
+        let pcr_signing_key =
+            VerifyingKey::<MlDsa87>::decode(resp.pub_key.as_slice().try_into().unwrap());
+        pcr_signing_key.verify(&resp.digest, &signature).unwrap();
+    }
 }
 
 #[test]
+#[cfg(not(feature = "2.1"))]
 fn test_pcr_signing_keys_persist_across_warm_reset() {
     let security_state = *SecurityState::default()
         .set_debug_locked(true)

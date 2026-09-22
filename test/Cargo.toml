@@ -15,7 +15,7 @@ caliptra-api-types.workspace = true
 caliptra-api.workspace = true
 caliptra-auth-man-gen.workspace = true
 caliptra-auth-man-types.workspace = true
-caliptra-builder.workspace = true
+caliptra-builder = { workspace = true, default-features = false, features = ["openssl"] }
 caliptra-coverage.workspace = true
 caliptra-drivers = { workspace = true, features = ["fips-test-hooks"] }
 caliptra-dpe.workspace = true
@@ -47,11 +47,30 @@ hpke = { version = "0.12.0", features = ["p384"] }
 p384.workspace = true
 
 [dev-dependencies]
-caliptra-builder.workspace = true
+caliptra-builder = { workspace = true, default-features = false, features = ["openssl"] }
 openssl.workspace = true
 caliptra-emu-cpu.workspace = true
 
 [features]
+default = ["2.2"]
+"2.1" = [
+	"caliptra-api/2.1",
+	"caliptra-common/2.1",
+	"caliptra-coverage/2.1",
+	"caliptra-drivers/2.1",
+	"caliptra-builder/2.1",
+	"caliptra-hw-model/2.1",
+	"caliptra-runtime/2.1",
+]
+"2.2" = [
+	"caliptra-api/2.2",
+	"caliptra-common/2.2",
+	"caliptra-coverage/2.2",
+	"caliptra-drivers/2.2",
+	"caliptra-builder/2.2",
+	"caliptra-hw-model/2.2",
+	"caliptra-runtime/2.2",
+]
 fpga_realtime = ["caliptra-hw-model/fpga_realtime"]
 fpga_subsystem = ["caliptra-hw-model/fpga_subsystem"]
 itrng = ["caliptra-hw-model/itrng"]

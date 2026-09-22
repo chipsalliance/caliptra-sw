@@ -21,3 +21,8 @@ rand.workspace = true
 syn.workspace = true
 x509-cert.workspace = true
 const-oid.workspace = true
+
+[features]
+default = ["2.2"]
+"2.1" = []
+"2.2" = []

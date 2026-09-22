@@ -16,6 +16,11 @@ Abstract:
 #![cfg_attr(feature = "fake-rom", allow(unused_imports))]
 #![cfg_attr(feature = "fips-test-hooks", allow(dead_code))]
 
+#[cfg(all(feature = "2.1", feature = "2.2"))]
+compile_error!("features `2.1` and `2.2` are mutually exclusive");
+#[cfg(not(any(feature = "2.1", feature = "2.2")))]
+compile_error!("one of features `2.1` or `2.2` must be enabled");
+
 use crate::rom_env::RomEnvFips;
 use crate::{lock::lock_registers, print::HexBytes};
 use caliptra_cfi_lib::{cfi_assert_eq, CfiCounter};

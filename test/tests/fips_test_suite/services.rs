@@ -436,7 +436,9 @@ pub fn exec_cmd_quote_pcrs_ecc384<T: HwModel>(hw: &mut T) {
     assert!(contains_some_data(&resp.reset_ctrs));
     assert!(contains_some_data(&resp.signature_r));
     assert!(contains_some_data(&resp.signature_s));
+    #[cfg(not(feature = "2.1"))]
     assert!(contains_some_data(&resp.pub_key_x));
+    #[cfg(not(feature = "2.1"))]
     assert!(contains_some_data(&resp.pub_key_y));
 }
 
@@ -464,6 +466,7 @@ pub fn exec_cmd_quote_pcrs_mldsa87<T: HwModel>(hw: &mut T) {
     assert!(contains_some_data(&resp.digest));
     assert!(contains_some_data(&resp.reset_ctrs));
     assert!(contains_some_data(&resp.signature));
+    #[cfg(not(feature = "2.1"))]
     assert!(contains_some_data(&resp.pub_key));
 }
 

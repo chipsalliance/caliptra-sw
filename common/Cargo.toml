@@ -27,6 +27,8 @@ caliptra-x509 = { workspace = true, default-features = false }
 
 [features]
 default = ["std", "cfi"]
+"2.1" = ["caliptra-api/2.1", "caliptra-drivers/2.1", "caliptra-x509/2.1"]
+"2.2" = ["caliptra-api/2.2", "caliptra-drivers/2.2", "caliptra-x509/2.2"]
 emu = ["caliptra-drivers/emu"]
 std = []
 rom = ["caliptra-drivers/rom"]

@@ -12,7 +12,7 @@ cfg-if.workspace = true
 
 [dev-dependencies]
 caliptra-api.workspace = true
-caliptra-builder.workspace = true
+caliptra-builder = { workspace = true, features = ["openssl"] }
 caliptra-drivers.workspace = true
 caliptra-error.workspace = true
 caliptra-hw-model.workspace = true

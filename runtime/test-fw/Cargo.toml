@@ -6,6 +6,8 @@ version = "0.1.0"
 edition = "2021"
 
 [features]
+"2.1" = ["caliptra-common/2.1", "caliptra-drivers/2.1", "caliptra-runtime/2.1"]
+"2.2" = ["caliptra-common/2.2", "caliptra-drivers/2.2", "caliptra-runtime/2.2"]
 std = []
 runtime = ["caliptra-test-harness/runtime"]
 riscv = [

@@ -64,6 +64,7 @@ pub enum RomBootStatus {
     FmcAliasSubjKeyIdGenerationComplete = FMCALIAS_BOOT_STATUS_BASE + 3,
     FmcAliasCertSigGenerationComplete = FMCALIAS_BOOT_STATUS_BASE + 4,
     FmcAliasDerivationComplete = FMCALIAS_BOOT_STATUS_BASE + 5,
+    #[cfg(not(feature = "2.1"))]
     PcrSigningKeyPairDerivationComplete = FMCALIAS_BOOT_STATUS_BASE + 6,
 
     // Cold Reset Statuses

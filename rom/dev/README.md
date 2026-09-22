@@ -494,6 +494,11 @@ Both UDS and Field Entropy are available only during cold reset of Caliptra.
 
 **Actions:**
 
+The steps below describe the Caliptra 2.2 flow. Caliptra 2.1 stores the FMC
+Alias ECC private key and MLDSA seed in Key Vault slots 7 and 8, uses those keys
+for PCR quotes, and does not derive dedicated PCR signing keys or add PCR
+signing-key binding extensions to the FMC Alias certificates.
+
 1. Decrypt UDS to Key Vault Slot 0
 
     `doe_decrypt_uds(KvSlot0, DOE_IV)`
@@ -1126,7 +1131,7 @@ Alias FMC Layer includes the measurement of the FMC and other security states. T
 
 14. Store and lock (for write) the Alias FMC Certificate ECDSA and MLDSA Signatures in the DCCM datavault.
 
-14. Lock critical state needed for warm and update reset in the DCCM datavault.
+15. Lock critical state needed for warm and update reset in the DCCM datavault.
 
     `dccm_dv_store(FMC_DIGEST, lock_for_wr)`
 
@@ -1146,13 +1151,15 @@ Alias FMC Layer includes the measurement of the FMC and other security states. T
 
 - Vault state as follows:
 
- | Slot | Key Vault                                     |
- |------|-----------------------------------------------|
- | 0    | Stable identity root IDevID secret (64 bytes) |
- | 1    | Stable identity root LDevID secret (64 bytes) |
- | 6    | Alias FMC CDI (48 bytes)                      |
- | 7    | Alias FMC Private Key - ECDSA (48 bytes)      |
- | 8    | Alias FMC Key Pair Seed - MLDSA (32 bytes)    |
+ | Slot | Caliptra 2.1                                  | Caliptra 2.2                                  |
+ |------|-----------------------------------------------|-----------------------------------------------|
+ | 0    | Stable identity root IDevID secret (64 bytes) | Stable identity root IDevID secret (64 bytes) |
+ | 1    | Stable identity root LDevID secret (64 bytes) | Stable identity root LDevID secret (64 bytes) |
+ | 6    | Alias FMC CDI (48 bytes)                      | Alias FMC CDI (48 bytes)                      |
+ | 7    | Alias FMC ECDSA private key (48 bytes)        | PCR signing ECDSA private key (48 bytes)      |
+ | 8    | Alias FMC MLDSA key-pair seed (32 bytes)      | PCR signing MLDSA key-pair seed (32 bytes)    |
+ | 13   | Unused                                        | Alias FMC ECDSA private key (48 bytes)        |
+ | 14   | Unused after IDevID derivation                | Alias FMC MLDSA key-pair seed (32 bytes)      |
 
  | DCCM datavault                         |
  |----------------------------------------|

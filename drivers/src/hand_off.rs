@@ -351,7 +351,13 @@ mod tests {
     use super::*;
     use core::mem;
     const FHT_SIZE: usize = 2048;
+    #[cfg(feature = "2.1")]
+    const KEY_ID_FMC_ECDSA_PRIV_KEY: KeyId = KeyId::KeyId7;
+    #[cfg(not(feature = "2.1"))]
     const KEY_ID_FMC_ECDSA_PRIV_KEY: KeyId = KeyId::KeyId13;
+    #[cfg(feature = "2.1")]
+    const KEY_ID_FMC_MLDSA_KEYPAIR_SEED: KeyId = KeyId::KeyId8;
+    #[cfg(not(feature = "2.1"))]
     const KEY_ID_FMC_MLDSA_KEYPAIR_SEED: KeyId = KeyId::KeyId14;
 
     fn fmc_ecc_priv_key_store() -> HandOffDataHandle {

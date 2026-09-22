@@ -18,4 +18,8 @@ caliptra-ureg.workspace = true
 caliptra-image-types = { workspace = true, default-features = false }
 
 [dev-dependencies]
-caliptra-builder.workspace = true
+caliptra-builder = { workspace = true, features = ["openssl"] }
+
+[features]
+"2.1" = []
+"2.2" = []

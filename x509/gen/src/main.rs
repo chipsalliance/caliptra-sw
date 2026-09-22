@@ -22,6 +22,9 @@ mod tbs;
 mod x509;
 mod x509_cert;
 
+#[cfg(all(feature = "2.1", feature = "2.2"))]
+compile_error!("features `2.1` and `2.2` are mutually exclusive");
+
 use code_gen::CodeGen;
 use x509::{EcdsaSha384Algo, Fwid, FwidParam, KeyUsage, MlDsa87Algo};
 
@@ -40,15 +43,20 @@ fn main() {
         std::env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR not set; run via cargo");
     let x509_dir = std::path::Path::new(&manifest_dir).parent().unwrap();
     let build_dir = x509_dir.join("build");
+    #[cfg(feature = "2.1")]
+    let fmc_alias_build_dir = build_dir.join("2_1");
+    #[cfg(not(feature = "2.1"))]
+    let fmc_alias_build_dir = build_dir.clone();
     let src_dir = x509_dir.join("src");
     let build_dir = build_dir.to_str().unwrap();
+    let fmc_alias_build_dir = fmc_alias_build_dir.to_str().unwrap();
     let src_dir = src_dir.to_str().unwrap();
 
     gen_init_devid_csr(build_dir);
     gen_fmc_alias_csr(build_dir);
     gen_local_devid_cert(build_dir);
     gen_local_devid_csr(build_dir);
-    gen_fmc_alias_cert(build_dir);
+    gen_fmc_alias_cert(fmc_alias_build_dir);
     gen_rt_alias_cert(build_dir);
     gen_rt_alias_csr(build_dir);
     gen_ocp_lock_endorsement_cert(build_dir);
@@ -201,34 +209,36 @@ fn gen_fmc_alias_cert(out_dir: &str) {
         .add_basic_constraints_ext(true, 5)
         .add_key_usage_ext(usage)
         .add_ueid_ext(&[0xFF; 17])
-        .add_extended_key_usage_ext(&[x509::TCG_DICE_KP_ECA, x509::TCG_DICE_KP_ATTEST_LOC])
-        .add_pcr_signing_key_digest_ext(x509::PCR_SIGNING_ECC384_PUB_KEY_DIGEST_OID, &[0xA5; 48])
-        .add_fmc_dice_tcb_info_ext(
-            /*owner_fwids=*/
-            &[FwidParam {
-                name: "TCB_INFO_OWNER_DEVICE_INFO_HASH",
-                fwid: Fwid {
-                    hash_alg: asn1::oid!(/*sha384*/ 2, 16, 840, 1, 101, 3, 4, 2, 2),
-                    digest: &[0xEF; 48],
-                },
-            }],
-            /*vendor_fwids=*/
-            &[FwidParam {
-                name: "TCB_INFO_VENDOR_DEVICE_INFO_HASH",
-                fwid: Fwid {
-                    hash_alg: asn1::oid!(/*sha384*/ 2, 16, 840, 1, 101, 3, 4, 2, 2),
-                    digest: &[0xDE; 48],
-                },
-            }],
-            /*fmc_fwids=*/
-            &[FwidParam {
-                name: "TCB_INFO_FMC_TCI",
-                fwid: Fwid {
-                    hash_alg: asn1::oid!(/*sha384*/ 2, 16, 840, 1, 101, 3, 4, 2, 2),
-                    digest: &[0xCD; 48],
-                },
-            }],
-        );
+        .add_extended_key_usage_ext(&[x509::TCG_DICE_KP_ECA, x509::TCG_DICE_KP_ATTEST_LOC]);
+    #[cfg(feature = "2.2")]
+    let bldr = bldr
+        .add_pcr_signing_key_digest_ext(x509::PCR_SIGNING_ECC384_PUB_KEY_DIGEST_OID, &[0xA5; 48]);
+    let bldr = bldr.add_fmc_dice_tcb_info_ext(
+        /*owner_fwids=*/
+        &[FwidParam {
+            name: "TCB_INFO_OWNER_DEVICE_INFO_HASH",
+            fwid: Fwid {
+                hash_alg: asn1::oid!(/*sha384*/ 2, 16, 840, 1, 101, 3, 4, 2, 2),
+                digest: &[0xEF; 48],
+            },
+        }],
+        /*vendor_fwids=*/
+        &[FwidParam {
+            name: "TCB_INFO_VENDOR_DEVICE_INFO_HASH",
+            fwid: Fwid {
+                hash_alg: asn1::oid!(/*sha384*/ 2, 16, 840, 1, 101, 3, 4, 2, 2),
+                digest: &[0xDE; 48],
+            },
+        }],
+        /*fmc_fwids=*/
+        &[FwidParam {
+            name: "TCB_INFO_FMC_TCI",
+            fwid: Fwid {
+                hash_alg: asn1::oid!(/*sha384*/ 2, 16, 840, 1, 101, 3, 4, 2, 2),
+                digest: &[0xCD; 48],
+            },
+        }],
+    );
     let template = bldr.tbs_template(FMC_ALIAS_ECC384, LDEVID_ECC384);
     CodeGen::gen_code("FmcAliasCertTbsEcc384", template, out_dir);
 
@@ -236,34 +246,36 @@ fn gen_fmc_alias_cert(out_dir: &str) {
         .add_basic_constraints_ext(true, 5)
         .add_key_usage_ext(usage)
         .add_ueid_ext(&[0xFF; 17])
-        .add_extended_key_usage_ext(&[x509::TCG_DICE_KP_ECA, x509::TCG_DICE_KP_ATTEST_LOC])
-        .add_pcr_signing_key_digest_ext(x509::PCR_SIGNING_MLDSA87_PUB_KEY_DIGEST_OID, &[0xA5; 48])
-        .add_fmc_dice_tcb_info_ext(
-            /*owner_fwids=*/
-            &[FwidParam {
-                name: "TCB_INFO_OWNER_DEVICE_INFO_HASH",
-                fwid: Fwid {
-                    hash_alg: asn1::oid!(/*sha384*/ 2, 16, 840, 1, 101, 3, 4, 2, 2),
-                    digest: &[0xEF; 48],
-                },
-            }],
-            /*vendor_fwids=*/
-            &[FwidParam {
-                name: "TCB_INFO_VENDOR_DEVICE_INFO_HASH",
-                fwid: Fwid {
-                    hash_alg: asn1::oid!(/*sha384*/ 2, 16, 840, 1, 101, 3, 4, 2, 2),
-                    digest: &[0xDE; 48],
-                },
-            }],
-            /*fmc_fwids=*/
-            &[FwidParam {
-                name: "TCB_INFO_FMC_TCI",
-                fwid: Fwid {
-                    hash_alg: asn1::oid!(/*sha384*/ 2, 16, 840, 1, 101, 3, 4, 2, 2),
-                    digest: &[0xCD; 48],
-                },
-            }],
-        );
+        .add_extended_key_usage_ext(&[x509::TCG_DICE_KP_ECA, x509::TCG_DICE_KP_ATTEST_LOC]);
+    #[cfg(feature = "2.2")]
+    let bldr = bldr
+        .add_pcr_signing_key_digest_ext(x509::PCR_SIGNING_MLDSA87_PUB_KEY_DIGEST_OID, &[0xA5; 48]);
+    let bldr = bldr.add_fmc_dice_tcb_info_ext(
+        /*owner_fwids=*/
+        &[FwidParam {
+            name: "TCB_INFO_OWNER_DEVICE_INFO_HASH",
+            fwid: Fwid {
+                hash_alg: asn1::oid!(/*sha384*/ 2, 16, 840, 1, 101, 3, 4, 2, 2),
+                digest: &[0xEF; 48],
+            },
+        }],
+        /*vendor_fwids=*/
+        &[FwidParam {
+            name: "TCB_INFO_VENDOR_DEVICE_INFO_HASH",
+            fwid: Fwid {
+                hash_alg: asn1::oid!(/*sha384*/ 2, 16, 840, 1, 101, 3, 4, 2, 2),
+                digest: &[0xDE; 48],
+            },
+        }],
+        /*fmc_fwids=*/
+        &[FwidParam {
+            name: "TCB_INFO_FMC_TCI",
+            fwid: Fwid {
+                hash_alg: asn1::oid!(/*sha384*/ 2, 16, 840, 1, 101, 3, 4, 2, 2),
+                digest: &[0xCD; 48],
+            },
+        }],
+    );
     let template = bldr.tbs_template(FMC_ALIAS_MLDSA87, LDEVID_MLDSA87);
     CodeGen::gen_code("FmcAliasCertTbsMlDsa87", template, out_dir);
 }

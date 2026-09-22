@@ -29,7 +29,7 @@ cfg-if.workspace = true
 [dev-dependencies]
 caliptra-api.workspace = true
 caliptra-auth-man-gen.workspace = true
-caliptra-builder.workspace = true
+caliptra-builder = { workspace = true, default-features = false, features = ["openssl"] }
 caliptra-hw-model.workspace = true
 caliptra-image-types = { workspace = true, default-features = false }
 caliptra-image-crypto.workspace = true
@@ -37,7 +37,25 @@ caliptra-test.workspace = true
 openssl.workspace = true
 
 [features]
-default = ["std", "cfi"]
+default = ["std", "cfi", "2.2"]
+"2.1" = [
+    "caliptra-api/2.1",
+    "caliptra-common/2.1",
+    "caliptra-drivers/2.1",
+    "caliptra-builder/2.1",
+    "caliptra-hw-model/2.1",
+    "caliptra-test/2.1",
+    "caliptra-x509/2.1",
+]
+"2.2" = [
+    "caliptra-api/2.2",
+    "caliptra-common/2.2",
+    "caliptra-drivers/2.2",
+    "caliptra-builder/2.2",
+    "caliptra-hw-model/2.2",
+    "caliptra-test/2.2",
+    "caliptra-x509/2.2",
+]
 emu = ["caliptra-common/emu", "caliptra-drivers/emu"]
 fake-fmc = []
 fpga_realtime = ["caliptra-drivers/fpga_realtime", "caliptra-hw-model/fpga_realtime"]

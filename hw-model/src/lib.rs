@@ -178,7 +178,10 @@ impl TrngMode {
     }
 }
 
-const EXPECTED_CALIPTRA_BOOT_TIME_IN_CYCLES: u64 = 50_000_000; // 50 million cycles
+#[cfg(feature = "2.1")]
+const EXPECTED_CALIPTRA_BOOT_TIME_IN_CYCLES: u64 = 40_000_000;
+#[cfg(not(feature = "2.1"))]
+const EXPECTED_CALIPTRA_BOOT_TIME_IN_CYCLES: u64 = 50_000_000;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Default)]
 pub enum ProvisioningStage {

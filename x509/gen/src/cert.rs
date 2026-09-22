@@ -97,6 +97,7 @@ impl<AlgoIssuer: SigningAlgorithm, AlgoSubject: SigningAlgorithm>
         self
     }
 
+    #[cfg(not(feature = "2.1"))]
     pub fn add_pcr_signing_key_digest_ext(mut self, oid: &str, digest: &[u8]) -> Self {
         self.exts
             .push(x509::make_pcr_signing_key_digest_ext(oid, digest))

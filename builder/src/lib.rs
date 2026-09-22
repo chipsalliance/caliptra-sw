@@ -13,6 +13,29 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex};
 
+#[cfg(all(feature = "2.1", feature = "2.2"))]
+compile_error!("features `2.1` and `2.2` are mutually exclusive");
+
+fn caliptra_version_feature() -> &'static str {
+    if cfg!(feature = "2.1") {
+        "2.1"
+    } else {
+        "2.2"
+    }
+}
+
+fn uses_caliptra_version(crate_name: &str) -> bool {
+    matches!(
+        crate_name,
+        "caliptra-rom"
+            | "caliptra-fmc"
+            | "caliptra-runtime"
+            | "caliptra-rom-test-fmc"
+            | "caliptra-rom-test-rt"
+            | "caliptra-runtime-test-bin"
+    )
+}
+
 #[cfg(feature = "openssl")]
 use caliptra_image_crypto::OsslCrypto as Crypto;
 #[cfg(feature = "rustcrypto")]
@@ -139,6 +162,12 @@ impl<'a> FwId<'a> {
         if !self.features().is_empty() {
             write!(&mut result, "--{}", self.features().join("-")).unwrap();
         }
+        if cfg!(feature = "2.1")
+            && matches!(self.fw_type, FirmwareType::Source { .. })
+            && uses_caliptra_version(self.crate_name)
+        {
+            write!(&mut result, "--2.1").unwrap();
+        }
         write!(&mut result, ".elf").unwrap();
         result
     }
@@ -195,6 +224,10 @@ pub fn build_firmware_elfs_uncached<'a>(
                 features_csv.push(',');
             }
             features_csv.push_str("riscv");
+        }
+        if uses_caliptra_version(invocation.crate_name) {
+            features_csv.push(',');
+            features_csv.push_str(caliptra_version_feature());
         }
 
         let workspace_dir = workspace_dir.unwrap_or_else(|| Path::new(THIS_WORKSPACE_DIR));
@@ -994,6 +1027,7 @@ mod test {
 
     #[test]
     fn test_fwid_elf_filename() {
+        let version_suffix = if cfg!(feature = "2.1") { "--2.1" } else { "" };
         assert_eq!(
             FwId {
                 crate_name: "caliptra-rom",
@@ -1001,7 +1035,7 @@ mod test {
                 fw_type: FirmwareType::Source { features: &[] },
             }
             .elf_filename(),
-            "caliptra-rom.elf"
+            format!("caliptra-rom{version_suffix}.elf")
         );
         assert_eq!(
             FwId {
@@ -1012,7 +1046,7 @@ mod test {
                 },
             }
             .elf_filename(),
-            "caliptra-rom--uart-debug.elf"
+            format!("caliptra-rom--uart-debug{version_suffix}.elf")
         );
         assert_eq!(
             &FwId {

@@ -13,6 +13,12 @@ Abstract:
 --*/
 #![cfg_attr(not(feature = "std"), no_std)]
 #![cfg_attr(not(feature = "std"), no_main)]
+
+#[cfg(all(feature = "2.1", feature = "2.2"))]
+compile_error!("features `2.1` and `2.2` are mutually exclusive");
+#[cfg(not(any(feature = "2.1", feature = "2.2")))]
+compile_error!("one of features `2.1` or `2.2` must be enabled");
+
 use core::hint::black_box;
 
 use caliptra_cfi_lib::{cfi_assert_eq, CfiCounter};

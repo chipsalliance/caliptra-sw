@@ -16,6 +16,8 @@ cfg-if.workspace = true
 
 [features]
 default = ["std"]
+"2.1" = ["caliptra-drivers/2.1"]
+"2.2" = ["caliptra-drivers/2.2"]
 emu = ["caliptra-drivers/emu"]
 riscv = ["caliptra-cpu/riscv"]
 std = ["ufmt/std"]

@@ -39,7 +39,7 @@ openssl.workspace = true
 [dev-dependencies]
 aes-gcm.workspace = true
 caliptra-api.workspace = true
-caliptra-builder.workspace = true
+caliptra-builder = { workspace = true, default-features = false, features = ["openssl"] }
 caliptra-emu-cpu.workspace = true
 
 caliptra-hw-model.workspace = true
@@ -66,7 +66,25 @@ zerocopy.workspace = true
 
 [features]
 riscv = []
-default = ["std", "cfi"]
+default = ["std", "cfi", "2.2"]
+"2.1" = [
+  "caliptra-api/2.1",
+  "caliptra-common/2.1",
+  "caliptra-drivers/2.1",
+  "caliptra-builder/2.1",
+  "caliptra-hw-model/2.1",
+  "caliptra-test/2.1",
+  "caliptra-x509/2.1",
+]
+"2.2" = [
+  "caliptra-api/2.2",
+  "caliptra-common/2.2",
+  "caliptra-drivers/2.2",
+  "caliptra-builder/2.2",
+  "caliptra-hw-model/2.2",
+  "caliptra-test/2.2",
+  "caliptra-x509/2.2",
+]
 emu = ["caliptra-drivers/emu"]
 std = [
   "caliptra-common/std",

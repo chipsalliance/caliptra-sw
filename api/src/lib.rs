@@ -1,6 +1,9 @@
 // Licensed under the Apache-2.0 license
 #![cfg_attr(not(test), no_std)]
 
+#[cfg(all(feature = "2.1", feature = "2.2"))]
+compile_error!("features `2.1` and `2.2` are mutually exclusive");
+
 mod capabilities;
 pub mod checksum;
 pub mod mailbox;

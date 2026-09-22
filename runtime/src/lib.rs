@@ -13,6 +13,12 @@ Abstract:
 --*/
 #![cfg_attr(not(feature = "fips_self_test"), allow(unused))]
 #![no_std]
+
+#[cfg(all(feature = "2.1", feature = "2.2"))]
+compile_error!("features `2.1` and `2.2` are mutually exclusive");
+#[cfg(not(any(feature = "2.1", feature = "2.2")))]
+compile_error!("one of features `2.1` or `2.2` must be enabled");
+
 mod activate_firmware;
 mod attested_csr;
 mod authorize_and_stash;

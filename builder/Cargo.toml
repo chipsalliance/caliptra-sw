@@ -30,7 +30,9 @@ zerocopy.workspace = true
 zip = { version = "0.6", default-features = false, features = ["deflate"] }
 
 [features]
-default = ["openssl"]
+default = ["openssl", "2.2"]
+"2.1" = []
+"2.2" = []
 slow_tests = []
 openssl = ["caliptra-image-crypto/openssl"]
 rustcrypto = ["caliptra-image-crypto/rustcrypto"]

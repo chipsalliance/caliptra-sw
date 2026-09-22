@@ -964,6 +964,10 @@ Command Code: `0x4450_454D` ("DPEM")
 Generates a signed quote over all Caliptra hardware PCRs using the Caliptra PCR ECC384 quoting key.
 All PCR values are hashed together with the nonce to produce the quote.
 
+Caliptra 2.1 signs with the FMC Alias ECC key and returns no public key.
+Caliptra 2.2 signs with a dedicated PCR key and appends the public key to the
+response.
+
 Command Code: `0x5043_5251` ("PCRQ")
 
 *Table: `QUOTE_PCRS_ECC384` input arguments*
@@ -985,15 +989,19 @@ PcrValue is defined as u8[48]
 | nonce              | u8[32]       | Return the nonce used as input for convenience.
 | reset\_ctrs        | u32[32]      | Reset counters for all PCRs.
 | digest             | u8[48]       | Return the lower 48 bytes of SHA2-512 digest over the PCR values and the nonce.
-| signature\_r       | u8[48]       | ECC P-384 R portion of the signature over the `ecc_digest`. </br> The dedicated PCR signing ECC P-384 private key stored in Key Vault slot 7 is utilized for the signing operation.
+| signature\_r       | u8[48]       | ECC P-384 R portion of the signature over the `ecc_digest`. </br> Caliptra 2.1 uses the FMC Alias key in slot 7; Caliptra 2.2 uses the dedicated PCR signing key in slot 7.
 | signature\_s       | u8[48]       | ECC P-384 S portion of the signature over the `ecc_digest`.
-| pub\_key\_x        | u8[48]       | P-384 signing public-key affine X coordinate in big-endian byte order.
-| pub\_key\_y        | u8[48]       | P-384 signing public-key affine Y coordinate in big-endian byte order.
+| pub\_key\_x        | u8[48]       | Caliptra 2.2 only: P-384 signing public-key affine X coordinate in big-endian byte order.
+| pub\_key\_y        | u8[48]       | Caliptra 2.2 only: P-384 signing public-key affine Y coordinate in big-endian byte order.
 
 ### QUOTE\_PCRS\_MLDSA87
 
 Generates a signed quote over all Caliptra hardware PCRs that are using the Caliptra PCR Mldsa87 quoting key.
 All PCR values are hashed together with the nonce to produce the quote.
+
+Caliptra 2.1 signs with the FMC Alias MLDSA key and returns no public key.
+Caliptra 2.2 signs with a dedicated PCR key and appends the public key to the
+response.
 
 Command Code: `0x5043_524D` ("PCRM")
 
@@ -1016,8 +1024,8 @@ PcrValue is defined as u8[48]
 | nonce              | u8[32]       | Return the nonce used as input for convenience.
 | reset\_ctrs        | u32[32]      | Reset counters for all PCRs.
 | digest             | u8[64]       | SHA2-512 digest over the PCR values and the nonce, in DWORD-reversed order with per-word byte swap. See note below.
-| signature          | u8[4628]     | MLDSA-87 signature over the `digest` (4627 bytes + 1 Reserved byte). </br> The dedicated PCR signing MLDSA seed stored in Key Vault slot 8 is utilized to generate the private key, which is subsequently used for the signing operation.
-| pub\_key           | u8[2592]     | Canonical ML-DSA-87 signing public key in the FIPS 204 encoding.
+| signature          | u8[4628]     | MLDSA-87 signature over the `digest` (4627 bytes + 1 Reserved byte). </br> Caliptra 2.1 uses the FMC Alias seed in slot 8; Caliptra 2.2 uses the dedicated PCR signing seed in slot 8.
+| pub\_key           | u8[2592]     | Caliptra 2.2 only: canonical ML-DSA-87 signing public key in the FIPS 204 encoding.
 
 **Digest byte order:** The `digest` field has two transformations applied relative
 to the standard `openssl dgst -sha512` output: (1) the 16 u32 words are in
@@ -1047,7 +1055,7 @@ To **verify the signature** with an external tool such as OpenSSL, pass the `dig
 bytes as-is as the pre-hashed message to ML-DSA-87 verification — no conversion
 is needed because the signature was computed over these exact bytes.
 
-### PCR signing public-key certificate binding
+### PCR signing public-key certificate binding (Caliptra 2.2 only)
 
 The matching ECC and MLDSA FMC Alias certificates carry non-critical extensions
 with OIDs `1.3.6.1.4.1.42623.2.1` and `1.3.6.1.4.1.42623.2.2`, respectively.

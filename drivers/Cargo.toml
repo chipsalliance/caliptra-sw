@@ -34,6 +34,18 @@ caliptra-cfi-derive.workspace = true
 
 [features]
 default = ["cfi"]
+"2.1" = [
+    "caliptra-api/2.1",
+    "caliptra-builder/2.1",
+    "caliptra-hw-model/2.1",
+    "caliptra-test/2.1",
+]
+"2.2" = [
+    "caliptra-api/2.2",
+    "caliptra-builder/2.2",
+    "caliptra-hw-model/2.2",
+    "caliptra-test/2.2",
+]
 std = []
 emu = []
 riscv = []
@@ -52,7 +64,7 @@ cavp-test-harness = []
 
 [dev-dependencies]
 caliptra-api.workspace = true
-caliptra-builder.workspace = true
+caliptra-builder = { workspace = true, features = ["openssl"] }
 caliptra-drivers-test-bin.workspace = true
 caliptra-hw-model-types.workspace = true
 caliptra-hw-model.workspace = true
