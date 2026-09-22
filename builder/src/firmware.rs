@@ -736,6 +736,21 @@ pub mod api_tests {
     };
 }
 
+pub mod acvp_tests {
+    use super::*;
+
+    const BASE_FWID: FwId = FwId {
+        crate_name: "caliptra-drivers-acvp-bin",
+        bin_name: "",
+        fw_type: FirmwareType::Source { features: &["emu"] },
+    };
+
+    pub const SHA1: FwId = FwId {
+        bin_name: "sha1",
+        ..BASE_FWID
+    };
+}
+
 pub const PREBUILT_FW: &[&FwId] = &[&ROM_2_0_1_RELEASE, &FW_2_0_1_RELEASE];
 
 pub const REGISTERED_FW: &[&FwId] = &[
@@ -839,4 +854,5 @@ pub const REGISTERED_FW: &[&FwId] = &[
     &runtime_tests::MOCK_RT_INTERACTIVE,
     &runtime_tests::MOCK_RT_INTERACTIVE_FPGA,
     &api_tests::MAILBOX,
+    &acvp_tests::SHA1,
 ];

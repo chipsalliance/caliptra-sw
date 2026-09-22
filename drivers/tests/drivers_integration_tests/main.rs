@@ -805,6 +805,16 @@ fn test_sha1() {
     run_driver_test(&firmware::driver_tests::SHA1);
 }
 
+// The ACVP tests below are driven by drivers/test-acvp/stimulus/current.txt, which
+// must be populated with the vector under test before the firmware is built. They
+// are ignored unless the `acvp-tests` feature is enabled so CI does not run them
+// against the placeholder stimulus.
+#[test]
+#[cfg_attr(not(feature = "acvp-tests"), ignore)]
+fn test_acvp_sha1() {
+    run_driver_test(&firmware::acvp_tests::SHA1);
+}
+
 #[test]
 fn test_sha256() {
     run_driver_test(&firmware::driver_tests::SHA256);
