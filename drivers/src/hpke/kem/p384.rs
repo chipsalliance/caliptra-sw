@@ -1,7 +1,7 @@
 // Licensed under the Apache-2.0 license
 
 use caliptra_error::{CaliptraError, CaliptraResult};
-use zeroize::ZeroizeOnDrop;
+use zeroize::{ZeroizeOnDrop, Zeroizing};
 
 use crate::{
     hpke::{
@@ -150,7 +150,7 @@ impl P384 {
         let enc = self.pub_key.to_der();
         let pk_r = Ecc384PubKey::try_from(encaps_key)?;
 
-        let mut dh = Ecc384Scalar::default();
+        let mut dh = Zeroizing::new(Ecc384Scalar::default());
         ctx.ecc.ecdh(
             Ecc384PrivKeyIn::Array4x12(&self.priv_key),
             &pk_r,
@@ -158,7 +158,7 @@ impl P384 {
             Ecc384PrivKeyOut::Array4x12(&mut dh),
         )?;
 
-        Ok((enc.into(), SharedSecret::<{ Hmac384::NH }>::from(dh)))
+        Ok((enc.into(), SharedSecret::<{ Hmac384::NH }>::from(*dh)))
     }
 
     /// The `decap` operation with no KDF applied to the shared secret.
@@ -178,14 +178,14 @@ impl P384 {
         //
         //  Therefore this firmware DOES NOT do any public key validation.
         let pk_e = Ecc384PubKey::try_from(enc)?;
-        let mut dh = Ecc384Scalar::default();
+        let mut dh = Zeroizing::new(Ecc384Scalar::default());
         ctx.ecc.ecdh(
             Ecc384PrivKeyIn::Array4x12(&self.priv_key),
             &pk_e,
             ctx.trng,
             Ecc384PrivKeyOut::Array4x12(&mut dh),
         )?;
-        Ok(SharedSecret::<{ Hmac384::NH }>::from(dh))
+        Ok(SharedSecret::<{ Hmac384::NH }>::from(*dh))
     }
 }
 
