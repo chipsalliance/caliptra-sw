@@ -1038,7 +1038,13 @@ fn test_set_owner_auth_manifest_cannot_be_called_from_pl1() {
 #[test]
 #[cfg_attr(feature = "fpga_subsystem", ignore)]
 fn test_disable_attestation_cannot_be_called_from_pl1() {
-    let mut image_opts = ImageOptions::default();
+    // Boot with no PL0 pauser so that every caller is PL1. The key type must
+    // match the fuse value `run_rt_test` programs, or ROM rejects the image and
+    // the boot never reaches the runtime privilege check.
+    let mut image_opts = ImageOptions {
+        pqc_key_type: FwVerificationPqcKeyType::LMS,
+        ..Default::default()
+    };
     image_opts.vendor_config.pl0_pauser = None;
 
     let args = RuntimeTestArgs {
