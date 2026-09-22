@@ -202,6 +202,7 @@ fn gen_fmc_alias_cert(out_dir: &str) {
         .add_key_usage_ext(usage)
         .add_ueid_ext(&[0xFF; 17])
         .add_extended_key_usage_ext(&[x509::TCG_DICE_KP_ECA, x509::TCG_DICE_KP_ATTEST_LOC])
+        .add_pcr_signing_key_digest_ext(x509::PCR_SIGNING_ECC384_PUB_KEY_DIGEST_OID, &[0xA5; 48])
         .add_fmc_dice_tcb_info_ext(
             /*owner_fwids=*/
             &[FwidParam {
@@ -236,6 +237,7 @@ fn gen_fmc_alias_cert(out_dir: &str) {
         .add_key_usage_ext(usage)
         .add_ueid_ext(&[0xFF; 17])
         .add_extended_key_usage_ext(&[x509::TCG_DICE_KP_ECA, x509::TCG_DICE_KP_ATTEST_LOC])
+        .add_pcr_signing_key_digest_ext(x509::PCR_SIGNING_MLDSA87_PUB_KEY_DIGEST_OID, &[0xA5; 48])
         .add_fmc_dice_tcb_info_ext(
             /*owner_fwids=*/
             &[FwidParam {

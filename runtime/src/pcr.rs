@@ -85,6 +85,9 @@ impl GetPcrQuoteCmd {
 
                 resp.signature_r = signature.r.into();
                 resp.signature_s = signature.s.into();
+                let pub_key = drivers.persistent_data.get().rom.pcr_signing_ecc_pub_key;
+                resp.pub_key_x = pub_key.x.into();
+                resp.pub_key_y = pub_key.y.into();
 
                 Ok(core::mem::size_of::<QuotePcrsEcc384Resp>())
             }
@@ -95,7 +98,7 @@ impl GetPcrQuoteCmd {
 
                 pcr_hash.0.reverse(); // Reverse the order of the DWORDs for MLDSA.
 
-                let signature = drivers
+                let (signature, pub_key) = drivers
                     .abr
                     .with_mldsa87(|mut mldsa| mldsa.pcr_sign_flow(&mut drivers.trng))?;
 
@@ -109,6 +112,7 @@ impl GetPcrQuoteCmd {
 
                 resp.digest.copy_from_slice(pcr_hash.0.as_bytes());
                 resp.signature = signature.into();
+                resp.pub_key = pub_key.into();
 
                 Ok(core::mem::size_of::<QuotePcrsMldsa87Resp>())
             }

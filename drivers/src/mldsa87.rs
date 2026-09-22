@@ -655,7 +655,9 @@ impl<'a> Mldsa87<'a> {
     }
 
     /// Sign the PCR digest with PCR signing private key (seed) in keyvault slot 8 (KV8).
-    /// KV8 contains the Alias FMC MLDSA keypair seed.
+    /// KV8 contains the dedicated PCR signing MLDSA keypair seed.
+    /// KEYGEN_SIGN regenerates the public key from this seed, so it remains readable after
+    /// the operation completes and must be copied before the hardware is zeroized.
     ///
     /// # Arguments
     ///
@@ -663,9 +665,12 @@ impl<'a> Mldsa87<'a> {
     ///
     /// # Returns
     ///
-    /// * `Mldsa87Signature` - Generated signature
+    /// * `(Mldsa87Signature, Mldsa87PubKey)` - Generated signature and public key
     #[cfg_attr(feature = "cfi", cfi_impl_fn)]
-    pub fn pcr_sign_flow(&mut self, trng: &mut Trng) -> CaliptraResult<Mldsa87Signature> {
+    pub fn pcr_sign_flow(
+        &mut self,
+        trng: &mut Trng,
+    ) -> CaliptraResult<(Mldsa87Signature, Mldsa87PubKey)> {
         let mldsa = self.mldsa87.regs_mut();
 
         // Wait for hardware ready
@@ -683,11 +688,12 @@ impl<'a> Mldsa87<'a> {
 
         // Copy signature
         let signature = Mldsa87Signature::read_from_reg(mldsa.mldsa_signature());
+        let pub_key = Mldsa87PubKey::read_from_reg(mldsa.mldsa_pubkey());
 
         // Clear the hardware.
         mldsa.mldsa_ctrl().write(|w| w.zeroize(true));
 
-        Ok(signature)
+        Ok((signature, pub_key))
     }
 
     /// Zeroize the hardware registers.
