@@ -64,14 +64,17 @@ use caliptra_image_types::{
 };
 use constant_time_eq::constant_time_eq;
 use zerocopy::{transmute, FromBytes, Immutable, IntoBytes, KnownLayout};
+use zeroize::{Zeroize, Zeroizing};
 
 pub const GCM_MAX_KEY_USES: u64 = (1 << 32) - 1;
 pub const KEY_USAGE_MAX: usize = 256;
+pub const ECDH_CONTEXT_MAX: usize = 8;
 pub const MLDSA_SEED_SIZE: usize = 32;
 pub const MLKEM_SEED_SIZE: usize = 32;
 
 // We have 24 bits for the key ID.
 const MAX_KEY_ID: u32 = 0xffffff;
+const ECDH_CONTEXT_ID_SIZE: usize = core::mem::size_of::<LEArray4x3>();
 
 bitfield! {
     #[derive(Clone, Copy)]
@@ -81,7 +84,6 @@ bitfield! {
 }
 
 /// Holds data for the cryptographic mailbox system.
-#[derive(Default)]
 pub struct CmStorage {
     initialized: bool,
     // Usage counters for individual GCM keys.
@@ -94,20 +96,43 @@ pub struct CmStorage {
     context_next_iv: u128,
     // key for encrypting contexts
     context_key: (LEArray4x8, LEArray4x8),
+    // Active ECDH private keys, indexed by the IV in the opaque context.
+    ecdh_contexts: [ActiveEcdhContext; ECDH_CONTEXT_MAX],
+}
+
+#[derive(Default)]
+struct ActiveEcdhContext {
+    context_iv: LEArray4x3,
+    private_key: Array4x12,
+    active: bool,
+}
+
+impl ActiveEcdhContext {
+    fn clear(&mut self) {
+        self.context_iv.zeroize();
+        self.private_key.zeroize();
+        self.active = false;
+    }
 }
 
 impl CmStorage {
     pub fn new() -> Self {
         Self {
+            initialized: false,
+            counters: ArrayVec::new(),
+            kek_next_iv: 0,
             kek: (LEArray4x8::default(), LEArray4x8::default()),
+            context_next_iv: 0,
             context_key: (LEArray4x8::default(), LEArray4x8::default()),
-            ..Default::default()
+            ecdh_contexts: core::array::from_fn(|_| ActiveEcdhContext::default()),
         }
     }
 
     /// Initialize the cryptographic mailbox storage key and IV.
     /// This is done after the TRNG is initialized and CFI is configured.
     pub fn init(&mut self, pdata: &PersistentDataAccessor, trng: &mut Trng) -> CaliptraResult<()> {
+        self.zeroize();
+
         let kek_random_iv = trng.generate4()?;
         // we mask off the top bit so that we always have at least 2^95 usages left.
         self.kek_next_iv = (((kek_random_iv.0 & 0x7fff_ffff) as u128) << 64)
@@ -182,6 +207,64 @@ impl CmStorage {
     /// Deletes all counters.
     pub fn clear_counters(&mut self) {
         self.counters.clear();
+    }
+
+    fn has_available_ecdh_context(&self) -> bool {
+        self.ecdh_contexts.iter().any(|context| !context.active)
+    }
+
+    fn add_ecdh_context(
+        &mut self,
+        context_iv: LEArray4x3,
+        private_key: &Array4x12,
+    ) -> CaliptraResult<()> {
+        let context = self
+            .ecdh_contexts
+            .iter_mut()
+            .find(|context| !context.active)
+            .ok_or(CaliptraError::RUNTIME_CMB_ECDH_CONTEXT_STORAGE_FULL)?;
+
+        context.context_iv = context_iv;
+        context.private_key = *private_key;
+        context.active = true;
+        Ok(())
+    }
+
+    fn take_ecdh_context(
+        &mut self,
+        context_iv: &LEArray4x3,
+    ) -> CaliptraResult<Zeroizing<Array4x12>> {
+        let context = self
+            .ecdh_contexts
+            .iter_mut()
+            .find(|context| context.active && context.context_iv == *context_iv)
+            .ok_or(CaliptraError::RUNTIME_CMB_ECDH_CONTEXT_NOT_FOUND)?;
+
+        let private_key = Zeroizing::new(context.private_key);
+        context.clear();
+        Ok(private_key)
+    }
+
+    fn clear_ecdh_contexts(&mut self) {
+        self.ecdh_contexts
+            .iter_mut()
+            .for_each(ActiveEcdhContext::clear);
+    }
+
+    pub fn zeroize(&mut self) {
+        self.counters.iter_mut().for_each(|counter| {
+            counter.key_id.zeroize();
+            counter.counter.zeroize();
+        });
+        self.counters.clear();
+        self.kek_next_iv.zeroize();
+        self.kek.0.zeroize();
+        self.kek.1.zeroize();
+        self.context_next_iv.zeroize();
+        self.context_key.0.zeroize();
+        self.context_key.1.zeroize();
+        self.clear_ecdh_contexts();
+        self.initialized = false;
     }
 
     fn encrypt_cmk(
@@ -308,21 +391,21 @@ impl CmStorage {
         &mut self,
         aes: &mut Aes,
         trng: &mut Trng,
-        unencrypted_context: &[u8; CMB_ECDH_CONTEXT_SIZE],
     ) -> CaliptraResult<EncryptedEcdhContext> {
         let context_iv: [u32; 4] = transmute!(self.context_next_iv);
         let context_iv: [u32; 3] = context_iv[..3].try_into().unwrap();
         let context_iv: LEArray4x3 = context_iv.into();
         self.context_next_iv += 1;
 
+        let mut plaintext = Zeroizing::new([0u8; CMB_ECDH_CONTEXT_SIZE]);
+        plaintext[..ECDH_CONTEXT_ID_SIZE].copy_from_slice(context_iv.as_bytes());
         let mut ciphertext = [0u8; CMB_ECDH_CONTEXT_SIZE];
-        // Encrypt the context using the context key
         let (iv, tag) = aes.aes_256_gcm_encrypt(
             trng,
             AesGcmIv::Array(&context_iv),
             AesKey::Split(&self.context_key.0, &self.context_key.1),
             &[],
-            unencrypted_context,
+            &plaintext[..],
             &mut ciphertext[..],
             16,
         )?;
@@ -488,6 +571,7 @@ impl Commands {
         if !drivers.cryptographic_mailbox.initialized {
             Err(CaliptraError::RUNTIME_CMB_NOT_INITIALIZED)?;
         }
+
         let len = drivers.cryptographic_mailbox.counters.len();
         let resp = mutrefbytes::<CmStatusResp>(resp)?;
         resp.hdr = MailboxRespHeader::default();
@@ -595,6 +679,7 @@ impl Commands {
         }
 
         drivers.cryptographic_mailbox.clear_counters();
+        drivers.cryptographic_mailbox.clear_ecdh_contexts();
 
         let resp = mutrefbytes::<MailboxRespHeader>(resp)?;
         *resp = MailboxRespHeader::default();
@@ -1716,27 +1801,36 @@ impl Commands {
         if cmd_bytes.len() != core::mem::size_of::<CmEcdhGenerateReq>() {
             Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
         }
-        let seed = drivers.trng.generate()?;
-        let nonce = drivers.trng.generate()?;
-        let mut priv_key_out = Array4x12::default();
+        if !drivers.cryptographic_mailbox.has_available_ecdh_context() {
+            Err(CaliptraError::RUNTIME_CMB_ECDH_CONTEXT_STORAGE_FULL)?;
+        }
+        let resp = mutrefbytes::<CmEcdhGenerateResp>(resp)?;
+
+        let mut seed = Zeroizing::new(drivers.trng.generate()?);
+        let mut nonce = Zeroizing::new(drivers.trng.generate()?);
+        let mut private_key = Zeroizing::new(Array4x12::default());
         let pub_key = drivers.ecc384.ecdh_key_pair(
             Ecc384Seed::Array4x12(&seed),
             &nonce,
             &mut drivers.trng,
-            &mut priv_key_out,
-        )?;
+            &mut private_key,
+        );
+        // Also clear the ECC registers when the driver exits on an error path.
+        unsafe {
+            caliptra_drivers::Ecc384::zeroize();
+        }
+        let pub_key = pub_key?;
+        seed.zeroize();
+        nonce.zeroize();
 
-        let mut plaintext_context = [0u8; CMB_ECDH_CONTEXT_SIZE];
-        let priv_key_out_bytes = priv_key_out.as_bytes();
-        plaintext_context[..priv_key_out_bytes.len()].copy_from_slice(priv_key_out_bytes);
+        let encrypted_context = drivers
+            .cryptographic_mailbox
+            .encrypt_ecdh_context(&mut drivers.aes, &mut drivers.trng)?;
+        drivers
+            .cryptographic_mailbox
+            .add_ecdh_context(encrypted_context.iv, &private_key)?;
+        private_key.zeroize();
 
-        let encrypted_context = drivers.cryptographic_mailbox.encrypt_ecdh_context(
-            &mut drivers.aes,
-            &mut drivers.trng,
-            &plaintext_context,
-        )?;
-
-        let resp = mutrefbytes::<CmEcdhGenerateResp>(resp)?;
         // build the exchange data
         // format x (48 bytes) followed by y (48 bytes)
         let pub_x: [u8; 48] = pub_key.x.into();
@@ -1762,19 +1856,35 @@ impl Commands {
         let cmd = CmEcdhFinishReq::ref_from_bytes(cmd_bytes)
             .map_err(|_| CaliptraError::RUNTIME_INTERNAL)?;
 
+        let key_usage: CmKeyUsage = cmd.key_usage.into();
+        if key_usage == CmKeyUsage::Reserved {
+            return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
+        }
+
         let encrypted_context =
             EncryptedEcdhContext::ref_from_bytes(&cmd.context).map_err(|_|
              // should be impossible
             CaliptraError::RUNTIME_INTERNAL)?;
 
-        let context = drivers.cryptographic_mailbox.decrypt_ecdh_context(
+        let context = Zeroizing::new(drivers.cryptographic_mailbox.decrypt_ecdh_context(
             &mut drivers.aes,
             &mut drivers.trng,
             encrypted_context,
-        )?;
-        let priv_key: [u8; 48] = context[0..48].try_into().unwrap();
-        // it's already in HW format
-        let priv_key: Array4x12 = transmute!(priv_key);
+        )?);
+        if !constant_time_eq(
+            &context[..ECDH_CONTEXT_ID_SIZE],
+            encrypted_context.iv.as_bytes(),
+        ) || context[ECDH_CONTEXT_ID_SIZE..]
+            .iter()
+            .any(|byte| *byte != 0)
+        {
+            return Err(CaliptraError::RUNTIME_CMB_ECDH_CONTEXT_NOT_FOUND);
+        }
+
+        // Taking the key before ECDH ensures every authenticated use attempt consumes it.
+        let mut private_key = drivers
+            .cryptographic_mailbox
+            .take_ecdh_context(&encrypted_context.iv)?;
 
         let x: [u8; 48] = cmd.incoming_exchange_data[0..48].try_into().unwrap();
         let x: Array4x12 = x.into();
@@ -1782,18 +1892,19 @@ impl Commands {
         let y: Array4x12 = y.into();
         let pub_key = Ecc384PubKey { x, y };
 
-        let key_usage: CmKeyUsage = cmd.key_usage.into();
-        if key_usage == CmKeyUsage::Reserved {
-            return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
-        }
-
-        let mut shared_key_out = Array4x12::default();
-        drivers.ecc384.ecdh(
-            Ecc384PrivKeyIn::Array4x12(&priv_key),
+        let mut shared_key_out = Zeroizing::new(Array4x12::default());
+        let ecdh_result = drivers.ecc384.ecdh(
+            Ecc384PrivKeyIn::Array4x12(&private_key),
             &pub_key,
             &mut drivers.trng,
             Ecc384PrivKeyOut::Array4x12(&mut shared_key_out),
-        )?;
+        );
+        // Also clear the ECC registers when the driver exits on an error path.
+        unsafe {
+            caliptra_drivers::Ecc384::zeroize();
+        }
+        ecdh_result?;
+        private_key.zeroize();
 
         // convert out of HW format
         shared_key_out.0.iter_mut().for_each(|x| {
@@ -1805,7 +1916,7 @@ impl Commands {
             _ => 48,
         };
         let raw_key = &shared_key_out.as_bytes()[..key_len];
-        let mut unencrypted_cmk = UnencryptedCmk {
+        let mut unencrypted_cmk = Zeroizing::new(UnencryptedCmk {
             version: 1,
             length: key_len as u16,
             key_usage: key_usage as u32 as u8,
@@ -1816,7 +1927,7 @@ impl Commands {
             },
             usage_counter: 0,
             key_material: [0u8; CMK_MAX_KEY_SIZE_BITS / 8],
-        };
+        });
         unencrypted_cmk.key_material[..key_len].copy_from_slice(raw_key);
 
         let encrypted_cmk = drivers.cryptographic_mailbox.encrypt_cmk(
@@ -1824,6 +1935,8 @@ impl Commands {
             &mut drivers.trng,
             &unencrypted_cmk,
         )?;
+        shared_key_out.zeroize();
+        unencrypted_cmk.zeroize();
 
         let resp = mutrefbytes::<CmEcdhFinishResp>(resp)?;
         resp.hdr = MailboxRespHeader::default();
@@ -2937,5 +3050,56 @@ const fn spdm_version_str(version: SpdmVersion) -> &'static [u8; 8] {
         SpdmVersion::V12 => b"spdm1.2 ",
         SpdmVersion::V13 => b"spdm1.3 ",
         SpdmVersion::V14 => b"spdm1.4 ", // technically not in the spec but we include it because it was likely an oversight
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ecdh_context_is_single_use_and_slot_is_zeroized() {
+        let mut storage = CmStorage::new();
+        let context_iv = LEArray4x3::new([1, 2, 3]);
+        let private_key = Array4x12::new([0xa5a5_a5a5; 12]);
+
+        storage.add_ecdh_context(context_iv, &private_key).unwrap();
+        let recovered_key = storage.take_ecdh_context(&context_iv).unwrap();
+        assert_eq!(*recovered_key, private_key);
+
+        let slot = &storage.ecdh_contexts[0];
+        assert!(!slot.active);
+        assert_eq!(slot.context_iv, LEArray4x3::default());
+        assert_eq!(slot.private_key, Array4x12::default());
+        assert_eq!(
+            storage.take_ecdh_context(&context_iv).unwrap_err(),
+            CaliptraError::RUNTIME_CMB_ECDH_CONTEXT_NOT_FOUND
+        );
+    }
+
+    #[test]
+    fn ecdh_context_storage_is_bounded_and_clearable() {
+        let mut storage = CmStorage::new();
+        let private_key = Array4x12::new([0x5a5a_5a5a; 12]);
+
+        for index in 0..ECDH_CONTEXT_MAX {
+            let context_iv = LEArray4x3::new([index as u32, 0, 0]);
+            storage.add_ecdh_context(context_iv, &private_key).unwrap();
+        }
+
+        assert_eq!(
+            storage
+                .add_ecdh_context(LEArray4x3::new([u32::MAX, 0, 0]), &private_key)
+                .unwrap_err(),
+            CaliptraError::RUNTIME_CMB_ECDH_CONTEXT_STORAGE_FULL
+        );
+
+        storage.clear_ecdh_contexts();
+        assert!(storage.has_available_ecdh_context());
+        assert!(storage.ecdh_contexts.iter().all(|context| {
+            !context.active
+                && context.context_iv == LEArray4x3::default()
+                && context.private_key == Array4x12::default()
+        }));
     }
 }

@@ -2100,6 +2100,54 @@ fn test_ecdh() {
     // check that ciphertext and tags match, meaning the shared secret is the same on both sides
     assert_eq!(ciphertext, rciphertext);
     assert_eq!(tag, rtag);
+
+    let err = model
+        .mailbox_execute(fin.cmd_code().into(), fin.as_bytes().unwrap())
+        .expect_err("Reusing an ECDH context should fail");
+    assert_error(
+        &mut model,
+        caliptra_drivers::CaliptraError::RUNTIME_CMB_ECDH_CONTEXT_NOT_FOUND,
+        err,
+    );
+}
+
+#[test]
+fn test_ecdh_clear_invalidates_context() {
+    let mut model = run_rt_test(RuntimeTestArgs::default());
+    model.step_until_ready_for_runtime();
+
+    let mut generate = MailboxReq::CmEcdhGenerate(CmEcdhGenerateReq::default());
+    generate.populate_chksum().unwrap();
+    let resp_bytes = model
+        .mailbox_execute(generate.cmd_code().into(), generate.as_bytes().unwrap())
+        .unwrap()
+        .expect("Should have gotten a response");
+    let generate_resp = CmEcdhGenerateResp::ref_from_bytes(resp_bytes.as_slice()).unwrap();
+    let context = generate_resp.context;
+    let incoming_exchange_data = generate_resp.exchange_data;
+
+    let mut clear = MailboxReq::CmClear(MailboxReqHeader::default());
+    clear.populate_chksum().unwrap();
+    model
+        .mailbox_execute(clear.cmd_code().into(), clear.as_bytes().unwrap())
+        .unwrap()
+        .expect("CM_CLEAR should succeed");
+
+    let mut finish = MailboxReq::CmEcdhFinish(CmEcdhFinishReq {
+        context,
+        key_usage: CmKeyUsage::Hmac.into(),
+        incoming_exchange_data,
+        ..Default::default()
+    });
+    finish.populate_chksum().unwrap();
+    let err = model
+        .mailbox_execute(finish.cmd_code().into(), finish.as_bytes().unwrap())
+        .expect_err("CM_CLEAR should invalidate an outstanding ECDH context");
+    assert_error(
+        &mut model,
+        caliptra_drivers::CaliptraError::RUNTIME_CMB_ECDH_CONTEXT_NOT_FOUND,
+        err,
+    );
 }
 
 // We can't do HMAC-SHA-512 on a 384-bit key in HW.

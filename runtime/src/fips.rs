@@ -64,6 +64,7 @@ impl FipsModule {
             )
         };
 
+        env.cryptographic_mailbox.zeroize();
         env.persistent_data.get_mut().zeroize();
 
         trng_zeroize_result?;

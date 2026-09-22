@@ -22,7 +22,7 @@ use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_registers::ecc::{EccReg, RegisterBlock};
 use core::cmp::Ordering;
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
-use zeroize::Zeroize;
+use zeroize::{Zeroize, Zeroizing};
 
 /// ECC-384 Coordinate
 pub type Ecc384Scalar = Array4x12;
@@ -457,9 +457,9 @@ impl Ecc384 {
         trng: &mut Trng,
     ) -> CaliptraResult<()> {
         // Generate an ephemeral key pair for the PCT.
-        let eph_seed = trng.generate()?;
+        let eph_seed = Zeroizing::new(trng.generate()?);
         let eph_nonce = Array4x12::new([0u32; 12]);
-        let mut eph_priv_key = Array4x12::default();
+        let mut eph_priv_key = Zeroizing::new(Array4x12::default());
         let eph_pub_key = {
             let ecc = self.ecc.regs_mut();
 
@@ -487,7 +487,7 @@ impl Ecc384 {
         };
 
         // ECDH(priv_A, pub_B)
-        let mut shared_secret_a = Array4x12::default();
+        let mut shared_secret_a = Zeroizing::new(Array4x12::default());
         self.ecdh(
             priv_key,
             &eph_pub_key,
@@ -497,7 +497,7 @@ impl Ecc384 {
         .map_err(|_| CaliptraError::DRIVER_ECC384_ECDH_PAIRWISE_CONSISTENCY_FAILURE)?;
 
         // ECDH(priv_B, pub_A)
-        let mut shared_secret_b = Array4x12::default();
+        let mut shared_secret_b = Zeroizing::new(Array4x12::default());
         self.ecdh(
             Ecc384PrivKeyIn::Array4x12(&eph_priv_key),
             pub_key,
@@ -510,10 +510,6 @@ impl Ecc384 {
         if shared_secret_a != shared_secret_b {
             return Err(CaliptraError::DRIVER_ECC384_ECDH_PAIRWISE_CONSISTENCY_FAILURE);
         }
-
-        shared_secret_a.zeroize();
-        shared_secret_b.zeroize();
-        eph_priv_key.zeroize();
 
         Ok(())
     }

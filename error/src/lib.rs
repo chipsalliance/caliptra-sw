@@ -2018,6 +2018,16 @@ impl CaliptraError {
             0x000E00B3,
             "Runtime Error: Auth manifest invalid flags"
         ),
+        (
+            RUNTIME_CMB_ECDH_CONTEXT_STORAGE_FULL,
+            0x000E00B4,
+            "Runtime Error: ECDH context storage full"
+        ),
+        (
+            RUNTIME_CMB_ECDH_CONTEXT_NOT_FOUND,
+            0x000E00B5,
+            "Runtime Error: ECDH context not found"
+        ),
         // FMC Errors
         (FMC_GLOBAL_NMI, 0x000F0001, "FMC Error: Global NMI"),
         (

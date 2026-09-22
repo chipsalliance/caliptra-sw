@@ -58,7 +58,7 @@ pub const CMK_MAX_KEY_SIZE_BITS: usize = 512;
 pub const UNENCRYPTED_CMK_SIZE_BYTES: usize = 80;
 
 #[repr(C)]
-#[derive(Clone, FromBytes, Immutable, IntoBytes, KnownLayout)]
+#[derive(Clone, FromBytes, Immutable, IntoBytes, KnownLayout, Zeroize)]
 pub struct UnencryptedCmk {
     pub version: u16,
     pub length: u16,
