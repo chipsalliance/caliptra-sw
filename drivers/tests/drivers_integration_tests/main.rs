@@ -822,6 +822,12 @@ fn test_acvp_hmac() {
 }
 
 #[test]
+#[cfg_attr(not(feature = "acvp-tests"), ignore)]
+fn test_acvp_sha2_512_384acc() {
+    run_driver_test(&firmware::acvp_tests::SHA2_512_384ACC);
+}
+
+#[test]
 fn test_sha256() {
     run_driver_test(&firmware::driver_tests::SHA256);
 }

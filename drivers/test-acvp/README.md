@@ -77,3 +77,41 @@ which value was used. No context is applied.
 Output: one `HMAC384KDF:XX` line per derived-key byte (48 lines). The runner's response
 pattern matches exactly two hex characters per line, so the bytes must be printed
 individually rather than as a single concatenated string.
+
+---
+
+### SHA-384 / SHA-512 Accelerator (`test_acvp_sha2_512_384acc`)
+
+The accelerator digests data staged in the mailbox, so each test streams the message
+through a mailbox transaction (command `0x1c`) before starting the digest.
+
+```
+<algorithm: SHA384ACC or SHA512ACC>
+<test type: AFT or MCT>
+<hex-encoded message or seed>
+```
+
+**AFT** — single message digest, up to 5900 bytes:
+
+```
+SHA384ACC
+AFT
+616263
+```
+
+**MCT** — seed for 100-outer x 1000-inner iterations. The seed is 48 bytes for
+`SHA384ACC` and 64 bytes for `SHA512ACC`:
+
+```
+SHA512ACC
+MCT
+<hex seed, 64 bytes>
+```
+
+Output: one `SHA384ACC:XX` or `SHA512ACC:XX` line per digest byte (48 or 64 lines per
+digest). AFT emits a single digest; MCT emits one per outer iteration (100 total), which
+the runner chunks back apart by digest size.
+
+The 2.1 production vector sets (1024 AFT + 1 MCT each) top out at 5884 bytes per message,
+which is why the message buffer is sized 5900. Note those vector files use CRLF line
+endings; the runner strips them before writing the stimulus.
