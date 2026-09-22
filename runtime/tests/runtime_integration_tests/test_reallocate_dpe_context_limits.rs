@@ -137,16 +137,26 @@ fn test_pl0_pl1_reallocation_range() {
 
 #[test]
 fn test_pl0_pl1_reallocation_call_outside_pl0() {
-    let mut model = run_rt_test(RuntimeTestArgs::default());
+    let mut model = run_rt_test(RuntimeTestArgs {
+        test_fwid: (!cfg!(any(
+            feature = "fpga_realtime",
+            feature = "fpga_subsystem",
+            feature = "ocp-lock"
+        )))
+        .then_some(&APP_WITH_UART),
+        ..Default::default()
+    });
     // Set Non-PL0 PAUSER
     model.set_axi_user(2);
-    let resp = reallocate_pl0_pl1_dpe_contexts(&mut model, 20).unwrap_err();
-    assert_eq!(
-        resp,
-        ModelError::MailboxCmdFailed(
-            CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL.into()
-        )
-    );
+    for pl0_limit in [20, 65, u32::MAX] {
+        let resp = reallocate_pl0_pl1_dpe_contexts(&mut model, pl0_limit).unwrap_err();
+        assert_eq!(
+            resp,
+            ModelError::MailboxCmdFailed(
+                CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL.into()
+            )
+        );
+    }
 }
 
 #[test]
@@ -163,14 +173,24 @@ fn test_pl0_pl1_reallocation_pl0_less_than_min() {
 
 #[test]
 fn test_pl0_pl1_reallocation_pl0_greater_than_max() {
-    let mut model = run_rt_test(RuntimeTestArgs::default());
-    let resp = reallocate_pl0_pl1_dpe_contexts(&mut model, 65).unwrap_err();
-    assert_eq!(
-        resp,
-        ModelError::MailboxCmdFailed(
-            CaliptraError::RUNTIME_REALLOCATE_DPE_CONTEXTS_PL0_GREATER_THAN_MAX.into()
-        )
-    );
+    let mut model = run_rt_test(RuntimeTestArgs {
+        test_fwid: (!cfg!(any(
+            feature = "fpga_realtime",
+            feature = "fpga_subsystem",
+            feature = "ocp-lock"
+        )))
+        .then_some(&APP_WITH_UART),
+        ..Default::default()
+    });
+    for pl0_limit in [65, u32::MAX] {
+        let resp = reallocate_pl0_pl1_dpe_contexts(&mut model, pl0_limit).unwrap_err();
+        assert_eq!(
+            resp,
+            ModelError::MailboxCmdFailed(
+                CaliptraError::RUNTIME_REALLOCATE_DPE_CONTEXTS_PL0_GREATER_THAN_MAX.into()
+            )
+        );
+    }
 }
 
 #[test]
