@@ -115,3 +115,31 @@ the runner chunks back apart by digest size.
 The 2.1 production vector sets (1024 AFT + 1 MCT each) top out at 5884 bytes per message,
 which is why the message buffer is sized 5900. Note those vector files use CRLF line
 endings; the runner strips them before writing the stimulus.
+
+---
+
+### LMS-24 Signature Verification (`test_acvp_lms_24`)
+
+LMS over SHA256/192 with N=6, P=51, H=15.
+
+```
+LMS_SIGVER
+<hex-encoded message>
+<hex-encoded public key, 48 bytes>
+<hex-encoded signature, 1620 bytes>
+```
+
+The public key and signature must be exactly 48 and 1620 bytes: they are converted with
+`zerocopy::FromBytes::ref_from_bytes`, which rejects any other length. Those sizes are
+fixed by the type parameters:
+
+```
+LmsPublicKey<6>       = 4 + 4 + 16 + 6*4                     =   48
+LmsSignature<6,51,15> = 4 + (4 + 6*4 + 51*6*4) + 4 + 15*6*4  = 1620
+```
+
+Output:
+- `LMS_SIGVER:01` — signature valid
+- `LMS_SIGVER:00` — signature invalid
+
+The runner maps these to `true` / `false` in the response file.

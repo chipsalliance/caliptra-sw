@@ -647,9 +647,11 @@ dependencies = [
  "caliptra-cfi-lib",
  "caliptra-drivers",
  "caliptra-kat",
+ "caliptra-lms-types",
  "caliptra-registers",
  "caliptra-test-harness",
  "cfg-if",
+ "zerocopy",
 ]
 
 [[package]]
