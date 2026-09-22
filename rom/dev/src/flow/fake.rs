@@ -199,20 +199,7 @@ pub(crate) struct FakeRomImageVerificationEnv<'a, 'b> {
     pub(crate) mldsa87: &'a mut Mldsa87,
     pub image: &'b [u8],
     pub(crate) dma: &'a Dma,
-    pub(crate) mldsa87: &'a mut Mldsa87<'c>,
-    pub image_source: ImageSource<'a, 'b>,
     pub(crate) persistent_data: &'a PersistentData,
-}
-
-impl FakeRomImageVerificationEnv<'_, '_, '_> {
-    fn create_dma_recovery<'a>(soc_ifc: &'a SocIfc, dma: &'a Dma) -> DmaRecovery<'a> {
-        DmaRecovery::new(
-            soc_ifc.recovery_interface_base_addr().into(),
-            soc_ifc.caliptra_base_axi_addr().into(),
-            soc_ifc.mci_base_addr().into(),
-            dma,
-        )
-    }
 }
 
 impl ImageVerificationEnv for &mut FakeRomImageVerificationEnv<'_, '_> {
@@ -403,12 +390,12 @@ impl ImageVerificationEnv for &mut FakeRomImageVerificationEnv<'_, '_> {
 
     // Get FMC load address from the cold boot
     fn get_cold_reset_fmc_load_addr(&self) -> u32 {
-        self.persistent_data.rom.manifest1.fmc.load_addr
+        self.persistent_data.manifest1.fmc.load_addr
     }
 
     // Get FMC size from the cold boot
     fn get_cold_reset_fmc_size(&self) -> u32 {
-        self.persistent_data.rom.manifest1.fmc.size
+        self.persistent_data.manifest1.fmc.size
     }
 
     // Get Fuse FW Manifest SVN

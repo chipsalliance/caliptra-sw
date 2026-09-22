@@ -1906,13 +1906,14 @@ fn test_toc_fmc_range_overlap() {
             fuse_pqc_key_type: *pqc_key_type as u32,
             ..Default::default()
         };
-        // Case 1: FMC offset == Runtime offset
+        // Case 1: FMC offset == Runtime offset. Keep FMC at the required
+        // manifest-prefix offset and move Runtime to overlap it.
         let (mut hw, mut image_bundle) =
             helpers::build_hw_model_and_image_bundle(fuses.clone(), image_options.clone());
-        let fmc_new_offset = image_bundle.manifest.runtime.offset;
+        let fmc_new_offset = image_bundle.manifest.fmc.offset;
         // These are unchanged.
         let fmc_new_size = image_bundle.manifest.fmc.size;
-        let runtime_new_offset = image_bundle.manifest.runtime.offset;
+        let runtime_new_offset = image_bundle.manifest.fmc.offset;
         let runtime_new_size = image_bundle.manifest.runtime.size;
 
         let image = update_fmc_runtime_ranges(
@@ -1930,13 +1931,13 @@ fn test_toc_fmc_range_overlap() {
         );
         drop(hw);
 
-        // Case 2: FMC offset > Runtime offset
+        // Case 2: FMC offset > Runtime offset, with Runtime extending into FMC.
         let (mut hw, mut image_bundle) =
             helpers::build_hw_model_and_image_bundle(fuses.clone(), image_options.clone());
-        let fmc_new_offset = image_bundle.manifest.runtime.offset + 1;
+        let fmc_new_offset = image_bundle.manifest.fmc.offset;
         // These are unchanged.
         let fmc_new_size = image_bundle.manifest.fmc.size;
-        let runtime_new_offset = image_bundle.manifest.runtime.offset;
+        let runtime_new_offset = image_bundle.manifest.fmc.offset - 1;
         let runtime_new_size = image_bundle.manifest.runtime.size;
         let image = update_fmc_runtime_ranges(
             &mut image_bundle,
