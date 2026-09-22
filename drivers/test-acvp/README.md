@@ -22,6 +22,23 @@ recompiles automatically.
 These tests are `#[ignore]`d unless the `acvp-tests` feature is enabled, so normal
 CI runs do not execute them against the placeholder stimulus checked into the tree.
 
+## Running a whole vector set
+
+`run_acvp.py` drives a full campaign: for each test case it writes the vector to
+`stimulus/current.txt`, rebuilds and runs the firmware, captures the UART output to a
+per-test-case log, and finally scrapes those logs into a response file placed next to
+the vector file.
+
+```bash
+python3 drivers/test-acvp/run_acvp.py --alg SHA384ACC --vectors /path/to/SHA2-384-605645.txt
+python3 drivers/test-acvp/run_acvp.py --alg MLDSA_SIGGEN --vectors /path/to/vectors.txt --verilator
+python3 drivers/test-acvp/run_acvp.py --list      # supported algorithms and vector formats
+```
+
+Only one algorithm can be in flight at a time, since all binaries share the single
+`stimulus/current.txt`. The stimulus checked into the tree is a SHA-1 placeholder, so
+running any other test against it without the runner will panic in `hex_decode`.
+
 ---
 
 ## stimulus/current.txt formats
