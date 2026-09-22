@@ -840,6 +840,12 @@ fn test_acvp_mldsa87() {
 }
 
 #[test]
+#[cfg_attr(not(feature = "acvp-tests"), ignore)]
+fn test_acvp_ml_kem() {
+    run_driver_test(&firmware::acvp_tests::ML_KEM);
+}
+
+#[test]
 fn test_sha256() {
     run_driver_test(&firmware::driver_tests::SHA256);
 }

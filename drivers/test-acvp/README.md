@@ -193,3 +193,53 @@ Notes:
   `caliptra-drivers`. That is already enabled in this crate's `Cargo.toml`.
 - `test_mldsa_name` runs first because it performs the `CfiCounter::reset` that the
   CFI-instrumented verification path depends on.
+
+---
+
+### ML-KEM-1024 (`test_acvp_ml_kem`)
+
+The operation is selected by the first line of the stimulus.
+
+**KEYGEN** — derive a key pair from the two seeds:
+
+```
+MLKEM_KEYGEN
+<hex seed d, 32 bytes>
+<hex seed z, 32 bytes>
+```
+
+Output: `MLKEM_KEYGEN:<ek> <dk>` — encapsulation key (1568 bytes) and decapsulation
+key (3168 bytes), space separated on one line.
+
+**ENCAPS** — encapsulate to a public key using a caller-supplied message:
+
+```
+MLKEM_ENCAPS
+<hex encapsulation key, 1568 bytes>
+<hex message, 32 bytes>
+```
+
+Output: `MLKEM_ENCAPS:<ciphertext> <shared_key>` — 1568 bytes and 32 bytes.
+
+**DECAPS** — recover the shared secret:
+
+```
+MLKEM_DECAPS
+<hex decapsulation key, 3168 bytes>
+<hex ciphertext, 1568 bytes>
+```
+
+Output: `MLKEM_DECAPS:<shared_key>` — 32 bytes.
+
+Notes:
+
+- Values are emitted as uppercase hex on a single line, with a space between the two
+  values where an operation produces a pair. The runner's patterns are
+  `MLKEM_KEYGEN:([0-9A-F]+) ([0-9A-F]+)` and
+  `MLKEM_(?:ENCAPS|DECAPS):([0-9A-F]+)(?: ([0-9A-F]+))?`.
+- The ABR entropy register is seeded before each operation; the ML-KEM engine consumes
+  it for side-channel countermeasures.
+- `test_mlkem_name` runs first because it performs the `CfiCounter::reset`.
+- The production encap/decap vector set combines both operations in one file (25
+  encapsulation cases followed by 10 decapsulation cases), which the runner dispatches
+  on the second field of each vector line.

@@ -769,6 +769,11 @@ pub mod acvp_tests {
         bin_name: "mldsa87",
         ..BASE_FWID
     };
+
+    pub const ML_KEM: FwId = FwId {
+        bin_name: "ml_kem",
+        ..BASE_FWID
+    };
 }
 
 pub const PREBUILT_FW: &[&FwId] = &[&ROM_2_0_1_RELEASE, &FW_2_0_1_RELEASE];
@@ -879,4 +884,5 @@ pub const REGISTERED_FW: &[&FwId] = &[
     &acvp_tests::SHA2_512_384ACC,
     &acvp_tests::LMS_24,
     &acvp_tests::MLDSA87,
+    &acvp_tests::ML_KEM,
 ];
