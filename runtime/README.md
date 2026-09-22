@@ -2689,7 +2689,7 @@ This computes the first half of an Elliptic Curve Diffie-Hellman exchange to com
 
 Currently only supports the NIST P-384 curve.
 
-The returned context must be passed to the `CM_ECDH_FINISH` command. The context contains the (encrypted) secret coefficient.
+The returned single-use context must be passed to the `CM_ECDH_FINISH` command. Caliptra retains the ephemeral private key internally; the context contains only an authenticated opaque identifier.
 
 The returned exchange data format is the concatenation of the x- and y-coordinates of the public point encoded as big-endian integers, padded to 48 bytes each.
 
@@ -2705,15 +2705,16 @@ Command Code: `0x434D_4547` ("CMEG")
 | ------------- | -------- | ------------------------------------- |
 | chksum        | u32      |                                       |
 | fips_status   | u32      | FIPS approved or an error             |
-| context       | u8[76]   | Used as the input to `CM_ECDH_FINISH` |
+| context       | u8[76]   | Single-use input to `CM_ECDH_FINISH`  |
 | exchange data | u8[96]   | i.e., the public point                |
 
 *Table: `CM_ECDH_GENERATE` / `CM_ECDH_FINISH` internal context*
-| **Name**           | **Type** | **Description** |
-| ------------------ | -------- | --------------- |
-| Secret coefficient | u8[48]   |                 |
+| **Name**         | **Type** | **Description**                                      |
+| ---------------- | -------- | ---------------------------------------------------- |
+| Context ID       | u8[12]   | Identifies the private key retained inside Caliptra |
+| Reserved         | u8[36]   | Zero                                                 |
 
-The encrypted context size (76 bytes) is the size of the internal context (48 bytes) plus as 12-byte IV and a 16-byte authentication tag.
+The encrypted context size (76 bytes) is the size of the internal context (48 bytes) plus a 12-byte IV and a 16-byte authentication tag. Up to eight ECDH contexts may be outstanding. `CM_CLEAR` invalidates all outstanding ECDH contexts.
 
 ### CM_ECDH_FINISH
 
@@ -2721,7 +2722,7 @@ This computes the second half of an Elliptic Curve Diffie-Hellman exchange.
 
 Currently only supports the NIST P-384 curve.
 
-The context must be passed from the `CM_ECDH_GENERATE` command.
+The context must be passed from the `CM_ECDH_GENERATE` command and can be used only once. An authenticated `CM_ECDH_FINISH` attempt consumes the context even if ECDH subsequently fails.
 
 The incoming exchange data MUST be the concatenation of the x- and y- coordinates of the other side's public point, encoded as big-endian integers, padded to 48 bytes each.
 
@@ -2737,7 +2738,7 @@ Command Code: `0x434D_4546` ("CMEF")
 | key usage              | u32      | usage tag of the kind of key that will be output             |
 | incoming exchange data | u8[96]   | the other side's public point              |
 
-The context used as an input is the same as the output context from `CM_ECDH_GENERATE` above.
+The context used as an input is the same as the output context from `CM_ECDH_GENERATE` above. Reusing a consumed context returns `RUNTIME_CMB_ECDH_CONTEXT_NOT_FOUND`.
 
 *Table: `CM_ECDH_FINISH` output arguments*
 | **Name**    | **Type** | **Description**                 |
