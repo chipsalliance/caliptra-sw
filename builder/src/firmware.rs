@@ -749,6 +749,11 @@ pub mod acvp_tests {
         bin_name: "sha1",
         ..BASE_FWID
     };
+
+    pub const HMAC: FwId = FwId {
+        bin_name: "hmac",
+        ..BASE_FWID
+    };
 }
 
 pub const PREBUILT_FW: &[&FwId] = &[&ROM_2_0_1_RELEASE, &FW_2_0_1_RELEASE];
@@ -855,4 +860,5 @@ pub const REGISTERED_FW: &[&FwId] = &[
     &runtime_tests::MOCK_RT_INTERACTIVE_FPGA,
     &api_tests::MAILBOX,
     &acvp_tests::SHA1,
+    &acvp_tests::HMAC,
 ];
