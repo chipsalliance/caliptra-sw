@@ -12,9 +12,7 @@ use caliptra_common::mailbox_api::{
 };
 use caliptra_hw_model::{DefaultHwModel, HwModel};
 use coset::{cbor::value::Value, iana, iana::CwtClaimName, CborSerializable, CoseSign1};
-use ml_dsa_01::{
-    signature::Verifier, EncodedSignature, EncodedVerifyingKey, Signature, VerifyingKey,
-};
+use fips204::{ml_dsa_87, traits::SerDes, traits::Verifier};
 use openssl::{
     pkey::{PKey, Public},
     x509::{X509Req, X509},
@@ -464,19 +462,17 @@ pub fn verify_mldsa_cose_signature(cose_sign1: &CoseSign1, rt_cert_der: &[u8]) {
         .as_ref()
         .try_into()
         .expect("Invalid ML-DSA public key length in cert");
-    let encoded_vk = EncodedVerifyingKey::<ml_dsa_01::MlDsa87>::from(raw_pubkey);
-    let vk = VerifyingKey::<ml_dsa_01::MlDsa87>::decode(&encoded_vk);
+    let vk = ml_dsa_87::PublicKey::try_from_bytes(raw_pubkey)
+        .expect("Failed to decode ML-DSA-87 public key");
 
-    let sig_4627: [u8; 4627] = cose_sign1
+    let signature: [u8; ml_dsa_87::SIG_LEN] = cose_sign1
         .signature
         .as_slice()
         .try_into()
         .expect("Invalid ML-DSA-87 signature length");
-    let encoded_sig = EncodedSignature::<ml_dsa_01::MlDsa87>::from(sig_4627);
-    let sig = Signature::decode(&encoded_sig).expect("Failed to decode ML-DSA-87 signature");
 
     assert!(
-        vk.verify(&cose_sign1.tbs_data(&[]), &sig).is_ok(),
+        vk.verify(&cose_sign1.tbs_data(&[]), &signature, &[]),
         "COSE Sign1 ML-DSA-87 signature verification failed"
     );
 }

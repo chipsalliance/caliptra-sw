@@ -9,7 +9,7 @@ use caliptra_builder::{
             FAKE_TEST_FMC_INTERACTIVE, FAKE_TEST_FMC_WITH_UART, TEST_FMC_INTERACTIVE,
             TEST_FMC_WITH_UART, TEST_RT_WITH_UART,
         },
-        APP_WITH_UART,
+        APP_WITH_UART, APP_WITH_UART_FPGA,
     },
     FwId, ImageOptions,
 };
