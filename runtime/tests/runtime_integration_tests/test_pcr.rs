@@ -311,6 +311,7 @@ fn test_extend_pcr_cmd_restricted_to_pl0() {
     }
 }
 
+#[cfg_attr(feature = "fpga_subsystem", ignore)]
 #[test]
 fn test_extend_pcr_cmd_rejected_without_pl0_pauser() {
     let mut image_opts = caliptra_builder::ImageOptions::default();
