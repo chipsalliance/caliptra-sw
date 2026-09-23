@@ -40,6 +40,9 @@ impl ActivateFirmwareCmd {
         cmd_args: &[u8],
         resp: &mut [u8],
     ) -> CaliptraResult<usize> {
+        // Restrict to PL0
+        drivers.ensure_pl0()?;
+
         let fw_id_count: usize = {
             let err = CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS;
             let offset = offset_of!(ActivateFirmwareReq, fw_id_count);
