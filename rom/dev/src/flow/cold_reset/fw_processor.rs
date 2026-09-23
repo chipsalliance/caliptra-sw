@@ -1088,7 +1088,7 @@ impl FirmwareProcessor {
     ///
     /// # Returns
     /// * `()` - Ok
-    ///    Error code on failure.
+    ///   Error code on failure.
     pub fn copy_req_verify_chksum(
         txn: &mut MailboxRecvTxn,
         mut data: &mut [u8],
@@ -1140,7 +1140,7 @@ impl FirmwareProcessor {
     ///
     /// # Returns
     /// * `()` - Ok
-    ///     Err - StashMeasurementReadFailure
+    ///   Err - StashMeasurementReadFailure
     fn stash_measurement(
         pcr_bank: &mut PcrBank,
         sha2: &mut Sha2_512_384,
@@ -1166,7 +1166,7 @@ impl FirmwareProcessor {
     ///
     /// # Returns
     /// * `()` - Ok
-    ///    Error code on failure.
+    ///   Error code on failure.
     fn extend_measurement(
         pcr_bank: &mut PcrBank,
         sha2: &mut Sha2_512_384,

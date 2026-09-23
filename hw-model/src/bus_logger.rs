@@ -30,6 +30,7 @@ impl Write for LogFile {
     }
 }
 
+#[allow(dead_code)]
 pub struct NullBus();
 impl Bus for NullBus {
     fn read(&mut self, _size: RvSize, _addr: RvAddr) -> Result<RvData, caliptra_emu_bus::BusError> {

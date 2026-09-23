@@ -1009,7 +1009,7 @@ impl Aes {
         if input.is_empty() {
             return Ok(());
         }
-        if input.len() % AES_BLOCK_SIZE_BYTES != 0 {
+        if !input.len().is_multiple_of(AES_BLOCK_SIZE_BYTES) {
             Err(CaliptraError::RUNTIME_DRIVER_AES_INVALID_SLICE)?;
         }
         if output.len() < input.len() {
@@ -1065,7 +1065,7 @@ impl Aes {
                 ..Default::default()
             });
         }
-        if input.len() % AES_BLOCK_SIZE_BYTES != 0 {
+        if !input.len().is_multiple_of(AES_BLOCK_SIZE_BYTES) {
             Err(CaliptraError::RUNTIME_DRIVER_AES_INVALID_SLICE)?;
         }
         if output.len() < input.len() {
@@ -1104,15 +1104,15 @@ impl Aes {
             self.read_data_block(output, num_blocks - 1)?;
         }
 
+        let last_block_range =
+            (num_blocks - 1) * AES_BLOCK_SIZE_BYTES..num_blocks * AES_BLOCK_SIZE_BYTES;
         let last_ciphertext: [u8; AES_BLOCK_SIZE_BYTES] = if op == AesOperation::Encrypt {
-            output[(num_blocks - 1) * AES_BLOCK_SIZE_BYTES..num_blocks * AES_BLOCK_SIZE_BYTES]
-                .try_into()
-                .unwrap()
+            output.get(last_block_range)
         } else {
-            input[(num_blocks - 1) * AES_BLOCK_SIZE_BYTES..num_blocks * AES_BLOCK_SIZE_BYTES]
-                .try_into()
-                .unwrap()
-        };
+            input.get(last_block_range)
+        }
+        .and_then(|block| block.try_into().ok())
+        .ok_or(CaliptraError::RUNTIME_DRIVER_AES_INVALID_SLICE)?;
 
         self.zeroize_internal();
         Ok(AesContext {
