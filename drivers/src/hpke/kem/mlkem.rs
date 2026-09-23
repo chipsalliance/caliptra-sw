@@ -1,6 +1,7 @@
 // Licensed under the Apache-2.0 license
 
 use caliptra_error::{CaliptraError, CaliptraResult};
+use zeroize::{ZeroizeOnDrop, Zeroizing};
 
 use crate::{
     hpke::{
@@ -29,6 +30,13 @@ impl Default for MlKemEncapsulationKey {
 
 impl From<MlKem1024SharedKey> for MlKemSharedSecret {
     fn from(value: MlKem1024SharedKey) -> Self {
+        let buf = <[u8; MlKem::NSECRET]>::from(value);
+        Self { buf }
+    }
+}
+
+impl From<&MlKem1024SharedKey> for MlKemSharedSecret {
+    fn from(value: &MlKem1024SharedKey) -> Self {
         let buf = <[u8; MlKem::NSECRET]>::from(value);
         Self { buf }
     }
@@ -98,6 +106,7 @@ impl<'a, 'b> MlKemContext<'a, 'b> {
 }
 
 /// MlKem KEM operations type
+#[derive(ZeroizeOnDrop)]
 pub struct MlKem {
     ikm: [u8; Self::NSK],
 }
@@ -126,14 +135,14 @@ impl MlKem {
         ctx: &mut MlKemContext<'_, '_>,
     ) -> CaliptraResult<(MlKem1024EncapsKey, MlKem1024DecapsKey)> {
         let (a, b) = {
-            let mut a = [0; 32];
+            let mut a = Zeroizing::new([0; 32]);
             a.clone_from_slice(&self.ikm[..32]);
 
-            let mut b = [0; 32];
+            let mut b = Zeroizing::new([0; 32]);
             b.clone_from_slice(&self.ikm[32..]);
 
-            let a_seed = MlKem1024Seed::from(&a);
-            let b_seed = MlKem1024Seed::from(&b);
+            let a_seed = Zeroizing::new(MlKem1024Seed::from(&*a));
+            let b_seed = Zeroizing::new(MlKem1024Seed::from(&*b));
 
             (a_seed, b_seed)
         };
@@ -155,14 +164,17 @@ impl Kem<{ MlKem::NSK }, { MlKem::NENC }, { MlKem::NPK }, { MlKem::NSECRET }> fo
         ctx: &mut Self::CONTEXT<'_, '_>,
         ikm: &[u8; MlKem::NSK],
     ) -> CaliptraResult<Self> {
-        let ikm: Array4x16 = kdf::Shake256::<{ MlKem::NSK as u16 }>::labeled_derive(
-            ctx.sha,
-            CipherSuite::Kem(Self::KEM_ID),
-            ikm,
-            b"DeriveKeyPair",
-            b"",
-        )?;
-        Ok(Self { ikm: ikm.into() })
+        let ikm: Zeroizing<Array4x16> =
+            Zeroizing::new(kdf::Shake256::<{ MlKem::NSK as u16 }>::labeled_derive(
+                ctx.sha,
+                CipherSuite::Kem(Self::KEM_ID),
+                ikm,
+                b"DeriveKeyPair",
+                b"",
+            )?);
+        Ok(Self {
+            ikm: (&*ikm).into(),
+        })
     }
 
     fn encap(
@@ -171,8 +183,8 @@ impl Kem<{ MlKem::NSK }, { MlKem::NENC }, { MlKem::NPK }, { MlKem::NSECRET }> fo
         encaps_key: &Self::EK,
     ) -> CaliptraResult<(MlKemEncapsulatedSecret, MlKemSharedSecret)> {
         let message = {
-            let mut message = MlKem1024Message::default();
-            let rnd = ctx.trng.generate16()?;
+            let mut message = Zeroizing::new(MlKem1024Message::default());
+            let rnd = Zeroizing::new(ctx.trng.generate16()?);
             let rnd = rnd
                 .0
                 .get(..8)
@@ -180,13 +192,13 @@ impl Kem<{ MlKem::NSK }, { MlKem::NENC }, { MlKem::NPK }, { MlKem::NSECRET }> fo
             message.0[..].clone_from_slice(rnd);
             message
         };
-        let mut enc = MlKem1024SharedKey::default();
+        let mut shared_key = Zeroizing::new(MlKem1024SharedKey::default());
         let shared_secret = ctx.ml_kem.encapsulate(
             encaps_key,
             MlKem1024MessageSource::Array(&message),
-            MlKem1024SharedKeyOut::Array(&mut enc),
+            MlKem1024SharedKeyOut::Array(&mut shared_key),
         )?;
-        Ok((shared_secret.into(), enc.into()))
+        Ok((shared_secret.into(), (&*shared_key).into()))
     }
 
     /// Derive expanded decapsulation key from 64 byte seed.
@@ -197,12 +209,12 @@ impl Kem<{ MlKem::NSK }, { MlKem::NENC }, { MlKem::NPK }, { MlKem::NSECRET }> fo
         enc: &MlKemEncapsulatedSecret,
     ) -> CaliptraResult<MlKemSharedSecret> {
         let (_ek, dk) = self.expand_decaps_key(ctx)?;
-        let mut shared_key = MlKem1024SharedKey::default();
+        let mut shared_key = Zeroizing::new(MlKem1024SharedKey::default());
         // Can't use zerocopy here because the slice is not guaranteed to be aligned.
         let enc = LEArray4x392::from(enc.buf);
         ctx.ml_kem
             .decapsulate(&dk, &enc, MlKem1024SharedKeyOut::Array(&mut shared_key))?;
-        Ok(SharedSecret::from(shared_key))
+        Ok(SharedSecret::from(&*shared_key))
     }
 
     fn serialize_public_key(
