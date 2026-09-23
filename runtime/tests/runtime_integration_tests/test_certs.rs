@@ -449,7 +449,8 @@ fn test_dpe_leaf_cert() {
         panic!("Wrong response type!");
     };
     let dpe_leaf_cert: X509 =
-        X509::from_der(&certify_key_resp.cert[..certify_key_resp.cert_size as usize]).unwrap();
+        X509::from_der(&certify_key_resp.cert[..certify_key_resp.header.cert_size as usize])
+            .unwrap();
 
     // Check that DPE Leaf Cert is signed by RT alias pub key and that subject/issuer names match
     assert!(dpe_leaf_cert

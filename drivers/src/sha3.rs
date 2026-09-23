@@ -163,6 +163,21 @@ impl Sha3 {
         Ok(op)
     }
 
+    /// Initialize multi-step ML-DSA external mu calculation operation
+    ///
+    /// Computes `tr = SHAKE256(pub_key, 64)` and initializes a SHAKE256
+    /// operation seeded with `tr || 0x00 || 0x00` per FIPS 204.
+    pub fn mldsa_external_mu_init(
+        &mut self,
+        pub_key: &[u8],
+    ) -> CaliptraResult<MldsaExternalMuOp<'_>> {
+        let tr: [u8; 64] = self.shake256_digest::<16, 64>(pub_key)?.into();
+        let mut op = self.shake256_digest_init()?;
+        op.update(&tr)?;
+        op.update(&[0x00, 0x00])?;
+        Ok(MldsaExternalMuOp { op })
+    }
+
     /// Calculate the SHAKE-256 digest for specified data
     ///
     /// # Arguments
@@ -438,5 +453,24 @@ impl Sha3DigestOp<'_> {
         self.sha3.zeroize_internal();
 
         Ok(digest)
+    }
+}
+
+/// Multi-step ML-DSA external mu calculation operation
+pub struct MldsaExternalMuOp<'a> {
+    op: Sha3DigestOp<'a>,
+}
+
+impl MldsaExternalMuOp<'_> {
+    /// Update the external mu calculation with message data
+    pub fn update(&mut self, data: &[u8]) -> CaliptraResult<()> {
+        self.op.update(data)
+    }
+
+    /// Finalize the external mu calculation
+    pub fn finalize(mut self, mu: &mut crate::Mldsa87Mu) -> CaliptraResult<()> {
+        let digest: [u8; 64] = self.op.finalize::<16, 64>()?.into();
+        *mu = crate::Mldsa87Mu::from(digest);
+        Ok(())
     }
 }
