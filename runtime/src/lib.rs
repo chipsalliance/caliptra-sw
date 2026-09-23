@@ -936,6 +936,7 @@ fn mldsa_dpe_env(
     let pdata = drivers.persistent_data.get_mut();
     let crypto = DpeCrypto::new_mldsa87(
         &mut drivers.sha2_512_384,
+        &mut drivers.sha3,
         &mut drivers.trng,
         drivers.abr.abr_reg(),
         &mut drivers.hmac,

@@ -54,6 +54,7 @@ use caliptra_dpe::{DpeFlags, DpeProfile};
 use caliptra_dpe_crypto::ecdsa::curve_384::EcdsaPub384;
 use caliptra_dpe_crypto::ecdsa::EcdsaPubKey;
 use caliptra_dpe_crypto::{Digest, PubKey};
+use caliptra_dpe_response_buffer::SliceResponseBuffer;
 use caliptra_drivers::{
     hand_off::DataStore,
     pcr_log::{PCR_ID_STASH_MEASUREMENT, RT_FW_CURRENT_PCR, RT_FW_JOURNEY_PCR},
@@ -534,9 +535,7 @@ impl Drivers {
             resp_buf,
         )
         .map_err(|e| {
-            if let Some(ext_err) = e.get_error_detail() {
-                self.soc_ifc.set_fw_extended_error(ext_err);
-            }
+            self.soc_ifc.set_fw_extended_error(e.get_error_code());
             CaliptraError::RUNTIME_AUTH_AND_STASH_MEASUREMENT_DPE_ERROR
         })?;
 
@@ -920,6 +919,7 @@ impl Drivers {
         // locality to the pl0 pauser locality
         let mut derive_context_resp_buf = [0u32; size_of::<DeriveContextResp>() / 4];
         let derive_context_resp = derive_context_resp_buf.as_mut_bytes();
+        let mut resp_buf = SliceResponseBuffer::new(derive_context_resp);
         let result = DeriveContextCmd {
             handle: ContextHandle::default(),
             data: TciMeasurement(<[u8; 48]>::from(initialization_values_hash)),
@@ -932,12 +932,9 @@ impl Drivers {
             target_locality: pl0_pauser_locality,
             svn: 0,
         }
-        .execute_serialized(&mut dpe, &mut env, CALIPTRA_LOCALITY, derive_context_resp);
+        .execute_serialized(&mut dpe, &mut env, CALIPTRA_LOCALITY, &mut resp_buf);
         if let Err(e) = result {
-            // If there is extended error info, populate CPTRA_FW_EXTENDED_ERROR_INFO
-            if let Some(ext_err) = e.get_error_detail() {
-                drivers.soc_ifc.set_fw_extended_error(ext_err);
-            }
+            drivers.soc_ifc.set_fw_extended_error(e.get_error_code());
             Err(CaliptraError::RUNTIME_ADD_CCIV_MEASUREMENT_TO_DPE_FAILED)?
         }
         let cciv_idx = u8::try_from(
@@ -970,6 +967,7 @@ impl Drivers {
 
             let measurement_data = measurement_log_entry.pcr_entry.measured_data();
             let tci_type = u32::from_ne_bytes(measurement_log_entry.metadata);
+            let mut resp_buf = SliceResponseBuffer::new(derive_context_resp);
             let result = DeriveContextCmd {
                 handle: ContextHandle::default(),
                 data: TciMeasurement(
@@ -986,17 +984,9 @@ impl Drivers {
                 target_locality: pl0_pauser_locality,
                 svn: 0,
             }
-            .execute_serialized(
-                &mut dpe,
-                &mut env,
-                pl0_pauser_locality,
-                derive_context_resp,
-            );
+            .execute_serialized(&mut dpe, &mut env, pl0_pauser_locality, &mut resp_buf);
             if let Err(e) = result {
-                // If there is extended error info, populate CPTRA_FW_EXTENDED_ERROR_INFO
-                if let Some(ext_err) = e.get_error_detail() {
-                    drivers.soc_ifc.set_fw_extended_error(ext_err);
-                }
+                drivers.soc_ifc.set_fw_extended_error(e.get_error_code());
                 Err(CaliptraError::RUNTIME_ADD_ROM_MEASUREMENTS_TO_DPE_FAILED)?
             }
         }
