@@ -22,6 +22,7 @@ register_bitfields! {
         OcpLockEn OFFSET(18) NUMBITS(1) [],
         LcAllowRmaOrScrapOnPpd OFFSET(19) NUMBITS(1) [],
         FipsZeroizationPpd OFFSET(20) NUMBITS(1) [],
+        FabricReset OFFSET(30) NUMBITS(1) [],
         AxiReset OFFSET(31) NUMBITS(1) [],
     ],
     pub MciError [
@@ -44,6 +45,7 @@ register_bitfields! {
         ReadyForRuntime OFFSET(4) NUMBITS(1) [],
         MailboxDataAvail OFFSET(5) NUMBITS(1) [],
         MailboxFlowDone OFFSET(6) NUMBITS(1) [],
+        FabricResetSupported OFFSET(8) NUMBITS(1) [],
     ],
     pub FifoStatus [
         Empty OFFSET(0) NUMBITS(1) [],

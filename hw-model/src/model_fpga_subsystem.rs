@@ -7,7 +7,7 @@ use crate::api_types::{DeviceLifecycle, Fuses};
 use crate::bmc::Bmc;
 use crate::fpga_regs::{
     Control, FifoData, FifoRegs, FifoStatus, FlashControl, FlashCtrlRegs, FlashOpStatus,
-    ItrngFifoStatus, SpareI3cControlSts, WrapperRegs,
+    ItrngFifoStatus, SpareI3cControlSts, Status, WrapperRegs,
 };
 use crate::keys::{DEFAULT_LIFECYCLE_RAW_TOKENS, DEFAULT_MANUF_DEBUG_UNLOCK_RAW_TOKEN};
 use crate::mcu_boot_status::McuBootMilestones;
@@ -510,6 +510,29 @@ impl ModelFpgaSubsystem {
         self.wrapper.regs().control.modify(Control::AxiReset.val(1));
         // wait a few clock cycles or we can crash the FPGA
         std::thread::sleep(std::time::Duration::from_micros(1));
+    }
+
+    /// Whether the bitstream can reset the AXI fabric (interconnect and AXI
+    /// infrastructure IP) without resetting the wrapper registers.
+    fn fabric_reset_supported(&self) -> bool {
+        self.wrapper
+            .regs()
+            .status
+            .is_set(Status::FabricResetSupported)
+    }
+
+    /// Reset the AXI fabric but keep the wrapper registers (pwrgood, straps).
+    ///
+    /// The fabric carries all host accesses, so nothing may touch the FPGA
+    /// until this returns.
+    fn fabric_reset(&mut self) {
+        self.wrapper
+            .regs()
+            .control
+            .modify(Control::FabricReset::SET);
+        // The wrapper waits ~32 cycles, holds the reset for 16 and
+        // proc_sys_reset stretches it; ~100 cycles at 18 MHz. Leave margin.
+        std::thread::sleep(Duration::from_micros(100));
     }
 
     /// Host view of the MCI registers the MCU ROM reads at boot. If these look
@@ -2483,10 +2506,29 @@ impl HwModel for ModelFpgaSubsystem {
         self.bmc_step_counter = 0;
         self.blocks_sent = 0;
 
-        // Toggle reset pin
+        let fabric_reset = self.fabric_reset_supported();
+
+        // Keep the TRNG thread and our own MMIO off the bus during the reset
+        self.realtime_thread_paused.store(true, Ordering::Relaxed);
+        std::thread::sleep(Duration::from_millis(2));
+        self.mmio.disable();
+
+        // Toggle reset pin. cptra_ss_rst_b does not reset the AXI fabric, so
+        // a transaction in flight right now is orphaned and can corrupt later
+        // MCU accesses to MCI. Reset the fabric while the subsystem is held in
+        // reset to discard it.
         self.set_cptra_ss_rst_b(false);
-        std::thread::sleep(std::time::Duration::from_micros(1));
+        if fabric_reset {
+            self.fabric_reset();
+        } else {
+            println!("FPGA bitstream has no fabric reset; warm reset may hang");
+            std::thread::sleep(Duration::from_micros(1));
+        }
         self.set_cptra_ss_rst_b(true);
+
+        std::thread::sleep(Duration::from_micros(1));
+        self.mmio.enable();
+        self.realtime_thread_paused.store(false, Ordering::Relaxed);
 
         let deadline = Instant::now() + WARM_RESET_FUSES_TIMEOUT;
         while !self
