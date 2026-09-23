@@ -182,8 +182,10 @@ pub fn get_tbs(der: Vec<u8>) -> Vec<u8> {
         0..=0x7F => der[tbs_len_offset] as usize + 2,
         0x81 => (der[tbs_len_offset + 1]) as usize + 3,
         0x82 => {
-            (((der[tbs_len_offset + 1]) as usize) << u8::BITS)
-                | (((der[tbs_len_offset + 2]) as usize) + 4)
+            usize::from(u16::from_be_bytes([
+                der[tbs_len_offset + 1],
+                der[tbs_len_offset + 2],
+            ])) + 4
         }
         _ => panic!("Invalid DER Length"),
     };
@@ -217,4 +219,24 @@ fn hex(buf: &[u8; 32]) -> [u8; 64] {
     }
 
     hex
+}
+
+#[cfg(all(test, feature = "std"))]
+mod tests {
+    use super::get_tbs;
+
+    #[test]
+    fn test_get_tbs_two_byte_length_carry() {
+        for content_len in [0x1fb_u16, 0x1fc, 0x1fd, 0x1fe, 0x1ff, 0x200] {
+            let mut tbs = vec![0x30, 0x82];
+            tbs.extend_from_slice(&content_len.to_be_bytes());
+            tbs.resize(usize::from(content_len) + 4, 0xaa);
+
+            let mut der = vec![0x30, 0x82];
+            der.extend_from_slice(&(tbs.len() as u16).to_be_bytes());
+            der.extend_from_slice(&tbs);
+
+            assert_eq!(get_tbs(der), tbs, "TBS content length: {content_len:#x}");
+        }
+    }
 }
