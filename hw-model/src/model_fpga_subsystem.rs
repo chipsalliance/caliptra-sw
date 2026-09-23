@@ -166,6 +166,10 @@ const I3C_CLK_HZ: u32 = 12_500_000;
 
 // ITRNG FIFO stores 1024 DW and outputs 4 bits at a time to Caliptra.
 const FPGA_ITRNG_FIFO_SIZE: usize = 1024;
+
+// A warm boot writes the fuses within milliseconds; anything this slow means the
+// warm reset went wrong.
+const WARM_RESET_FUSES_TIMEOUT: Duration = Duration::from_secs(10);
 const I3C_WRITE_FIFO_SIZE: u16 = 128;
 
 pub struct Wrapper {
@@ -506,6 +510,24 @@ impl ModelFpgaSubsystem {
         self.wrapper.regs().control.modify(Control::AxiReset.val(1));
         // wait a few clock cycles or we can crash the FPGA
         std::thread::sleep(std::time::Duration::from_micros(1));
+    }
+
+    /// Host view of the MCI registers the MCU ROM reads at boot. If these look
+    /// sane while the MCU log shows garbage, the MCU's AXI path to MCI is broken
+    /// rather than MCI itself.
+    fn mci_debug_state(&mut self) -> String {
+        let regs = self.mmio.mci().unwrap().regs();
+        format!(
+            "FW_FLOW_STATUS={:#010x} HW_FLOW_STATUS={:#010x} RESET_REASON={:#010x} \
+             RESET_STATUS={:#010x} SECURITY_STATE={:#010x} GENERIC_INPUT_WIRES=[{:#010x}, {:#010x}]",
+            regs.fw_flow_status().read(),
+            u32::from(regs.hw_flow_status().read()),
+            u32::from(regs.reset_reason().read()),
+            u32::from(regs.reset_status().read()),
+            u32::from(regs.security_state().read()),
+            regs.generic_input_wires().at(0).read(),
+            regs.generic_input_wires().at(1).read(),
+        )
     }
 
     /// Re-programs all FPGA wrapper registers that are cleared by AXI reset.
@@ -2466,10 +2488,19 @@ impl HwModel for ModelFpgaSubsystem {
         std::thread::sleep(std::time::Duration::from_micros(1));
         self.set_cptra_ss_rst_b(true);
 
-        self.step_until(|hw| {
-            hw.mci_boot_milestones()
-                .contains(McuBootMilestones::CPTRA_FUSES_WRITTEN)
-        });
+        let deadline = Instant::now() + WARM_RESET_FUSES_TIMEOUT;
+        while !self
+            .mci_boot_milestones()
+            .contains(McuBootMilestones::CPTRA_FUSES_WRITTEN)
+        {
+            if Instant::now() > deadline {
+                panic!(
+                    "warm reset: MCU ROM did not write the fuses within {WARM_RESET_FUSES_TIMEOUT:?}; host view of MCI: {}",
+                    self.mci_debug_state()
+                );
+            }
+            self.step();
+        }
     }
 
     fn staging_physical_address(&mut self) -> Result<u64, ModelError> {
