@@ -52,18 +52,18 @@ pub fn get_pubkey_bytes(pub_key: &PubKey, pub_key_bytes: &mut [u8]) -> usize {
         }
         PubKey::Mldsa(pub_key) => {
             let mldsa_pubkey: &[u8; 2592] = &(*pub_key).into();
-            pub_key_bytes.copy_from_slice(mldsa_pubkey);
-            pub_key_bytes.len()
+            pub_key_bytes[..mldsa_pubkey.len()].copy_from_slice(mldsa_pubkey);
+            mldsa_pubkey.len()
         }
         PubKey::MlKem(pub_key) => {
             let ml_kem_pubkey: &[u8; 1568] = pub_key.as_ref();
             pub_key_bytes[..ml_kem_pubkey.len()].copy_from_slice(ml_kem_pubkey);
-            pub_key_bytes.len()
+            ml_kem_pubkey.len()
         }
         PubKey::HybridMlkemP384(pub_key) => {
             let hybrid_pubkey: &[u8; 1665] = pub_key.as_ref();
             pub_key_bytes[..hybrid_pubkey.len()].copy_from_slice(hybrid_pubkey);
-            pub_key_bytes.len()
+            hybrid_pubkey.len()
         }
     }
 }
@@ -223,7 +223,52 @@ fn hex(buf: &[u8; 32]) -> [u8; 64] {
 
 #[cfg(all(test, feature = "std"))]
 mod tests {
-    use super::get_tbs;
+    use super::{get_pubkey_bytes, get_tbs};
+    use crate::crypto::PubKey;
+    use caliptra_drivers::{
+        hpke::kem::{HybridEncapsulationKey, MlKemEncapsulationKey},
+        Ecc384PubKey, Mldsa87PubKey,
+    };
+
+    fn assert_pubkey_bytes(pub_key: &PubKey, expected: &[u8]) {
+        for buffer_len in [expected.len(), core::mem::size_of::<Mldsa87PubKey>() + 16] {
+            for sentinel in [0x00, 0xa5] {
+                let mut output = vec![sentinel; buffer_len];
+                let written = get_pubkey_bytes(pub_key, &mut output);
+
+                assert_eq!(written, expected.len());
+                assert_eq!(&output[..written], expected);
+                assert!(output[written..].iter().all(|byte| *byte == sentinel));
+            }
+        }
+    }
+
+    #[test]
+    fn test_get_pubkey_bytes_ecc() {
+        let pub_key = Ecc384PubKey::default();
+        assert_pubkey_bytes(&PubKey::Ecc(&pub_key), &pub_key.to_der());
+    }
+
+    #[test]
+    fn test_get_pubkey_bytes_mldsa() {
+        let key_bytes = core::array::from_fn::<_, 2592, _>(|index| index as u8);
+        let pub_key = Mldsa87PubKey::from(key_bytes);
+        assert_pubkey_bytes(&PubKey::Mldsa(&pub_key), &key_bytes);
+    }
+
+    #[test]
+    fn test_get_pubkey_bytes_mlkem() {
+        let key_bytes = core::array::from_fn::<_, 1568, _>(|index| index as u8);
+        let pub_key = MlKemEncapsulationKey::from(&key_bytes);
+        assert_pubkey_bytes(&PubKey::MlKem(&pub_key), &key_bytes);
+    }
+
+    #[test]
+    fn test_get_pubkey_bytes_hybrid_mlkem_p384() {
+        let key_bytes = core::array::from_fn::<_, 1665, _>(|index| index as u8);
+        let pub_key = HybridEncapsulationKey::from(&key_bytes);
+        assert_pubkey_bytes(&PubKey::HybridMlkemP384(&pub_key), &key_bytes);
+    }
 
     #[test]
     fn test_get_tbs_two_byte_length_carry() {
