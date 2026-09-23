@@ -121,7 +121,7 @@ impl<'a> ParseError<'a> {
             error,
         }
     }
-    pub fn location(&self) -> FileLocation {
+    pub fn location(&self) -> FileLocation<'_> {
         let mut line = 1;
         let mut column = 1;
         let mut line_start: &str = self.file_text;

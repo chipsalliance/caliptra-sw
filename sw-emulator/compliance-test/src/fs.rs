@@ -111,10 +111,10 @@ fn rand_str() -> std::io::Result<String> {
     let chars = b"abcdefghijklmnopqrstuvwxyz123456";
     let mut result = vec![0u8; 24];
     if let Err(err) = getrandom::getrandom(&mut result) {
-        return Err(std::io::Error::new(
-            std::io::ErrorKind::Other,
-            format!("Unable to retrive random data from OS: {}", err),
-        ));
+        return Err(std::io::Error::other(format!(
+            "Unable to retrive random data from OS: {}",
+            err
+        )));
     }
     for ch in result.iter_mut() {
         *ch = chars[usize::from(*ch & 0x1f)];

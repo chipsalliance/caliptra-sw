@@ -181,7 +181,7 @@ impl Scope {
         }
     }
 
-    pub fn as_parent(&self) -> ParentScope {
+    pub fn as_parent(&self) -> ParentScope<'_> {
         ParentScope {
             scope: self,
             parent: None,

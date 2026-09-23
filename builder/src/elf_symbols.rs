@@ -6,7 +6,7 @@ use elf::endian::LittleEndian;
 
 use super::other_err;
 
-pub fn elf_symbols(elf_bytes: &[u8]) -> io::Result<Vec<Symbol>> {
+pub fn elf_symbols(elf_bytes: &[u8]) -> io::Result<Vec<Symbol<'_>>> {
     let elf = elf::ElfBytes::<LittleEndian>::minimal_parse(elf_bytes).map_err(other_err)?;
     let Some((symbols, strings)) = elf.symbol_table().map_err(other_err)? else {
         return Ok(vec![]);
