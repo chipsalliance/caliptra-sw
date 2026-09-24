@@ -5,7 +5,7 @@ This document tracks the currently compiled ROM integration tests under
 modules from `main.rs`, and the inventory below includes all current `#[test]`
 functions grouped by logical coverage area.
 
-Total current tests: **184**
+Total current tests: **186**
 
 Run the harness with:
 
@@ -21,7 +21,7 @@ behavior or checks state/data without expecting a ROM error code.
 
 | Logical Area | Count | Primary Modules |
 | --- | ---: | --- |
-| Secure boot and image validation | 75 | `test_image_validation.rs` |
+| Secure boot and image validation | 77 | `test_image_validation.rs` |
 | Firmware download, FMC alias, logs, and measurements | 13 | `test_fmcalias_derivation.rs` |
 | Identity, DICE, and certificate commands | 12 | `test_dice_derivations.rs`, `test_idevid_derivation.rs`, `tests_get_idev_csr.rs`, `test_ldev_cert_cmd.rs` |
 | Reset, watchdog, and fatal trap handling | 20 | `test_update_reset.rs`, `test_warm_reset.rs`, `test_wdt_activation_and_stoppage.rs`, `test_cpu_fault.rs` |
@@ -71,7 +71,9 @@ behavior or checks state/data without expecting a ROM error code.
 | Reject an invalid TOC entry count | `test_toc_invalid_entry_count` | `IMAGE_VERIFIER_ERR_TOC_ENTRY_COUNT_INVALID` |
 | Reject a TOC digest mismatch | `test_toc_invalid_toc_digest` | `IMAGE_VERIFIER_ERR_TOC_DIGEST_MISMATCH` |
 | Reject a zero-sized FMC image | `test_toc_fmc_size_zero` | `IMAGE_VERIFIER_ERR_FMC_SIZE_ZERO` |
-| Reject overlapping FMC and Runtime ranges in the bundle | `test_toc_fmc_range_overlap` | `IMAGE_VERIFIER_ERR_FMC_RUNTIME_OVERLAP` |
+| Reject overlapping FMC and Runtime ranges in the bundle (same start offset) | `test_toc_fmc_range_overlap_same_offset` | `IMAGE_VERIFIER_ERR_FMC_RUNTIME_OVERLAP` |
+| Reject overlapping FMC and Runtime ranges in the bundle (FMC start after Runtime start) | `test_toc_fmc_range_overlap_fmc_inside_rt` | `IMAGE_VERIFIER_ERR_FMC_RUNTIME_OVERLAP` |
+| Reject overlapping FMC and Runtime ranges in the bundle (Runtime start inside FMC) | `test_toc_fmc_range_overlap_rt_inside_fmc` | `IMAGE_VERIFIER_ERR_FMC_RUNTIME_OVERLAP` |
 | Reject FMC and Runtime ranges in the wrong order | `test_toc_fmc_range_incorrect_order` | `IMAGE_VERIFIER_ERR_FMC_RUNTIME_INCORRECT_ORDER` |
 | Reject overlapping FMC and Runtime load address ranges | `test_fmc_rt_load_address_range_overlap` | `IMAGE_VERIFIER_ERR_FMC_RUNTIME_LOAD_ADDR_OVERLAP` |
 | Reject an FMC image digest mismatch | `test_fmc_digest_mismatch` | `IMAGE_VERIFIER_ERR_FMC_DIGEST_MISMATCH` |
