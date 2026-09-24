@@ -1,11 +1,14 @@
 # ROM Test Coverage
 
-This document tracks the currently compiled ROM integration tests under
+This document tracks the ROM integration test functions declared under
 `rom/dev/tests/rom_integration_tests`. The test entry point imports these
 modules from `main.rs`, and the inventory below includes all current `#[test]`
-functions grouped by logical coverage area.
+functions, including feature-gated tests, grouped by logical coverage area.
 
-Total current tests: **184**
+Total declared test functions: **195**
+
+The default host configuration compiles **189** tests. The remaining **6**
+are enabled only for specific features or hardware models.
 
 Run the harness with:
 
@@ -21,18 +24,24 @@ behavior or checks state/data without expecting a ROM error code.
 
 | Logical Area | Count | Primary Modules |
 | --- | ---: | --- |
-| Secure boot and image validation | 75 | `test_image_validation.rs` |
-| Firmware download, FMC alias, logs, and measurements | 13 | `test_fmcalias_derivation.rs` |
+| Secure boot and image validation | 81 | `test_image_validation.rs` |
+| Firmware download, FMC alias, logs, and measurements | 15 | `test_fmcalias_derivation.rs`, `test_device_status_mode.rs` |
 | Identity, DICE, and certificate commands | 12 | `test_dice_derivations.rs`, `test_idevid_derivation.rs`, `tests_get_idev_csr.rs`, `test_ldev_cert_cmd.rs` |
 | Reset, watchdog, and fatal trap handling | 20 | `test_update_reset.rs`, `test_warm_reset.rs`, `test_wdt_activation_and_stoppage.rs`, `test_cpu_fault.rs` |
-| Mailbox commands and ROM services | 22 | `test_mailbox_errors.rs`, `test_cm_sha.rs`, `test_derive_stable_key.rs`, `test_capabilities.rs`, `test_version.rs`, `test_ecdsa_verify.rs`, `test_mldsa_verify.rs` |
-| Debug unlock, UDS/FE, and hardware protections | 28 | `test_debug_unlock.rs`, `test_uds_fe.rs`, `test_ocp_lock.rs`, `test_pmp.rs`, `test_cfi.rs`, `test_fips_hooks.rs` |
+| Mailbox commands and ROM services | 23 | `test_mailbox_errors.rs`, `test_cm_sha.rs`, `test_derive_stable_key.rs`, `test_capabilities.rs`, `test_version.rs`, `test_ecdsa_verify.rs`, `test_mldsa_verify.rs`, `test_shutdown.rs` |
+| Debug unlock, UDS/FE, and hardware protections | 30 | `test_debug_unlock.rs`, `test_uds_fe.rs`, `test_ocp_lock.rs`, `test_pmp.rs`, `test_cfi.rs`, `test_fips_hooks.rs` |
 | ROM configuration, integrity, and test infrastructure | 14 | `test_fake_rom.rs`, `test_rom_integrity.rs`, `test_panic_missing.rs`, `test_symbols.rs`, `rv32_unit_tests.rs`, `helpers.rs` |
 
 ## Secure Boot and Image Validation
 
 | Test Scenario | Test Name | Expected Result / ROM Error Code |
 | --- | --- | --- |
+| Accept a vendor-authorized debug image in subsystem mode with `SS_DEBUG_INTENT` asserted | `test_debug_image_cold_boot_allowed` | N/A |
+| Reject a vendor-authorized debug image when `SS_DEBUG_INTENT` is clear | `test_debug_image_cold_boot_requires_debug_intent` | `IMAGE_VERIFIER_ERR_DEBUG_IMAGE_NOT_ALLOWED` |
+| Reject a vendor-authorized debug image in passive mode | `test_debug_image_cold_boot_rejected_in_passive_mode` | `IMAGE_VERIFIER_ERR_DEBUG_IMAGE_NOT_ALLOWED` |
+| Reject a vendor-authorized debug image when `SS_STRAP_GENERIC[3][31]` (`DISABLE_VENDOR_DEBUG_IMAGES`) is set | `test_debug_image_cold_boot_disabled_by_strap` | `IMAGE_VERIFIER_ERR_DEBUG_IMAGE_NOT_ALLOWED` |
+| Accept a normal image when `SS_STRAP_GENERIC[3][31]` (`DISABLE_VENDOR_DEBUG_IMAGES`) is set | `test_normal_image_cold_boot_allowed_when_vendor_debug_disabled` | N/A |
+| Map `IMAGE_VERIFIER_ERR_DEBUG_IMAGE_NOT_ALLOWED` to `RECOVERY_REASON_DEBUG_IMAGE_NOT_ALLOWED` | `test_debug_image_recovery_reason` | N/A |
 | Reject a manifest with an invalid marker | `test_invalid_manifest_marker` | `IMAGE_VERIFIER_ERR_MANIFEST_MARKER_MISMATCH` |
 | Reject a manifest with an invalid size | `test_invalid_manifest_size` | `IMAGE_VERIFIER_ERR_MANIFEST_SIZE_MISMATCH` |
 | Reject an invalid PQC key type value in the image/fuse configuration | `test_invalid_pqc_key_type` | `IMAGE_VERIFIER_ERR_PQC_KEY_TYPE_INVALID` |
@@ -119,6 +128,8 @@ behavior or checks state/data without expecting a ROM error code.
 | Verify PCR log entries when owner public key digest fuse is absent | `test_pcr_log_no_owner_key_digest_fuse` | N/A |
 | Verify PCR log entries include FMC fuse SVN | `test_pcr_log_fmc_fuse_svn` | N/A |
 | Verify PCR log entries survive update reset | `test_pcr_log_across_update_reset` | N/A |
+| Record passive mode in the `DeviceStatus` PCR log entry | `test_device_status_mode_passive` | N/A |
+| Record subsystem mode in the `DeviceStatus` PCR log entry | `test_device_status_mode_subsystem` | N/A |
 | Verify fuse log entries are written to DCCM | `test_fuse_log` | N/A |
 | Verify firmware handoff table entries are populated correctly | `test_fht_info` | N/A |
 | Verify the ROM cold-boot status datavault register | `test_check_rom_cold_boot_status_reg` | N/A |
@@ -195,6 +206,7 @@ behavior or checks state/data without expecting a ROM error code.
 | Reject a mailbox request smaller than the required request size | `test_mailbox_invalid_req_size_small` | `FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH` |
 | Reject a mailbox request with zero request size | `test_mailbox_invalid_req_size_zero` | `FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH` |
 | Reject use of the reserved mailbox pauser | `test_mailbox_reserved_pauser` | `FW_PROC_MAILBOX_RESERVED_PAUSER` |
+| Execute the shutdown command and enter the shutdown state | `test_shutdown_cmd` | `RUNTIME_SHUTDOWN` |
 
 ## Debug Unlock, UDS/FE, and Hardware Protections
 
@@ -213,6 +225,7 @@ behavior or checks state/data without expecting a ROM error code.
 | Complete production debug unlock with unlock-level controls | `test_dbg_unlock_prod_unlock_levels_success` | N/A |
 | Reject production debug unlock when unlock-level checks fail | `test_dbg_unlock_prod_unlock_levels_failure` | N/A |
 | Reject UDS programming in passive mode | `test_uds_programming_no_active_mode` | `ROM_UDS_PROG_IN_PASSIVE_MODE` |
+| Reject UDS programming when `SS_DEBUG_INTENT` is asserted | `test_uds_programming_debug_intent_set` | `ROM_UDS_PROG_DEBUG_INTENT_SET` |
 | Program UDS using 64-bit granularity | `test_uds_programming_granularity_64bit` | N/A |
 | Program UDS with configurable status-register offset | `test_uds_programming_configurable_status_reg_offset` | N/A |
 | Program UDS using 32-bit granularity | `test_uds_programming_granularity_32bit` | N/A |
@@ -221,6 +234,7 @@ behavior or checks state/data without expecting a ROM error code.
 | Zeroize FE partitions one at a time using 64-bit granularity | `test_zeroize_fe_partitions_one_at_a_time_64bit` | N/A |
 | Zeroize FE partitions one at a time using 32-bit granularity | `test_zeroize_fe_partitions_one_at_a_time_32bit` | N/A |
 | Zeroize all FE partitions in a single operation | `test_zeroize_all_partitions_single_shot` | N/A |
+| Propagate an OTP controller failure during UDS zeroization | `test_zeroize_failure_propagation` | `UDS_FE_PROGRAMMING_ZEROIZATION_FAILED` |
 | Verify expected HEK seed state handling | `test_hek_seed_states` | N/A |
 | Verify invalid HEK seed state handling | `test_invalid_hek_seed_state` | N/A |
 | Verify PMP enforcement using a test firmware payload | `test_pmp_enforced` | N/A |
