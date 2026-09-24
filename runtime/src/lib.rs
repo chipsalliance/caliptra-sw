@@ -488,6 +488,7 @@ fn execute_command(
         CommandId::GET_MCU_FW_SIZE => get_mcu_fw_size::GetMcuFwSizeCmd::execute(drivers, resp),
         // Cryptographic mailbox commands
         CommandId::CM_IMPORT => cryptographic_mailbox::Commands::import(drivers, cmd_bytes, resp),
+        CommandId::CM_KEY_GEN => cryptographic_mailbox::Commands::key_gen(drivers, cmd_bytes, resp),
         CommandId::CM_DELETE => cryptographic_mailbox::Commands::delete(drivers, cmd_bytes, resp),
         CommandId::CM_CLEAR => cryptographic_mailbox::Commands::clear(drivers, resp),
         CommandId::CM_STATUS => cryptographic_mailbox::Commands::status(drivers, resp),
