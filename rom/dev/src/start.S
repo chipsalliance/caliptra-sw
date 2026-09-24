@@ -53,16 +53,17 @@ _start:
 
     // Setup Memory Region Attributes
     //
-    // Veer Core Memory is divided in to 16 regions of 256 MB
+    // Veer Core Memory is divided into 16 regions of 256 MB
     // each. Each region has 2 possible attributes:
     //  1. Cacheability
     //  2. Side Effects
     // 
-    // Caliptra does not have any caches hence the Cacheability
-    // attribute is zero for all regions. Side-effect as not
-    // observable in memory regions containing ROM, ICCM & DCCM.
-    // However they are enabled for regions containing peripheral
-    // registers.
+    // Caliptra has no caches, but the Cacheability attribute still gates
+    // the instruction fetch path: a cacheable region is fetched as an
+    // eight-beat burst where an uncacheable one takes two. ROM is marked
+    // cacheable; every other region has it clear. Side-effects are not
+    // observable in memory regions containing ROM, ICCM & DCCM. However
+    // they are enabled for regions containing peripheral registers.
     //
     // ---------------------------------------------
     // | Region       | Side Effect |  Cacheable   |      
@@ -96,7 +97,7 @@ _start:
     sw t0, 0x0(t1)
 
     // Initialize ICCM & DCCM on cold boot to
-    // all zeros. This is needed to intialize the ECC
+    // all zeros. This is needed to initialize the ECC
     // in ICCM & DCCM.
     // CLP_SOC_IFC_REG_CPTRA_RESET_REASON = 0x30030040
     li t0, 0x30030040
