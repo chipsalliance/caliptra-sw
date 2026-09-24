@@ -105,7 +105,17 @@ const RT_EXP_2_1_1: RtExpVals = RtExpVals {
     fw_version: 0x02010001, // 2.1.1
 };
 
-const RT_EXP_CURRENT: RtExpVals = RtExpVals { ..RT_EXP_2_1_1 };
+const RT_EXP_2_1_2: RtExpVals = RtExpVals {
+    fmc_version: 0x1042,    // 2.1.2
+    fw_version: 0x02010002, // 2.1.2
+};
+
+const RT_EXP_2_1_3: RtExpVals = RtExpVals {
+    fmc_version: 0x1043,    // 2.1.3
+    fw_version: 0x02010003, // 2.1.3
+};
+
+const RT_EXP_CURRENT: RtExpVals = RtExpVals { ..RT_EXP_2_1_3 };
 
 // === Getter implementations ===
 // TODO: These could be improved
@@ -153,6 +163,8 @@ impl RtExpVals {
         if let Ok(version) = std::env::var("FIPS_TEST_RT_EXP_VERSION") {
             match version.as_str() {
                 // Add more versions here
+                "2_1_3" => RT_EXP_2_1_3,
+                "2_1_2" => RT_EXP_2_1_2,
                 "2_1_1" => RT_EXP_2_1_1,
                 "2_1_0" => RT_EXP_2_1_0,
                 "2_0_0" => RT_EXP_2_0_0,

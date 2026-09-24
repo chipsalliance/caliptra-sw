@@ -1,3 +1,114 @@
+# fw-2.1.3
+
+This is a combined runtime and FMC release.
+
+## Caliptra Firmware 2.1.3 Release Notes
+
+Release notes for changes introduced since Firmware 2.1.2.
+
+### Features
+
+- **Authorization, Attestation & DPE**:
+  - Support vendor-authorized debug artifacts and report active debug policy in `FW_INFO` (#4210)
+  - Update `caliptra-dpe` references, error codes, and crypto APIs to reduce stack usage in `SIGN_WITH_EXPORTED_*` (#4113)
+- **Runtime, Drivers & Cryptography**:
+  - Add `LOAD_KAT_MEK` mailbox command for Encryption Engine self-tests (#4143)
+  - Allow 32-byte ML-KEM keys in `CM_HKDF` (#4205)
+  - Shrink ML-KEM-1024 KAT `.rodata` footprint by replacing full decapsulation vectors with a digest check (#4142)
+  - Add `libcaliptra` C bindings for the OCP-LOCK API (#4165)
+- **FPGA, Hardware Model & Tooling**:
+  - Add `cargo xtask build recovery-images` command for OCP recovery testing (#4140)
+  - Make FPGA `flash-boot` a compile-time flag (#4128)
+  - Add external I3C host boot test for FPGA (#4139)
+  - Add Mjolnir GitHub workflow and configuration (#4159)
+  - Update Rust toolchain to 1.96.1 (#4063, #4198)
+  - Test ML-KEM with Wycheproof vectors in runtime integration tests (#4122)
+
+### Fixes
+
+- **Runtime, Security & Cryptography**:
+  - Enforce AES-XTS key half distinctness during key generation and decryption (#4141)
+  - Enforce `key_usage` checks in cryptographic mailbox AES operations (#4111)
+  - Consolidate and expand PL0 privilege checks across runtime mailbox commands (#4131)
+  - Reserve PCRs and restrict `EXTEND_PCR` to PL0 callers (#4138, #4197)
+  - Mark device healthy after encrypted firmware recovery (#4214)
+- **Library, CI & Tests**:
+  - Fix `libcaliptra` Zephyr include path and `caliptra_mldsa_verify_req` forward declaration (#4184)
+  - Update MCU firmware revision and flash image test expectations (#4129)
+- **Documentation & Release Info**:
+  - Fix runtime mailbox command discrepancies, AES command codes, and stable key command encoding in documentation (#4157, #4172, #4173)
+
+**Full Changelog**: https://github.com/chipsalliance/caliptra-sw/compare/fw-2.1.2...fw-2.1.3
+
+# fw-2.1.2
+
+This is a combined runtime and FMC release.
+
+## Caliptra Firmware 2.1.2 Release Notes
+
+Release notes for changes introduced since Firmware 2.1.1.
+
+### Features
+
+- **Authorization, Attestation & DPE**:
+  - Add owner authorization manifest support (#3824)
+  - Record subsystem mode in ROM `DeviceStatus` measurements (#3930)
+  - Anchor MCU runtime and SoC manifest measurements in Caliptra-managed DPE contexts and harden DPE index handling across hitless updates (#4070)
+  - Report tagged DPE context SVN through `DPE_GET_TAGGED_TCI` (#4083)
+  - Expose manifest SVN state through `FW_INFO` (#4082)
+  - Allow PL1 callers to use `AUTHORIZE_AND_STASH` with `SKIP_STASH` (#4077)
+- **Runtime, Drivers & Firmware Images**:
+  - Chunk DMA image hashing to support images larger than 1 MiB (#3940)
+  - Skip ELF metadata segments when constructing firmware images (#3970)
+  - Reduce stack usage in `SIGN_WITH_EXPORTED_MLDSA` (#4019)
+  - Add dynamic power handling for `entropy_src` (#4038)
+- **FPGA, Hardware Model & Emulator**:
+  - Auto-generate FPGA OTP fuse aliases from caliptra-mcu-sw fuse definitions (#3909)
+  - Add an OpenOCD JTAG `load_image` command (#3937)
+  - Add feature gates for multiple hardware revisions (#3935)
+  - Generate a stable FPGA MAC address from the boot SD serial number (#3979)
+  - Support downloading prebuilt Caliptra artifacts in the builder (#3999)
+  - Add `ProvisioningStage` to subsystem initialization parameters (#4007)
+  - Support running the emulator with 2.0 and 2.1 firmware (#4012)
+  - Remove CFI from the hardware model dependency tree (#4039)
+  - Add the `SpareI3cControlSts` register (#4086)
+  - Add a boot sequence for an external I3C host (#4091)
+- **Build, Test & Documentation**:
+  - Automate merging new bitstreams (#3896)
+  - Add stable key derivation diagrams (#3934)
+  - Update the ROM IDevID CSR specification to match the implementation (#3951)
+  - Add standard PKCS#8 and SPKI fake-key assets (#4025)
+  - Enable multiple hardware revisions in build, test, and nightly workflows (#4078)
+
+### Fixes
+
+- **Subsystem, FPGA & Emulator**:
+  - Fix FPGA MCU smoke tests for the latest caliptra-mcu-sw ROM (#3900)
+  - Remove the OTP status offset fallback (#3921)
+  - Correct the emulator MCU SRAM size (#3976)
+  - Fix a subsystem-mode smoke test assertion (#4006)
+  - Fix latching of SoC IFC interrupt lines and expose CPU halt state (#4020)
+  - Restore `caliptra-builder` as a development dependency of the hardware model (#4035)
+- **Authorization, Runtime & Security**:
+  - Expand libcaliptra PAUSER checks and fix request setup (#3932)
+  - Update OCP-LOCK error codes for HPKE failure paths (#4045)
+  - Fall back to owner metadata in `GET_IMAGE_INFO` (#4088)
+  - Reject the reserved MCU runtime firmware ID in `STASH_MEASUREMENT` (#4097)
+  - Clean up the AES-GCM DMA handler (#4084)
+- **CI & Test Compatibility**:
+  - Correct MCU commit checks for workflow dispatch and caliptra-mcu-sw smoke tests (#3914, #3918, #3920)
+  - Make ML-DSA the default for firmware verification tests (#3955)
+  - Fix nightly subsystem-mode TCB info and PCR0 derivation expectations (#4065)
+  - Support older ROMs in nightly DICE and PCR0 derivation tests (#4112)
+- **Documentation & Maintenance**:
+  - Rename DICE diagram HKDF labels to KBKDF (#3933)
+  - Fix spelling errors in the runtime README (#3991)
+  - Format ECC fake-key PEM files for RFC 7468 compliance (#4034)
+  - Fix typos across ROM, FMC, emulator, and X.509 documentation (#4053)
+  - Add `@parvathib` to CODEOWNERS (#4094)
+
+**Full Changelog**: https://github.com/chipsalliance/caliptra-sw/compare/fw-2.1.1...fw-2.1.2
+
 # fw-2.1.1
 
 This is a combined runtime and FMC release.
