@@ -231,8 +231,13 @@ impl Hmac {
         let hmac = self.hmac.regs_mut();
 
         let rand_data = trng.generate()?;
-        let iv: [u32; 12] = rand_data.0[..12].try_into().unwrap();
-        KvAccess::copy_from_arr(&Array4x12::from(iv), hmac.hmac512_lfsr_seed())?;
+        let iv = rand_data
+            .0
+            .first_chunk()
+            .ok_or(CaliptraError::DRIVER_HMAC_INDEX_OUT_OF_BOUNDS)?;
+        let reg = hmac.hmac512_lfsr_seed();
+        reg.write(iv);
+
         Ok(())
     }
 
