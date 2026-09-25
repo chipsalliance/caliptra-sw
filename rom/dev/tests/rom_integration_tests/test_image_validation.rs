@@ -1903,8 +1903,7 @@ fn test_toc_fmc_size_zero() {
 }
 
 #[test]
-#[cfg(feature = "slow_tests")]
-fn test_toc_fmc_range_overlap() {
+fn test_toc_fmc_range_overlap_same_offset() {
     for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
         let image_options = ImageOptions {
             pqc_key_type: *pqc_key_type,
@@ -1914,13 +1913,12 @@ fn test_toc_fmc_range_overlap() {
             fuse_pqc_key_type: *pqc_key_type as u32,
             ..Default::default()
         };
-        // Case 1: FMC offset == Runtime offset
         let (mut hw, mut image_bundle) =
-            helpers::build_hw_model_and_image_bundle(fuses.clone(), image_options.clone());
-        let fmc_new_offset = image_bundle.manifest.runtime.offset;
+            helpers::build_hw_model_and_image_bundle(fuses, image_options);
+        let runtime_new_offset = image_bundle.manifest.fmc.offset;
         // These are unchanged.
+        let fmc_new_offset = image_bundle.manifest.fmc.offset;
         let fmc_new_size = image_bundle.manifest.fmc.size;
-        let runtime_new_offset = image_bundle.manifest.runtime.offset;
         let runtime_new_size = image_bundle.manifest.runtime.size;
 
         let image = update_fmc_runtime_ranges(
@@ -1936,15 +1934,31 @@ fn test_toc_fmc_range_overlap() {
             &image,
             CaliptraError::IMAGE_VERIFIER_ERR_FMC_RUNTIME_OVERLAP,
         );
-        drop(hw);
 
-        // Case 2: FMC offset > Runtime offset
+        assert_eq!(
+            hw.soc_ifc().cptra_boot_status().read(),
+            u32::from(FwProcessorManifestLoadComplete)
+        );
+    }
+}
+
+#[test]
+fn test_toc_fmc_range_overlap_fmc_inside_rt() {
+    for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
+        let image_options = ImageOptions {
+            pqc_key_type: *pqc_key_type,
+            ..Default::default()
+        };
+        let fuses = Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
+            ..Default::default()
+        };
         let (mut hw, mut image_bundle) =
-            helpers::build_hw_model_and_image_bundle(fuses.clone(), image_options.clone());
-        let fmc_new_offset = image_bundle.manifest.runtime.offset + 1;
+            helpers::build_hw_model_and_image_bundle(fuses, image_options);
+        let runtime_new_offset = image_bundle.manifest.fmc.offset - 1;
         // These are unchanged.
+        let fmc_new_offset = image_bundle.manifest.fmc.offset;
         let fmc_new_size = image_bundle.manifest.fmc.size;
-        let runtime_new_offset = image_bundle.manifest.runtime.offset;
         let runtime_new_size = image_bundle.manifest.runtime.size;
         let image = update_fmc_runtime_ranges(
             &mut image_bundle,
@@ -1960,9 +1974,25 @@ fn test_toc_fmc_range_overlap() {
             &image,
             CaliptraError::IMAGE_VERIFIER_ERR_FMC_RUNTIME_OVERLAP,
         );
-        drop(hw);
 
-        // // Case 3: FMC start offset < Runtime offset < FMC end offset
+        assert_eq!(
+            hw.soc_ifc().cptra_boot_status().read(),
+            u32::from(FwProcessorManifestLoadComplete)
+        );
+    }
+}
+
+#[test]
+fn test_toc_fmc_range_overlap_rt_inside_fmc() {
+    for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
+        let image_options = ImageOptions {
+            pqc_key_type: *pqc_key_type,
+            ..Default::default()
+        };
+        let fuses = Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
+            ..Default::default()
+        };
         let (mut hw, mut image_bundle) =
             helpers::build_hw_model_and_image_bundle(fuses, image_options);
         let runtime_new_offset = image_bundle.manifest.fmc.offset + 1;
