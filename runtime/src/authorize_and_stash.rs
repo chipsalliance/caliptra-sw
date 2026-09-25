@@ -14,7 +14,7 @@ Abstract:
 
 use crate::manifest::find_metadata_entry_by_type;
 use crate::stash_measurement::CaliptraManagedContextAccess;
-use crate::{mutrefbytes, Drivers, PauserPrivileges, StashMeasurementCmd};
+use crate::{mutrefbytes, Drivers, StashMeasurementCmd};
 use caliptra_auth_man_types::ImageMetadataFlags;
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_cfi_lib::{cfi_assert, cfi_assert_bool, cfi_launder};
@@ -56,18 +56,11 @@ impl AuthorizeAndStashCmd {
         cmd_args: &[u8],
         resp: &mut [u8],
     ) -> CaliptraResult<usize> {
-        let caller_privilege_level = drivers.caller_privilege_level();
+        drivers.ensure_pl0()?;
+
         let locality = drivers.mbox.id();
 
         if let Ok(cmd) = AuthorizeAndStashReq::ref_from_bytes(cmd_args) {
-            let auth_and_stash_flags: AuthAndStashFlags = cmd.flags.into();
-            // PL1 callers may only use AUTHORIZE_AND_STASH with SKIP_STASH set;
-            // stashing into DPE requires PL0.
-            if caller_privilege_level == PauserPrivileges::PL1
-                && !auth_and_stash_flags.contains(AuthAndStashFlags::SKIP_STASH)
-            {
-                return Err(CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL);
-            }
             let resp = mutrefbytes::<AuthorizeAndStashResp>(resp)?;
             resp.hdr = MailboxRespHeader::default();
             resp.auth_req_result = Self::authorize_and_stash(drivers, cmd, locality)?;
