@@ -432,7 +432,13 @@ fn execute_command_with_common_resp(
         }
         CommandId::EXTEND_PCR => ExtendPcrCmd::execute(drivers, cmd_bytes),
         CommandId::STASH_MEASUREMENT => StashMeasurementCmd::execute(drivers, cmd_bytes, resp),
-        CommandId::DISABLE_ATTESTATION => DisableAttestationCmd::execute(drivers),
+        CommandId::DISABLE_ATTESTATION => {
+            // Restrict to PL0. The check lives here rather than in
+            // DisableAttestationCmd::execute because the reset/error paths call
+            // execute() directly, outside of any mailbox command.
+            drivers.ensure_pl0()?;
+            DisableAttestationCmd::execute(drivers)
+        }
         CommandId::AUTHORIZE_AND_STASH => AuthorizeAndStashCmd::execute(drivers, cmd_bytes, resp),
         CommandId::CAPABILITIES => CapabilitiesCmd::execute(resp),
         CommandId::FW_INFO => FwInfoCmd::execute(drivers, resp),
@@ -844,7 +850,7 @@ fn ec_dpe_env(
     drivers: &mut Drivers,
     dmtf_device_info: Option<ArrayVec<u8, { MAX_OTHER_NAME_SIZE }>>,
     ueid: Option<[u8; 17]>,
-) -> CaliptraResult<CaliptraDpeEnv> {
+) -> CaliptraResult<CaliptraDpeEnv<'_>> {
     let hashed_rt_pub_key = drivers.compute_ecc_rt_alias_sn()?;
     let key_id_rt_cdi = Drivers::get_key_id_rt_cdi(drivers)?;
     let key_id_rt_priv_key = Drivers::get_key_id_rt_ecc_priv_key(drivers)?;
@@ -887,7 +893,7 @@ fn mldsa_dpe_env(
     drivers: &mut Drivers,
     dmtf_device_info: Option<ArrayVec<u8, { MAX_OTHER_NAME_SIZE }>>,
     ueid: Option<[u8; 17]>,
-) -> CaliptraResult<CaliptraDpeEnv> {
+) -> CaliptraResult<CaliptraDpeEnv<'_>> {
     let hashed_rt_pub_key = drivers.compute_mldsa_rt_alias_sn()?;
     let rt_pub_key = Drivers::get_key_id_rt_mldsa_pub_key(drivers);
     let rt_pub_key = okref(&rt_pub_key)?;

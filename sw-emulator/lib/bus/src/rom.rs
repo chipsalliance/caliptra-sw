@@ -64,7 +64,7 @@ impl Bus for Rom {
     /// # Error
     ///
     /// * `BusException` - Exception with cause `BusExceptionCause::LoadAccessFault`
-    ///                   or `BusExceptionCause::LoadAddrMisaligned`
+    ///   or `BusExceptionCause::LoadAddrMisaligned`
     fn read(&mut self, size: RvSize, addr: RvAddr) -> Result<RvData, BusError> {
         match self.data.read(size, addr) {
             Ok(data) => Ok(data),
@@ -83,7 +83,7 @@ impl Bus for Rom {
     /// # Error
     ///
     /// * `BusException` - Exception with cause `BusExceptionCause::StoreAccessFault`
-    ///                   or `BusExceptionCause::StoreAddrMisaligned`
+    ///   or `BusExceptionCause::StoreAddrMisaligned`
     fn write(&mut self, _size: RvSize, _addr: RvAddr, _value: RvData) -> Result<(), BusError> {
         Err(BusError::StoreAccessFault)
     }

@@ -554,10 +554,7 @@ impl ModelFpgaSubsystem {
 
         self.set_subsystem_reset(true);
 
-        // Declaring this vec! gets LLVM to emit a memcpy. Otherwise, writes
-        // to the FPGA block RAM fail with a SIGBUS fault.
-        let zeroed_otp = vec![0u8; OTP_SIZE];
-        self.otp_slice().copy_from_slice(&zeroed_otp);
+        self.zero_otp();
         self.init_otp_with_lc_override(Some(&security_state), lc_state)
             .expect("Failed to re-initialize OTP after cold reset");
 
@@ -1639,6 +1636,15 @@ impl ModelFpgaSubsystem {
         unsafe { core::slice::from_raw_parts_mut(self.otp_mem_backdoor, OTP_SIZE) }
     }
 
+    /// Zero OTP BRAM without invoking routines that use cache instructions on
+    /// the UIO-mapped device memory.
+    fn zero_otp(&self) {
+        let otp_words = self.otp_mem_backdoor.cast::<u32>();
+        for index in 0..OTP_SIZE / core::mem::size_of::<u32>() {
+            unsafe { otp_words.add(index).write_volatile(0) };
+        }
+    }
+
     /// Override the lifecycle controller state that will be provisioned into
     /// OTP on the next `cold_reset()`. Useful for tests that perform JTAG
     /// lifecycle transitions and need the new state to survive a cold reset.
@@ -1963,10 +1969,7 @@ impl HwModel for ModelFpgaSubsystem {
         println!("Putting subsystem into reset");
         m.set_subsystem_reset(true);
 
-        // Declaring this vec! gets LLVM to emit a memcpy. Otherwise, writes
-        // to the FPGA block RAM fail with a SIGBUS fault.
-        let zeroed_otp = vec![0u8; OTP_SIZE];
-        m.otp_slice().copy_from_slice(&zeroed_otp);
+        m.zero_otp();
         m.init_otp_with_lc_override(Some(&params.security_state), params.ss_init_params.lc_state)?;
 
         println!("Clearing fifo");
