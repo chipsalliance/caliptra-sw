@@ -1785,7 +1785,7 @@ fn test_authorize_and_stash_pl1_without_skip_stash_fails() {
 }
 
 #[test]
-fn test_authorize_and_stash_pl1_with_skip_stash_success() {
+fn test_authorize_and_stash_pl1_with_skip_stash_fails() {
     let mut model = set_auth_manifest(None);
 
     // Switch to a non-PL0 pauser (AXI user 2 is not the pl0_pauser).
@@ -1801,15 +1801,15 @@ fn test_authorize_and_stash_pl1_with_skip_stash_success() {
     });
     authorize_and_stash_cmd.populate_chksum().unwrap();
 
-    let result = model
-        .mailbox_execute(
-            u32::from(CommandId::AUTHORIZE_AND_STASH),
-            authorize_and_stash_cmd.as_bytes().unwrap(),
-        )
-        .unwrap()
-        .expect("We should ahe received a response");
+    let result = model.mailbox_execute(
+        u32::from(CommandId::AUTHORIZE_AND_STASH),
+        authorize_and_stash_cmd.as_bytes().unwrap(),
+    );
 
-    let authorize_and_stash_resp =
-        AuthorizeAndStashResp::read_from_bytes(result.as_slice()).unwrap();
-    assert_eq!(authorize_and_stash_resp.auth_req_result, IMAGE_AUTHORIZED);
+    assert_eq!(
+        result.unwrap_err(),
+        ModelError::MailboxCmdFailed(
+            caliptra_error::CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL.into()
+        )
+    );
 }
