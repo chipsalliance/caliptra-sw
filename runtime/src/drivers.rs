@@ -982,7 +982,7 @@ impl Drivers {
                     | DeriveContextFlags::ALLOW_RECURSIVE,
                 tci_type,
                 target_locality: pl0_pauser_locality,
-                svn: 0,
+                svn: measurement_log_entry.svn,
             }
             .execute_serialized(&mut dpe, &mut env, pl0_pauser_locality, &mut resp_buf);
             if let Err(e) = result {
