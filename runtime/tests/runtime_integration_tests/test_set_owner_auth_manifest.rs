@@ -1,7 +1,7 @@
 // Licensed under the Apache-2.0 license
 
-//! Integration tests for `SET_OWNER_AUTH_MANIFEST` and the
-//! `AUTHORIZE_AND_STASH` owner-only fall-through path.
+//! Integration tests for `SET_OWNER_AUTH_MANIFEST` and owner-only manifest
+//! selection by firmware-ID mailbox commands.
 
 use crate::common::{run_rt_test, RuntimeTestArgs};
 use crate::test_authorize_and_stash::{set_auth_manifest, FW_ID_1, IMAGE_DIGEST1};
@@ -9,7 +9,10 @@ use crate::test_info::get_fwinfo;
 use crate::test_set_auth_manifest::create_auth_manifest_with_metadata_with_svn;
 use crate::test_update_reset::update_fw;
 use caliptra_api::{
-    mailbox::{GetImageInfoReq, GetImageInfoResp, VerifyAuthManifestReq},
+    mailbox::{
+        AuthManifestSource, GetImageInfoReq, GetImageInfoResp, VerifyAuthManifestReq,
+        VerifyOwnerAuthManifestReq,
+    },
     SocManager,
 };
 use caliptra_auth_man_gen::{
@@ -40,10 +43,10 @@ use zerocopy::{FromBytes, IntoBytes};
 
 /// Owner-only firmware ID (distinct from `FW_ID_1` that lives in the
 /// vendor + owner manifest used by `set_auth_manifest`).
-const OWNER_ONLY_FW_ID: u32 = 11;
+pub(crate) const OWNER_ONLY_FW_ID: u32 = 11;
 
 /// A 48-byte digest distinct from `IMAGE_DIGEST1`.
-const OWNER_ONLY_DIGEST: [u8; 48] = [
+pub(crate) const OWNER_ONLY_DIGEST: [u8; 48] = [
     0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF, 0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99,
     0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF, 0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99,
     0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF, 0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99,
@@ -65,7 +68,7 @@ fn owner_key_config() -> AuthManifestGeneratorKeyConfig {
 }
 
 /// Build a signed `OwnerAuthorizationManifest` through the shared generator.
-fn build_owner_manifest(
+pub(crate) fn build_owner_manifest(
     entries: Vec<AuthManifestImageMetadata>,
     svn: u32,
 ) -> OwnerAuthorizationManifest {
@@ -92,7 +95,10 @@ fn build_owner_manifest_with_pqc(
 
 /// Issue a `SET_OWNER_AUTH_MANIFEST` mailbox command with the
 /// supplied owner manifest and assert success.
-fn send_set_owner_auth_manifest(model: &mut DefaultHwModel, man: &OwnerAuthorizationManifest) {
+pub(crate) fn send_set_owner_auth_manifest(
+    model: &mut DefaultHwModel,
+    man: &OwnerAuthorizationManifest,
+) {
     set_owner_auth_manifest(model, man)
         .unwrap()
         .expect("SET_OWNER_AUTH_MANIFEST should return a response");
@@ -161,7 +167,28 @@ fn verify_vendor_owner_auth_manifest(
     )
 }
 
-fn make_entry(fw_id: u32, digest: [u8; 48]) -> AuthManifestImageMetadata {
+fn verify_owner_auth_manifest(
+    model: &mut DefaultHwModel,
+    man: &OwnerAuthorizationManifest,
+) -> Result<Option<Vec<u8>>, ModelError> {
+    let buf = man.as_bytes();
+    let mut slice = [0u8; SetOwnerAuthManifestReq::MAX_MAN_SIZE];
+    slice[..buf.len()].copy_from_slice(buf);
+
+    let mut cmd = MailboxReq::VerifyOwnerAuthManifest(VerifyOwnerAuthManifestReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        manifest_size: buf.len() as u32,
+        manifest: slice,
+    });
+    cmd.populate_chksum().unwrap();
+
+    model.mailbox_execute(
+        u32::from(CommandId::VERIFY_OWNER_AUTH_MANIFEST),
+        cmd.as_bytes().unwrap(),
+    )
+}
+
+pub(crate) fn make_entry(fw_id: u32, digest: [u8; 48]) -> AuthManifestImageMetadata {
     let mut flags = ImageMetadataFlags(0);
     flags.set_ignore_auth_check(false);
     flags.set_image_source(ImageHashSource::InRequest as u32);
@@ -178,12 +205,21 @@ fn authorize_and_stash_in_request(
     fw_id_le: [u8; 4],
     measurement: [u8; 48],
 ) -> AuthorizeAndStashResp {
+    authorize_and_stash_from_manifest(model, fw_id_le, measurement, AuthManifestSource::Owner)
+}
+
+fn authorize_and_stash_from_manifest(
+    model: &mut DefaultHwModel,
+    fw_id_le: [u8; 4],
+    measurement: [u8; 48],
+    manifest_source: AuthManifestSource,
+) -> AuthorizeAndStashResp {
     let mut cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
         hdr: MailboxReqHeader { chksum: 0 },
         fw_id: fw_id_le,
         measurement,
         source: ImageHashSource::InRequest as u32,
-        flags: 0,
+        flags: manifest_source.flag_bits(),
         ..Default::default()
     });
     cmd.populate_chksum().unwrap();
@@ -201,6 +237,7 @@ fn get_image_info(model: &mut DefaultHwModel, fw_id: u32) -> GetImageInfoResp {
     let mut cmd = MailboxReq::GetImageInfo(GetImageInfoReq {
         hdr: MailboxReqHeader { chksum: 0 },
         fw_id: fw_id.to_le_bytes(),
+        flags: AuthManifestSource::Owner.flag_bits(),
     });
     cmd.populate_chksum().unwrap();
     let resp = model
@@ -214,7 +251,7 @@ fn get_image_info(model: &mut DefaultHwModel, fw_id: u32) -> GetImageInfoResp {
 }
 
 #[test]
-fn test_get_image_info_owner_only_fallback() {
+fn test_get_image_info_selects_owner_manifest() {
     const COMPONENT_ID: u32 = 0x1234_5678;
     const LOAD_ADDR: Addr64 = Addr64 {
         lo: 0x3456_7890,
@@ -252,6 +289,78 @@ fn test_get_image_info_owner_only_fallback() {
     assert_eq!(resp.image_staging_address_low, STAGING_ADDR.lo);
     assert_eq!(resp.image_staging_address_high, STAGING_ADDR.hi);
     assert_eq!(resp.digest, OWNER_ONLY_DIGEST);
+
+    let mut cmd = MailboxReq::GetImageInfo(GetImageInfoReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        fw_id: OWNER_ONLY_FW_ID.to_le_bytes(),
+        flags: AuthManifestSource::VendorOwner.flag_bits(),
+    });
+    cmd.populate_chksum().unwrap();
+    let expected: u32 = CaliptraError::RUNTIME_IMAGE_METADATA_NOT_FOUND.into();
+    assert!(matches!(
+        model.mailbox_execute(
+            u32::from(CommandId::GET_IMAGE_INFO),
+            cmd.as_bytes().unwrap(),
+        ),
+        Err(ModelError::MailboxCmdFailed(code)) if code == expected
+    ));
+}
+
+#[test]
+fn test_verify_owner_auth_manifest_does_not_install() {
+    let mut model = set_auth_manifest(None);
+    let owner_man = build_owner_manifest(vec![make_entry(OWNER_ONLY_FW_ID, OWNER_ONLY_DIGEST)], 1);
+
+    verify_owner_auth_manifest(&mut model, &owner_man)
+        .unwrap()
+        .expect("owner manifest verification should return a response");
+
+    let resp = authorize_and_stash_in_request(
+        &mut model,
+        OWNER_ONLY_FW_ID.to_le_bytes(),
+        OWNER_ONLY_DIGEST,
+    );
+    assert_eq!(resp.auth_req_result, IMAGE_NOT_AUTHORIZED);
+}
+
+#[test]
+fn test_manifest_lookup_commands_reject_reserved_source() {
+    const RESERVED_MANIFEST_SOURCE: u32 = 0b10 << AuthManifestSource::FLAG_SHIFT;
+
+    let mut model = set_auth_manifest(None);
+
+    let mut authorize_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        fw_id: FW_ID_1,
+        measurement: IMAGE_DIGEST1,
+        source: ImageHashSource::InRequest as u32,
+        flags: RESERVED_MANIFEST_SOURCE,
+        ..Default::default()
+    });
+    authorize_cmd.populate_chksum().unwrap();
+
+    let expected: u32 = CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS.into();
+    assert!(matches!(
+        model.mailbox_execute(
+            u32::from(CommandId::AUTHORIZE_AND_STASH),
+            authorize_cmd.as_bytes().unwrap(),
+        ),
+        Err(ModelError::MailboxCmdFailed(code)) if code == expected
+    ));
+
+    let mut image_info_cmd = MailboxReq::GetImageInfo(GetImageInfoReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        fw_id: FW_ID_1,
+        flags: RESERVED_MANIFEST_SOURCE,
+    });
+    image_info_cmd.populate_chksum().unwrap();
+    assert!(matches!(
+        model.mailbox_execute(
+            u32::from(CommandId::GET_IMAGE_INFO),
+            image_info_cmd.as_bytes().unwrap(),
+        ),
+        Err(ModelError::MailboxCmdFailed(code)) if code == expected
+    ));
 }
 
 #[test]
@@ -265,6 +374,7 @@ fn test_get_image_info_rejects_unknown_fw_id_with_owner_manifest() {
     let mut cmd = MailboxReq::GetImageInfo(GetImageInfoReq {
         hdr: MailboxReqHeader { chksum: 0 },
         fw_id: UNKNOWN_FW_ID.to_le_bytes(),
+        flags: AuthManifestSource::Owner.flag_bits(),
     });
     cmd.populate_chksum().unwrap();
 
@@ -279,36 +389,6 @@ fn test_get_image_info_rejects_unknown_fw_id_with_owner_manifest() {
         matches!(err, ModelError::MailboxCmdFailed(code) if code == expected),
         "expected image metadata not found, got {err:?}",
     );
-}
-
-/// End-to-end: vendor + owner manifest is loaded first, then
-/// owner-only manifest is loaded. AUTHORIZE_AND_STASH for a fw_id
-/// present only in the owner-only collection returns
-/// `IMAGE_AUTHORIZED_OWNER_ONLY`. fw_id present in the vendor + owner
-/// collection still returns `IMAGE_AUTHORIZED_VENDOR_OWNER`. Unknown
-/// fw_id returns `IMAGE_NOT_AUTHORIZED`.
-#[test]
-fn test_set_owner_auth_manifest_then_authorize_returns_owner_only() {
-    let mut model = set_auth_manifest(None);
-
-    let owner_man = build_owner_manifest(vec![make_entry(OWNER_ONLY_FW_ID, OWNER_ONLY_DIGEST)], 1);
-    send_set_owner_auth_manifest(&mut model, &owner_man);
-
-    // Owner-only collection match.
-    let resp = authorize_and_stash_in_request(
-        &mut model,
-        OWNER_ONLY_FW_ID.to_le_bytes(),
-        OWNER_ONLY_DIGEST,
-    );
-    assert_eq!(resp.auth_req_result, IMAGE_AUTHORIZED_OWNER_ONLY);
-
-    // Vendor + owner collection still works (FW_ID_1 lives there).
-    let resp = authorize_and_stash_in_request(&mut model, FW_ID_1, IMAGE_DIGEST1);
-    assert_eq!(resp.auth_req_result, IMAGE_AUTHORIZED_VENDOR_OWNER);
-
-    // Unknown fw_id rejects.
-    let resp = authorize_and_stash_in_request(&mut model, [0xAB, 0xCD, 0, 0], OWNER_ONLY_DIGEST);
-    assert_eq!(resp.auth_req_result, IMAGE_NOT_AUTHORIZED);
 }
 
 #[test]
@@ -327,7 +407,12 @@ fn test_owner_and_vendor_auth_manifests_survive_update_reset() {
     );
     assert_eq!(resp.auth_req_result, IMAGE_AUTHORIZED_OWNER_ONLY);
 
-    let resp = authorize_and_stash_in_request(&mut model, FW_ID_1, IMAGE_DIGEST1);
+    let resp = authorize_and_stash_from_manifest(
+        &mut model,
+        FW_ID_1,
+        IMAGE_DIGEST1,
+        AuthManifestSource::VendorOwner,
+    );
     assert_eq!(resp.auth_req_result, IMAGE_AUTHORIZED_VENDOR_OWNER);
 }
 
@@ -400,7 +485,12 @@ fn test_set_owner_auth_manifest_rejects_vendor_owner_fw_id() {
     );
     assert_eq!(resp.auth_req_result, IMAGE_AUTHORIZED_OWNER_ONLY);
 
-    let resp = authorize_and_stash_in_request(&mut model, FW_ID_1, IMAGE_DIGEST1);
+    let resp = authorize_and_stash_from_manifest(
+        &mut model,
+        FW_ID_1,
+        IMAGE_DIGEST1,
+        AuthManifestSource::VendorOwner,
+    );
     assert_eq!(resp.auth_req_result, IMAGE_AUTHORIZED_VENDOR_OWNER);
 }
 
@@ -452,7 +542,12 @@ fn test_verify_and_set_auth_manifest_reject_owner_only_fw_id() {
     );
     assert_eq!(resp.auth_req_result, IMAGE_AUTHORIZED_OWNER_ONLY);
 
-    let resp = authorize_and_stash_in_request(&mut model, FW_ID_1, IMAGE_DIGEST1);
+    let resp = authorize_and_stash_from_manifest(
+        &mut model,
+        FW_ID_1,
+        IMAGE_DIGEST1,
+        AuthManifestSource::VendorOwner,
+    );
     assert_eq!(resp.auth_req_result, IMAGE_NOT_AUTHORIZED);
 }
 

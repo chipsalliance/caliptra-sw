@@ -12,15 +12,15 @@ Abstract:
 
 --*/
 
-use crate::manifest::{find_metadata_entry, find_owner_metadata_entry};
+use crate::manifest::find_metadata_entry_by_type;
 use crate::stash_measurement::CaliptraManagedContextAccess;
-use crate::{mutrefbytes, Drivers, PauserPrivileges, StashMeasurementCmd};
+use crate::{mutrefbytes, Drivers, StashMeasurementCmd};
 use caliptra_auth_man_types::ImageMetadataFlags;
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_cfi_lib::{cfi_assert, cfi_assert_bool, cfi_launder};
 use caliptra_common::mailbox_api::{
-    AuthAndStashFlags, AuthorizeAndStashReq, AuthorizeAndStashResp, ImageHashSource,
-    MailboxRespHeader,
+    AuthAndStashFlags, AuthManifestSource, AuthorizeAndStashReq, AuthorizeAndStashResp,
+    ImageHashSource, MailboxRespHeader,
 };
 use caliptra_dpe::error::DpeErrorCode;
 use caliptra_drivers::{AesDmaMode, DmaRecovery};
@@ -56,18 +56,11 @@ impl AuthorizeAndStashCmd {
         cmd_args: &[u8],
         resp: &mut [u8],
     ) -> CaliptraResult<usize> {
-        let caller_privilege_level = drivers.caller_privilege_level();
+        drivers.ensure_pl0()?;
+
         let locality = drivers.mbox.id();
 
         if let Ok(cmd) = AuthorizeAndStashReq::ref_from_bytes(cmd_args) {
-            let auth_and_stash_flags: AuthAndStashFlags = cmd.flags.into();
-            // PL1 callers may only use AUTHORIZE_AND_STASH with SKIP_STASH set;
-            // stashing into DPE requires PL0.
-            if caller_privilege_level == PauserPrivileges::PL1
-                && !auth_and_stash_flags.contains(AuthAndStashFlags::SKIP_STASH)
-            {
-                return Err(CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL);
-            }
             let resp = mutrefbytes::<AuthorizeAndStashResp>(resp)?;
             resp.hdr = MailboxRespHeader::default();
             resp.auth_req_result = Self::authorize_and_stash(drivers, cmd, locality)?;
@@ -141,16 +134,21 @@ impl AuthorizeAndStashCmd {
 
         let cmd_fw_id = u32::from_le_bytes(cmd.fw_id);
         let mut stash_measurement = cmd.measurement;
-        let (metadata_entry, success_code) =
-            if let Some(entry) = find_metadata_entry(auth_manifest_image_metadata_col, cmd_fw_id) {
-                (entry, IMAGE_AUTHORIZED_VENDOR_OWNER)
-            } else if let Some(entry) =
-                find_owner_metadata_entry(owner_auth_manifest_image_metadata_col, cmd_fw_id)
-            {
-                (entry, IMAGE_AUTHORIZED_OWNER_ONLY)
-            } else {
-                return Ok((IMAGE_NOT_AUTHORIZED, stash_measurement));
-            };
+        let manifest_source = AuthManifestSource::from_flags(cmd.flags)
+            .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+        let metadata_entry = find_metadata_entry_by_type(
+            auth_manifest_image_metadata_col,
+            owner_auth_manifest_image_metadata_col,
+            cmd_fw_id,
+            manifest_source,
+        );
+        let Some(metadata_entry) = metadata_entry else {
+            return Ok((IMAGE_NOT_AUTHORIZED, stash_measurement));
+        };
+        let success_code = match manifest_source {
+            AuthManifestSource::VendorOwner => IMAGE_AUTHORIZED_VENDOR_OWNER,
+            AuthManifestSource::Owner => IMAGE_AUTHORIZED_OWNER_ONLY,
+        };
 
         // If 'ignore_auth_check' is set, then skip the image digest comparison and authorize the image.
         let flags = ImageMetadataFlags(metadata_entry.flags);

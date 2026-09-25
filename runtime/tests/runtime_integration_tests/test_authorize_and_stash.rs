@@ -7,6 +7,10 @@ use crate::common::{
 use crate::test_set_auth_manifest::{
     create_auth_manifest, create_auth_manifest_with_metadata, AuthManifestBuilderCfg,
 };
+use crate::test_set_owner_auth_manifest::{
+    build_owner_manifest, make_entry, send_set_owner_auth_manifest, OWNER_ONLY_DIGEST,
+    OWNER_ONLY_FW_ID,
+};
 use crate::test_update_reset::update_fw;
 use caliptra_api::mailbox::{MailboxRespHeader, VerifyAuthManifestReq};
 use caliptra_auth_man_types::{
@@ -15,12 +19,15 @@ use caliptra_auth_man_types::{
 use caliptra_builder::firmware::APP_WITH_UART;
 use caliptra_builder::{firmware::FMC_WITH_UART, ImageOptions};
 use caliptra_common::mailbox_api::{
-    AuthorizeAndStashReq, AuthorizeAndStashResp, CommandId, GetTaggedTciReq, GetTaggedTciResp,
-    ImageHashSource, MailboxReq, MailboxReqHeader, SetAuthManifestReq, TagTciReq,
+    AuthManifestSource, AuthorizeAndStashReq, AuthorizeAndStashResp, CommandId, GetTaggedTciReq,
+    GetTaggedTciResp, ImageHashSource, MailboxReq, MailboxReqHeader, SetAuthManifestReq, TagTciReq,
 };
 use caliptra_hw_model::{DefaultHwModel, HwModel, ModelError};
 use caliptra_image_types::FwVerificationPqcKeyType;
-use caliptra_runtime::{IMAGE_AUTHORIZED, IMAGE_HASH_MISMATCH, IMAGE_NOT_AUTHORIZED};
+use caliptra_runtime::{
+    IMAGE_AUTHORIZED, IMAGE_AUTHORIZED_OWNER_ONLY, IMAGE_AUTHORIZED_VENDOR_OWNER,
+    IMAGE_HASH_MISMATCH, IMAGE_NOT_AUTHORIZED,
+};
 use sha2::{Digest, Sha384};
 use zerocopy::{FromBytes, IntoBytes};
 
@@ -296,6 +303,62 @@ fn test_authorize_and_stash_cmd_success() {
 
     let dpe_measurement_hash = model.mailbox_execute(0x3000_0000, &[]).unwrap().unwrap();
     assert_eq!(expected_measurement_hash.as_bytes(), dpe_measurement_hash);
+}
+
+#[test]
+fn test_authorize_and_stash_selects_manifest_source() {
+    let mut model = set_auth_manifest(None);
+    let owner_manifest =
+        build_owner_manifest(vec![make_entry(OWNER_ONLY_FW_ID, OWNER_ONLY_DIGEST)], 1);
+    send_set_owner_auth_manifest(&mut model, &owner_manifest);
+
+    let mut authorize =
+        |fw_id: [u8; 4], measurement: [u8; 48], manifest_source: AuthManifestSource| {
+            let mut cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
+                hdr: MailboxReqHeader { chksum: 0 },
+                fw_id,
+                measurement,
+                source: ImageHashSource::InRequest as u32,
+                flags: manifest_source.flag_bits(),
+                ..Default::default()
+            });
+            cmd.populate_chksum().unwrap();
+            let response = model
+                .mailbox_execute(
+                    u32::from(CommandId::AUTHORIZE_AND_STASH),
+                    cmd.as_bytes().unwrap(),
+                )
+                .unwrap()
+                .expect("AUTHORIZE_AND_STASH should return a response");
+            AuthorizeAndStashResp::read_from_bytes(response.as_slice()).unwrap()
+        };
+
+    assert_eq!(
+        authorize(
+            OWNER_ONLY_FW_ID.to_le_bytes(),
+            OWNER_ONLY_DIGEST,
+            AuthManifestSource::Owner,
+        )
+        .auth_req_result,
+        IMAGE_AUTHORIZED_OWNER_ONLY
+    );
+    assert_eq!(
+        authorize(
+            OWNER_ONLY_FW_ID.to_le_bytes(),
+            OWNER_ONLY_DIGEST,
+            AuthManifestSource::VendorOwner,
+        )
+        .auth_req_result,
+        IMAGE_NOT_AUTHORIZED
+    );
+    assert_eq!(
+        authorize(FW_ID_1, IMAGE_DIGEST1, AuthManifestSource::VendorOwner).auth_req_result,
+        IMAGE_AUTHORIZED_VENDOR_OWNER
+    );
+    assert_eq!(
+        authorize(FW_ID_1, IMAGE_DIGEST1, AuthManifestSource::Owner).auth_req_result,
+        IMAGE_NOT_AUTHORIZED
+    );
 }
 
 #[test]
@@ -1722,7 +1785,7 @@ fn test_authorize_and_stash_pl1_without_skip_stash_fails() {
 }
 
 #[test]
-fn test_authorize_and_stash_pl1_with_skip_stash_success() {
+fn test_authorize_and_stash_pl1_with_skip_stash_fails() {
     let mut model = set_auth_manifest(None);
 
     // Switch to a non-PL0 pauser (AXI user 2 is not the pl0_pauser).
@@ -1738,15 +1801,15 @@ fn test_authorize_and_stash_pl1_with_skip_stash_success() {
     });
     authorize_and_stash_cmd.populate_chksum().unwrap();
 
-    let result = model
-        .mailbox_execute(
-            u32::from(CommandId::AUTHORIZE_AND_STASH),
-            authorize_and_stash_cmd.as_bytes().unwrap(),
-        )
-        .unwrap()
-        .expect("We should ahe received a response");
+    let result = model.mailbox_execute(
+        u32::from(CommandId::AUTHORIZE_AND_STASH),
+        authorize_and_stash_cmd.as_bytes().unwrap(),
+    );
 
-    let authorize_and_stash_resp =
-        AuthorizeAndStashResp::read_from_bytes(result.as_slice()).unwrap();
-    assert_eq!(authorize_and_stash_resp.auth_req_result, IMAGE_AUTHORIZED);
+    assert_eq!(
+        result.unwrap_err(),
+        ModelError::MailboxCmdFailed(
+            caliptra_error::CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL.into()
+        )
+    );
 }
