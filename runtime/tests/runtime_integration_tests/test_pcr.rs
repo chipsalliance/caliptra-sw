@@ -318,7 +318,6 @@ fn test_extend_pcr_cmd_rejected_without_pl0_pauser() {
     image_opts.vendor_config.pl0_pauser = None;
 
     let mut model = run_rt_test(RuntimeTestArgs {
-        subsystem_mode: true,
         test_image_options: Some(image_opts),
         ..Default::default()
     });
