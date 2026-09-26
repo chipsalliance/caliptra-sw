@@ -49,10 +49,14 @@ cfi = []
 fake-rom = []
 fips-test-hooks = []
 cavp-test-harness = []
+# Enables the ACVP integration tests in drivers/tests, which are otherwise
+# ignored so CI does not run them against the placeholder stimulus.
+acvp-tests = []
 
 [dev-dependencies]
 caliptra-api.workspace = true
 caliptra-builder.workspace = true
+caliptra-drivers-acvp-bin.workspace = true
 caliptra-drivers-test-bin.workspace = true
 caliptra-hw-model-types.workspace = true
 caliptra-hw-model.workspace = true
