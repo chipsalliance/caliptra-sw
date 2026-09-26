@@ -12,10 +12,13 @@ use caliptra_common::mailbox_api::{
 };
 use caliptra_hw_model::{DefaultHwModel, HwModel};
 use coset::{cbor::value::Value, iana, iana::CwtClaimName, CborSerializable, CoseSign1};
+use fips204::{ml_dsa_87, traits::SerDes, traits::Verifier};
 use openssl::{
     pkey::{PKey, Public},
     x509::{X509Req, X509},
 };
+use x509_parser::certificate::X509Certificate;
+use x509_parser::prelude::FromDer;
 use zerocopy::IntoBytes;
 
 use crate::common::{get_rt_alias_ecc384_cert, get_rt_alias_mldsa87_cert};
@@ -32,6 +35,10 @@ pub const KEY_ID_RT_ALIAS: u32 = 3;
 // EAT claim keys (private claims from ocp-eat crate)
 pub const CLAIM_KEY_ATTESTED_CSR: i64 = -70001;
 pub const CLAIM_KEY_ATTESTED_CSR_KEY_ATTRIB: i64 = -70002;
+pub const CLAIM_KEY_KEYPAIR_INVENTORY: i64 = -70003;
+
+pub const OCP_SECURITY_OID_KDA: &[u8] =
+    &[0x2B, 0x06, 0x01, 0x04, 0x01, 0x82, 0xCC, 0x7F, 0x01, 0x02];
 
 /// Verify the COSE Sign1 protected header fields.
 pub fn verify_protected_header(
@@ -74,7 +81,7 @@ pub fn verify_cose_sign1_envelope(
     nonce: &[u8; 32],
     rt_pub_key: &PKey<Public>,
     rt_kid: &[u8; 20],
-    kda_oids: &[&[u8]],
+    expected_bitfield: u64,
 ) -> X509Req {
     // Verify the protected header
     let protected = &cose_sign1.protected.header;
@@ -108,48 +115,39 @@ pub fn verify_cose_sign1_envelope(
         panic!("EAT claims should be a CBOR map");
     };
 
-    // Extract and verify attributes from EAT claims (claim key -70002)
+    // Extract and verify attributes from EAT claims (claim key -70002) as a CBOR Map
     if let Value::Map(map) = &eat_claims {
-        let attributes = map
+        let attr_map = map
             .iter()
             .find(|(k, _)| matches!(k, Value::Integer(i) if Into::<i128>::into(*i) == CLAIM_KEY_ATTESTED_CSR_KEY_ATTRIB as i128))
             .and_then(|(_, v)| {
-                if let Value::Array(arr) = v {
-                    Some(arr)
+                if let Value::Map(m) = v {
+                    Some(m)
                 } else {
                     None
                 }
             })
-            .expect("Attributes not found in EAT claims");
+            .expect("Attributes map not found in EAT claims");
 
-        // Collect all OIDs from attributes
-        let mut found_oids: Vec<Vec<u8>> = Vec::new();
+        let found_bitfield = attr_map
+            .iter()
+            .find(|(k, _)| match k {
+                Value::Tag(tag, boxed) if *tag == 111 => match boxed.as_ref() {
+                    Value::Bytes(b) => b.as_slice() == OCP_SECURITY_OID_KDA,
+                    _ => false,
+                },
+                _ => false,
+            })
+            .and_then(|(_, v)| match v {
+                Value::Integer(i) => Some(Into::<i128>::into(*i) as u64),
+                _ => None,
+            })
+            .expect("OCP Security KDA attribute not found in attributes map");
 
-        // Each attribute is a tagged OID (CBOR tag 111)
-        for attr in attributes {
-            if let Value::Tag(tag, boxed_value) = attr {
-                assert_eq!(*tag, 111, "Attribute should be tagged with OID tag (111)");
-
-                if let Value::Bytes(oid_bytes) = boxed_value.as_ref() {
-                    println!("Found OID: {:02X?}", oid_bytes);
-                    found_oids.push(oid_bytes.clone());
-                }
-            }
-        }
-
-        // Verify all expected KDA OIDs are present
-        for expected_oid in kda_oids {
-            assert!(
-                found_oids.iter().any(|oid| oid.as_slice() == *expected_oid),
-                "Expected KDA OID {:02X?} not found in attributes",
-                expected_oid
-            );
-        }
-
-        // Verify we found at least one attribute
-        assert!(
-            !found_oids.is_empty(),
-            "No OID attributes found in EAT claims"
+        assert_eq!(
+            found_bitfield, expected_bitfield,
+            "Derivation bitfield mismatch: found 0x{:02x}, expected 0x{:02x}",
+            found_bitfield, expected_bitfield
         );
     }
 
@@ -254,28 +252,13 @@ pub fn verify_cbor_tags(data: &[u8], expected_tags: &[u64]) -> Value {
     value
 }
 
-/// Return the expected KDA OIDs for the given key identity.
-pub fn expected_kda_oids(key_id: u32) -> &'static [&'static [u8]] {
+/// Return the expected KDA derivation component bitfield for the given key identity.
+pub fn expected_kda_bitfield(key_id: u32) -> u64 {
     match key_id {
-        KEY_ID_LDEV_ID => &[
-            // LDevID is derived from owner entropy fuse
-            &[
-                0x2B, 0x06, 0x01, 0x04, 0x01, 0x82, 0xCD, 0x1F, 0x01, 0x02, 0x01,
-            ],
-        ],
-        KEY_ID_FMC_ALIAS => &[
-            // FMC Alias is derived from first mutable code
-            &[
-                0x2B, 0x06, 0x01, 0x04, 0x01, 0x82, 0xCD, 0x1F, 0x01, 0x02, 0x02,
-            ],
-        ],
-        KEY_ID_RT_ALIAS => &[
-            // RT Alias is derived from non-first mutable code
-            &[
-                0x2B, 0x06, 0x01, 0x04, 0x01, 0x82, 0xCD, 0x1F, 0x01, 0x02, 0x03,
-            ],
-        ],
-        _ => &[],
+        KEY_ID_LDEV_ID => 0x03,   // UDS | FIELD_ENTROPY
+        KEY_ID_FMC_ALIAS => 0x13, // UDS | FIELD_ENTROPY | FIRST_MUTABLE_CODE
+        KEY_ID_RT_ALIAS => 0x33,  // UDS | FIELD_ENTROPY | FIRST_MUTABLE_CODE | RUNTIME_FIRMWARE
+        _ => panic!("Invalid key_id for KDA bitfield"),
     }
 }
 
@@ -339,10 +322,10 @@ pub fn verify_and_extract_attested_ecc_csr(model: &mut DefaultHwModel, key_id: u
     let len = rt_key_id.len().min(20);
     rt_kid[20 - len..].copy_from_slice(&rt_key_id[..len]);
 
-    let kda_oids = expected_kda_oids(key_id);
+    let bitfield = expected_kda_bitfield(key_id);
 
     // Verify COSE Sign1 envelope, extract and parse CSR
-    verify_cose_sign1_envelope(&cose_sign1, &nonce, &rt_pub_key, &rt_kid, kda_oids)
+    verify_cose_sign1_envelope(&cose_sign1, &nonce, &rt_pub_key, &rt_kid, bitfield)
 }
 
 /// Extract the CSR (X509Req) from a COSE Sign1 payload's EAT claims.
@@ -377,10 +360,11 @@ pub fn extract_csr_from_cose_payload(cose_sign1: &CoseSign1) -> X509Req {
 /// structure and protected header (ML_DSA_87 algorithm, kid), and extract
 /// and return the inner CSR from the EAT payload.
 pub fn verify_and_extract_attested_mldsa_csr(model: &mut DefaultHwModel, key_id: u32) -> X509Req {
+    let nonce: [u8; 32] = rand::thread_rng().gen();
     let mut cmd = MailboxReq::GetAttestedMldsa87Csr(GetAttestedMldsaCsrReq {
         hdr: MailboxReqHeader { chksum: 0 },
         key_id,
-        nonce: [0u8; 32],
+        nonce,
     });
     cmd.populate_chksum().unwrap();
 
@@ -418,6 +402,300 @@ pub fn verify_and_extract_attested_mldsa_csr(model: &mut DefaultHwModel, key_id:
 
     verify_protected_header(protected, &rt_kid, iana::Algorithm::ML_DSA_87);
 
+    // Verify claims payload (nonce and attributes)
+    let payload = cose_sign1
+        .payload
+        .as_ref()
+        .expect("COSE Sign1 payload should be present");
+    let eat_claims = Value::from_slice(payload).expect("Failed to parse EAT claims");
+    if let Value::Map(map) = &eat_claims {
+        let nonce_claim = map
+            .iter()
+            .find(|(k, _)| matches!(k, Value::Integer(i) if Into::<i128>::into(*i) == CwtClaimName::Nonce as i128))
+            .and_then(|(_, v)| if let Value::Bytes(bytes) = v { Some(bytes.as_slice()) } else { None })
+            .expect("Nonce not found in EAT claims");
+        assert_eq!(nonce_claim, nonce);
+
+        let attr_map = map
+            .iter()
+            .find(|(k, _)| matches!(k, Value::Integer(i) if Into::<i128>::into(*i) == CLAIM_KEY_ATTESTED_CSR_KEY_ATTRIB as i128))
+            .and_then(|(_, v)| if let Value::Map(m) = v { Some(m) } else { None })
+            .expect("Attributes map not found in EAT claims");
+
+        let found_bitfield = attr_map
+            .iter()
+            .find(|(k, _)| match k {
+                Value::Tag(tag, boxed) if *tag == 111 => match boxed.as_ref() {
+                    Value::Bytes(b) => b.as_slice() == OCP_SECURITY_OID_KDA,
+                    _ => false,
+                },
+                _ => false,
+            })
+            .and_then(|(_, v)| match v {
+                Value::Integer(i) => Some(Into::<i128>::into(*i) as u64),
+                _ => None,
+            })
+            .expect("OCP Security KDA attribute not found in attributes map");
+
+        let expected_bitfield = expected_kda_bitfield(key_id);
+        assert_eq!(found_bitfield, expected_bitfield);
+    }
+
+    // Verify COSE Sign1 signature using RT Alias ML-DSA public key
+    let rt_cert_der = &rt_cert_resp.data[..rt_cert_resp.data_size as usize];
+    verify_mldsa_cose_signature(&cose_sign1, rt_cert_der);
+
     // Extract and return the inner CSR from the EAT payload
     extract_csr_from_cose_payload(&cose_sign1)
+}
+
+/// Verify COSE Sign1 signature for ML-DSA-87 envelope using RT Alias certificate
+pub fn verify_mldsa_cose_signature(cose_sign1: &CoseSign1, rt_cert_der: &[u8]) {
+    let (_, cert_parsed) =
+        X509Certificate::from_der(rt_cert_der).expect("Failed to parse RT Alias X509 cert");
+    let raw_pubkey = cert_parsed
+        .tbs_certificate
+        .subject_pki
+        .subject_public_key
+        .data;
+    let raw_pubkey: [u8; 2592] = raw_pubkey
+        .as_ref()
+        .try_into()
+        .expect("Invalid ML-DSA public key length in cert");
+    let vk = ml_dsa_87::PublicKey::try_from_bytes(raw_pubkey)
+        .expect("Failed to decode ML-DSA-87 public key");
+
+    let signature: [u8; ml_dsa_87::SIG_LEN] = cose_sign1
+        .signature
+        .as_slice()
+        .try_into()
+        .expect("Invalid ML-DSA-87 signature length");
+
+    assert!(
+        vk.verify(&cose_sign1.tbs_data(&[]), &signature, &[]),
+        "COSE Sign1 ML-DSA-87 signature verification failed"
+    );
+}
+
+/// Verify keypair inventory payload structure for KeyPairID = 0 discovery
+pub fn verify_inventory_payload(cose_sign1: &CoseSign1, nonce: &[u8; 32]) {
+    let payload = cose_sign1
+        .payload
+        .as_ref()
+        .expect("Payload should be present");
+    let eat_claims = Value::from_slice(payload).expect("Failed to parse EAT claims");
+
+    let map = match &eat_claims {
+        Value::Map(map) => map,
+        _ => panic!("EAT claims should be a CBOR map"),
+    };
+
+    // Check nonce (claim 10)
+    let nonce_claim = map
+        .iter()
+        .find(|(k, _)| matches!(k, Value::Integer(i) if Into::<i128>::into(*i) == CwtClaimName::Nonce as i128))
+        .and_then(|(_, v)| {
+            if let Value::Bytes(bytes) = v {
+                Some(bytes.as_slice())
+            } else {
+                None
+            }
+        })
+        .expect("Nonce not found in EAT claims");
+    assert_eq!(nonce_claim, nonce);
+
+    // Ensure -70001 (CSR) and -70002 (CSR attributes) are NOT present in discovery response
+    assert!(
+        !map.iter().any(|(k, _)| matches!(k, Value::Integer(i) if Into::<i128>::into(*i) == CLAIM_KEY_ATTESTED_CSR as i128)),
+        "CSR claim (-70001) must not be present in inventory discovery token"
+    );
+    assert!(
+        !map.iter().any(|(k, _)| matches!(k, Value::Integer(i) if Into::<i128>::into(*i) == CLAIM_KEY_ATTESTED_CSR_KEY_ATTRIB as i128)),
+        "CSR attributes claim (-70002) must not be present in inventory discovery token"
+    );
+
+    // Extract -70003 (keypair-inventory)
+    let inventory_arr = map
+        .iter()
+        .find(|(k, _)| matches!(k, Value::Integer(i) if Into::<i128>::into(*i) == CLAIM_KEY_KEYPAIR_INVENTORY as i128))
+        .and_then(|(_, v)| {
+            if let Value::Array(arr) = v {
+                Some(arr)
+            } else {
+                None
+            }
+        })
+        .expect("Keypair inventory claim (-70003) not found");
+
+    // Must have 3 entries (LDevID = 1, FMC Alias = 2, RT Alias = 3)
+    assert_eq!(inventory_arr.len(), 3, "Inventory must contain 3 keypairs");
+
+    let expected_entries: [(u8, u64); 3] = [
+        (1, 0x03), // LDevId: UDS | FIELD_ENTROPY
+        (2, 0x13), // FMC Alias: UDS | FIELD_ENTROPY | FIRST_MUTABLE_CODE
+        (3, 0x33), // RT Alias: UDS | FIELD_ENTROPY | FIRST_MUTABLE_CODE | RUNTIME_FIRMWARE
+    ];
+
+    for (idx, (expected_id, expected_bitfield)) in expected_entries.iter().enumerate() {
+        let entry = &inventory_arr[idx];
+        let pair = match entry {
+            Value::Array(arr) if arr.len() == 2 => arr,
+            _ => panic!("Inventory entry must be an array of length 2 [id, attribs]"),
+        };
+
+        // Check keypair-id
+        let id = match &pair[0] {
+            Value::Integer(i) => Into::<i128>::into(*i) as u8,
+            _ => panic!("Expected integer for keypair-id"),
+        };
+        assert_eq!(id, *expected_id);
+
+        // Check key-attributes-map
+        let attr_map = match &pair[1] {
+            Value::Map(m) => m,
+            _ => panic!("Expected map for key attributes"),
+        };
+
+        let bitfield = attr_map
+            .iter()
+            .find(|(k, _)| match k {
+                Value::Tag(tag, boxed) if *tag == 111 => match boxed.as_ref() {
+                    Value::Bytes(b) => b.as_slice() == OCP_SECURITY_OID_KDA,
+                    _ => false,
+                },
+                _ => false,
+            })
+            .and_then(|(_, v)| match v {
+                Value::Integer(i) => Some(Into::<i128>::into(*i) as u64),
+                _ => None,
+            })
+            .expect("OCP Security KDA attribute not found in entry");
+
+        assert_eq!(bitfield, *expected_bitfield);
+    }
+}
+
+/// Send the GetAttestedEcc384Csr command with key_id = 0, verify discovery inventory token
+pub fn verify_keypair_inventory_discovery_ecc(model: &mut DefaultHwModel) {
+    let nonce: [u8; 32] = rand::thread_rng().gen();
+
+    let mut cmd = MailboxReq::GetAttestedEcc384Csr(GetAttestedEccCsrReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        key_id: 0,
+        nonce,
+    });
+    cmd.populate_chksum().unwrap();
+
+    let resp_bytes = model
+        .mailbox_execute(
+            u32::from(CommandId::GET_ATTESTED_ECC384_CSR),
+            cmd.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .expect("We should have received a response");
+
+    assert!(resp_bytes.len() <= std::mem::size_of::<AttestedCsrResp>());
+    let mut resp = AttestedCsrResp::default();
+    resp.as_mut_bytes()[..resp_bytes.len()].copy_from_slice(&resp_bytes);
+
+    assert!(resp.data_size > 0, "Inventory response data_size > 0");
+    let attested_csr = &resp.data[..resp.data_size as usize];
+    let cose_sign1 = parse_attested_csr(attested_csr);
+
+    // Get RT Alias public key and kid
+    let rt_cert_resp = get_rt_alias_ecc384_cert(model);
+    let rt_cert = X509::from_der(&rt_cert_resp.data[..rt_cert_resp.data_size as usize])
+        .expect("Failed to parse RT Alias certificate");
+    let rt_pub_key = rt_cert
+        .public_key()
+        .expect("Failed to get RT Alias public key");
+    let rt_key_id = rt_cert
+        .subject_key_id()
+        .expect("Failed to get RT Alias key identifier");
+    let rt_key_id = rt_key_id.as_slice();
+    let mut rt_kid = [0u8; 20];
+    let len = rt_key_id.len().min(20);
+    rt_kid[20 - len..].copy_from_slice(&rt_key_id[..len]);
+
+    // Verify protected header
+    verify_protected_header(
+        &cose_sign1.protected.header,
+        &rt_kid,
+        iana::Algorithm::ESP384,
+    );
+
+    // Verify signature
+    let signature = cose_sign1.signature.as_slice();
+    let tbs_data = cose_sign1.tbs_data(b"");
+    let mut hasher = openssl::sha::Sha384::new();
+    hasher.update(&tbs_data);
+    let digest = hasher.finish();
+
+    assert_eq!(signature.len(), 96);
+    let r = openssl::bn::BigNum::from_slice(&signature[..48]).unwrap();
+    let s = openssl::bn::BigNum::from_slice(&signature[48..]).unwrap();
+    let ecdsa_sig = openssl::ecdsa::EcdsaSig::from_private_components(r, s).unwrap();
+    assert!(
+        ecdsa_sig
+            .verify(&digest, rt_pub_key.ec_key().unwrap().as_ref())
+            .unwrap(),
+        "Discovery COSE Sign1 signature verification failed"
+    );
+
+    // Verify inventory payload
+    verify_inventory_payload(&cose_sign1, &nonce);
+}
+
+/// Send the GetAttestedMldsa87Csr command with key_id = 0, verify discovery inventory token
+pub fn verify_keypair_inventory_discovery_mldsa(model: &mut DefaultHwModel) {
+    let nonce: [u8; 32] = rand::thread_rng().gen();
+
+    let mut cmd = MailboxReq::GetAttestedMldsa87Csr(GetAttestedMldsaCsrReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        key_id: 0,
+        nonce,
+    });
+    cmd.populate_chksum().unwrap();
+
+    let resp_bytes = model
+        .mailbox_execute(
+            u32::from(CommandId::GET_ATTESTED_MLDSA87_CSR),
+            cmd.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .expect("We should have received a response");
+
+    assert!(resp_bytes.len() <= std::mem::size_of::<AttestedCsrResp>());
+    let mut resp = AttestedCsrResp::default();
+    resp.as_mut_bytes()[..resp_bytes.len()].copy_from_slice(&resp_bytes);
+
+    assert!(resp.data_size > 0, "Inventory response data_size > 0");
+    let attested_csr = &resp.data[..resp.data_size as usize];
+    let cose_sign1 = parse_attested_csr(attested_csr);
+
+    // Get RT Alias MLDSA kid
+    let rt_cert_resp = get_rt_alias_mldsa87_cert(model);
+    let rt_cert = X509::from_der(&rt_cert_resp.data[..rt_cert_resp.data_size as usize])
+        .expect("Failed to parse RT Alias MLDSA certificate");
+    let rt_key_id = rt_cert
+        .subject_key_id()
+        .expect("Failed to get RT Alias MLDSA key identifier");
+    let rt_key_id = rt_key_id.as_slice();
+    let mut rt_kid = [0u8; 20];
+    let len = rt_key_id.len().min(20);
+    rt_kid[20 - len..].copy_from_slice(&rt_key_id[..len]);
+
+    // Verify protected header
+    verify_protected_header(
+        &cose_sign1.protected.header,
+        &rt_kid,
+        iana::Algorithm::ML_DSA_87,
+    );
+
+    // Verify COSE Sign1 signature using RT Alias ML-DSA public key
+    let rt_cert_der = &rt_cert_resp.data[..rt_cert_resp.data_size as usize];
+    verify_mldsa_cose_signature(&cose_sign1, rt_cert_der);
+
+    // Verify inventory payload
+    verify_inventory_payload(&cose_sign1, &nonce);
 }

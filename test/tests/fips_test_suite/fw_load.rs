@@ -737,8 +737,8 @@ fn fw_load_error_fmc_runtime_overlap() {
             ..Default::default()
         };
         let mut fw_image = build_fw_image(image_options);
-        // Corrupt FMC offset
-        fw_image.manifest.fmc.offset = fw_image.manifest.runtime.offset;
+        // Move runtime to overlap with FMC
+        fw_image.manifest.runtime.offset = fw_image.manifest.fmc.offset;
 
         update_manifest(&mut fw_image, HdrDigest::Update, TocDigest::Update);
 
@@ -764,13 +764,9 @@ fn fw_load_error_fmc_runtime_incorrect_order() {
             ..Default::default()
         };
         let mut fw_image = build_fw_image(image_options);
-        // Flip FMC and RT positions
-        let old_fmc_offset = fw_image.manifest.fmc.offset;
-        let old_fmc_size = fw_image.manifest.fmc.size;
-        fw_image.manifest.fmc.offset = fw_image.manifest.runtime.offset;
-        fw_image.manifest.fmc.size = fw_image.manifest.runtime.size;
-        fw_image.manifest.runtime.offset = old_fmc_offset;
-        fw_image.manifest.runtime.size = old_fmc_size;
+        // Place runtime before FMC in image
+        fw_image.manifest.runtime.offset = 0;
+        fw_image.manifest.runtime.size = 4;
 
         update_manifest(&mut fw_image, HdrDigest::Update, TocDigest::Update);
 
@@ -1728,8 +1724,9 @@ fn fw_load_error_toc_entry_range_arithmetic_overflow() {
             ..Default::default()
         };
         let mut fw_image = build_fw_image(image_options);
-        // Change fmc offset to cause overflow
-        fw_image.manifest.fmc.offset = 0xFFFFFFF0;
+        // Overflow via runtime.offset (offset + size wraps u32).
+        // Sizes are unchanged so the image length check passes first.
+        fw_image.manifest.runtime.offset = 0xFFFFFFF0;
         update_manifest(&mut fw_image, HdrDigest::Update, TocDigest::Update);
 
         fw_load_error_flow(

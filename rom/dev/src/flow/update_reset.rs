@@ -162,6 +162,7 @@ impl UpdateResetFlow {
             mldsa87: env.mldsa87,
             image: env.image,
             dma: env.dma,
+            persistent_data: env.persistent_data,
         };
 
         let mut verifier = ImageVerifier::new(env);
@@ -186,8 +187,18 @@ impl UpdateResetFlow {
             manifest.runtime.size
         );
 
-        // Throw away the FMC portion of the image
-        txn.drop_words(manifest.fmc.size as usize / 4)?;
+        // The manifest has already been consumed from the mailbox FIFO. Skip
+        // to the verified Runtime offset rather than assuming it immediately
+        // follows the FMC image.
+        let manifest_size = core::mem::size_of::<ImageManifest>();
+        let runtime_offset = manifest.runtime.offset as usize;
+        let skip_bytes = runtime_offset
+            .checked_sub(manifest_size)
+            .ok_or(CaliptraError::ROM_UPDATE_RESET_FLOW_MAILBOX_ACCESS_FAILURE)?;
+        if skip_bytes % core::mem::size_of::<u32>() != 0 {
+            return Err(CaliptraError::ROM_UPDATE_RESET_FLOW_MAILBOX_ACCESS_FAILURE);
+        }
+        txn.drop_words(skip_bytes / core::mem::size_of::<u32>())?;
 
         let runtime_dest = unsafe {
             let addr = (manifest.runtime.load_addr) as *mut u32;

@@ -199,6 +199,7 @@ pub(crate) struct FakeRomImageVerificationEnv<'a, 'b> {
     pub(crate) mldsa87: &'a mut Mldsa87,
     pub image: &'b [u8],
     pub(crate) dma: &'a Dma,
+    pub(crate) persistent_data: &'a PersistentData,
 }
 
 impl ImageVerificationEnv for &mut FakeRomImageVerificationEnv<'_, '_> {
@@ -385,6 +386,16 @@ impl ImageVerificationEnv for &mut FakeRomImageVerificationEnv<'_, '_> {
     // Get the fmc digest from the data vault on cold boot
     fn get_fmc_digest_dv(&self) -> ImageDigest384 {
         self.data_vault.fmc_tci().into()
+    }
+
+    // Get FMC load address from the cold boot
+    fn get_cold_reset_fmc_load_addr(&self) -> u32 {
+        self.persistent_data.manifest1.fmc.load_addr
+    }
+
+    // Get FMC size from the cold boot
+    fn get_cold_reset_fmc_size(&self) -> u32 {
+        self.persistent_data.manifest1.fmc.size
     }
 
     // Get Fuse FW Manifest SVN

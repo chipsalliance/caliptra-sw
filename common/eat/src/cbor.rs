@@ -37,6 +37,16 @@ pub mod tag {
     pub const BYTES: u64 = 560;
 }
 
+/// CBOR byte string header constants (RFC 8949)
+pub mod bstr_header {
+    use super::{cbor_initial_byte, MajorType};
+
+    pub const MAX_INLINE_LEN: usize = 23;
+    pub const TINY_BASE: u8 = cbor_initial_byte(MajorType::ByteString, 0); // 0x40
+    pub const LEN_1BYTE: u8 = cbor_initial_byte(MajorType::ByteString, 24); // 0x58
+    pub const LEN_2BYTE: u8 = cbor_initial_byte(MajorType::ByteString, 25); // 0x59
+}
+
 /// Construct a CBOR initial byte from major type and additional info
 #[inline]
 pub const fn cbor_initial_byte(major_type: MajorType, additional_info: u8) -> u8 {
@@ -329,7 +339,7 @@ impl<'a> CborEncoder<'a> {
 /// let oid_bytes = &[0x2B, 0x06, 0x01, 0x04, 0x01, 0x82, 0xCD, 0x1F, 0x01, 0x02, 0x01];
 /// let tagged_oid = TaggedOid::new(oid_bytes);
 /// ```
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TaggedOid<'a> {
     /// OID value in X.690 BER encoding (content octets only)
     pub oid: &'a [u8],
@@ -342,6 +352,12 @@ impl<'a> TaggedOid<'a> {
     /// * `oid` - OID value encoded using X.690 BER (content octets, no tag/length)
     pub const fn new(oid: &'a [u8]) -> Self {
         Self { oid }
+    }
+
+    /// Estimate the CBOR size required for this tagged OID
+    pub fn estimate_size(&self) -> usize {
+        CborEncoder::estimate_uint_size(tag::OID)
+            + CborEncoder::estimate_bytes_string_size(self.oid.len())
     }
 }
 
