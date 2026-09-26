@@ -2664,31 +2664,39 @@ fn test_runtime_svn_greater_than_max() {
             .vendor_pubkey_info_digest(&image_bundle.manifest.preamble)
             .unwrap();
 
-        let fuses = caliptra_hw_model::Fuses {
-            life_cycle: DeviceLifecycle::Manufacturing,
-            anti_rollback_disable: false,
-            vendor_pk_hash: vendor_pubkey_info_digest,
-            fuse_pqc_key_type: *pqc_key_type as u32,
-            ..Default::default()
-        };
-        let image_options = ImageOptions {
-            fw_svn: caliptra_image_verify::MAX_FIRMWARE_SVN + 1,
-            pqc_key_type: *pqc_key_type,
-            ..Default::default()
-        };
+        // The implementation limit applies even when fuse-based rollback checks are skipped.
+        for (life_cycle, anti_rollback_disable) in [
+            (DeviceLifecycle::Manufacturing, false),
+            (DeviceLifecycle::Manufacturing, true),
+            (DeviceLifecycle::Unprovisioned, false),
+        ] {
+            let fuses = caliptra_hw_model::Fuses {
+                life_cycle,
+                anti_rollback_disable,
+                vendor_pk_hash: vendor_pubkey_info_digest,
+                fuse_pqc_key_type: *pqc_key_type as u32,
+                ..Default::default()
+            };
+            let image_options = ImageOptions {
+                fw_svn: caliptra_image_verify::MAX_FIRMWARE_SVN + 1,
+                pqc_key_type: *pqc_key_type,
+                ..Default::default()
+            };
 
-        let (mut hw, image_bundle) = helpers::build_hw_model_and_image_bundle(fuses, image_options);
-        helpers::assert_fatal_fw_load(
-            &mut hw,
-            *pqc_key_type,
-            &image_bundle.to_bytes().unwrap(),
-            CaliptraError::IMAGE_VERIFIER_ERR_FIRMWARE_SVN_GREATER_THAN_MAX_SUPPORTED,
-        );
+            let (mut hw, image_bundle) =
+                helpers::build_hw_model_and_image_bundle(fuses, image_options);
+            helpers::assert_fatal_fw_load(
+                &mut hw,
+                *pqc_key_type,
+                &image_bundle.to_bytes().unwrap(),
+                CaliptraError::IMAGE_VERIFIER_ERR_FIRMWARE_SVN_GREATER_THAN_MAX_SUPPORTED,
+            );
 
-        assert_eq!(
-            hw.soc_ifc().cptra_boot_status().read(),
-            u32::from(FwProcessorManifestLoadComplete)
-        );
+            assert_eq!(
+                hw.soc_ifc().cptra_boot_status().read(),
+                u32::from(FwProcessorManifestLoadComplete)
+            );
+        }
     }
 }
 
