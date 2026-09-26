@@ -1,14 +1,14 @@
 ##########################################
 #             Code Ownership
 ##########################################
-/rom/dev/ @mhatrevi @ajisaxena @vsonims @korran @JohnTraverAmd @swenson @zhalvorsen @timothytrippel @parvathib
-/rom/dev/tests/ @mhatrevi @ajisaxena @vsonims @korran @JohnTraverAmd @swenson @jhand2 @zhalvorsen @timothytrippel @parvathib
-/kat/ @mhatrevi @ajisaxena @vsonims @korran @JohnTraverAmd @swenson @zhalvorsen @timothytrippel @parvathib
-/drivers/ @mhatrevi @ajisaxena @vsonims @korran @JohnTraverAmd @rusty1968 @swenson @zhalvorsen @timothytrippel @parvathib
-/image/ @mhatrevi @ajisaxena @vsonims @korran @swenson @vsonims @jhand2 @zhalvorsen @timothytrippel @parvathib
-/sw-emulator/ @korran @mhatrevi @ajisaxena @swenson @vsonims @jhand2 @zhalvorsen @timothytrippel @parvathib
-/x509/ @mhatrevi @ajisaxena @vsonims @jlmahowa-amd @jhand2 @swenson @timothytrippel @parvathib
-/fmc/ @FerralCoder @rusty1968 @bluegate010 @mhatrevi @swenson @vsonims @zhalvorsen @timothytrippel @parvathib
-/runtime/ @jhand2 @fdamato @rusty1968 @bluegate010 @mhatrevi @swenson @vsonims @zhalvorsen @timothytrippel @parvathib
-/hw-model/ @korran @fdamato @jlmahowa-amd @mhatrevi @jhand2 @swenson @vsonims @zhalvorsen @timothytrippel @parvathib
-/libcaliptra/ @fdamato @wmaroneAMD @JohnTraverAmd @jlmahowa-amd @korran @mhatrevi @swenson @vsonims @nquarton @jhand2 @zhalvorsen @timothytrippel @parvathib
+/rom/dev/ @mhatrevi @ajisaxena @vsonims @korran @JohnTraverAmd @swenson @zhalvorsen @timothytrippel @parvathib @mlvisaya
+/rom/dev/tests/ @mhatrevi @ajisaxena @vsonims @korran @JohnTraverAmd @swenson @jhand2 @zhalvorsen @timothytrippel @parvathib @mlvisaya
+/kat/ @mhatrevi @ajisaxena @vsonims @korran @JohnTraverAmd @swenson @zhalvorsen @timothytrippel @parvathib @mlvisaya
+/drivers/ @mhatrevi @ajisaxena @vsonims @korran @JohnTraverAmd @rusty1968 @swenson @zhalvorsen @timothytrippel @parvathib @mlvisaya
+/image/ @mhatrevi @ajisaxena @vsonims @korran @swenson @vsonims @jhand2 @zhalvorsen @timothytrippel @parvathib @mlvisaya
+/sw-emulator/ @korran @mhatrevi @ajisaxena @swenson @vsonims @jhand2 @zhalvorsen @timothytrippel @parvathib @mlvisaya
+/x509/ @mhatrevi @ajisaxena @vsonims @jlmahowa-amd @jhand2 @swenson @timothytrippel @parvathib @mlvisaya
+/fmc/ @FerralCoder @rusty1968 @bluegate010 @mhatrevi @swenson @vsonims @zhalvorsen @timothytrippel @parvathib @mlvisaya
+/runtime/ @jhand2 @fdamato @rusty1968 @bluegate010 @mhatrevi @swenson @vsonims @zhalvorsen @timothytrippel @parvathib @mlvisaya
+/hw-model/ @korran @fdamato @jlmahowa-amd @mhatrevi @jhand2 @swenson @vsonims @zhalvorsen @timothytrippel @parvathib @mlvisaya
+/libcaliptra/ @fdamato @wmaroneAMD @JohnTraverAmd @jlmahowa-amd @korran @mhatrevi @swenson @vsonims @nquarton @jhand2 @zhalvorsen @timothytrippel @parvathib @mlvisaya
