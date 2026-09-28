@@ -258,14 +258,14 @@ jobs:
         with:
           name: caliptra-bitstream${{ inputs.artifact-suffix }}
           path: /tmp/caliptra-bitstream.pdi
-          retention-days: 1
+          retention-days: 7
 
       - name: 'Upload test binaries artifact'
         uses: actions/upload-artifact@v4
         with:
           name: caliptra-test-binaries${{ inputs.artifact-suffix }}
           path: /tmp/caliptra-test-binaries.sqsh
-          retention-days: 1
+          retention-days: 7
 
       - name: Build test firmware
         run: |
@@ -284,7 +284,7 @@ jobs:
         with:
           name: caliptra-test-firmware${{ inputs.artifact-suffix }}
           path: /tmp/caliptra-test-firmware
-          retention-days: 1
+          retention-days: 7
 
   test_artifacts_subsystem:
     runs-on: vck190-subsystem
