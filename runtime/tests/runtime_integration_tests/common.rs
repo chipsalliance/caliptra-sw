@@ -34,7 +34,7 @@ use caliptra_dpe::{
     DpeProfile,
 };
 use caliptra_dpe_crypto::{Digest, Mu, PrecomputedSignData, Sha384};
-use caliptra_drivers::MfgFlags;
+use caliptra_drivers::{IdevidCertAttr, MfgFlags};
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{
     BootParams, CodeRange, DefaultHwModel, Fuses, HwModel, ImageInfo, InitParams, ModelError,
@@ -172,6 +172,7 @@ pub struct RuntimeTestArgs<'a> {
     pub wdt_timeout_cycles: Option<u64>,
     pub soc_manifest_svn: Option<u32>,
     pub soc_manifest_max_svn: Option<u32>,
+    pub ueid: Option<[u8; 17]>,
     pub subsystem_mode: bool,
     pub debug_intent: bool,
     pub successful_reach_rt: bool,
@@ -197,6 +198,7 @@ impl Default for RuntimeTestArgs<'_> {
             wdt_timeout_cycles: None,
             soc_manifest_svn: None,
             soc_manifest_max_svn: None,
+            ueid: None,
             subsystem_mode: cfg!(feature = "fpga_subsystem"),
             debug_intent: false,
             successful_reach_rt: true,
@@ -263,6 +265,15 @@ pub fn start_rt_test_pqc_model(
     args: RuntimeTestArgs,
     pqc_key_type: FwVerificationPqcKeyType,
 ) -> (DefaultHwModel, ImageBundle) {
+    let mut idevid_cert_attr = [0u32; 24];
+    if let Some(ueid) = args.ueid {
+        idevid_cert_attr[IdevidCertAttr::UeidType as usize] = ueid[0] as u32;
+        for (index, word) in ueid[1..].chunks_exact(4).enumerate() {
+            idevid_cert_attr[IdevidCertAttr::ManufacturerSerialNumber1 as usize + index] =
+                u32::from_le_bytes(word.try_into().unwrap());
+        }
+    }
+
     let default_rt_fwid = if cfg!(any(feature = "fpga_realtime", feature = "fpga_subsystem")) {
         &APP_WITH_UART_FPGA
     } else {
@@ -320,6 +331,7 @@ pub fn start_rt_test_pqc_model(
         owner_pk_hash,
         soc_manifest_svn: svn_to_bitmap(args.soc_manifest_svn.unwrap_or(0)),
         soc_manifest_max_svn: args.soc_manifest_max_svn.unwrap_or(127) as u8,
+        idevid_cert_attr,
         ..Default::default()
     };
 

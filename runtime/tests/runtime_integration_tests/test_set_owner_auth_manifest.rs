@@ -21,6 +21,7 @@ use caliptra_auth_man_gen::{
 use caliptra_auth_man_types::{
     Addr64, AuthManifestImageMetadata, AuthManifestPrivKeysConfig, AuthManifestPubKeysConfig,
     AuthorizationManifest, ImageMetadataFlags, OwnerAuthorizationManifest,
+    AUTH_MANIFEST_UEID_FW_ID,
 };
 use caliptra_builder::{firmware::APP_WITH_UART, ImageOptions};
 use caliptra_common::mailbox_api::{
@@ -390,6 +391,22 @@ fn test_manifest_lookup_commands_reject_reserved_source() {
             Err(ModelError::MailboxCmdFailed(code)) if code == expected
         ));
     }
+}
+
+#[test]
+fn test_owner_auth_manifest_does_not_interpret_ueid_id() {
+    let digest = [0xA5; 48];
+    let owner_manifest =
+        build_owner_manifest(vec![make_entry(AUTH_MANIFEST_UEID_FW_ID, digest)], 1);
+    let mut model = set_auth_manifest(None);
+
+    send_set_owner_auth_manifest(&mut model, &owner_manifest);
+
+    let image_info = get_image_info(&mut model, AUTH_MANIFEST_UEID_FW_ID);
+    assert_eq!(image_info.digest, digest);
+    let auth_result =
+        authorize_and_stash_in_request(&mut model, AUTH_MANIFEST_UEID_FW_ID.to_le_bytes(), digest);
+    assert_eq!(auth_result.auth_req_result, IMAGE_AUTHORIZED_OWNER_ONLY);
 }
 
 #[test]

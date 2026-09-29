@@ -1749,6 +1749,11 @@ impl CaliptraError {
             "Runtime Error: Auth manifest invalid flags"
         ),
         (
+            RUNTIME_AUTH_MANIFEST_UEID_MISMATCH,
+            0x000E00B4,
+            "Runtime Error: Auth manifest UEID does not match device UEID"
+        ),
+        (
             RUNTIME_INVALID_SELF_TEST_CONFIG,
             0x000E00B6,
             "Runtime Error: Invalid or unsupported autonomous self-test configuration"
