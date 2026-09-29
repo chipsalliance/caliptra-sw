@@ -655,7 +655,8 @@ impl<'a> DmaRecovery<'a> {
             | CaliptraError::RUNTIME_AUTH_MANIFEST_MLDSA_OWNER_SIG_INVALID
             | CaliptraError::IMAGE_VERIFIER_ERR_INVALID_PQC_KEY_TYPE_IN_FUSE
             | CaliptraError::IMAGE_VERIFIER_ERR_PQC_KEY_TYPE_INVALID
-            | CaliptraError::IMAGE_VERIFIER_ERR_PQC_KEY_TYPE_MISMATCH => {
+            | CaliptraError::IMAGE_VERIFIER_ERR_PQC_KEY_TYPE_MISMATCH
+            | CaliptraError::RUNTIME_AUTH_MANIFEST_UEID_MISMATCH => {
                 Self::RECOVERY_REASON_KEY_MANIFEST_AUTHENTICATION_FAILURE
             }
             _ => Self::RECOVERY_REASON_CORRUPTED_CRITICAL_DATA,
@@ -1138,6 +1139,16 @@ impl<'a> DmaOtpCtrl<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_ueid_mismatch_recovery_reason() {
+        assert_eq!(
+            DmaRecovery::recovery_reason_from_auth_manifest_error(
+                CaliptraError::RUNTIME_AUTH_MANIFEST_UEID_MISMATCH
+            ),
+            DmaRecovery::RECOVERY_REASON_KEY_MANIFEST_AUTHENTICATION_FAILURE
+        );
+    }
 
     #[test]
     fn test_entry_point_recovery_reason() {
