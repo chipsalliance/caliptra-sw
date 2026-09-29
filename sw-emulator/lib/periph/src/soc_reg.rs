@@ -359,6 +359,10 @@ const CALIPTRA_REG_END_ADDR: u32 = 0x820;
 const FUSE_START_ADDR: u32 = 0x200;
 /// Caliptra Fuse end address
 const FUSE_END_ADDR: u32 = 0x340;
+/// Caliptra write-only secret fuse start address
+const FUSE_SECRET_START_ADDR: u32 = 0x200;
+/// Caliptra write-only secret fuse end address
+const FUSE_SECRET_END_ADDR: u32 = 0x25c;
 
 impl SocRegistersInternal {
     /// Create an instance of SOC register peripheral
@@ -422,6 +426,34 @@ impl SocRegistersInternal {
 
     pub fn set_strap_generic(&mut self, val: &[u32; SS_STRAP_GENERIC_SIZE / 4]) {
         self.regs.borrow_mut().ss_strap_generic = *val;
+    }
+
+    pub fn set_prod_debug_unlock_config(&mut self, hash_offset: u32, hash_count: u32) {
+        let mut regs = self.regs.borrow_mut();
+        regs.ss_prod_debug_unlock_auth_pk_hash_reg_bank_offset =
+            ReadWriteRegister::new(hash_offset);
+        regs.ss_num_of_prod_debug_unlock_auth_pk_hashes = ReadWriteRegister::new(hash_count);
+    }
+
+    pub fn set_subsystem_base_addresses(
+        &mut self,
+        caliptra: u64,
+        mci: u64,
+        recovery_ifc: u64,
+        otp_fc: u64,
+        uds_seed: u64,
+    ) {
+        let mut regs = self.regs.borrow_mut();
+        regs.ss_caliptra_base_addr_l = ReadOnlyRegister::new(caliptra as u32);
+        regs.ss_caliptra_base_addr_h = ReadOnlyRegister::new((caliptra >> 32) as u32);
+        regs.ss_recovery_mci_base_addr_l = ReadOnlyRegister::new(mci as u32);
+        regs.ss_recovery_mci_base_addr_h = ReadOnlyRegister::new((mci >> 32) as u32);
+        regs.ss_recovery_ifc_base_addr_l = ReadOnlyRegister::new(recovery_ifc as u32);
+        regs.ss_recovery_ifc_base_addr_h = ReadOnlyRegister::new((recovery_ifc >> 32) as u32);
+        regs.ss_otp_fc_base_addr_l = ReadOnlyRegister::new(otp_fc as u32);
+        regs.ss_otp_fc_base_addr_h = ReadOnlyRegister::new((otp_fc >> 32) as u32);
+        regs.ss_uds_seed_base_addr_l = ReadWriteRegister::new(uds_seed as u32);
+        regs.ss_uds_seed_base_addr_h = ReadWriteRegister::new((uds_seed >> 32) as u32);
     }
 
     pub fn external_regs(&self) -> SocRegistersExternal {
@@ -499,6 +531,9 @@ impl Bus for SocRegistersExternal {
     /// Read data of specified size from given address
     fn read(&mut self, size: RvSize, addr: RvAddr) -> Result<RvData, BusError> {
         match addr {
+            FUSE_SECRET_START_ADDR..=FUSE_SECRET_END_ADDR => {
+                self.regs.borrow_mut().read(size, addr).map(|_| 0)
+            }
             CALIPTRA_REG_START_ADDR..=CALIPTRA_REG_END_ADDR => {
                 self.regs.borrow_mut().read(size, addr)
             }
@@ -675,12 +710,18 @@ struct SocRegistersImpl {
     #[register(offset = 0x130)]
     cptra_cap_lock: ReadWriteRegister<u32, CapLock::Register>,
 
+    #[register_array(offset = 0x134, write_fn = write_ignored)]
+    cptra_rsvd_134: [u32; 3],
+
     // TODO implement lock
     #[register_array(offset = 0x140)]
     cptra_owner_pk_hash: [u32; CPTRA_OWNER_PK_HASH_SIZE / 4],
 
     #[register(offset = 0x170)]
     cptra_owner_pk_hash_lock: u32,
+
+    #[register_array(offset = 0x174, write_fn = write_ignored)]
+    cptra_rsvd_174: [u32; 35],
 
     #[register_array(offset = 0x0200)]
     fuse_uds_seed: [u32; FUSE_UDS_SEED_SIZE / 4],
@@ -693,6 +734,9 @@ struct SocRegistersImpl {
 
     #[register(offset = 0x0290)]
     fuse_ecc_revocation: u32,
+
+    #[register_array(offset = 0x0294, write_fn = write_ignored)]
+    cptra_rsvd_294: [u32; 8],
 
     #[register(offset = 0x02b4)]
     fuse_fmc_svn: u32,
@@ -708,6 +752,9 @@ struct SocRegistersImpl {
 
     #[register_array(offset = 0x032c)]
     fuse_idevid_manuf_hsm_id: [u32; FUSE_IDEVID_MANUF_HSM_ID_SIZE / 4],
+
+    #[register_array(offset = 0x033c, write_fn = write_ignored)]
+    cptra_rsvd_33c: [u32; 1],
 
     #[register(offset = 0x340)]
     fuse_lms_revocation: u32,
@@ -730,6 +777,10 @@ struct SocRegistersImpl {
     #[register(offset = 0x3a0)]
     fuse_soc_manifest_max_svn: u32,
 
+    #[register_array(offset = 0x3a4, write_fn = write_ignored)]
+    cptra_rsvd_3a4: [u32; 87],
+
+    // writable from MCU
     #[register(offset = 0x500)]
     ss_caliptra_base_addr_l: ReadOnlyRegister<u32>,
 
@@ -774,8 +825,14 @@ struct SocRegistersImpl {
     #[register(offset = 0x534)]
     ss_caliptra_dma_axi_user: u32,
 
+    #[register_array(offset = 0x538, write_fn = write_ignored)]
+    cptra_rsvd_538: [u32; 26],
+
     #[register_array(offset = 0x5a0, write_fn = on_write_ss_strap_generic)]
     ss_strap_generic: [u32; 4],
+
+    #[register_array(offset = 0x5b0, write_fn = write_ignored)]
+    cptra_rsvd_5b0: [u32; 4],
 
     #[register(offset = 0x5c0)]
     ss_dbg_manuf_service_reg_req: ReadWriteRegister<u32, SsDbgManufServiceRegReq::Register>,
@@ -931,12 +988,12 @@ impl SocRegistersImpl {
         let flow_status = InMemoryRegister::<u32, FlowStatus::Register>::new(0);
         flow_status.write(FlowStatus::READY_FOR_FUSES::SET + FlowStatus::BOOT_FSM_PS::BOOT_FUSE);
 
-        let cptra_offset = 0x3000_0000u64;
-        let rri_offset = crate::dma::axi_root_bus::AxiRootBus::RECOVERY_REGISTER_INTERFACE_OFFSET;
-        let otc_fc_offset = crate::dma::axi_root_bus::AxiRootBus::OTC_FC_OFFSET;
-        // The fuse bank starts at offset 0x800 within the OTP fuse controller address space
-        let uds_seed_offset = otc_fc_offset + 0x800;
-        let mci_base = crate::dma::axi_root_bus::AxiRootBus::ss_mci_offset();
+        let subsystem_addresses = args.subsystem_addresses.unwrap_or_default();
+        let cptra_offset = subsystem_addresses.caliptra;
+        let rri_offset = subsystem_addresses.recovery;
+        let otc_fc_offset = subsystem_addresses.otp_fc;
+        let uds_seed_offset = subsystem_addresses.uds_seed;
+        let mci_base = subsystem_addresses.mci;
         let ss_prod_dbg_unlock_fuse_offset = crate::mci::MciRegs::SS_MANUF_DBG_UNLOCK_FUSE_OFFSET;
         let ss_prod_dbg_unlock_number_of_fuses =
             crate::mci::MciRegs::SS_MANUF_DBG_UNLOCK_NUMBER_OF_FUSES;
@@ -955,7 +1012,7 @@ impl SocRegistersImpl {
             cptra_security_state: ReadOnlyRegister::new(args.security_state.into()),
             cptra_mbox_valid_axi_user: [0xffff_ffff; CPTRA_MBOX_VALID_PAUSER_SIZE / 4],
             cptra_mbox_axi_user_lock: Default::default(),
-            cptra_trng_valid_axi_user: ReadWriteRegister::new(0),
+            cptra_trng_valid_axi_user: ReadWriteRegister::new(0xffff_ffff),
             cptra_trng_axi_user_lock: ReadWriteRegister::new(0),
             cptra_trng_data: Default::default(),
             cptra_trng_ctrl: 0,
@@ -990,24 +1047,29 @@ impl SocRegistersImpl {
             cptra_hw_capabilities: 0,
             cptra_fw_capabilities: 0,
             cptra_cap_lock: ReadWriteRegister::new(0),
+            cptra_rsvd_134: Default::default(),
             cptra_owner_pk_hash: Default::default(),
             cptra_owner_pk_hash_lock: 0,
+            cptra_rsvd_174: [0; 35],
             fuse_uds_seed: words_from_bytes_be(&Self::UDS),
             fuse_field_entropy: [0xffff_ffff; 8],
             ss_strap_generic: [0; 4],
             fuse_vendor_pk_hash: [0; 12],
             fuse_ecc_revocation: Default::default(),
+            cptra_rsvd_294: Default::default(),
             fuse_fmc_svn: Default::default(),
             fuse_runtime_svn: Default::default(),
             fuse_anti_rollback_disable: Default::default(),
             fuse_idevid_cert_attr: Default::default(),
             fuse_idevid_manuf_hsm_id: Default::default(),
+            cptra_rsvd_33c: Default::default(),
             fuse_lms_revocation: Default::default(),
             fuse_mldsa_revocation: Default::default(),
             fuse_soc_stepping_id: ReadWriteRegister::new(0),
             fuse_manuf_dbg_unlock_token: [0; 16],
             fuse_soc_manifest_svn: [0; 4],
             fuse_soc_manifest_max_svn: 128,
+            cptra_rsvd_3a4: [0; 87],
             ss_caliptra_base_addr_l: ReadOnlyRegister::new(cptra_offset as u32),
             ss_caliptra_base_addr_h: ReadOnlyRegister::new((cptra_offset >> 32) as u32),
             ss_recovery_ifc_base_addr_l: ReadOnlyRegister::new(rri_offset as u32),
@@ -1016,6 +1078,8 @@ impl SocRegistersImpl {
             ss_dbg_manuf_service_reg_rsp: ReadWriteRegister::new(0),
             ss_debug_intent: ReadOnlyRegister::new(if args.debug_intent { 1 } else { 0 }),
             ss_caliptra_dma_axi_user: 0,
+            cptra_rsvd_538: [0; 26],
+            cptra_rsvd_5b0: Default::default(),
             internal_obf_key: args.cptra_obf_key,
             internal_iccm_lock: ReadWriteRegister::new(0),
             internal_fw_update_reset: ReadWriteRegister::new(0),
@@ -1080,6 +1144,15 @@ impl SocRegistersImpl {
 
     fn write_disabled(&mut self, _size: RvSize, _val: RvData) -> Result<(), BusError> {
         Err(BusError::StoreAccessFault)
+    }
+
+    fn write_ignored(
+        &mut self,
+        _size: RvSize,
+        _index: usize,
+        _val: RvData,
+    ) -> Result<(), BusError> {
+        Ok(())
     }
 
     fn on_write_bootfsm_go(&mut self, _size: RvSize, val: RvData) -> Result<(), BusError> {
@@ -1202,7 +1275,9 @@ impl SocRegistersImpl {
             0 => self.on_write_tb_services(size, val),
             1 => self.on_write_warm_reset(size, val),
             _ => Err(StoreAccessFault),
-        }
+        }?;
+        self.cptra_generic_output_wires[index] = val;
+        Ok(())
     }
 
     fn on_write_iccm_lock(&mut self, size: RvSize, val: RvData) -> Result<(), BusError> {
@@ -1545,6 +1620,129 @@ mod tests {
     };
     use tock_registers::{interfaces::ReadWriteable, registers::InMemoryRegister};
 
+    #[test]
+    fn test_set_subsystem_integration_inputs() {
+        let clock = Rc::new(Clock::new());
+        let mut soc = SocRegistersInternal::new(
+            MailboxInternal::new(&clock, MailboxRam::new()),
+            Iccm::new(&clock),
+            Mci::new(vec![]),
+            CaliptraRootBusArgs {
+                clock: clock.clone(),
+                ..CaliptraRootBusArgs::default()
+            },
+        );
+
+        soc.set_hw_config(0x31.into());
+        soc.set_prod_debug_unlock_config(0x000d_0120, 1);
+        soc.set_strap_generic(&[0x0015_0010, 0x0005_005c, 0, 0]);
+
+        assert_eq!(soc.read(RvSize::Word, 0xe0), Ok(0x31));
+        assert_eq!(soc.read(RvSize::Word, 0x528), Ok(0x000d_0120));
+        assert_eq!(soc.read(RvSize::Word, 0x52c), Ok(1));
+        assert_eq!(soc.read(RvSize::Word, 0x5a0), Ok(0x0015_0010));
+        assert_eq!(soc.read(RvSize::Word, 0x5a4), Ok(0x0005_005c));
+        assert_eq!(soc.read(RvSize::Word, CPTRA_FUSE_WR_DONE_START), Ok(0));
+        assert_eq!(
+            soc.read(RvSize::Word, CPTRA_GENERIC_OUTPUT_WIRES_START),
+            Ok(0)
+        );
+        assert_eq!(soc.read(RvSize::Word, 0x5d0), Ok(0));
+    }
+
+    #[test]
+    fn test_register_access_contract() {
+        let clock = Rc::new(Clock::new());
+        let mut soc = SocRegistersInternal::new(
+            MailboxInternal::new(&clock, MailboxRam::default()),
+            Iccm::new(&clock),
+            Mci::new(vec![]),
+            CaliptraRootBusArgs {
+                clock: clock.clone(),
+                ..Default::default()
+            },
+        );
+
+        assert_eq!(soc.read(RvSize::Word, 0x70), Ok(0xffff_ffff));
+        assert_eq!(soc.read(RvSize::Word, 0xd4), Ok(0x302));
+
+        let mut external = soc.external_regs();
+        for (start, word_count) in [
+            (0x134, 3),
+            (0x174, 35),
+            (0x294, 8),
+            (0x33c, 1),
+            (0x3a4, 7),
+            (0x3e0, 72),
+            (0x538, 2),
+            (0x550, 20),
+            (0x5b0, 4),
+        ] {
+            for address in (start..start + word_count * 4).step_by(4) {
+                assert_eq!(soc.read(RvSize::Word, address), Ok(0), "{address:#x}");
+                assert_eq!(external.write(RvSize::Word, address, u32::MAX), Ok(()));
+                assert_eq!(soc.read(RvSize::Word, address), Ok(0), "{address:#x}");
+                if (FUSE_START_ADDR..=FUSE_END_ADDR).contains(&address) {
+                    assert_eq!(
+                        soc.write(RvSize::Word, address, u32::MAX),
+                        Err(BusError::StoreAccessFault)
+                    );
+                }
+            }
+        }
+
+        let bases = [
+            0x1234_5678_3000_0000,
+            0x2345_6789_0100_0000,
+            0x3456_789a_0006_0100,
+            0x4567_89ab_0005_0000,
+            0x5678_9abc_0000_0048,
+        ];
+        soc.set_subsystem_base_addresses(bases[0], bases[1], bases[2], bases[3], bases[4]);
+        for (index, base) in bases.into_iter().enumerate() {
+            let address = 0x500 + index as u32 * 8;
+            assert_eq!(soc.read(RvSize::Word, address), Ok(base as u32));
+            assert_eq!(soc.read(RvSize::Word, address + 4), Ok((base >> 32) as u32));
+        }
+        assert_eq!(
+            soc.read(RvSize::Word, 0x5e0),
+            Err(BusError::LoadAccessFault)
+        );
+    }
+
+    #[test]
+    fn test_fuse_secrets_are_write_only() {
+        let clock = Rc::new(Clock::new());
+        let mut soc = SocRegistersInternal::new(
+            MailboxInternal::new(&clock, MailboxRam::default()),
+            Iccm::new(&clock),
+            Mci::new(vec![]),
+            CaliptraRootBusArgs {
+                clock: clock.clone(),
+                ..Default::default()
+            },
+        );
+        let mut external = soc.external_regs();
+
+        for (start, word_count) in [(0x200, 16), (0x240, 8)] {
+            for index in 0..word_count {
+                let address = start + index * 4;
+                let value = 0xa5a5_0000 | address;
+
+                assert_eq!(external.write(RvSize::Word, address, value), Ok(()));
+                assert_eq!(external.read(RvSize::Word, address), Ok(0));
+                assert_eq!(soc.read(RvSize::Word, address), Ok(value));
+
+                let regs = soc.regs.borrow();
+                if start == 0x200 {
+                    assert_eq!(regs.fuse_uds_seed[index as usize], value);
+                } else {
+                    assert_eq!(regs.fuse_field_entropy[index as usize], value);
+                }
+            }
+        }
+    }
+
     fn send_data_to_mailbox(mailbox: &mut MailboxInternal, cmd: u32, data: &[u8]) {
         let regs = mailbox.regs();
         while regs.lock().read().lock() {}
@@ -1784,13 +1982,28 @@ mod tests {
         let mut soc_reg: SocRegistersInternal =
             SocRegistersInternal::new(mailbox, Iccm::new(&clock), mci.clone(), args);
 
-        let _ = soc_reg.write(RvSize::Word, CPTRA_GENERIC_OUTPUT_WIRES_START, b'h'.into());
-
-        let _ = soc_reg.write(RvSize::Word, CPTRA_GENERIC_OUTPUT_WIRES_START, b'i'.into());
-
-        let _ = soc_reg.write(RvSize::Word, CPTRA_GENERIC_OUTPUT_WIRES_START, 0xff);
+        soc_reg
+            .write(RvSize::Word, CPTRA_GENERIC_OUTPUT_WIRES_START, b'h'.into())
+            .unwrap();
+        soc_reg
+            .write(RvSize::Word, CPTRA_GENERIC_OUTPUT_WIRES_START, b'i'.into())
+            .unwrap();
+        soc_reg
+            .write(RvSize::Word, CPTRA_GENERIC_OUTPUT_WIRES_START, 0xff)
+            .unwrap();
+        soc_reg
+            .write(RvSize::Word, CPTRA_GENERIC_OUTPUT_WIRES_START + 4, 0x1234)
+            .unwrap();
 
         assert_eq!(&*output.borrow(), &vec![b'h', b'i', 0xff]);
+        assert_eq!(
+            soc_reg.read(RvSize::Word, CPTRA_GENERIC_OUTPUT_WIRES_START),
+            Ok(0xff)
+        );
+        assert_eq!(
+            soc_reg.read(RvSize::Word, CPTRA_GENERIC_OUTPUT_WIRES_START + 4),
+            Ok(0x1234)
+        );
     }
 
     #[test]
