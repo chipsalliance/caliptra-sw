@@ -1414,8 +1414,9 @@ When `USE_MLDSA` is set, the command operates on the ML-DSA-87 DPE profile; othe
 The SoC uses this command and `SET_IMAGE_METADTA` to program an image manifest for Manifest-Based Image Authorization to Caliptra. In response to these commands, the Caliptra Runtime will verify the manifest by authenticating the public keys and in turn using them to authenticate the IMC. On successful verification, the Runtime will store the IMEs into DCCM for future use. Every active `fw_id` must be unique within this manifest and must not appear in the installed owner-only manifest. A collision rejects the command without replacing either active collection.
 
 The original SoC manifest may include an optional device UEID IME with the
-reserved `fw_id` `0x4449_4555`, which serializes as the FourCC `UEID`. Its
-48-byte digest contains the 17-byte device UEID followed by 31 zero bytes.
+reserved `fw_id` `0x0000_0FFF`, immediately below the vendor-defined SoC image
+ID range beginning at `0x0000_1000`. Its 48-byte digest contains the 17-byte
+device UEID followed by 31 zero bytes.
 After authenticating the IMC, Runtime compares the complete value with the UEID
 assembled from the IDevID certificate-attribute fuses. A mismatch, including
 nonzero padding, rejects the command with

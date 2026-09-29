@@ -67,10 +67,10 @@ The serialized IME layout follows `AuthManifestImageMetadata` in
 #### **Optional Device UEID Entry**
 
 The original SoC manifest can be bound to a device without changing the
-manifest layout. An active IME with `fw_id = 0x44494555` is reserved for this
-purpose. The little-endian encoding of this value is the ASCII FourCC `UEID`.
-This entry is optional, counts toward `entry_count`, and is covered by the
-existing IMC signatures.
+manifest layout. An active IME with `fw_id = 0x00000FFF` is reserved for this
+purpose. This value is allocated immediately below the vendor-defined SoC image
+ID range, which begins at `0x00001000`. This entry is optional, counts toward
+`entry_count`, and is covered by the existing IMC signatures.
 
 The entry's 48-byte `digest` field has the following encoding:
 

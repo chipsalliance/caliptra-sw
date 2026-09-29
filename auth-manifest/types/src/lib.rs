@@ -26,7 +26,7 @@ pub const AUTH_MANIFEST_MARKER: u32 = 0x324D_5441;
 pub const AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT: usize = 80;
 pub const AUTH_MANIFEST_PREAMBLE_SIZE: usize = 24292;
 /// Firmware ID reserved for the optional UEID entry in the original SoC manifest.
-pub const AUTH_MANIFEST_UEID_FW_ID: u32 = u32::from_le_bytes(*b"UEID");
+pub const AUTH_MANIFEST_UEID_FW_ID: u32 = 0x0000_0FFF;
 /// Number of bytes in a device UEID.
 pub const AUTH_MANIFEST_UEID_LEN: usize = 17;
 
@@ -380,8 +380,8 @@ mod test {
         let ueid = [0xA5; AUTH_MANIFEST_UEID_LEN];
         let metadata = AuthManifestImageMetadata::new_ueid(&ueid);
 
+        assert_eq!(AUTH_MANIFEST_UEID_FW_ID, 0x0000_0FFF);
         assert_eq!(metadata.fw_id, AUTH_MANIFEST_UEID_FW_ID);
-        assert_eq!(metadata.fw_id.to_le_bytes(), *b"UEID");
         assert_eq!(&metadata.digest[..AUTH_MANIFEST_UEID_LEN], &ueid);
         assert_eq!(
             &metadata.digest[AUTH_MANIFEST_UEID_LEN..],
