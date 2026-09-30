@@ -23,7 +23,7 @@ use caliptra_common::mailbox_api::{
     MailboxRespHeader,
 };
 use caliptra_dpe::error::DpeErrorCode;
-use caliptra_drivers::{cprintln, AesDmaMode, DmaImageReadMode, DmaRecovery};
+use caliptra_drivers::{cprintln, AesDmaMode, DmaRecovery};
 use caliptra_drivers::{Array4x12, AxiAddr, CaliptraError, CaliptraResult};
 use zerocopy::FromBytes;
 
@@ -190,11 +190,6 @@ impl AuthorizeAndStashCmd {
             || source == ImageHashSource::StagingAddress
         {
             let single_dword_dma = use_single_dword_dma(cmd_fw_id);
-            let dma_read_mode = if single_dword_dma {
-                DmaImageReadMode::SingleDword
-            } else {
-                DmaImageReadMode::Burst
-            };
             let image_source = if source == ImageHashSource::LoadAddress {
                 metadata_entry.image_load_address
             } else {
@@ -209,7 +204,7 @@ impl AuthorizeAndStashCmd {
                 && cmd.image_size != 0
                 && ((image_source.lo | cmd.image_size) & 0x3) != 0
             {
-                Err(CaliptraError::RUNTIME_AUTH_AND_STASH_IMAGE_NOT_DWORD_ALIGNED)?;
+                Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
             }
 
             if single_dword_dma {
@@ -222,14 +217,21 @@ impl AuthorizeAndStashCmd {
                 );
             }
 
-            let measurement: [u8; 48] = dma_image
-                .sha384_image_with_read_mode(
+            let measurement = if single_dword_dma {
+                dma_image.sha384_image_single_dword(
+                    &mut drivers.sha2_512_384_acc,
+                    image_source,
+                    cmd.image_size,
+                )
+            } else {
+                dma_image.sha384_image(
                     &mut drivers.sha2_512_384_acc,
                     image_source,
                     cmd.image_size,
                     AesDmaMode::None,
-                    dma_read_mode,
                 )
+            };
+            let measurement: [u8; 48] = measurement
                 .map_err(|_| CaliptraError::RUNTIME_INTERNAL)?
                 .into();
             if single_dword_dma {
