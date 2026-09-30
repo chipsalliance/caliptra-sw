@@ -95,7 +95,8 @@ The following table is the allocation registry for `SS_STRAP_GENERIC[0..3]` fiel
 | `SS_STRAP_GENERIC[3]` | `[1]` | Wait for device reset before fatal-error reporting. | ROM fatal-error handling |
 | `SS_STRAP_GENERIC[3]` | `[7:2]` | Reserved. | — |
 | `SS_STRAP_GENERIC[3]` | `[15:8]` | Owner Authorization Manifest minimum SVN, encoded as an unsigned integer. | Runtime owner authorization manifest verification |
-| `SS_STRAP_GENERIC[3]` | `[31:16]` | Reserved. | — |
+| `SS_STRAP_GENERIC[3]` | `[30:16]` | Reserved. | — |
+| `SS_STRAP_GENERIC[3]` | `[31]` | Disable vendor-authorized debug images. | ROM firmware image and Runtime authorization manifest verification |
 
 ### Entropy Source Configuration Registers
 
@@ -115,7 +116,7 @@ The ROM configures the entropy source (CSRNG) during initialization using the fo
 **Notes:**
 - If any threshold value is set to 0, the ROM uses the default value specified above.
 - The Adaptive Proportion default thresholds are derived from the FIPS window (75% high, 25% low). In single-bit mode entropy_src scales the health-test window by four, so when the default window is used the ROM scales these defaults to match (high: 3072, low: 1024). An explicit threshold or window supplied by the SoC is used as-is.
-- These configuration values are stored in persistent storage after first read to prevent malicious modification (reloaded on cold reset).
+- The thresholds, health-test window, and single-bit-mode values are stored in persistent storage after first read to prevent malicious modification (reloaded on cold reset). Conditioning bypass is read directly from the locked `SS_STRAP_GENERIC[2][31]` field.
 - In debug mode (`debug_locked == false`), entropy source configuration registers remain unlocked for characterization.
 - In production mode, ROM locks the entropy source configuration after programming to prevent modification.
 
@@ -324,7 +325,7 @@ The following flows are conducted when the ROM is operating in the manufacturing
     - The UDS Seed programming base address from the `SS_UDS_SEED_BASE_ADDR_L` and `SS_UDS_SEED_BASE_ADDR_H` registers.
     - The Fuse Controller's base address from the `SS_OTP_FC_BASE_ADDR_L` and `SS_OTP_FC_BASE_ADDR_H` registers.
 
-3. ROM then retrieves the UDS granularity from the `CPTRA_GENERIC_INPUT_WIRES` register0 Bit31 to learn if the fuse row is accessible with 32-bit or 64-bit granularity.  If the bit is reset, it indicates 64-bit granularity; otherwise, it indicates 32-bit granularity.
+3. ROM then retrieves the UDS granularity from `CPTRA_HW_CONFIG.FUSE_GRANULARITY`. If the bit is reset, it indicates 64-bit granularity; otherwise, it indicates 32-bit granularity.
 
 4. ROM computes the following values:
     - `STATUS` register address: Fuse Controller's base address + ((`SS_STRAP_GENERIC` register0) & 0xFFFF).
