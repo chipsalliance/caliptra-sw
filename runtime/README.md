@@ -1487,11 +1487,11 @@ Verification chain:
 
 1. The manifest's `owner_pub_keys` are signed by the firmware-image owner key (latched from FMC at boot via `manifest1.preamble.owner_pub_keys`). This signature also covers the policy fields `version`, `svn`, `flags`, and `owner_pub_keys`.
 2. The manifest's IMC is signed by the manifest's own `owner_pub_keys`, which were just verified to chain to the firmware-image owner key.
-3. The manifest's `svn` is checked against the floor encoded in `SS_STRAP_GENERIC[3][15:8]` (subsystem mode only). The check is skipped when the lifecycle is `Unprovisioned` or anti-rollback is disabled.
+3. The manifest's `svn` is checked against the floor encoded in `SS_STRAP_GENERIC[3][15:8]`. The check is skipped when the lifecycle is `Unprovisioned` or anti-rollback is disabled.
 
 #### Owner Authorization Manifest Minimum SVN
 
-`SS_STRAP_GENERIC[3][15:8]` carries a binary value in the range `0..255`; it does not carry a fuse bitmap. Before Caliptra starts, MCU firmware is responsible for deriving the owner-manifest minimum SVN from the platform's monotonic storage and programming the resulting integer into this strap. The strap is then locked by `CPTRA_FUSE_WR_DONE`.
+`SS_STRAP_GENERIC[3][15:8]` carries a binary value in the range `0..255`; it does not carry a fuse bitmap. Before Caliptra starts, platform firmware is responsible for deriving the owner-manifest minimum SVN from the platform's monotonic storage and programming the resulting integer into this strap. The strap is then locked by `CPTRA_FUSE_WR_DONE`.
 
 This software interface does not define a new Caliptra fuse field. If a platform uses the same thermometer encoding as the existing SVN fuses, a 256-bit-aligned platform field can use bits 0 through 254 to encode SVN values 1 through 255, with all zeros encoding SVN 0 and bit 255 reserved. The authoritative physical fuse allocation belongs to the SoC/platform fuse-controller specification.
 
