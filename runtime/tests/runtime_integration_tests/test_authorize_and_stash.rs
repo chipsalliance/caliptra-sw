@@ -43,6 +43,9 @@ pub const FW_ID_DEFAULT_PADDING: [u8; 4] = u32::MAX.to_le_bytes();
 const AUTH_AND_STASH_TCI_TAG: u32 = 0x4154_5348;
 
 #[cfg(feature = "fpga_subsystem")]
+const FPGA_SINGLE_DWORD_DMA_TEST_FW_ID: [u8; 4] = 0x4452_5744_u32.to_le_bytes(); // "DWRD"
+
+#[cfg(feature = "fpga_subsystem")]
 pub const TEST_SRAM_SIZE: usize = 0x1000;
 #[cfg(feature = "fpga_subsystem")]
 const MCI_BASE: u32 = 0xA8000000;
@@ -1158,9 +1161,7 @@ fn tag_and_get_default_tci(model: &mut DefaultHwModel) -> GetTaggedTciResp {
     GetTaggedTciResp::read_from_bytes(resp.as_slice()).unwrap()
 }
 
-#[cfg_attr(feature = "fpga_realtime", ignore)]
-#[test]
-fn test_authorize_from_load_address() {
+fn authorize_from_load_address(fw_id: [u8; 4]) {
     let mut flags = ImageMetadataFlags(0);
     flags.set_ignore_auth_check(false);
     flags.set_image_source(ImageHashSource::LoadAddress as u32);
@@ -1172,7 +1173,7 @@ fn test_authorize_from_load_address() {
     let fw_digest: [u8; 48] = hasher.finalize().into();
 
     let image_metadata = AuthManifestImageMetadata {
-        fw_id: u32::from_le_bytes(FW_ID_1),
+        fw_id: u32::from_le_bytes(fw_id),
         flags: flags.0,
         digest: fw_digest,
         image_load_address: Addr64 {
@@ -1202,7 +1203,7 @@ fn test_authorize_from_load_address() {
     );
     let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
         hdr: MailboxReqHeader { chksum: 0 },
-        fw_id: FW_ID_1,
+        fw_id,
         measurement: [0; 48],
         source: ImageHashSource::LoadAddress as u32,
         flags: 0, // Don't skip stash
@@ -1224,6 +1225,18 @@ fn test_authorize_from_load_address() {
 
     let tagged_tci = tag_and_get_default_tci(&mut model);
     assert_eq!(tagged_tci.tci_current, fw_digest);
+}
+
+#[cfg_attr(feature = "fpga_realtime", ignore)]
+#[test]
+fn test_authorize_from_load_address() {
+    authorize_from_load_address(FW_ID_1);
+}
+
+#[cfg(feature = "fpga_subsystem")]
+#[test]
+fn test_authorize_from_load_address_single_dword_dma() {
+    authorize_from_load_address(FPGA_SINGLE_DWORD_DMA_TEST_FW_ID);
 }
 
 // Exercises an image larger than the DMA engine's 1 MiB per-transfer limit

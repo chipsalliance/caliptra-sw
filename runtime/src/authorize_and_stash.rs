@@ -23,7 +23,7 @@ use caliptra_common::mailbox_api::{
     MailboxRespHeader,
 };
 use caliptra_dpe::error::DpeErrorCode;
-use caliptra_drivers::{AesDmaMode, DmaImageReadMode, DmaRecovery};
+use caliptra_drivers::{cprintln, AesDmaMode, DmaImageReadMode, DmaRecovery};
 use caliptra_drivers::{Array4x12, AxiAddr, CaliptraError, CaliptraResult};
 use zerocopy::FromBytes;
 
@@ -49,6 +49,22 @@ pub const IMAGE_AUTHORIZED_OWNER_ONLY: u32 = 0xC0DE_DEAD;
 
 // Add firmware IDs whose memory targets do not support AXI burst reads.
 const SINGLE_DWORD_DMA_FW_IDS: &[u32] = &[];
+
+#[cfg(feature = "fpga_subsystem")]
+const FPGA_SINGLE_DWORD_DMA_TEST_FW_ID: u32 = 0x4452_5744; // "DWRD"
+
+fn use_single_dword_dma(fw_id: u32) -> bool {
+    if SINGLE_DWORD_DMA_FW_IDS.contains(&fw_id) {
+        return true;
+    }
+
+    #[cfg(feature = "fpga_subsystem")]
+    if fw_id == FPGA_SINGLE_DWORD_DMA_TEST_FW_ID {
+        return true;
+    }
+
+    false
+}
 
 pub struct AuthorizeAndStashCmd;
 impl AuthorizeAndStashCmd {
@@ -173,7 +189,8 @@ impl AuthorizeAndStashCmd {
         } else if source == ImageHashSource::LoadAddress
             || source == ImageHashSource::StagingAddress
         {
-            let dma_read_mode = if SINGLE_DWORD_DMA_FW_IDS.contains(&cmd_fw_id) {
+            let single_dword_dma = use_single_dword_dma(cmd_fw_id);
+            let dma_read_mode = if single_dword_dma {
                 DmaImageReadMode::SingleDword
             } else {
                 DmaImageReadMode::Burst
@@ -188,11 +205,21 @@ impl AuthorizeAndStashCmd {
                 lo: image_source.lo,
             };
 
-            if dma_read_mode == DmaImageReadMode::SingleDword
+            if single_dword_dma
                 && cmd.image_size != 0
                 && ((image_source.lo | cmd.image_size) & 0x3) != 0
             {
                 Err(CaliptraError::RUNTIME_AUTH_AND_STASH_IMAGE_NOT_DWORD_ALIGNED)?;
+            }
+
+            if single_dword_dma {
+                cprintln!(
+                    "[auth-and-stash] FW ID 0x{:08x}: single-dword DMA hash addr=0x{:08x}{:08x} size={}",
+                    cmd_fw_id,
+                    image_source.hi,
+                    image_source.lo,
+                    cmd.image_size
+                );
             }
 
             let measurement: [u8; 48] = dma_image
@@ -205,6 +232,12 @@ impl AuthorizeAndStashCmd {
                 )
                 .map_err(|_| CaliptraError::RUNTIME_INTERNAL)?
                 .into();
+            if single_dword_dma {
+                cprintln!(
+                    "[auth-and-stash] FW ID 0x{:08x}: single-dword DMA hash complete",
+                    cmd_fw_id
+                );
+            }
             if cfi_launder(metadata_entry.digest) == measurement {
                 stash_measurement = measurement;
                 caliptra_cfi_lib::cfi_assert_eq_12_words(
