@@ -293,7 +293,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        partition: [1, 2, 3, 4]
+        # Temporary draft-PR isolation for the single-dword DMA FPGA test.
+        partition: [1]
     if: |
       !cancelled() &&
       needs.check_cache.result == 'success' &&
@@ -388,6 +389,8 @@ jobs:
               --target-dir-remap="${TEST_BIN}/target"
               --workspace-remap=.
               --profile=fpga-subsystem
+              --filter-expr
+              'package(caliptra-runtime) & test(test_authorize_from_load_address_single_dword_dma)'
           )
 
           # Nightly runs build with `slow_tests`, which makes
@@ -403,12 +406,12 @@ jobs:
           cargo-nextest --version
           cargo-nextest nextest list \
               "${COMMON_ARGS[@]}" \
-              --partition count:${{ matrix.partition }}/4 \
+              --partition count:${{ matrix.partition }}/1 \
               --message-format json > /tmp/nextest-list-${{ matrix.partition }}.json
 
           sudo env ${VARS} cargo-nextest nextest run \
               "${COMMON_ARGS[@]}" \
-              --partition count:${{ matrix.partition }}/4 \
+              --partition count:${{ matrix.partition }}/1 \
               --test-threads=1 \
               --no-fail-fast
 
