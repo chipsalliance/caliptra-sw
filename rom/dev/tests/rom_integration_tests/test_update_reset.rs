@@ -483,12 +483,16 @@ fn test_update_reset_post_load_digest_mismatch_is_fatal() {
     hw.write_payload_to_ss_staging_area(&tampered_word, tamper_offset)
         .unwrap();
 
-    hw.step_until(|model| model.soc_ifc().cptra_fw_error_fatal().read() != 0);
+    let expected_error = u32::from(CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_DIGEST_MISMATCH);
+    hw.step_until(|model| {
+        model.soc_ifc().cptra_fw_error_fatal().read() == expected_error
+            && model.soc_ifc().cptra_fw_error_non_fatal().read() == expected_error
+    });
+    assert_eq!(hw.soc_ifc().cptra_fw_error_fatal().read(), expected_error);
     assert_eq!(
-        hw.soc_ifc().cptra_fw_error_fatal().read(),
-        u32::from(CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_DIGEST_MISMATCH)
+        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
+        expected_error
     );
-    assert_eq!(hw.soc_ifc().cptra_fw_error_non_fatal().read(), 0);
     assert_eq!(
         hw.soc_ifc().cptra_boot_status().read(),
         u32::from(UpdateResetExtendPcrComplete)
