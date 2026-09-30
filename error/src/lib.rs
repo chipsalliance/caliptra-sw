@@ -2024,8 +2024,13 @@ impl CaliptraError {
             "Runtime Error: Auth manifest invalid flags"
         ),
         (
-            RUNTIME_AUTH_AND_STASH_IMAGE_NOT_DWORD_ALIGNED,
+            RUNTIME_AUTH_MANIFEST_UEID_MISMATCH,
             0x000E00B4,
+            "Runtime Error: Auth manifest UEID does not match device UEID"
+        ),
+        (
+            RUNTIME_AUTH_AND_STASH_IMAGE_NOT_DWORD_ALIGNED,
+            0x000E00B5,
             "Runtime Error: Auth and stash image address or size is not dword aligned"
         ),
         // FMC Errors
