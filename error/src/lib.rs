@@ -1125,6 +1125,11 @@ impl CaliptraError {
             "DMA driver Error: AES cannot be split across multiple transfers"
         ),
         (
+            DRIVER_DMA_INVALID_ALIGNMENT,
+            0x0000f008,
+            "DMA driver Error: Address or byte count is not dword aligned"
+        ),
+        (
             DRIVER_SHA3_INVALID_STATE_ERR,
             0x0001f000,
             "SHA3 driver Error: Invalid op state"
@@ -2017,6 +2022,11 @@ impl CaliptraError {
             RUNTIME_AUTH_MANIFEST_INVALID_FLAGS,
             0x000E00B3,
             "Runtime Error: Auth manifest invalid flags"
+        ),
+        (
+            RUNTIME_AUTH_AND_STASH_IMAGE_NOT_DWORD_ALIGNED,
+            0x000E00B4,
+            "Runtime Error: Auth and stash image address or size is not dword aligned"
         ),
         // FMC Errors
         (FMC_GLOBAL_NMI, 0x000F0001, "FMC Error: Global NMI"),

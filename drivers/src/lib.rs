@@ -102,8 +102,8 @@ pub use csrng::{
 };
 pub use data_vault::{ColdResetEntries, DataVault, WarmResetEntries};
 pub use dma::{
-    AesDmaMode, AxiAddr, Dma, DmaEncryptionEngine, DmaMmio, DmaOtpCtrl, DmaReadTarget,
-    DmaReadTransaction, DmaRecovery, DmaWriteOrigin, DmaWriteTransaction,
+    AesDmaMode, AxiAddr, Dma, DmaEncryptionEngine, DmaImageReadMode, DmaMmio, DmaOtpCtrl,
+    DmaReadTarget, DmaReadTransaction, DmaRecovery, DmaWriteOrigin, DmaWriteTransaction,
 };
 pub use doe::DeobfuscationEngine;
 pub use ecc384::{

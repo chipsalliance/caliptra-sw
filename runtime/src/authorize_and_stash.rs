@@ -23,7 +23,7 @@ use caliptra_common::mailbox_api::{
     MailboxRespHeader,
 };
 use caliptra_dpe::error::DpeErrorCode;
-use caliptra_drivers::{AesDmaMode, DmaRecovery};
+use caliptra_drivers::{AesDmaMode, DmaImageReadMode, DmaRecovery};
 use caliptra_drivers::{Array4x12, AxiAddr, CaliptraError, CaliptraResult};
 use zerocopy::FromBytes;
 
@@ -46,6 +46,9 @@ pub const IMAGE_HASH_MISMATCH: u32 = 0x8BFB95CB; // FW ID matched, but image dig
 // unchanged in width; only the value space is extended.
 pub const IMAGE_AUTHORIZED_VENDOR_OWNER: u32 = IMAGE_AUTHORIZED;
 pub const IMAGE_AUTHORIZED_OWNER_ONLY: u32 = 0xC0DE_DEAD;
+
+// Add firmware IDs whose memory targets do not support AXI burst reads.
+const SINGLE_DWORD_DMA_FW_IDS: &[u32] = &[];
 
 pub struct AuthorizeAndStashCmd;
 impl AuthorizeAndStashCmd {
@@ -153,9 +156,9 @@ impl AuthorizeAndStashCmd {
             };
 
         // If 'ignore_auth_check' is set, then skip the image digest comparison and authorize the image.
-        let flags = ImageMetadataFlags(metadata_entry.flags);
-        let auth_result = if flags.ignore_auth_check() {
-            cfi_assert!(cfi_launder(flags.ignore_auth_check()));
+        let metadata_flags = ImageMetadataFlags(metadata_entry.flags);
+        let auth_result = if metadata_flags.ignore_auth_check() {
+            cfi_assert!(cfi_launder(metadata_flags.ignore_auth_check()));
             success_code
         } else if source == ImageHashSource::InRequest {
             if cfi_launder(metadata_entry.digest) == cmd.measurement {
@@ -170,21 +173,35 @@ impl AuthorizeAndStashCmd {
         } else if source == ImageHashSource::LoadAddress
             || source == ImageHashSource::StagingAddress
         {
+            let dma_read_mode = if SINGLE_DWORD_DMA_FW_IDS.contains(&cmd_fw_id) {
+                DmaImageReadMode::SingleDword
+            } else {
+                DmaImageReadMode::Burst
+            };
             let image_source = if source == ImageHashSource::LoadAddress {
                 metadata_entry.image_load_address
             } else {
                 metadata_entry.image_staging_address
             };
+            let image_source = AxiAddr {
+                hi: image_source.hi,
+                lo: image_source.lo,
+            };
+
+            if dma_read_mode == DmaImageReadMode::SingleDword
+                && cmd.image_size != 0
+                && ((image_source.lo | cmd.image_size) & 0x3) != 0
+            {
+                Err(CaliptraError::RUNTIME_AUTH_AND_STASH_IMAGE_NOT_DWORD_ALIGNED)?;
+            }
 
             let measurement: [u8; 48] = dma_image
-                .sha384_image(
+                .sha384_image_with_read_mode(
                     &mut drivers.sha2_512_384_acc,
-                    AxiAddr {
-                        hi: image_source.hi,
-                        lo: image_source.lo,
-                    },
+                    image_source,
                     cmd.image_size,
                     AesDmaMode::None,
+                    dma_read_mode,
                 )
                 .map_err(|_| CaliptraError::RUNTIME_INTERNAL)?
                 .into();

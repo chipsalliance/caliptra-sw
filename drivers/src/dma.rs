@@ -31,6 +31,8 @@ use caliptra_ureg::{Mmio, MmioMut, RealMmioMut};
 use core::{cell::Cell, mem::size_of, ops::Add};
 
 const I3C_BLOCK_SIZE: u32 = 64;
+const DMA_MAX_XFER_SIZE: u32 = 0x10_0000; // 1 MiB
+const DMA_SINGLE_DWORD_XFER_SIZE: u32 = size_of::<u32>() as u32;
 pub const MCU_SRAM_OFFSET: u64 = 0xc0_0000;
 // SHA384 of empty stream
 const SHA384_EMPTY: Array4x12 = Array4x12::new([
@@ -48,6 +50,32 @@ pub enum AesDmaMode {
     None,
     Aes,
     AesGcm,
+}
+
+/// Selects the DMA transfer granularity used to stream an image into a hash accelerator.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum DmaImageReadMode {
+    Burst,
+    SingleDword,
+}
+
+impl DmaImageReadMode {
+    fn max_transfer_size(self) -> u32 {
+        match self {
+            Self::Burst => DMA_MAX_XFER_SIZE,
+            Self::SingleDword => DMA_SINGLE_DWORD_XFER_SIZE,
+        }
+    }
+}
+
+fn dma_transfer_chunks(
+    length: u32,
+    read_mode: DmaImageReadMode,
+) -> impl Iterator<Item = (u32, u32)> {
+    let max_transfer_size = read_mode.max_transfer_size();
+    (0..length)
+        .step_by(max_transfer_size as usize)
+        .map(move |offset| (offset, (length - offset).min(max_transfer_size)))
 }
 
 impl AesDmaMode {
@@ -508,9 +536,6 @@ impl<'a> DmaRecovery<'a> {
     const RECOVERY_REGISTER_OFFSET: usize = 0x100;
     const INDIRECT_FIFO_DATA_OFFSET: u32 = 0x68;
 
-    /// Max bytes per DMA transfer; mirrors `DMA_MAX_XFER_SIZE` in
-    /// `axi_dma_ctrl.sv`. A larger `byte_count` is rejected by the HW.
-    const DMA_MAX_XFER_SIZE: u32 = 0x10_0000; // 1 MiB
     const PROT_CAP2_DEVICE_ID_SUPPORT: u32 = 0x1; // Bit 0 in agent_caps
     const PROT_CAP2_DEVICE_STATUS_SUPPORT: u32 = 0x10; // Bit 4 in agent_caps
     const PROT_CAP2_RECOVERY_MEMORY_ACCESS_SUPPORT: u32 = 0x20; // Bit 5 in agent_caps
@@ -1189,28 +1214,25 @@ impl<'a> DmaRecovery<'a> {
     }
 
     /// Feed `length` bytes from `source` into the SHA accelerator's `datain`
-    /// (`write_addr`) in <= [`DMA_MAX_XFER_SIZE`] chunks; the digest matches a
-    /// single transfer. AES cannot be chunked (its cipher context is
-    /// per-DMA-command), so an AES payload is sent as a single transfer and is
-    /// therefore limited to [`DMA_MAX_XFER_SIZE`]; a larger AES payload is
-    /// rejected.
+    /// (`write_addr`). Burst mode uses transfers of at most
+    /// [`DMA_MAX_XFER_SIZE`], while single-dword mode uses four-byte transfers.
+    /// AES cannot be chunked because its cipher context is per DMA command.
     fn chunked_sha_datain(
         &self,
         source: AxiAddr,
         length: u32,
         write_addr: AxiAddr,
         aes_mode: AesDmaMode,
+        read_mode: DmaImageReadMode,
     ) -> CaliptraResult<()> {
         if aes_mode.aes() {
-            if length > Self::DMA_MAX_XFER_SIZE {
+            if read_mode != DmaImageReadMode::Burst || length > DMA_MAX_XFER_SIZE {
                 return Err(CaliptraError::DRIVER_DMA_AES_CHUNKING_UNSUPPORTED);
             }
             return self.transfer_payload_to_axi(source, length, write_addr, false, true, aes_mode);
         }
 
-        for offset in (0..length).step_by(Self::DMA_MAX_XFER_SIZE as usize) {
-            let chunk = (length - offset).min(Self::DMA_MAX_XFER_SIZE);
-            // `source` advances per chunk; `write_addr` (datain) stays fixed.
+        for (offset, chunk) in dma_transfer_chunks(length, read_mode) {
             self.transfer_payload_to_axi(
                 source + offset,
                 chunk,
@@ -1230,6 +1252,17 @@ impl<'a> DmaRecovery<'a> {
         length: u32,
         aes_mode: AesDmaMode,
     ) -> CaliptraResult<Array4x12> {
+        self.sha384_image_with_read_mode(sha_acc, source, length, aes_mode, DmaImageReadMode::Burst)
+    }
+
+    pub fn sha384_image_with_read_mode(
+        &self,
+        sha_acc: &'a mut Sha2_512_384Acc,
+        source: AxiAddr,
+        length: u32,
+        aes_mode: AesDmaMode,
+        read_mode: DmaImageReadMode,
+    ) -> CaliptraResult<Array4x12> {
         #[cfg(feature = "fips-test-hooks")]
         unsafe {
             crate::FipsTestHook::error_if_hook_set(crate::FipsTestHook::SHA384_DIGEST_FAILURE)?
@@ -1238,6 +1271,12 @@ impl<'a> DmaRecovery<'a> {
         // the hardware does not support hashing an empty stream
         if length == 0 {
             return Ok(SHA384_EMPTY);
+        }
+
+        if read_mode == DmaImageReadMode::SingleDword
+            && ((source.lo | length) & (DMA_SINGLE_DWORD_XFER_SIZE - 1)) != 0
+        {
+            return Err(CaliptraError::DRIVER_DMA_INVALID_ALIGNMENT);
         }
 
         // This is tricky, because we need to lock and write to several registers over DMA
@@ -1265,9 +1304,9 @@ impl<'a> DmaRecovery<'a> {
             // Safety: the dma_sha is relative to 0, so we can use it to get the offset of the data in register.
             let write_addr = self.caliptra_base + (dma_sha.datain().ptr as u32 as u64);
 
-            // feed the data into the SHA accelerator (split into <= 1 MiB
-            // DMA transfers; dlen/execute cover the full length).
-            self.chunked_sha_datain(source, length, write_addr, aes_mode)?;
+            // Feed the data using the selected DMA read granularity;
+            // dlen/execute cover the full image.
+            self.chunked_sha_datain(source, length, write_addr, aes_mode, read_mode)?;
 
             dma_sha.execute().write(|w| w.execute(true));
 
@@ -1339,7 +1378,13 @@ impl<'a> DmaRecovery<'a> {
 
             // feed the data into the SHA accelerator (split into <= 1 MiB
             // DMA transfers; dlen/execute cover the full length).
-            self.chunked_sha_datain(source, length, write_addr, aes_mode)?;
+            self.chunked_sha_datain(
+                source,
+                length,
+                write_addr,
+                aes_mode,
+                DmaImageReadMode::Burst,
+            )?;
 
             dma_sha.execute().write(|w| w.execute(true));
 
@@ -1360,6 +1405,32 @@ impl<'a> DmaRecovery<'a> {
 
             Ok(digest)
         })?
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{dma_transfer_chunks, DmaImageReadMode, DMA_MAX_XFER_SIZE};
+
+    #[test]
+    fn single_dword_mode_uses_four_byte_dma_transfers() {
+        let mut chunks = dma_transfer_chunks(16, DmaImageReadMode::SingleDword);
+
+        assert_eq!(chunks.next(), Some((0, 4)));
+        assert_eq!(chunks.next(), Some((4, 4)));
+        assert_eq!(chunks.next(), Some((8, 4)));
+        assert_eq!(chunks.next(), Some((12, 4)));
+        assert_eq!(chunks.next(), None);
+    }
+
+    #[test]
+    fn burst_mode_preserves_one_mib_dma_limit() {
+        let mut chunks = dma_transfer_chunks(2 * DMA_MAX_XFER_SIZE + 3072, DmaImageReadMode::Burst);
+
+        assert_eq!(chunks.next(), Some((0, DMA_MAX_XFER_SIZE)));
+        assert_eq!(chunks.next(), Some((DMA_MAX_XFER_SIZE, DMA_MAX_XFER_SIZE)));
+        assert_eq!(chunks.next(), Some((2 * DMA_MAX_XFER_SIZE, 3072)));
+        assert_eq!(chunks.next(), None);
     }
 }
 
