@@ -89,7 +89,7 @@ pub fn run_cmd_stdout(cmd: &mut Command, input: Option<&[u8]>) -> io::Result<Str
 pub enum FirmwareType<'a> {
     Source {
         features: &'a [&'a str],
-        hw_revision: CaliptraHwVersion,
+        hw_revision: Option<CaliptraHwVersion>,
     },
     TaggedReleaseFromNetwork {
         version_tag: &'a str,
@@ -101,7 +101,7 @@ impl Default for FirmwareType<'_> {
     fn default() -> Self {
         FirmwareType::Source {
             features: &[],
-            hw_revision: CaliptraHwVersion::V2_1,
+            hw_revision: None,
         }
     }
 }
@@ -149,25 +149,17 @@ impl<'a> FwId<'a> {
         if !self.features().is_empty() {
             write!(&mut result, "--{}", self.features().join("-")).unwrap();
         }
+        if let Some(v) = self.hw_revision() {
+            write!(&mut result, "--{}", v.as_str()).unwrap();
+        }
         write!(&mut result, ".elf").unwrap();
         result
     }
 
-    pub fn hw_revision(&self) -> &'a str {
+    pub fn hw_revision(&self) -> Option<CaliptraHwVersion> {
         match self.fw_type {
-            FirmwareType::Source {
-                hw_revision: CaliptraHwVersion::V2_0,
-                ..
-            } => "2.0",
-            FirmwareType::Source {
-                hw_revision: CaliptraHwVersion::V2_1,
-                ..
-            } => "2.1",
-            FirmwareType::Source {
-                hw_revision: CaliptraHwVersion::V2_2,
-                ..
-            } => "2.2",
-            _ => "latest",
+            FirmwareType::Source { hw_revision, .. } => hw_revision,
+            _ => None,
         }
     }
 }
@@ -243,7 +235,10 @@ pub fn build_firmware_elfs_uncached<'a>(
             "RUSTC_WRAPPER",
             workspace_dir.join("builder/no_meta_rustc_wrapper.sh"),
         );
-        cmd.env("CALIPTRA_HW_REV", invocation.hw_revision);
+
+        if let Some(hw_revision) = invocation.hw_revision {
+            cmd.env("CALIPTRA_HW_REV", hw_revision.as_str());
+        }
 
         if option_env!("GITHUB_ACTIONS").is_some() {
             // In continuous integration, warnings are always errors.
@@ -310,8 +305,11 @@ fn cargo_invocations_from_fwids<'a>(
     let mut result = vec![];
     let mut remaining_fwids = fwids.to_vec();
     while !remaining_fwids.is_empty() {
-        // Maps (crate_name, features) to CargoInvocation
-        let mut invocation_map: HashMap<(&str, &[&str], &str), CargoInvocation> = HashMap::new();
+        // Maps (crate_name, features, hw_revision) to CargoInvocation
+        let mut invocation_map: HashMap<
+            (&str, &[&str], Option<CaliptraHwVersion>),
+            CargoInvocation,
+        > = HashMap::new();
 
         remaining_fwids.retain(|&fwid| {
             let invocation = invocation_map
@@ -354,10 +352,14 @@ struct CargoInvocation<'a> {
     features: &'a [&'a str],
     crate_name: &'a str,
     fwids: Vec<&'a FwId<'a>>,
-    hw_revision: &'a str,
+    hw_revision: Option<CaliptraHwVersion>,
 }
 impl<'a> CargoInvocation<'a> {
-    fn new(crate_name: &'a str, features: &'a [&'a str], hw_revision: &'a str) -> Self {
+    fn new(
+        crate_name: &'a str,
+        features: &'a [&'a str],
+        hw_revision: Option<CaliptraHwVersion>,
+    ) -> Self {
         Self {
             features,
             crate_name,
@@ -799,7 +801,7 @@ mod test {
             bin_name: "test_success2",
             fw_type: FirmwareType::Source {
                 features: &[],
-                hw_revision: CaliptraHwVersion::V2_1,
+                hw_revision: None,
             },
         };
         // Ensure that we can build the ELF and elf2rom can parse it
@@ -863,7 +865,7 @@ mod test {
                     bin_name: "initech-firmware",
                     fw_type: FirmwareType::Source {
                         features: &["pc-load-letter"],
-                        hw_revision: CaliptraHwVersion::V2_1,
+                        hw_revision: None,
                     },
                 },
                 &FwId {
@@ -871,7 +873,7 @@ mod test {
                     bin_name: "initech-firmware",
                     fw_type: FirmwareType::Source {
                         features: &["pc-load-letter", "uart"],
-                        hw_revision: CaliptraHwVersion::V2_1,
+                        hw_revision: None,
                     },
                 },
                 &FwId {
@@ -879,7 +881,7 @@ mod test {
                     bin_name: "test1",
                     fw_type: FirmwareType::Source {
                         features: &["pc-load-letter"],
-                        hw_revision: CaliptraHwVersion::V2_1,
+                        hw_revision: None,
                     },
                 },
                 &FwId {
@@ -887,7 +889,7 @@ mod test {
                     bin_name: "test2",
                     fw_type: FirmwareType::Source {
                         features: &["pc-load-letter"],
-                        hw_revision: CaliptraHwVersion::V2_1,
+                        hw_revision: None,
                     },
                 },
                 &FwId {
@@ -895,7 +897,7 @@ mod test {
                     bin_name: "test2",
                     fw_type: FirmwareType::Source {
                         features: &["pc-load-letter", "uart"],
-                        hw_revision: CaliptraHwVersion::V2_1,
+                        hw_revision: None,
                     },
                 },
                 &FwId {
@@ -903,7 +905,7 @@ mod test {
                     bin_name: "test3",
                     fw_type: FirmwareType::Source {
                         features: &["pc-load-letter"],
-                        hw_revision: CaliptraHwVersion::V2_1,
+                        hw_revision: None,
                     },
                 },
                 &FwId {
@@ -911,7 +913,7 @@ mod test {
                     bin_name: "test1",
                     fw_type: FirmwareType::Source {
                         features: &["pc-load-letter"],
-                        hw_revision: CaliptraHwVersion::V2_1,
+                        hw_revision: None,
                     },
                 },
                 &FwId {
@@ -919,7 +921,7 @@ mod test {
                     bin_name: "test4",
                     fw_type: FirmwareType::Source {
                         features: &["pc-load-letter"],
-                        hw_revision: CaliptraHwVersion::V2_1,
+                        hw_revision: None,
                     },
                 },
                 &FwId {
@@ -927,7 +929,15 @@ mod test {
                     bin_name: "test5",
                     fw_type: FirmwareType::Source {
                         features: &["stash-measurement-registers"],
-                        hw_revision: CaliptraHwVersion::V2_2,
+                        hw_revision: Some(CaliptraHwVersion::V2_2),
+                    },
+                },
+                &FwId {
+                    crate_name: "test-fw3",
+                    bin_name: "test5",
+                    fw_type: FirmwareType::Source {
+                        features: &["stash-measurement-registers"],
+                        hw_revision: None,
                     },
                 },
             ];
@@ -943,7 +953,7 @@ mod test {
                                 bin_name: "test1",
                                 fw_type: FirmwareType::Source {
                                     features: &["pc-load-letter",],
-                                    hw_revision: CaliptraHwVersion::V2_1,
+                                    hw_revision: None,
                                 },
                             },
                             &FwId {
@@ -951,7 +961,7 @@ mod test {
                                 bin_name: "test2",
                                 fw_type: FirmwareType::Source {
                                     features: &["pc-load-letter",],
-                                    hw_revision: CaliptraHwVersion::V2_1,
+                                    hw_revision: None,
                                 },
                             },
                             &FwId {
@@ -959,11 +969,11 @@ mod test {
                                 bin_name: "test3",
                                 fw_type: FirmwareType::Source {
                                     features: &["pc-load-letter",],
-                                    hw_revision: CaliptraHwVersion::V2_1,
+                                    hw_revision: None,
                                 },
                             },
                         ],
-                        hw_revision: "2.1",
+                        hw_revision: None,
                     },
                     CargoInvocation {
                         features: &["pc-load-letter",],
@@ -974,7 +984,7 @@ mod test {
                                 bin_name: "test1",
                                 fw_type: FirmwareType::Source {
                                     features: &["pc-load-letter",],
-                                    hw_revision: CaliptraHwVersion::V2_1,
+                                    hw_revision: None,
                                 },
                             },
                             &FwId {
@@ -982,11 +992,11 @@ mod test {
                                 bin_name: "test4",
                                 fw_type: FirmwareType::Source {
                                     features: &["pc-load-letter",],
-                                    hw_revision: CaliptraHwVersion::V2_1,
+                                    hw_revision: None,
                                 },
                             },
                         ],
-                        hw_revision: "2.1",
+                        hw_revision: None,
                     },
                     CargoInvocation {
                         features: &["pc-load-letter",],
@@ -996,10 +1006,10 @@ mod test {
                             bin_name: "initech-firmware",
                             fw_type: FirmwareType::Source {
                                 features: &["pc-load-letter"],
-                                hw_revision: CaliptraHwVersion::V2_1,
+                                hw_revision: None,
                             },
                         },],
-                        hw_revision: "2.1",
+                        hw_revision: None,
                     },
                     CargoInvocation {
                         features: &["pc-load-letter", "uart",],
@@ -1009,10 +1019,10 @@ mod test {
                             bin_name: "initech-firmware",
                             fw_type: FirmwareType::Source {
                                 features: &["pc-load-letter", "uart",],
-                                hw_revision: CaliptraHwVersion::V2_1,
+                                hw_revision: None,
                             },
                         },],
-                        hw_revision: "2.1",
+                        hw_revision: None,
                     },
                     CargoInvocation {
                         features: &["pc-load-letter", "uart",],
@@ -1022,10 +1032,10 @@ mod test {
                             bin_name: "test2",
                             fw_type: FirmwareType::Source {
                                 features: &["pc-load-letter", "uart",],
-                                hw_revision: CaliptraHwVersion::V2_1,
+                                hw_revision: None,
                             },
                         },],
-                        hw_revision: "2.1",
+                        hw_revision: None,
                     },
                     CargoInvocation {
                         features: &["stash-measurement-registers"],
@@ -1035,10 +1045,23 @@ mod test {
                             bin_name: "test5",
                             fw_type: FirmwareType::Source {
                                 features: &["stash-measurement-registers"],
-                                hw_revision: CaliptraHwVersion::V2_2,
+                                hw_revision: None,
                             },
                         },],
-                        hw_revision: "2.2",
+                        hw_revision: None,
+                    },
+                    CargoInvocation {
+                        features: &["stash-measurement-registers"],
+                        crate_name: "test-fw3",
+                        fwids: vec![&FwId {
+                            crate_name: "test-fw3",
+                            bin_name: "test5",
+                            fw_type: FirmwareType::Source {
+                                features: &["stash-measurement-registers"],
+                                hw_revision: Some(CaliptraHwVersion::V2_2),
+                            },
+                        },],
+                        hw_revision: Some(CaliptraHwVersion::V2_2),
                     },
                 ],
                 cargo_invocations_from_fwids(&fwids).unwrap()
@@ -1053,7 +1076,7 @@ mod test {
                     bin_name: "initech-firmware",
                     fw_type: FirmwareType::Source {
                         features: &["pc-load-letter"],
-                        hw_revision: CaliptraHwVersion::V2_1,
+                        hw_revision: None,
                     },
                 },
                 &FwId {
@@ -1061,7 +1084,7 @@ mod test {
                     bin_name: "initech-firmware",
                     fw_type: FirmwareType::Source {
                         features: &["pc-load-letter"],
-                        hw_revision: CaliptraHwVersion::V2_1,
+                        hw_revision: None,
                     },
                 },
             ];
@@ -1080,7 +1103,7 @@ mod test {
                 bin_name: "caliptra-rom",
                 fw_type: FirmwareType::Source {
                     features: &[],
-                    hw_revision: CaliptraHwVersion::V2_1,
+                    hw_revision: None,
                 },
             }
             .elf_filename(),
@@ -1092,7 +1115,7 @@ mod test {
                 bin_name: "caliptra-rom",
                 fw_type: FirmwareType::Source {
                     features: &["uart", "debug"],
-                    hw_revision: CaliptraHwVersion::V2_1,
+                    hw_revision: None,
                 },
             }
             .elf_filename(),
@@ -1104,7 +1127,7 @@ mod test {
                 bin_name: "smoke_test",
                 fw_type: FirmwareType::Source {
                     features: &[],
-                    hw_revision: CaliptraHwVersion::V2_1,
+                    hw_revision: None,
                 },
             }
             .elf_filename(),
@@ -1116,11 +1139,23 @@ mod test {
                 bin_name: "smoke_test",
                 fw_type: FirmwareType::Source {
                     features: &["uart", "debug"],
-                    hw_revision: CaliptraHwVersion::V2_1,
+                    hw_revision: None,
                 },
             }
             .elf_filename(),
             "caliptra-test--smoke_test--uart-debug.elf"
+        );
+        assert_eq!(
+            &FwId {
+                crate_name: "caliptra-test",
+                bin_name: "smoke_test",
+                fw_type: FirmwareType::Source {
+                    features: &["uart", "debug"],
+                    hw_revision: Some(CaliptraHwVersion::V2_1),
+                },
+            }
+            .elf_filename(),
+            "caliptra-test--smoke_test--uart-debug--2.1.elf"
         );
     }
 }
