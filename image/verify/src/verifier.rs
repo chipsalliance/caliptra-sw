@@ -166,14 +166,17 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         Ok(info)
     }
 
-    /// If an SVN check is required, verifies that the given SVN is greater than
-    /// or equal to the fuse SVN.
+    /// Verifies that the SVN is supported and, when anti-rollback is enabled,
+    /// is greater than or equal to the fuse SVN.
     fn verify_svn(&mut self, fw_svn: u32) -> CaliptraResult<()> {
-        if self.svn_check_required() {
-            if fw_svn > MAX_FIRMWARE_SVN {
-                Err(CaliptraError::IMAGE_VERIFIER_ERR_FIRMWARE_SVN_GREATER_THAN_MAX_SUPPORTED)?;
-            }
+        // Enforce the key ladder's maximum supported SVN regardless of rollback policy.
+        if cfi_launder(fw_svn) > MAX_FIRMWARE_SVN {
+            Err(CaliptraError::IMAGE_VERIFIER_ERR_FIRMWARE_SVN_GREATER_THAN_MAX_SUPPORTED)?;
+        } else {
+            cfi_assert!(fw_svn <= MAX_FIRMWARE_SVN);
+        }
 
+        if self.svn_check_required() {
             if cfi_launder(fw_svn) < self.env.fw_fuse_svn() {
                 Err(CaliptraError::IMAGE_VERIFIER_ERR_FIRMWARE_SVN_LESS_THAN_FUSE)?;
             } else {
@@ -1515,6 +1518,56 @@ mod tests {
     }
 
     #[test]
+    fn test_svn_greater_than_max_rejected_when_unprovisioned() {
+        let mut verifier = ImageVerifier::new(TestEnv {
+            lifecycle: Lifecycle::Unprovisioned,
+            ..Default::default()
+        });
+
+        assert_eq!(
+            verifier.verify_svn(MAX_FIRMWARE_SVN + 1),
+            Err(CaliptraError::IMAGE_VERIFIER_ERR_FIRMWARE_SVN_GREATER_THAN_MAX_SUPPORTED)
+        );
+    }
+
+    #[test]
+    fn test_svn_greater_than_max_rejected_when_anti_rollback_disabled() {
+        let mut verifier = ImageVerifier::new(TestEnv {
+            lifecycle: Lifecycle::Production,
+            anti_rollback_disable: true,
+            ..Default::default()
+        });
+
+        assert_eq!(
+            verifier.verify_svn(MAX_FIRMWARE_SVN + 1),
+            Err(CaliptraError::IMAGE_VERIFIER_ERR_FIRMWARE_SVN_GREATER_THAN_MAX_SUPPORTED)
+        );
+    }
+
+    #[test]
+    fn test_max_svn_accepted_when_anti_rollback_disabled() {
+        let mut verifier = ImageVerifier::new(TestEnv {
+            lifecycle: Lifecycle::Production,
+            anti_rollback_disable: true,
+            ..Default::default()
+        });
+
+        assert_eq!(verifier.verify_svn(MAX_FIRMWARE_SVN), Ok(()));
+    }
+
+    #[test]
+    fn test_svn_less_than_fuse_accepted_when_anti_rollback_disabled() {
+        let mut verifier = ImageVerifier::new(TestEnv {
+            lifecycle: Lifecycle::Production,
+            anti_rollback_disable: true,
+            fw_fuse_svn: 10,
+            ..Default::default()
+        });
+
+        assert_eq!(verifier.verify_svn(9), Ok(()));
+    }
+
+    #[test]
     fn test_preamble_vendor_pubkey_info_digest() {
         let preamble = ImagePreamble::default();
         let test_env = TestEnv {
@@ -2502,6 +2555,8 @@ mod tests {
         debug_image_allowed: bool,
         cold_reset_fmc_load_addr: u32,
         cold_reset_fmc_size: u32,
+        anti_rollback_disable: bool,
+        fw_fuse_svn: u32,
     }
 
     impl Default for TestEnv {
@@ -2521,6 +2576,8 @@ mod tests {
                 debug_image_allowed: false,
                 cold_reset_fmc_load_addr: ICCM_ORG,
                 cold_reset_fmc_size: ICCM_SIZE,
+                anti_rollback_disable: false,
+                fw_fuse_svn: 0,
             }
         }
     }
@@ -2612,7 +2669,7 @@ mod tests {
         }
 
         fn anti_rollback_disable(&self) -> bool {
-            false
+            self.anti_rollback_disable
         }
 
         fn dev_lifecycle(&self) -> Lifecycle {
@@ -2644,7 +2701,7 @@ mod tests {
         }
 
         fn fw_fuse_svn(&self) -> u32 {
-            0
+            self.fw_fuse_svn
         }
 
         fn iccm_range(&self) -> Range<u32> {
