@@ -80,82 +80,104 @@ fn test_kat() {
     );
 }
 
-// AFT
+// Mailbox-backed digest helpers
 //
-// Receives an already-decoded byte slice so no &str lifetime parameter
-// interferes with the MailboxSendTxn / Sha2_512_384AccOp borrow lifetimes.
+// The accelerator digests data staged in the mailbox, so every operation is a
+// mailbox transaction wrapped around the digest. These helpers take an
+// already-decoded byte slice (so no &str lifetime interferes with the
+// MailboxSendTxn / Sha2_512_384AccOp borrows) and return the digest by value.
+//
+// They panic rather than returning on a lock failure. Returning would let a
+// skipped digest leave a stale value in the MCT chain, or emit nothing at all
+// for an AFT case, while the test still reported success.
 
-fn run_aft_384(data: &[u8]) {
+fn digest_384_via_mailbox(data: &[u8]) -> [u8; SHA384_HASH_SIZE] {
+    const CMD: u32 = 0x1c;
     let mut sha_acc = unsafe { Sha2_512_384Acc::new(Sha512AccCsr::new()) };
     let mut mbox = unsafe { Mailbox::new(MboxCsr::new()) };
-    if let Some(mut txn) = mbox.try_start_send_txn() {
-        const CMD: u32 = 0x1c;
-        assert!(txn.send_request(CMD, data).is_ok());
-        let mut digest = Array4x12::default();
-        if let Some(mut op) = sha_acc
-            .try_start_operation(ShaAccLockState::NotAcquired)
-            .unwrap()
-        {
-            op.digest_384(
-                data.len() as u32,
-                0,
-                StreamEndianness::Reorder,
-                (&mut digest).into(),
-            )
-            .unwrap();
-            drop(op);
-        } else {
-            assert!(false);
-        }
-        drop(txn);
-        let digest_out = <[u8; SHA384_HASH_SIZE]>::from(digest);
-        for byte in digest_out.iter() {
-            println!("SHA384ACC:{:02X}", byte);
-        }
+
+    let Some(mut txn) = mbox.try_start_send_txn() else {
+        panic!("mailbox lock unavailable");
     };
+    txn.send_request(CMD, data).unwrap();
+
+    let mut digest = Array4x12::default();
+    let Some(mut op) = sha_acc
+        .try_start_operation(ShaAccLockState::NotAcquired)
+        .unwrap()
+    else {
+        panic!("SHA accelerator lock unavailable");
+    };
+    op.digest_384(
+        data.len() as u32,
+        0,
+        StreamEndianness::Reorder,
+        (&mut digest).into(),
+    )
+    .unwrap();
+    drop(op);
+    drop(txn);
+
+    <[u8; SHA384_HASH_SIZE]>::from(digest)
+}
+
+fn digest_512_via_mailbox(data: &[u8]) -> [u8; SHA512_HASH_SIZE] {
+    const CMD: u32 = 0x1c;
+    let mut sha_acc = unsafe { Sha2_512_384Acc::new(Sha512AccCsr::new()) };
+    let mut mbox = unsafe { Mailbox::new(MboxCsr::new()) };
+
+    let Some(mut txn) = mbox.try_start_send_txn() else {
+        panic!("mailbox lock unavailable");
+    };
+    txn.send_request(CMD, data).unwrap();
+
+    let mut digest = Array4x16::default();
+    let Some(mut op) = sha_acc
+        .try_start_operation(ShaAccLockState::NotAcquired)
+        .unwrap()
+    else {
+        panic!("SHA accelerator lock unavailable");
+    };
+    op.digest_512(
+        data.len() as u32,
+        0,
+        StreamEndianness::Reorder,
+        (&mut digest).into(),
+    )
+    .unwrap();
+    drop(op);
+    drop(txn);
+
+    <[u8; SHA512_HASH_SIZE]>::from(digest)
+}
+
+// AFT
+
+fn run_aft_384(data: &[u8]) {
+    let digest_out = digest_384_via_mailbox(data);
+    for byte in digest_out.iter() {
+        println!("SHA384ACC:{:02X}", byte);
+    }
 }
 
 fn run_aft_512(data: &[u8]) {
-    let mut sha_acc = unsafe { Sha2_512_384Acc::new(Sha512AccCsr::new()) };
-    let mut mbox = unsafe { Mailbox::new(MboxCsr::new()) };
-    if let Some(mut txn) = mbox.try_start_send_txn() {
-        const CMD: u32 = 0x1c;
-        assert!(txn.send_request(CMD, data).is_ok());
-        let mut digest = Array4x16::default();
-        if let Some(mut op) = sha_acc
-            .try_start_operation(ShaAccLockState::NotAcquired)
-            .unwrap()
-        {
-            op.digest_512(
-                data.len() as u32,
-                0,
-                StreamEndianness::Reorder,
-                (&mut digest).into(),
-            )
-            .unwrap();
-            drop(op);
-        } else {
-            assert!(false);
-        }
-
-        drop(txn);
-        let digest_out = <[u8; SHA512_HASH_SIZE]>::from(digest);
-        for byte in digest_out.iter() {
-            println!("SHA512ACC:{:02X}", byte);
-        }
-    };
+    let digest_out = digest_512_via_mailbox(data);
+    for byte in digest_out.iter() {
+        println!("SHA512ACC:{:02X}", byte);
+    }
 }
 
 // MCT
 //
-// Receives an already-decoded seed slice.
+// Receives an already-decoded seed slice. `c` always holds the most recent
+// digest once the chain step has run, so it is the value carried out of the
+// inner loop; there is no separate accumulator that could go stale.
 
 fn run_mct_384(seed_bytes: &[u8]) {
     let mut seed = [0u8; SHA384_HASH_SIZE];
     seed.copy_from_slice(seed_bytes);
 
     let mut msg = [0u8; SHA384_HASH_SIZE * 3];
-    let mut digest_out = [0u8; SHA384_HASH_SIZE];
 
     for _ol in 0..100 {
         let mut a = seed;
@@ -166,39 +188,16 @@ fn run_mct_384(seed_bytes: &[u8]) {
             msg[SHA384_HASH_SIZE..SHA384_HASH_SIZE * 2].copy_from_slice(&b);
             msg[SHA384_HASH_SIZE * 2..SHA384_HASH_SIZE * 3].copy_from_slice(&c);
 
-            let mut sha_acc = unsafe { Sha2_512_384Acc::new(Sha512AccCsr::new()) };
-            let mut mbox = unsafe { Mailbox::new(MboxCsr::new()) };
-            if let Some(mut txn) = mbox.try_start_send_txn() {
-                const CMD: u32 = 0x1c;
-                assert!(txn.send_request(CMD, &msg).is_ok());
-                let mut digest = Array4x12::default();
-                if let Some(mut op) = sha_acc
-                    .try_start_operation(ShaAccLockState::NotAcquired)
-                    .unwrap()
-                {
-                    op.digest_384(
-                        msg.len() as u32,
-                        0,
-                        StreamEndianness::Reorder,
-                        (&mut digest).into(),
-                    )
-                    .unwrap();
-                    drop(op);
-                } else {
-                    assert!(false);
-                }
-                drop(txn);
-                digest_out = <[u8; SHA384_HASH_SIZE]>::from(digest);
-            }
+            let digest = digest_384_via_mailbox(&msg);
 
             a = b;
             b = c;
-            c = digest_out;
+            c = digest;
         }
-        for byte in digest_out.iter() {
+        for byte in c.iter() {
             println!("SHA384ACC:{:02X}", byte);
         }
-        seed = digest_out;
+        seed = c;
     }
 }
 
@@ -207,7 +206,6 @@ fn run_mct_512(seed_bytes: &[u8]) {
     seed.copy_from_slice(seed_bytes);
 
     let mut msg = [0u8; SHA512_HASH_SIZE * 3];
-    let mut digest_out = [0u8; SHA512_HASH_SIZE];
 
     for _ol in 0..100 {
         let mut a = seed;
@@ -218,39 +216,16 @@ fn run_mct_512(seed_bytes: &[u8]) {
             msg[SHA512_HASH_SIZE..SHA512_HASH_SIZE * 2].copy_from_slice(&b);
             msg[SHA512_HASH_SIZE * 2..SHA512_HASH_SIZE * 3].copy_from_slice(&c);
 
-            let mut sha_acc = unsafe { Sha2_512_384Acc::new(Sha512AccCsr::new()) };
-            let mut mbox = unsafe { Mailbox::new(MboxCsr::new()) };
-            if let Some(mut txn) = mbox.try_start_send_txn() {
-                const CMD: u32 = 0x1c;
-                assert!(txn.send_request(CMD, &msg).is_ok());
-                let mut digest = Array4x16::default();
-                if let Some(mut op) = sha_acc
-                    .try_start_operation(ShaAccLockState::NotAcquired)
-                    .unwrap()
-                {
-                    op.digest_512(
-                        msg.len() as u32,
-                        0,
-                        StreamEndianness::Reorder,
-                        (&mut digest).into(),
-                    )
-                    .unwrap();
-                    drop(op);
-                } else {
-                    assert!(false);
-                }
-                drop(txn);
-                digest_out = <[u8; SHA512_HASH_SIZE]>::from(digest);
-            }
+            let digest = digest_512_via_mailbox(&msg);
 
             a = b;
             b = c;
-            c = digest_out;
+            c = digest;
         }
-        for byte in digest_out.iter() {
+        for byte in c.iter() {
             println!("SHA512ACC:{:02X}", byte);
         }
-        seed = digest_out;
+        seed = c;
     }
 }
 
