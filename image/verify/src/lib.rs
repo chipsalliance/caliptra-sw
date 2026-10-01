@@ -13,6 +13,9 @@ Abstract:
 --*/
 #![cfg_attr(not(feature = "std"), no_std)]
 
+#[cfg(all(test, not(feature = "std")))]
+extern crate std;
+
 mod verifier;
 
 use caliptra_drivers::*;
@@ -108,7 +111,14 @@ pub trait ImageVerificationEnv {
     /// Calculate SHA-512 Digest
     fn sha512_digest(&mut self, offset: u32, len: u32) -> CaliptraResult<ImageDigest512>;
 
-    /// Calculate SHA-384 Digest with accelerator
+    /// Hash bytes from the protected manifest snapshot, not the image source.
+    fn sha384_acc_digest_slice(
+        &mut self,
+        data: &[u8],
+        digest_failure: CaliptraError,
+    ) -> CaliptraResult<ImageDigest384>;
+
+    /// Hash payload bytes at image-source offsets with the accelerator.
     fn sha384_acc_digest(
         &mut self,
         offset: u32,

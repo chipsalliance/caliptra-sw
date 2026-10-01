@@ -1867,6 +1867,118 @@ fn test_toc_invalid_toc_digest() {
     }
 }
 
+fn run_manifest_snapshot_test(forged_snapshot: bool) {
+    for pqc_key_type in helpers::PQC_KEY_TYPE {
+        let rom = caliptra_builder::build_firmware_rom(helpers::rom_from_env()).unwrap();
+        let image_bundle = caliptra_builder::build_and_sign_image(
+            &TEST_FMC_INTERACTIVE,
+            &APP_WITH_UART,
+            ImageOptions {
+                pqc_key_type,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let image_bytes = image_bundle.to_bytes().unwrap();
+
+        for update_reset in [false, true] {
+            let mut hw = caliptra_hw_model::new(
+                InitParams {
+                    fuses: Fuses {
+                        fuse_pqc_key_type: pqc_key_type as u32,
+                        ..Default::default()
+                    },
+                    rom: &rom,
+                    subsystem_mode: true,
+                    ..Default::default()
+                },
+                BootParams {
+                    fw_image: update_reset.then_some(image_bytes.as_slice()),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+            if update_reset {
+                hw.step_until_boot_status(ColdResetComplete.into(), true);
+            }
+
+            let mut staged_image = image_bytes.clone();
+            if forged_snapshot {
+                let mut manifest = image_bundle.manifest;
+                manifest.runtime.digest[0] ^= 1;
+                staged_image[..manifest.as_bytes().len()].copy_from_slice(manifest.as_bytes());
+            }
+            if update_reset {
+                hw.start_mailbox_execute(CommandId::FIRMWARE_LOAD.into(), &staged_image)
+                    .unwrap();
+            } else {
+                hw.put_firmware_in_rri(&staged_image, None, None).unwrap();
+                hw.start_mailbox_execute(CommandId::RI_DOWNLOAD_FIRMWARE.into(), &[])
+                    .unwrap();
+            }
+            let manifest_loaded = if update_reset {
+                UpdateResetLoadManifestComplete
+            } else {
+                FwProcessorManifestLoadComplete
+            };
+            hw.step_until_boot_status(manifest_loaded.into(), true);
+
+            // Replace only the external manifest after ROM has captured its snapshot.
+            let external_manifest = if forged_snapshot {
+                image_bundle.manifest.as_bytes().to_vec()
+            } else {
+                vec![0; image_bundle.manifest.as_bytes().len()]
+            };
+            hw.write_payload_to_ss_staging_area(&external_manifest, 0)
+                .unwrap();
+
+            if forged_snapshot {
+                let expected = CaliptraError::IMAGE_VERIFIER_ERR_TOC_DIGEST_MISMATCH;
+                if update_reset {
+                    assert_eq!(
+                        hw.finish_mailbox_execute(),
+                        Err(caliptra_hw_model::ModelError::MailboxCmdFailed(
+                            expected.into()
+                        ))
+                    );
+                    assert_eq!(
+                        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
+                        u32::from(expected)
+                    );
+                } else {
+                    hw.step_until_fatal_error(expected.into(), 1_000_000);
+                }
+                assert_eq!(
+                    hw.soc_ifc().cptra_boot_status().read(),
+                    u32::from(manifest_loaded)
+                );
+            } else {
+                assert_eq!(hw.finish_mailbox_execute(), Ok(None));
+                let complete = if update_reset {
+                    UpdateResetComplete
+                } else {
+                    ColdResetComplete
+                };
+                hw.step_until_boot_status(complete.into(), true);
+                assert_eq!(hw.soc_ifc().cptra_fw_error_fatal().read(), 0);
+                assert_eq!(hw.soc_ifc().cptra_fw_error_non_fatal().read(), 0);
+            }
+        }
+    }
+}
+
+#[cfg_attr(any(feature = "fpga_realtime", feature = "fpga_subsystem"), ignore)]
+#[test]
+fn test_manifest_snapshot_rejects_forged_toc() {
+    run_manifest_snapshot_test(true);
+}
+
+#[cfg_attr(any(feature = "fpga_realtime", feature = "fpga_subsystem"), ignore)]
+#[test]
+fn test_manifest_snapshot_ignores_external_manifest_changes() {
+    run_manifest_snapshot_test(false);
+}
+
 #[test]
 fn test_toc_fmc_size_zero() {
     for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
