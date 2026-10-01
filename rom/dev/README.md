@@ -87,8 +87,7 @@ The following table is the allocation registry for `SS_STRAP_GENERIC[0..3]` fiel
 | `SS_STRAP_GENERIC[2]` | `[30:19]` | Reserved. | — |
 | `SS_STRAP_GENERIC[2]` | `[31]` | Entropy-source conditioning bypass enable. | ROM entropy-source initialization |
 | `SS_STRAP_GENERIC[3]` | `[0]` | Stable Owner Key enable. | ROM stable-key derivation and Runtime cryptographic mailbox |
-| `SS_STRAP_GENERIC[3]` | `[1]` | Wait for device reset before fatal-error reporting. | ROM fatal-error handling |
-| `SS_STRAP_GENERIC[3]` | `[7:2]` | Reserved. | — |
+| `SS_STRAP_GENERIC[3]` | `[7:1]` | Reserved. | — |
 | `SS_STRAP_GENERIC[3]` | `[15:8]` | Owner Authorization Manifest minimum SVN, encoded as an unsigned integer. | Runtime owner authorization manifest verification |
 | `SS_STRAP_GENERIC[3]` | `[31:16]` | Reserved. | — |
 
