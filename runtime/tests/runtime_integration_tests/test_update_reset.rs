@@ -1012,10 +1012,14 @@ fn test_cciv_updated_in_dpe() {
         pqc_key_type: FwVerificationPqcKeyType::MLDSA,
         ..Default::default()
     };
+    // Use a distinct pl0_pauser so the standard bundle produces a different CCIV than the
+    // mbox bundle
+    let mut image_opts_standard = image_opts.clone();
+    image_opts_standard.vendor_config.pl0_pauser = Some(0x2);
     let image_bundle_standard = caliptra_builder::build_and_sign_image(
         &FMC_WITH_UART,
         app_test_image(),
-        image_opts.clone(),
+        image_opts_standard,
     )
     .unwrap();
 
@@ -1116,10 +1120,12 @@ fn test_dpe_index_cache_initialized_after_hitless_update() {
         pqc_key_type: FwVerificationPqcKeyType::LMS,
         ..Default::default()
     };
+    let mut image_opts_standard = image_opts.clone();
+    image_opts_standard.vendor_config.pl0_pauser = Some(0x2);
     let image_bundle_standard = caliptra_builder::build_and_sign_image(
         &FMC_WITH_UART,
         app_test_image(),
-        image_opts.clone(),
+        image_opts_standard,
     )
     .unwrap();
 

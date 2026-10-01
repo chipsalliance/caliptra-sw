@@ -686,6 +686,16 @@ impl CaliptraError {
             "Image Verifier Error: Runtime entry point unaligned"
         ),
         (
+            IMAGE_VERIFIER_ERR_FMC_ENTRY_POINT_NOT_AT_LOAD_ADDR,
+            0x000b0066,
+            "Image Verifier Error: FMC entry point must equal load address"
+        ),
+        (
+            IMAGE_VERIFIER_ERR_RUNTIME_ENTRY_POINT_NOT_AT_LOAD_ADDR,
+            0x000b0067,
+            "Image Verifier Error: Runtime entry point must equal load address"
+        ),
+        (
             IMAGE_VERIFIER_ERR_FIRMWARE_SVN_GREATER_THAN_MAX_SUPPORTED,
             0x000b002c,
             "Image Verifier Error: Firmware SVN greater than max supported"
