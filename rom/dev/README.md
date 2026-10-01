@@ -92,8 +92,7 @@ The following table is the allocation registry for `SS_STRAP_GENERIC[0..3]` fiel
 | `SS_STRAP_GENERIC[2]` | `[30:19]` | Reserved. | — |
 | `SS_STRAP_GENERIC[2]` | `[31]` | Entropy-source conditioning bypass enable. | ROM entropy-source initialization |
 | `SS_STRAP_GENERIC[3]` | `[0]` | Stable Owner Key enable. | ROM stable-key derivation and Runtime cryptographic mailbox |
-| `SS_STRAP_GENERIC[3]` | `[1]` | Wait for device reset before fatal-error reporting. | ROM fatal-error handling |
-| `SS_STRAP_GENERIC[3]` | `[7:2]` | Reserved. | — |
+| `SS_STRAP_GENERIC[3]` | `[7:1]` | Reserved. | — |
 | `SS_STRAP_GENERIC[3]` | `[15:8]` | Owner Authorization Manifest minimum SVN, encoded as an unsigned integer. | Runtime owner authorization manifest verification |
 | `SS_STRAP_GENERIC[3]` | `[30:16]` | Reserved. | — |
 | `SS_STRAP_GENERIC[3]` | `[31]` | Disable vendor-authorized debug images. | ROM firmware image and Runtime authorization manifest verification |
@@ -1227,14 +1226,9 @@ ROM locks the following entities to prevent any updates:
 ROM performs the same initialization sequence as specified [here](#Initialization)
 
 ### Error handling
-Fatal error reporting can be configured by the following subsystem strap:
-
-| Register                         | Field/Bits | Description                                             |
-| :------------------------------- | :--------- | :------------------------------------------------------ |
-| SS_STRAP_GENERIC[3]              | [1]        | Wait for device reset before fatal error reporting. When set to 1 in subsystem mode, ROM waits for the recovery interface `DEVICE_RESET.RESET_CTRL` field to be set to `0x1` (`Reset Device`) before updating `CPTRA_FW_ERROR_FATAL` in the fatal error handler. When clear, ROM reports fatal errors immediately. |
+ROM reports fatal errors after zeroization and watchdog shutdown, without waiting for a recovery `DEVICE_RESET` request. `SS_STRAP_GENERIC[3][1]` is reserved and has no effect on fatal-error reporting.
 
 The ROM executes the following operations:
-  - Updates the `cptra_fw_error_fatal` and `cptra_fw_error_non_fatal` registers with the error code ROM_UNKNOWN_RESET_FLOW (0x01040020) error code.
   - Zeroizes the following cryptographic hardware modules:
     - Ecc384
     - Hmac384
@@ -1243,6 +1237,7 @@ The ROM executes the following operations:
     - Sha2-512-384Acc
     - KeyVault
   - Stops the WatchDog Timer.
+  - Updates the `cptra_fw_error_fatal` and `cptra_fw_error_non_fatal` registers with the error code ROM_UNKNOWN_RESET_FLOW (0x01040020) error code.
   - Enters an infinite loop, awaiting a reset.
 <br><br>
 

@@ -25,7 +25,6 @@ use crate::{memory_layout, FuseBank};
 pub type Lifecycle = DeviceLifecycleE;
 
 const SS_STRAP_GENERIC_3_STABLE_OWNER_KEY_ENABLE: u32 = 1 << 0;
-const SS_STRAP_GENERIC_3_WAIT_FOR_DEVICE_RESET_BEFORE_FATAL_ERROR: u32 = 1 << 1;
 const SS_STRAP_GENERIC_3_OWNER_MANIFEST_MIN_SVN_SHIFT: u32 = 8;
 const SS_STRAP_GENERIC_3_OWNER_MANIFEST_MIN_SVN_MASK: u32 = 0xFF;
 const SS_STRAP_GENERIC_3_DISABLE_VENDOR_DEBUG_IMAGES: u32 = 1 << 31;
@@ -676,14 +675,6 @@ impl SocIfc {
         self.soc_ifc.regs().ss_strap_generic().at(3).read()
             & SS_STRAP_GENERIC_3_STABLE_OWNER_KEY_ENABLE
             != 0
-    }
-
-    /// Check if ROM should wait for DEVICE_RESET before reporting fatal errors.
-    pub fn wait_for_device_reset_before_fatal_error(&self) -> bool {
-        self.subsystem_mode()
-            && self.soc_ifc.regs().ss_strap_generic().at(3).read()
-                & SS_STRAP_GENERIC_3_WAIT_FOR_DEVICE_RESET_BEFORE_FATAL_ERROR
-                != 0
     }
 
     /// Check if the Stable Owner Key feature is available.
