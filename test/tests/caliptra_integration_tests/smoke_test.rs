@@ -3,8 +3,11 @@ use caliptra_api::soc_mgr::SocManager;
 use caliptra_api_types::{DeviceLifecycle, Fuses};
 use caliptra_builder::firmware::{APP_WITH_UART, FMC_WITH_UART};
 use caliptra_builder::{firmware, get_ci_rom_version, CiRomVersion, ImageOptions};
+use caliptra_common::checksum::calc_checksum;
 use caliptra_common::mailbox_api::{
-    GetFmcAliasCertReq, GetFmcAliasCsrReq, GetLdevCertReq, GetRtAliasCertReq, ResponseVarSize,
+    CommandId, GetFmcAliasCertReq, GetFmcAliasCsrReq, GetLdevCertReq, GetPqCsrResp,
+    GetRtAliasCertReq, MailboxReq, MailboxReqHeader, ResponseVarSize, SetPqSeedReq,
+    SET_PQ_SEED_SEED_SIZE,
 };
 use caliptra_common::RomBootStatus;
 use caliptra_drivers::CaliptraError;
@@ -23,7 +26,7 @@ use rand::rngs::StdRng;
 use rand::SeedableRng;
 use regex::Regex;
 use std::mem;
-use zerocopy::IntoBytes;
+use zerocopy::{FromBytes, IntoBytes};
 
 // Support testing against older versions of ROM in CI
 // More constants may need to be added here as the ROMs further diverge
@@ -134,6 +137,69 @@ fn retrieve_csr_test() {
     assert!(
         csr.verify(&csr.public_key().unwrap()).unwrap(),
         "CSR's self signature failed to validate"
+    );
+}
+
+#[test]
+fn retrieve_pq_csr_test() {
+    // Fixed seed so the PQ.DevID key (and therefore the CSR) is deterministic.
+    const PQ_SEED: [u8; SET_PQ_SEED_SEED_SIZE] = [0x5a; SET_PQ_SEED_SEED_SIZE];
+
+    let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
+    let mut hw = run_test(
+        None,
+        None,
+        Some(InitParams {
+            rom: &rom,
+            security_state: *SecurityState::default().set_debug_locked(true),
+            ..Default::default()
+        }),
+        None,
+    );
+    hw.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_runtime());
+
+    // SET_PQ_SEED and GET_PQ_CSR run ML-DSA-87 in software, which exceeds
+    // SocManager's MAX_WAIT_CYCLES budget used by `mailbox_execute_req`. Use the
+    // raw `mailbox_execute`, which waits for completion without a cycle budget.
+    let mut set_seed = MailboxReq::SetPqSeed(SetPqSeedReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        seed: PQ_SEED,
+    });
+    set_seed.populate_chksum().unwrap();
+    hw.mailbox_execute(
+        u32::from(CommandId::SET_PQ_SEED),
+        set_seed.as_bytes().unwrap(),
+    )
+    .unwrap();
+
+    let get_csr = MailboxReqHeader {
+        chksum: calc_checksum(u32::from(CommandId::GET_PQ_CSR), &[]),
+    };
+    let resp_bytes = hw
+        .mailbox_execute(u32::from(CommandId::GET_PQ_CSR), get_csr.as_bytes())
+        .unwrap()
+        .unwrap();
+    let (csr_resp, _) = GetPqCsrResp::ref_from_prefix(&resp_bytes).unwrap();
+    let csr_der = &csr_resp.data[..csr_resp.data_size as usize];
+
+    let csr = openssl::x509::X509Req::from_der(csr_der).unwrap();
+    let csr_txt = String::from_utf8(csr.to_text().unwrap()).unwrap();
+
+    // To update the CSR testdata:
+    // std::fs::write("tests/caliptra_integration_tests/smoke_testdata/pq_devid_csr.txt", &csr_txt).unwrap();
+    // std::fs::write("tests/caliptra_integration_tests/smoke_testdata/pq_devid_csr.der", csr_der).unwrap();
+
+    println!("pq csr: {}", csr_txt);
+
+    assert_eq!(
+        csr_txt.as_str(),
+        include_str!("smoke_testdata/pq_devid_csr.txt")
+    );
+    assert_eq!(csr_der, include_bytes!("smoke_testdata/pq_devid_csr.der"));
+
+    assert!(
+        csr.verify(&csr.public_key().unwrap()).unwrap(),
+        "PQ CSR's self signature failed to validate"
     );
 }
 
