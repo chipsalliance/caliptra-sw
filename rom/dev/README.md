@@ -1237,7 +1237,7 @@ The ROM executes the following operations:
     - Sha2-512-384Acc
     - KeyVault
   - Stops the WatchDog Timer.
-  - Updates the `cptra_fw_error_fatal` and `cptra_fw_error_non_fatal` registers with the error code ROM_UNKNOWN_RESET_FLOW (0x01040020) error code.
+  - Updates the `cptra_fw_error_fatal` and `cptra_fw_error_non_fatal` registers with the error code ROM_UNKNOWN_RESET_FLOW (0x01040020).
   - Enters an infinite loop, awaiting a reset.
 <br><br>
 
