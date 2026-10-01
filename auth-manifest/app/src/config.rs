@@ -50,7 +50,6 @@ pub struct ImageMetadataConfigFromFile {
     fw_id: u32,
     exec_bit: u32,
     ignore_auth_check: bool,
-    #[serde(default)]
     dma_single_dword_read: bool,
     component_id: u32,
     image_load_address: u64,
@@ -178,29 +177,4 @@ pub(crate) fn image_metadata_config_from_file(
     }
 
     Ok(image_metadata_list)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::ImageMetadataConfigFromFile;
-
-    #[test]
-    fn omitted_dma_single_dword_read_defaults_to_burst_mode() {
-        let config: ImageMetadataConfigFromFile = toml::from_str(
-            r#"
-digest = ""
-source = 1
-fw_id = 1
-exec_bit = 0
-ignore_auth_check = false
-component_id = 0
-image_load_address = 0
-image_staging_address = 0
-classification = 0
-"#,
-        )
-        .unwrap();
-
-        assert!(!config.dma_single_dword_read);
-    }
 }
