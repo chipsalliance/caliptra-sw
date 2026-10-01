@@ -1980,9 +1980,44 @@ fn test_manifest_snapshot_ignores_external_manifest_changes() {
     run_manifest_snapshot_test(false);
 }
 
-fn run_toc_source_bounds_test(include_gap: bool) {
+#[test]
+fn test_toc_source_bounds_recovery_reason() {
+    for err in [
+        CaliptraError::IMAGE_VERIFIER_ERR_FMC_OFFSET_INVALID,
+        CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_OFFSET_INVALID,
+    ] {
+        assert_eq!(
+            DmaRecovery::recovery_reason_from_firmware_verification_error(err),
+            DmaRecovery::RECOVERY_REASON_FIRMWARE_IMAGE_LAYOUT_INVALID
+        );
+    }
+}
+
+enum TocSourceLayout {
+    RuntimePastBundle,
+    RuntimeGap,
+    ContiguousWithPadding,
+}
+
+fn run_toc_source_bounds_test(layout: TocSourceLayout) {
     const GAP_SIZE: usize = 16;
     const PADDING_SIZE: usize = 16;
+
+    let (declared_gap, actual_gap, padding, expected_error) = match layout {
+        TocSourceLayout::RuntimePastBundle => (
+            GAP_SIZE,
+            0,
+            0,
+            Some(CaliptraError::IMAGE_VERIFIER_ERR_IMAGE_LEN_MORE_THAN_BUNDLE_SIZE),
+        ),
+        TocSourceLayout::RuntimeGap => (
+            GAP_SIZE,
+            GAP_SIZE,
+            PADDING_SIZE,
+            Some(CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_OFFSET_INVALID),
+        ),
+        TocSourceLayout::ContiguousWithPadding => (0, 0, PADDING_SIZE, None),
+    };
 
     for &subsystem_mode in &HW_MODEL_MODES_SUBSYSTEM {
         for pqc_key_type in helpers::PQC_KEY_TYPE {
@@ -2010,30 +2045,24 @@ fn run_toc_source_bounds_test(include_gap: bool) {
                 &mut image_bundle,
                 fmc.offset,
                 fmc.size,
-                runtime.offset + GAP_SIZE as u32,
+                runtime.offset + declared_gap as u32,
                 runtime.size,
             );
+            let mut image = contiguous_image[..runtime.offset as usize].to_vec();
+            image.resize(image.len() + actual_gap, 0);
+            image.extend_from_slice(&contiguous_image[runtime.offset as usize..]);
+            image.resize(image.len() + padding, 0);
 
-            if include_gap {
-                let mut image = contiguous_image[..runtime.offset as usize].to_vec();
-                image.extend_from_slice(&[0; GAP_SIZE]);
-                image.extend_from_slice(&contiguous_image[runtime.offset as usize..]);
-                image.extend_from_slice(&[0; PADDING_SIZE]);
-                helpers::test_upload_firmware(&mut hw, &image, pqc_key_type);
-                hw.step_until_boot_status(ColdResetComplete.into(), true);
-                assert_eq!(hw.soc_ifc().cptra_fw_error_fatal().read(), 0);
-            } else {
-                // The size sum fits, but the signed runtime extent exceeds the bundle.
-                helpers::assert_fatal_fw_load(
-                    &mut hw,
-                    pqc_key_type,
-                    &contiguous_image,
-                    CaliptraError::IMAGE_VERIFIER_ERR_IMAGE_LEN_MORE_THAN_BUNDLE_SIZE,
-                );
+            if let Some(expected_error) = expected_error {
+                helpers::assert_fatal_fw_load(&mut hw, pqc_key_type, &image, expected_error);
                 assert_eq!(
                     hw.soc_ifc().cptra_boot_status().read(),
                     u32::from(FwProcessorManifestLoadComplete)
                 );
+            } else {
+                helpers::test_upload_firmware(&mut hw, &image, pqc_key_type);
+                hw.step_until_boot_status(ColdResetComplete.into(), true);
+                assert_eq!(hw.soc_ifc().cptra_fw_error_fatal().read(), 0);
             }
         }
     }
@@ -2041,12 +2070,17 @@ fn run_toc_source_bounds_test(include_gap: bool) {
 
 #[test]
 fn test_toc_source_bounds_reject_runtime_past_bundle() {
-    run_toc_source_bounds_test(false);
+    run_toc_source_bounds_test(TocSourceLayout::RuntimePastBundle);
 }
 
 #[test]
-fn test_toc_source_bounds_allow_gap_and_padding() {
-    run_toc_source_bounds_test(true);
+fn test_toc_source_bounds_reject_runtime_gap() {
+    run_toc_source_bounds_test(TocSourceLayout::RuntimeGap);
+}
+
+#[test]
+fn test_toc_source_bounds_allow_trailing_padding() {
+    run_toc_source_bounds_test(TocSourceLayout::ContiguousWithPadding);
 }
 
 #[test]

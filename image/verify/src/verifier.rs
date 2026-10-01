@@ -1057,6 +1057,10 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_IMAGE_LEN_MORE_THAN_BUNDLE_SIZE)?;
         }
 
+        if runtime_range.start != fmc_range.end {
+            Err(CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_OFFSET_INVALID)?;
+        }
+
         // Check if fmc and runtime images don't overlap on loading in the ICCM.
         let fmc_load_addr_start = manifest.fmc.load_addr;
         let (fmc_load_addr_end, overflow) =
@@ -2367,6 +2371,22 @@ mod tests {
                 Some(CaliptraError::IMAGE_VERIFIER_ERR_IMAGE_LEN_MORE_THAN_BUNDLE_SIZE)
             );
         }
+
+        let fmc_end = manifest.fmc.image_range().unwrap().end;
+        for gap in [1, 4, 16, 128] {
+            manifest.runtime.offset = fmc_end + gap;
+            let runtime_end = manifest.runtime.image_range().unwrap().end;
+            for bundle_size in [runtime_end, runtime_end + 16] {
+                assert_eq!(
+                    verifier.verify_toc(&manifest, &toc_info, bundle_size).err(),
+                    Some(CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_OFFSET_INVALID),
+                    "runtime gap {gap}, bundle size {bundle_size}"
+                );
+            }
+        }
+
+        manifest.runtime.offset = fmc_end;
+        let runtime_end = manifest.runtime.image_range().unwrap().end;
         for bundle_size in [runtime_end, runtime_end + 16] {
             assert!(verifier
                 .verify_toc(&manifest, &toc_info, bundle_size)

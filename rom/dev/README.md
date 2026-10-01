@@ -2104,10 +2104,13 @@ multi-word byte ordering:
 - Compute the SHA2-384 hash of the complete TOC data.
 - Compare the computed TOC hash with the hash embedded in the Header.
   - If the hashes match, the TOC data is validated.
+- Require tightly packed image data: FMC immediately follows the manifest, and
+  Runtime immediately follows the checked end of FMC. A gap before Runtime is
+  rejected with `IMAGE_VERIFIER_ERR_RUNTIME_OFFSET_INVALID`. This source-layout
+  requirement does not require adjacent ICCM load addresses.
 - Check each image's `Offset + Size` for overflow and require the resulting end
   offset to be within the supplied bundle length before hashing or loading its
-  payload. A gap before Runtime and trailing bundle padding are permitted; the
-  sum of component sizes alone is not a sufficient bounds check.
+  payload. Trailing bundle padding remains permitted.
 - For external images, also check the absolute AXI source address and final byte
   before DMA. Update reset rejects a wrapping staging bundle before fetching its
   manifest. Source-address overflow reports `DRIVER_DMA_AXI_ADDRESS_OVERFLOW`.
