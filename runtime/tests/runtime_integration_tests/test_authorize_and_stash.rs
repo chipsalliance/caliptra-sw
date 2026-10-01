@@ -43,7 +43,7 @@ pub const FW_ID_DEFAULT_PADDING: [u8; 4] = u32::MAX.to_le_bytes();
 const AUTH_AND_STASH_TCI_TAG: u32 = 0x4154_5348;
 
 #[cfg(feature = "fpga_subsystem")]
-const FPGA_SINGLE_DWORD_DMA_TEST_FW_ID: [u8; 4] = 0x4452_5744_u32.to_le_bytes(); // "DWRD"
+const CPT_SINGLE_DWORD_DMA_FW_ID: [u8; 4] = 0x0000_1010_u32.to_le_bytes();
 
 #[cfg(feature = "fpga_subsystem")]
 pub const TEST_SRAM_SIZE: usize = 0x1000;
@@ -1236,7 +1236,7 @@ fn test_authorize_from_load_address() {
 #[cfg(feature = "fpga_subsystem")]
 #[test]
 fn test_authorize_from_load_address_single_dword_dma() {
-    authorize_from_load_address(FPGA_SINGLE_DWORD_DMA_TEST_FW_ID);
+    authorize_from_load_address(CPT_SINGLE_DWORD_DMA_FW_ID);
 }
 
 // Exercises an image larger than the DMA engine's 1 MiB per-transfer limit

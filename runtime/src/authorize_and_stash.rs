@@ -48,22 +48,10 @@ pub const IMAGE_AUTHORIZED_VENDOR_OWNER: u32 = IMAGE_AUTHORIZED;
 pub const IMAGE_AUTHORIZED_OWNER_ONLY: u32 = 0xC0DE_DEAD;
 
 // Add firmware IDs whose memory targets do not support AXI burst reads.
-const SINGLE_DWORD_DMA_FW_IDS: &[u32] = &[];
-
-#[cfg(feature = "fpga_subsystem")]
-const FPGA_SINGLE_DWORD_DMA_TEST_FW_ID: u32 = 0x4452_5744; // "DWRD"
+const SINGLE_DWORD_DMA_FW_IDS: &[u32] = &[0x0000_1010];
 
 fn use_single_dword_dma(fw_id: u32) -> bool {
-    if SINGLE_DWORD_DMA_FW_IDS.contains(&fw_id) {
-        return true;
-    }
-
-    #[cfg(feature = "fpga_subsystem")]
-    if fw_id == FPGA_SINGLE_DWORD_DMA_TEST_FW_ID {
-        return true;
-    }
-
-    false
+    SINGLE_DWORD_DMA_FW_IDS.contains(&fw_id)
 }
 
 pub struct AuthorizeAndStashCmd;
