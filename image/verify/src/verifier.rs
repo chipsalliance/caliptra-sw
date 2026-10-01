@@ -1173,6 +1173,9 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         if !verify_info.entry_point.is_multiple_of(4) {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_FMC_ENTRY_POINT_UNALIGNED)?;
         }
+        if verify_info.entry_point != verify_info.load_addr {
+            Err(CaliptraError::IMAGE_VERIFIER_ERR_FMC_ENTRY_POINT_NOT_AT_LOAD_ADDR)?;
+        }
 
         if cfi_launder(reason) == ResetReason::UpdateReset {
             if cfi_launder(actual) != self.env.get_fmc_digest_dv() {
@@ -1246,6 +1249,9 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         }
         if !verify_info.entry_point.is_multiple_of(4) {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_ENTRY_POINT_UNALIGNED)?;
+        }
+        if verify_info.entry_point != verify_info.load_addr {
+            Err(CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_ENTRY_POINT_NOT_AT_LOAD_ADDR)?;
         }
 
         let info = ImageVerificationExeInfo {
