@@ -23,7 +23,7 @@ use caliptra_common::mailbox_api::{
     MailboxRespHeader,
 };
 use caliptra_dpe::error::DpeErrorCode;
-use caliptra_drivers::{AesDmaMode, DmaRecovery};
+use caliptra_drivers::{cprintln, AesDmaMode, DmaRecovery};
 use caliptra_drivers::{Array4x12, AxiAddr, CaliptraError, CaliptraResult};
 use zerocopy::FromBytes;
 
@@ -153,9 +153,9 @@ impl AuthorizeAndStashCmd {
             };
 
         // If 'ignore_auth_check' is set, then skip the image digest comparison and authorize the image.
-        let flags = ImageMetadataFlags(metadata_entry.flags);
-        let auth_result = if flags.ignore_auth_check() {
-            cfi_assert!(cfi_launder(flags.ignore_auth_check()));
+        let metadata_flags = ImageMetadataFlags(metadata_entry.flags);
+        let auth_result = if metadata_flags.ignore_auth_check() {
+            cfi_assert!(cfi_launder(metadata_flags.ignore_auth_check()));
             success_code
         } else if source == ImageHashSource::InRequest {
             if cfi_launder(metadata_entry.digest) == cmd.measurement {
@@ -170,24 +170,57 @@ impl AuthorizeAndStashCmd {
         } else if source == ImageHashSource::LoadAddress
             || source == ImageHashSource::StagingAddress
         {
+            let single_dword_dma = metadata_flags.dma_single_dword_read();
             let image_source = if source == ImageHashSource::LoadAddress {
                 metadata_entry.image_load_address
             } else {
                 metadata_entry.image_staging_address
             };
+            let image_source = AxiAddr {
+                hi: image_source.hi,
+                lo: image_source.lo,
+            };
 
-            let measurement: [u8; 48] = dma_image
-                .sha384_image(
+            if single_dword_dma
+                && cmd.image_size != 0
+                && ((image_source.lo | cmd.image_size) & 0x3) != 0
+            {
+                Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+            }
+
+            if single_dword_dma {
+                cprintln!(
+                    "[auth-and-stash] FW ID 0x{:08x}: single-dword DMA hash addr=0x{:08x}{:08x} size={}",
+                    cmd_fw_id,
+                    image_source.hi,
+                    image_source.lo,
+                    cmd.image_size
+                );
+            }
+
+            let measurement = if single_dword_dma {
+                dma_image.sha384_image_single_dword(
                     &mut drivers.sha2_512_384_acc,
-                    AxiAddr {
-                        hi: image_source.hi,
-                        lo: image_source.lo,
-                    },
+                    image_source,
+                    cmd.image_size,
+                )
+            } else {
+                dma_image.sha384_image(
+                    &mut drivers.sha2_512_384_acc,
+                    image_source,
                     cmd.image_size,
                     AesDmaMode::None,
                 )
+            };
+            let measurement: [u8; 48] = measurement
                 .map_err(|_| CaliptraError::RUNTIME_INTERNAL)?
                 .into();
+            if single_dword_dma {
+                cprintln!(
+                    "[auth-and-stash] FW ID 0x{:08x}: single-dword DMA hash complete",
+                    cmd_fw_id
+                );
+            }
             if cfi_launder(metadata_entry.digest) == measurement {
                 stash_measurement = measurement;
                 caliptra_cfi_lib::cfi_assert_eq_12_words(

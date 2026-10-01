@@ -1158,12 +1158,11 @@ fn tag_and_get_default_tci(model: &mut DefaultHwModel) -> GetTaggedTciResp {
     GetTaggedTciResp::read_from_bytes(resp.as_slice()).unwrap()
 }
 
-#[cfg_attr(feature = "fpga_realtime", ignore)]
-#[test]
-fn test_authorize_from_load_address() {
+fn authorize_from_load_address(single_dword_dma: bool) {
     let mut flags = ImageMetadataFlags(0);
     flags.set_ignore_auth_check(false);
     flags.set_image_source(ImageHashSource::LoadAddress as u32);
+    flags.set_dma_single_dword_read(single_dword_dma);
 
     let load_memory_contents = [0x55u8; 512];
 
@@ -1224,6 +1223,18 @@ fn test_authorize_from_load_address() {
 
     let tagged_tci = tag_and_get_default_tci(&mut model);
     assert_eq!(tagged_tci.tci_current, fw_digest);
+}
+
+#[cfg_attr(feature = "fpga_realtime", ignore)]
+#[test]
+fn test_authorize_from_load_address() {
+    authorize_from_load_address(false);
+}
+
+#[cfg_attr(feature = "fpga_realtime", ignore)]
+#[test]
+fn test_authorize_from_load_address_single_dword_dma() {
+    authorize_from_load_address(true);
 }
 
 // Exercises an image larger than the DMA engine's 1 MiB per-transfer limit
