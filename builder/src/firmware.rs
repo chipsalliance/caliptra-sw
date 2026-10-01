@@ -580,6 +580,10 @@ pub mod driver_tests {
 
     pub const DMA_SHA384: FwId = FwId {
         bin_name: "dma_sha384",
+        fw_type: FirmwareType::Source {
+            features: &["emu", "dma-sha384"],
+            hw_revision: None,
+        },
         ..BASE_FWID
     };
 
@@ -587,7 +591,7 @@ pub mod driver_tests {
     pub const DMA_SHA384_FPGA: FwId = FwId {
         bin_name: "dma_sha384",
         fw_type: FirmwareType::Source {
-            features: &["emu", "fpga_subsystem"],
+            features: &["emu", "fpga_subsystem", "dma-sha384"],
             hw_revision: None,
         },
         ..BASE_FWID
