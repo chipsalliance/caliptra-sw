@@ -75,6 +75,20 @@ After booting, Caliptra Runtime Firmware is responsible for the following.
 
 Callers must wait until Caliptra is no longer busy to call a mailbox command.
 
+### Command watchdog
+
+On debug-locked devices, Runtime starts WDT1 before processing each mailbox
+command with a timeout of `max(20_000_000, CPTRA_WDT_CFG)` cycles. Runtime reads
+the full 64-bit configuration value; zero or a value below 20 million cycles
+retains the existing 20-million-cycle minimum. Larger values extend the timeout.
+
+The timeout covers the entire command, including DMA image hashing and any
+measurement stashing. Platforms using single-DWORD DMA hashing must configure
+enough time for their supported image sizes and worst-case AXI latency, plus the
+remaining command processing. Runtime stops the watchdog after command
+processing and while idle. The watchdog is not started on debug-unlocked devices.
+This Runtime minimum does not change ROM's watchdog configuration policy.
+
 ### Fault handling
 
 A mailbox command can fail to complete in the following ways:
@@ -1471,7 +1485,7 @@ After a successful `SET_AUTH_MANIFEST`, Runtime sets `FW_INFO.debug_policy[1]` f
 | Image Hash              | u8[48]      | SHA2-384 hash of a SOC image. |
 | Image_id                | u32            | This corresponds to the `Image Identifier` field in the [SoC Manifest](https://github.com/chipsalliance/caliptra-sw/blob/main/auth-manifest/README.md) |
 | Component_id            | u32            | This corresponds to the `Component Id` field in the [SoC Manifest](https://github.com/chipsalliance/caliptra-sw/blob/main/auth-manifest/README.md) |
-| flags                   | u32            | This corresponds to the `flags` field in the [SoC Manifest](https://github.com/chipsalliance/caliptra-sw/blob/main/auth-manifest/README.md) |
+| flags                   | u32            | This corresponds to the `flags` field in the [SoC Manifest](https://github.com/chipsalliance/caliptra-sw/blob/main/auth-manifest/README.md). Bit 3 requests single-DWORD DMA reads when Runtime hashes the image from its load or staging address. If clear, Runtime uses burst DMA reads. |
 | Image Load Address High | u32          | This corresponds to the `Image Load Address High` field in the [SoC Manifest](https://github.com/chipsalliance/caliptra-sw/blob/main/auth-manifest/README.md) |
 | Image Load Address Low  | u32          | This corresponds to the `Image Load Address Low` field in the [SoC Manifest](https://github.com/chipsalliance/caliptra-sw/blob/main/auth-manifest/README.md) |
 | Staging Address High    | u32          | This corresponds to the `Staging Address High` field in the [SoC Manifest](https://github.com/chipsalliance/caliptra-sw/blob/main/auth-manifest/README.md) |

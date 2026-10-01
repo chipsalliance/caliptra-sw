@@ -50,6 +50,8 @@ pub struct ImageMetadataConfigFromFile {
     fw_id: u32,
     exec_bit: u32,
     ignore_auth_check: bool,
+    #[serde(default)]
+    dma_single_dword_read: bool,
     component_id: u32,
     image_load_address: u64,
     image_staging_address: u64,
@@ -147,6 +149,7 @@ pub(crate) fn image_metadata_config_from_file(
         let mut flags = ImageMetadataFlags(0);
         flags.set_ignore_auth_check(image.ignore_auth_check);
         flags.set_image_source(image.source);
+        flags.set_dma_single_dword_read(image.dma_single_dword_read);
         flags.set_exec_bit(image.exec_bit);
 
         let image_metadata = AuthManifestImageMetadata {
@@ -175,4 +178,101 @@ pub(crate) fn image_metadata_config_from_file(
     }
 
     Ok(image_metadata_list)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use caliptra_auth_man_gen::default_test_manifest::{
+        create_test_auth_manifest_with_metadata, default_test_owner_fw_key_info,
+        default_test_owner_man_key_info,
+    };
+    use caliptra_auth_man_gen::{AuthManifestGenerator, OwnerAuthManifestGeneratorConfig};
+    use caliptra_image_types::FwVerificationPqcKeyType;
+    use zerocopy::IntoBytes;
+
+    const EXAMPLE_CONFIG: &str = include_str!("auth-man.toml");
+    const DWORD_FIELD: &str = "dma_single_dword_read = false";
+
+    fn assert_manifest_flags(input: &str, expected_dword_flags: &[bool]) {
+        let config: AuthManifestConfigFromFile = toml::from_str(input).unwrap();
+        let metadata = image_metadata_config_from_file(&config.image_metadata_list).unwrap();
+        assert_eq!(metadata.len(), expected_dword_flags.len());
+
+        for ((entry, input), &expected) in metadata
+            .iter()
+            .zip(&config.image_metadata_list)
+            .zip(expected_dword_flags)
+        {
+            assert_eq!(input.dma_single_dword_read, expected);
+            assert_eq!(
+                entry.flags,
+                input.source
+                    | (u32::from(input.ignore_auth_check) << 2)
+                    | (u32::from(expected) << 3)
+                    | (input.exec_bit << 8)
+            );
+        }
+
+        let vendor_owner = create_test_auth_manifest_with_metadata(
+            metadata.clone(),
+            FwVerificationPqcKeyType::MLDSA,
+            1,
+            Crypto::default(),
+        );
+        let owner = AuthManifestGenerator::new(Crypto::default())
+            .generate_owner(&OwnerAuthManifestGeneratorConfig {
+                version: 1,
+                svn: 1,
+                pqc_key_type: FwVerificationPqcKeyType::MLDSA,
+                owner_fw_key_info: default_test_owner_fw_key_info(),
+                owner_man_key_info: default_test_owner_man_key_info(),
+                image_metadata_list: metadata.clone(),
+            })
+            .unwrap();
+
+        let count = u32::try_from(metadata.len()).unwrap();
+        assert_eq!(vendor_owner.image_metadata_col.entry_count, count);
+        assert_eq!(owner.image_metadata_col.entry_count, count);
+        for encoded in [
+            vendor_owner.image_metadata_col.image_metadata_list[..metadata.len()].as_bytes(),
+            owner.image_metadata_col.image_metadata_list[..metadata.len()].as_bytes(),
+        ] {
+            assert_eq!(encoded, metadata.as_slice().as_bytes());
+        }
+    }
+
+    #[test]
+    fn test_dma_single_dword_read_defaults_to_false() {
+        let input = EXAMPLE_CONFIG.replace(DWORD_FIELD, "");
+        assert_manifest_flags(&input, &[false, false, false]);
+    }
+
+    #[test]
+    fn test_dma_single_dword_read_explicit_false() {
+        assert_manifest_flags(EXAMPLE_CONFIG, &[false, false, false]);
+    }
+
+    #[test]
+    fn test_dma_single_dword_read_explicit_true() {
+        let input = EXAMPLE_CONFIG.replace(DWORD_FIELD, "dma_single_dword_read = true");
+        assert_manifest_flags(&input, &[true, true, true]);
+    }
+
+    #[test]
+    fn test_dma_single_dword_read_defaults_per_entry() {
+        let input = EXAMPLE_CONFIG
+            .replacen(DWORD_FIELD, "dma_single_dword_read = true", 1)
+            .replacen(DWORD_FIELD, "", 1);
+        assert_manifest_flags(&input, &[true, false, false]);
+    }
+
+    #[test]
+    fn test_dma_single_dword_read_rejects_non_boolean_values() {
+        for value in ["1", r#""true""#] {
+            let input =
+                EXAMPLE_CONFIG.replace(DWORD_FIELD, &format!("dma_single_dword_read = {value}"));
+            assert!(toml::from_str::<AuthManifestConfigFromFile>(&input).is_err());
+        }
+    }
 }
