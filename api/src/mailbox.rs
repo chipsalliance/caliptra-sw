@@ -45,6 +45,7 @@ impl CommandId {
     pub const INVOKE_DPE_MLDSA87: Self = Self(0x4D4C4450); // "MLDP"
     pub const GET_PQ_CSR: Self = Self(0x50514353); // "PQCS"
     pub const GET_PQ_INFO: Self = Self(0x5051_494E); // "PQIN"
+    pub const GET_ATTESTED_PQ_CSR: Self = Self(0x4150_5143); // "APQC"
     pub const CERTIFY_KEY_EXTENDED_MLDSA87: Self = Self(0x434B454D); // "CKEM"
 
     /// FIPS module commands.
@@ -186,6 +187,7 @@ pub enum MailboxResp {
     InvokeDpeMldsa87Command(InvokeDpeMldsa87Resp),
     GetPqCsr(GetPqCsrResp),
     GetPqInfo(GetPqInfoResp),
+    GetAttestedPqCsr(GetAttestedPqCsrResp),
     CertifyKeyExtendedMldsa87(CertifyKeyExtendedMldsa87Resp),
     AuthorizeAndStash(AuthorizeAndStashResp),
     GetIdevCsr(GetIdevCsrResp),
@@ -217,6 +219,7 @@ impl MailboxResp {
             MailboxResp::InvokeDpeMldsa87Command(resp) => resp.as_bytes_partial(),
             MailboxResp::GetPqCsr(resp) => Ok(resp.as_bytes()),
             MailboxResp::GetPqInfo(resp) => Ok(resp.as_bytes()),
+            MailboxResp::GetAttestedPqCsr(resp) => resp.as_bytes_partial(),
             MailboxResp::CertifyKeyExtendedMldsa87(resp) => Ok(resp.as_bytes()),
             MailboxResp::AuthorizeAndStash(resp) => Ok(resp.as_bytes()),
             MailboxResp::GetIdevCsr(resp) => Ok(resp.as_bytes()),
@@ -248,6 +251,7 @@ impl MailboxResp {
             MailboxResp::InvokeDpeMldsa87Command(resp) => resp.as_bytes_partial_mut(),
             MailboxResp::GetPqCsr(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::GetPqInfo(resp) => Ok(resp.as_mut_bytes()),
+            MailboxResp::GetAttestedPqCsr(resp) => resp.as_bytes_partial_mut(),
             MailboxResp::CertifyKeyExtendedMldsa87(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::AuthorizeAndStash(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::GetIdevCsr(resp) => Ok(resp.as_mut_bytes()),
@@ -314,6 +318,7 @@ pub enum MailboxReq {
     IncrementPcrResetCounter(IncrementPcrResetCounterReq),
     QuotePcrs(QuotePcrsReq),
     SetPqSeed(SetPqSeedReq),
+    GetAttestedPqCsr(GetAttestedPqCsrReq),
     InvokeDpeMldsa87Command(InvokeDpeMldsa87Req),
     CertifyKeyExtendedMldsa87(CertifyKeyExtendedMldsa87Req),
     ExtendPcr(ExtendPcrReq),
@@ -350,6 +355,7 @@ impl MailboxReq {
             MailboxReq::IncrementPcrResetCounter(req) => Ok(req.as_bytes()),
             MailboxReq::QuotePcrs(req) => Ok(req.as_bytes()),
             MailboxReq::SetPqSeed(req) => Ok(req.as_bytes()),
+            MailboxReq::GetAttestedPqCsr(req) => Ok(req.as_bytes()),
             MailboxReq::InvokeDpeMldsa87Command(req) => req.as_bytes_partial(),
             MailboxReq::CertifyKeyExtendedMldsa87(req) => Ok(req.as_bytes()),
             MailboxReq::ExtendPcr(req) => Ok(req.as_bytes()),
@@ -386,6 +392,7 @@ impl MailboxReq {
             MailboxReq::IncrementPcrResetCounter(req) => Ok(req.as_mut_bytes()),
             MailboxReq::QuotePcrs(req) => Ok(req.as_mut_bytes()),
             MailboxReq::SetPqSeed(req) => Ok(req.as_mut_bytes()),
+            MailboxReq::GetAttestedPqCsr(req) => Ok(req.as_mut_bytes()),
             MailboxReq::InvokeDpeMldsa87Command(req) => req.as_bytes_partial_mut(),
             MailboxReq::CertifyKeyExtendedMldsa87(req) => Ok(req.as_mut_bytes()),
             MailboxReq::ExtendPcr(req) => Ok(req.as_mut_bytes()),
@@ -422,6 +429,7 @@ impl MailboxReq {
             MailboxReq::IncrementPcrResetCounter(_) => CommandId::INCREMENT_PCR_RESET_COUNTER,
             MailboxReq::QuotePcrs(_) => CommandId::QUOTE_PCRS,
             MailboxReq::SetPqSeed(_) => CommandId::SET_PQ_SEED,
+            MailboxReq::GetAttestedPqCsr(_) => CommandId::GET_ATTESTED_PQ_CSR,
             MailboxReq::InvokeDpeMldsa87Command(_) => CommandId::INVOKE_DPE_MLDSA87,
             MailboxReq::CertifyKeyExtendedMldsa87(_) => CommandId::CERTIFY_KEY_EXTENDED_MLDSA87,
             MailboxReq::ExtendPcr(_) => CommandId::EXTEND_PCR,
@@ -1335,6 +1343,50 @@ impl GetPqCsrResp {
 impl ResponseVarSize for GetPqCsrResp {}
 
 impl Default for GetPqCsrResp {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxRespHeader::default(),
+            data_size: 0,
+            data: [0u8; Self::DATA_MAX_SIZE],
+        }
+    }
+}
+
+// GET_ATTESTED_PQ_CSR
+#[repr(C)]
+#[derive(Default, Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+pub struct GetAttestedPqCsrReq {
+    pub hdr: MailboxReqHeader,
+    pub key_id: u32,
+    pub nonce: [u8; 32],
+}
+
+impl GetAttestedPqCsrReq {
+    /// Return the keypair inventory discovery token.
+    pub const KEY_ID_INVENTORY: u32 = 0;
+    /// Return the attested PQ.DevID (ML-DSA-87) CSR.
+    pub const KEY_ID_PQ_DEVID: u32 = 1;
+}
+
+impl Request for GetAttestedPqCsrReq {
+    const ID: CommandId = CommandId::GET_ATTESTED_PQ_CSR;
+    type Resp = GetAttestedPqCsrResp;
+}
+
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+pub struct GetAttestedPqCsrResp {
+    pub hdr: MailboxRespHeader,
+    pub data_size: u32,
+    /// COSE_Sign1 (CWT-tagged) EAT signed by the RT Alias ECC P-384 key.
+    pub data: [u8; Self::DATA_MAX_SIZE],
+}
+impl GetAttestedPqCsrResp {
+    pub const DATA_MAX_SIZE: usize = 12800;
+}
+impl ResponseVarSize for GetAttestedPqCsrResp {}
+
+impl Default for GetAttestedPqCsrResp {
     fn default() -> Self {
         Self {
             hdr: MailboxRespHeader::default(),

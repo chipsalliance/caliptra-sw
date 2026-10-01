@@ -20,6 +20,7 @@ Abstract:
 
 --*/
 
+use crate::get_attested_pq_csr::GetAttestedPqCsrCmd;
 use crate::packet::{copy_from_mbox, copy_to_mbox};
 use crate::Drivers;
 use caliptra_cfi_derive::cfi_impl_fn;
@@ -30,12 +31,37 @@ use zerocopy::{FromZeros, IntoBytes};
 
 pub struct GetPqCsrCmd;
 
+/// How the regenerated PQ.DevID CSR is returned to the caller.
+pub(crate) enum PqCsrOutput {
+    /// GET_PQ_CSR: raw DER CSR.
+    Csr,
+    /// GET_ATTESTED_PQ_CSR: CSR wrapped in an RT Alias-signed EAT bound to
+    /// the given nonce.
+    AttestedCsr([u8; 32]),
+}
+
 impl GetPqCsrCmd {
     #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn execute(drivers: &mut Drivers) -> CaliptraResult<()> {
         copy_from_mbox(drivers, GetPqCsrReq::new_zeroed().as_mut_bytes())?;
+        Self::generate_and_emit(drivers, PqCsrOutput::Csr)
+    }
 
+    /// Re-derive the PQ.DevID key pair, build the CSR `To Be Signed` structure,
+    /// sign it deterministically with the PQ.DevID private key, then send the
+    /// CSR in the requested `output` form.
+    ///
+    /// Shared by GET_PQ_CSR and GET_ATTESTED_PQ_CSR so the code exists once and
+    /// both commands emit the identical CSR. The TBS, public key and signature
+    /// (~12 KB together) live in this single frame; the output paths are
+    /// inline-never so their buffers occupy a separate frame that does not
+    /// overlap the ML-DSA keygen/sign frames.
+    #[inline(never)]
+    pub(crate) fn generate_and_emit(
+        drivers: &mut Drivers,
+        output: PqCsrOutput,
+    ) -> CaliptraResult<()> {
         // Re-deriving the key material and signing the CSR below exceed the
         // default 20M-cycle command watchdog budget; extend it.
         drivers.extend_wdt_for_pqc();
@@ -66,15 +92,35 @@ impl GetPqCsrCmd {
         // Seed and derived key material are no longer needed.
         drop(seed);
 
-        // Assemble and send the CSR in a separate (inline-never) frame. The
-        // response buffer is ~12.8 KB; keeping it out of this frame ensures it
-        // does not coexist on the stack with the large ML-DSA keygen/sign frames
-        // above, which together would overflow the runtime stack.
-        Self::assemble_and_send_csr(drivers, tbs.tbs(), &sig)
+        match output {
+            PqCsrOutput::Csr => Self::assemble_and_send_csr(drivers, tbs.tbs(), &sig),
+            PqCsrOutput::AttestedCsr(nonce) => {
+                GetAttestedPqCsrCmd::send_attested_csr(drivers, &nonce, tbs.tbs(), &sig)
+            }
+        }
     }
 
-    /// Build the CSR from `tbs`/`sig` into the mailbox response buffer and send
-    /// it. Isolated in its own stack frame; see the caller for why.
+    /// DER-assemble the CSR from `tbs`/`sig` into `buf`, returning its length.
+    ///
+    /// Shared by both output paths. Must only be called from the output frames:
+    /// the builder needs a ~4.6 KB signature scratch buffer, which would
+    /// overflow the stack if it were part of the keygen/sign frame.
+    #[inline(never)]
+    pub(crate) fn build_csr(
+        tbs: &[u8],
+        sig: &Mldsa87Signature,
+        buf: &mut [u8],
+    ) -> CaliptraResult<usize> {
+        MlDsa87CsrBuilder::new(tbs, sig)
+            .ok_or(CaliptraError::RUNTIME_PQ_CSR_BUILDER_INIT_FAILURE)?
+            .build(buf)
+            .ok_or(CaliptraError::RUNTIME_PQ_CSR_BUILDER_BUILD_FAILURE)
+    }
+
+    /// Build the CSR into the mailbox response buffer and send it. The
+    /// response buffer is ~12.8 KB; it lives in this separate (inline-never)
+    /// frame so it does not coexist on the stack with the large ML-DSA
+    /// keygen/sign frames, which together would overflow the runtime stack.
     #[inline(never)]
     fn assemble_and_send_csr(
         drivers: &mut Drivers,
@@ -82,12 +128,7 @@ impl GetPqCsrCmd {
         sig: &Mldsa87Signature,
     ) -> CaliptraResult<()> {
         let mut resp = GetPqCsrResp::new_zeroed();
-        let builder = MlDsa87CsrBuilder::new(tbs, sig)
-            .ok_or(CaliptraError::RUNTIME_PQ_CSR_BUILDER_INIT_FAILURE)?;
-        let csr_len = builder
-            .build(&mut resp.data)
-            .ok_or(CaliptraError::RUNTIME_PQ_CSR_BUILDER_BUILD_FAILURE)?;
-        resp.data_size = csr_len as u32;
+        resp.data_size = Self::build_csr(tbs, sig, &mut resp.data)? as u32;
 
         copy_to_mbox(drivers, resp.as_mut_bytes())
     }

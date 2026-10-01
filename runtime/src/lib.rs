@@ -23,6 +23,7 @@ mod dpe_crypto;
 mod dpe_platform;
 mod drivers;
 pub mod fips;
+mod get_attested_pq_csr;
 mod get_fmc_alias_csr;
 mod get_idev_csr;
 mod get_pq_csr;
@@ -60,6 +61,7 @@ use mailbox::Mailbox;
 use crate::capabilities::CapabilitiesCmd;
 pub use crate::certify_key_extended::CertifyKeyExtendedCmd;
 pub use crate::certify_key_extended_mldsa::CertifyKeyExtendedMldsa87Cmd;
+pub use crate::get_attested_pq_csr::GetAttestedPqCsrCmd;
 pub use crate::get_pq_csr::GetPqCsrCmd;
 pub use crate::get_pq_info::GetPqInfoCmd;
 pub use crate::hmac::Hmac;
@@ -281,6 +283,7 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         CommandId::INVOKE_DPE_MLDSA87 => InvokeDpeMldsa87Cmd::execute(drivers),
         CommandId::GET_PQ_CSR => GetPqCsrCmd::execute(drivers),
         CommandId::GET_PQ_INFO => GetPqInfoCmd::execute(drivers),
+        CommandId::GET_ATTESTED_PQ_CSR => GetAttestedPqCsrCmd::execute(drivers),
         CommandId::CERTIFY_KEY_EXTENDED_MLDSA87 => CertifyKeyExtendedMldsa87Cmd::execute(drivers),
         CommandId::AUTHORIZE_AND_STASH => AuthorizeAndStashCmd::execute(drivers),
         CommandId::GET_IDEV_CSR => GetIdevCsrCmd::execute(drivers),

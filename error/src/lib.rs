@@ -1353,6 +1353,16 @@ impl CaliptraError {
             0x000E0074,
             "Runtime Error: ML-DSA-87 pairwise consistency test (PCT) verify failed"
         ),
+        (
+            RUNTIME_ATTESTED_CSR_EAT_ENCODING_ERROR,
+            0x000E0075,
+            "Runtime Error: Attested CSR EAT encoding failed"
+        ),
+        (
+            RUNTIME_ATTESTED_CSR_COSE_SIGN1_ENCODING_ERROR,
+            0x000E0076,
+            "Runtime Error: Attested CSR COSE_Sign1 encoding failed"
+        ),
         // FMC Errors
         (FMC_GLOBAL_NMI, 0x000F0001, "FMC Error: Global NMI"),
         (

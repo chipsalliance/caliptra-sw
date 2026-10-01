@@ -28,7 +28,19 @@ const DER_SEQ_TAG: u8 = 0x30;
 const MAX_ECDSA384_SIG_LEN: usize = 108;
 
 /// MAX ML-DSA-87 signature DER length
-const MAX_MLDSA87_SIG_DER_LEN: usize = 4641;
+pub const MAX_MLDSA87_SIG_DER_LEN: usize = 4641;
+
+/// Max outer framing of a signed Cert/CSR: SEQUENCE tag (1 byte) + DER length
+/// (at most 3 bytes, since a Cert/CSR is capped at 0xffff bytes).
+pub const MAX_CERT_FRAMING_LEN: usize = 1 + 3;
+
+/// id-ml-dsa-87 (2.16.840.1.101.3.4.3.19) signature algorithm identifier DER
+const MLDSA87_OID_DER: [u8; 13] = [
+    0x30, 0x0b, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x03, 0x13,
+];
+
+/// Length of the ML-DSA-87 signature algorithm identifier DER
+pub const MLDSA87_OID_DER_LEN: usize = MLDSA87_OID_DER.len();
 
 /// Trait for signature types
 pub trait Signature<const MAX_DER_SIZE: usize> {
@@ -208,7 +220,7 @@ fn build_der(
     // Copy Length
     let len = tbs.len() + oid.len() + sig_der.len();
 
-    if buf.len() < len + 4 {
+    if buf.len() < len + MAX_CERT_FRAMING_LEN {
         return None;
     }
 
@@ -262,9 +274,7 @@ impl Signature<MAX_MLDSA87_SIG_DER_LEN> for Mldsa87Signature {
 
     fn oid_der() -> &'static [u8] {
         // id-ml-dsa-87: 2.16.840.1.101.3.4.3.19
-        &[
-            0x30, 0x0b, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x03, 0x13,
-        ]
+        &MLDSA87_OID_DER
     }
 }
 
