@@ -2104,6 +2104,10 @@ multi-word byte ordering:
 - Compute the SHA2-384 hash of the complete TOC data.
 - Compare the computed TOC hash with the hash embedded in the Header.
   - If the hashes match, the TOC data is validated.
+- Check each image's `Offset + Size` for overflow and require the resulting end
+  offset to be within the supplied bundle length before hashing or loading its
+  payload. A gap before Runtime and trailing bundle padding are permitted; the
+  sum of component sizes alone is not a sufficient bounds check.
 - Ensure that Fw.Svn is greater than or equal to Fuse.Svn.
 
 <br> *(Note: Same SVN Validation is done for the FMC and RT)

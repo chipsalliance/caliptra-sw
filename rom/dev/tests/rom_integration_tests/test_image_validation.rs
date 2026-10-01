@@ -48,6 +48,7 @@ use std::str;
 use zerocopy::{FromBytes, IntoBytes};
 
 use crate::helpers;
+use crate::test_derive_stable_key::HW_MODEL_MODES_SUBSYSTEM;
 
 const ICCM_END_ADDR: u32 = ICCM_ORG + ICCM_SIZE - 1;
 const DISABLE_VENDOR_DEBUG_IMAGES: u32 = 1 << 31;
@@ -1977,6 +1978,75 @@ fn test_manifest_snapshot_rejects_forged_toc() {
 #[test]
 fn test_manifest_snapshot_ignores_external_manifest_changes() {
     run_manifest_snapshot_test(false);
+}
+
+fn run_toc_source_bounds_test(include_gap: bool) {
+    const GAP_SIZE: usize = 16;
+    const PADDING_SIZE: usize = 16;
+
+    for &subsystem_mode in &HW_MODEL_MODES_SUBSYSTEM {
+        for pqc_key_type in helpers::PQC_KEY_TYPE {
+            let rom = caliptra_builder::build_firmware_rom(helpers::rom_from_env()).unwrap();
+            let mut image_bundle = helpers::build_image_bundle(ImageOptions {
+                pqc_key_type,
+                ..Default::default()
+            });
+            let mut hw = caliptra_hw_model::new(
+                InitParams {
+                    fuses: Fuses {
+                        fuse_pqc_key_type: pqc_key_type as u32,
+                        ..Default::default()
+                    },
+                    rom: &rom,
+                    subsystem_mode,
+                    ..Default::default()
+                },
+                BootParams::default(),
+            )
+            .unwrap();
+            let fmc = image_bundle.manifest.fmc;
+            let runtime = image_bundle.manifest.runtime;
+            let contiguous_image = update_fmc_runtime_ranges(
+                &mut image_bundle,
+                fmc.offset,
+                fmc.size,
+                runtime.offset + GAP_SIZE as u32,
+                runtime.size,
+            );
+
+            if include_gap {
+                let mut image = contiguous_image[..runtime.offset as usize].to_vec();
+                image.extend_from_slice(&[0; GAP_SIZE]);
+                image.extend_from_slice(&contiguous_image[runtime.offset as usize..]);
+                image.extend_from_slice(&[0; PADDING_SIZE]);
+                helpers::test_upload_firmware(&mut hw, &image, pqc_key_type);
+                hw.step_until_boot_status(ColdResetComplete.into(), true);
+                assert_eq!(hw.soc_ifc().cptra_fw_error_fatal().read(), 0);
+            } else {
+                // The size sum fits, but the signed runtime extent exceeds the bundle.
+                helpers::assert_fatal_fw_load(
+                    &mut hw,
+                    pqc_key_type,
+                    &contiguous_image,
+                    CaliptraError::IMAGE_VERIFIER_ERR_IMAGE_LEN_MORE_THAN_BUNDLE_SIZE,
+                );
+                assert_eq!(
+                    hw.soc_ifc().cptra_boot_status().read(),
+                    u32::from(FwProcessorManifestLoadComplete)
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn test_toc_source_bounds_reject_runtime_past_bundle() {
+    run_toc_source_bounds_test(false);
+}
+
+#[test]
+fn test_toc_source_bounds_allow_gap_and_padding() {
+    run_toc_source_bounds_test(true);
 }
 
 #[test]

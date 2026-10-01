@@ -1053,6 +1053,10 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_FMC_RUNTIME_INCORRECT_ORDER)?;
         }
 
+        if fmc_range.end > img_bundle_sz || runtime_range.end > img_bundle_sz {
+            Err(CaliptraError::IMAGE_VERIFIER_ERR_IMAGE_LEN_MORE_THAN_BUNDLE_SIZE)?;
+        }
+
         // Check if fmc and runtime images don't overlap on loading in the ICCM.
         let fmc_load_addr_start = manifest.fmc.load_addr;
         let (fmc_load_addr_end, overflow) =
@@ -2329,6 +2333,51 @@ mod tests {
         );
 
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_toc_source_bounds() {
+        let manifest_size = IMAGE_MANIFEST_BYTE_SIZE as u32;
+        let mut manifest = ImageManifest {
+            fmc: ImageTocEntry {
+                offset: manifest_size,
+                size: 128,
+                load_addr: ICCM_ORG,
+                ..Default::default()
+            },
+            runtime: ImageTocEntry {
+                offset: manifest_size + 256,
+                size: 128,
+                load_addr: ICCM_ORG + 256,
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let mut verifier = ImageVerifier::new(TestEnv::default());
+        let toc_info = TocInfo {
+            len: MAX_TOC_ENTRY_COUNT,
+            digest: &ImageDigest384::default(),
+        };
+        let runtime_end = manifest.runtime.image_range().unwrap().end;
+        let size_sum = manifest.size + manifest.fmc.size + manifest.runtime.size;
+
+        for bundle_size in [size_sum, runtime_end - 1] {
+            assert_eq!(
+                verifier.verify_toc(&manifest, &toc_info, bundle_size).err(),
+                Some(CaliptraError::IMAGE_VERIFIER_ERR_IMAGE_LEN_MORE_THAN_BUNDLE_SIZE)
+            );
+        }
+        for bundle_size in [runtime_end, runtime_end + 16] {
+            assert!(verifier
+                .verify_toc(&manifest, &toc_info, bundle_size)
+                .is_ok());
+        }
+
+        manifest.runtime.offset = u32::MAX - 64;
+        assert_eq!(
+            verifier.verify_toc(&manifest, &toc_info, u32::MAX).err(),
+            Some(CaliptraError::IMAGE_VERIFIER_ERR_TOC_ENTRY_RANGE_ARITHMETIC_OVERFLOW)
+        );
     }
 
     #[test]
