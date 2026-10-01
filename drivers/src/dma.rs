@@ -66,6 +66,17 @@ pub struct AxiAddr {
     pub hi: u32,
 }
 
+impl AxiAddr {
+    /// Return the offset address only if the entire byte range fits in AXI address space.
+    /// An empty range checks only the starting address.
+    pub fn checked_offset(self, offset: u64, length: u64) -> CaliptraResult<Self> {
+        let err = CaliptraError::DRIVER_DMA_AXI_ADDRESS_OVERFLOW;
+        let start = u64::from(self).checked_add(offset).ok_or(err)?;
+        start.checked_add(length.saturating_sub(1)).ok_or(err)?;
+        Ok(Self::from(start))
+    }
+}
+
 impl Add<u32> for AxiAddr {
     type Output = Self;
 
@@ -937,7 +948,10 @@ impl<'a> DmaRecovery<'a> {
     /// * `buffer` - Buffer to store the read data
     ///
     pub fn load_from_mcu_to_buffer(&self, offset: u64, buffer: &mut [u32]) -> CaliptraResult<()> {
-        let source_addr = self.mci_base + MCU_SRAM_OFFSET + offset;
+        let source_addr = self
+            .mci_base
+            .checked_offset(MCU_SRAM_OFFSET, 0)?
+            .checked_offset(offset, core::mem::size_of_val(buffer) as u64)?;
         self.dma.read_buffer(source_addr, buffer);
         Ok(())
     }
@@ -1174,7 +1188,10 @@ impl<'a> DmaRecovery<'a> {
         length: u32,
         aes_mode: AesDmaMode,
     ) -> CaliptraResult<Array4x12> {
-        let source = self.mci_base + MCU_SRAM_OFFSET + AxiAddr::from(base);
+        let source = self
+            .mci_base
+            .checked_offset(MCU_SRAM_OFFSET, 0)?
+            .checked_offset(base as u64, length as u64)?;
         self.sha384_image(sha_acc, source, length, aes_mode)
     }
 
@@ -1185,7 +1202,10 @@ impl<'a> DmaRecovery<'a> {
         length: u32,
         aes_mode: AesDmaMode,
     ) -> CaliptraResult<Array4x16> {
-        let source = self.mci_base + MCU_SRAM_OFFSET + AxiAddr::from(base);
+        let source = self
+            .mci_base
+            .checked_offset(MCU_SRAM_OFFSET, 0)?
+            .checked_offset(base as u64, length as u64)?;
         self.sha512_image(sha_acc, source, length, aes_mode)
     }
 
@@ -1235,6 +1255,8 @@ impl<'a> DmaRecovery<'a> {
         unsafe {
             crate::FipsTestHook::error_if_hook_set(crate::FipsTestHook::SHA384_DIGEST_FAILURE)?
         }
+
+        let source = source.checked_offset(0, length as u64)?;
 
         // the hardware does not support hashing an empty stream
         if length == 0 {
@@ -1306,6 +1328,8 @@ impl<'a> DmaRecovery<'a> {
                 crate::FipsTestHook::SHA2_512_384_ACC_DIGEST_512_FAILURE,
             )?
         }
+
+        let source = source.checked_offset(0, length as u64)?;
 
         // This is tricky, because we need to lock and write to several registers over DMA
         // so that the AXI user is set correctly, but we want the guarantees of the
@@ -1664,5 +1688,51 @@ impl<'a> DmaEncryptionEngine<'a> {
                 return Ok(Self::check_error(ctrl.0));
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_axi_address_range_carries_into_high_word() {
+        assert_eq!(
+            AxiAddr::from(0xffff_fffc_u64).checked_offset(8, 4),
+            Ok(AxiAddr::from(0x1_0000_0004_u64))
+        );
+    }
+
+    #[test]
+    fn test_axi_address_range_last_byte() {
+        let base = AxiAddr::from(u64::MAX - 7);
+        assert_eq!(base.checked_offset(4, 4), Ok(AxiAddr::from(u64::MAX - 3)));
+        assert_eq!(
+            base.checked_offset(4, 5),
+            Err(CaliptraError::DRIVER_DMA_AXI_ADDRESS_OVERFLOW)
+        );
+    }
+
+    #[test]
+    fn test_axi_address_range_start_overflow() {
+        assert_eq!(
+            AxiAddr::from(u64::MAX - 3).checked_offset(4, 4),
+            Err(CaliptraError::DRIVER_DMA_AXI_ADDRESS_OVERFLOW)
+        );
+        assert_eq!(
+            AxiAddr::from(u64::MAX).checked_offset(1, 0),
+            Err(CaliptraError::DRIVER_DMA_AXI_ADDRESS_OVERFLOW)
+        );
+    }
+
+    #[test]
+    fn test_axi_address_range_empty() {
+        let base = AxiAddr::from(u64::MAX);
+        assert_eq!(base.checked_offset(0, 0), Ok(base));
+        assert_eq!(base.checked_offset(0, 1), Ok(base));
+        assert_eq!(
+            base.checked_offset(0, 2),
+            Err(CaliptraError::DRIVER_DMA_AXI_ADDRESS_OVERFLOW)
+        );
     }
 }

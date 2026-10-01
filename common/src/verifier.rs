@@ -131,15 +131,11 @@ impl ImageVerificationEnv for &mut FirmwareImageVerificationEnv<'_, '_, '_> {
                 Ok(result)
             }
             ImageSource::Axi { dma, axi_start } => {
+                let source = axi_start.checked_offset(offset as u64, len as u64)?;
                 let dma_recovery =
                     FirmwareImageVerificationEnv::create_dma_recovery(self.soc_ifc, dma);
                 let result = dma_recovery
-                    .sha384_image(
-                        self.sha2_512_384_acc,
-                        *axi_start + AxiAddr::from(offset as u64),
-                        len,
-                        dma::AesDmaMode::None,
-                    )?
+                    .sha384_image(self.sha2_512_384_acc, source, len, dma::AesDmaMode::None)?
                     .0;
                 Ok(result)
             }
@@ -176,11 +172,12 @@ impl ImageVerificationEnv for &mut FirmwareImageVerificationEnv<'_, '_, '_> {
                 Ok(self.sha2_512_384.sha512_digest(data)?.0)
             }
             ImageSource::Axi { dma, axi_start } => {
+                let source = axi_start.checked_offset(offset as u64, len as u64)?;
                 let dma_recovery =
                     FirmwareImageVerificationEnv::create_dma_recovery(self.soc_ifc, dma);
                 let result = dma_recovery.sha512_image(
                     self.sha2_512_384_acc,
-                    *axi_start + AxiAddr::from(offset as u64),
+                    source,
                     len,
                     dma::AesDmaMode::None,
                 )?;

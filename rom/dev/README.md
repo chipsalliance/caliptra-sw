@@ -2108,6 +2108,9 @@ multi-word byte ordering:
   offset to be within the supplied bundle length before hashing or loading its
   payload. A gap before Runtime and trailing bundle padding are permitted; the
   sum of component sizes alone is not a sufficient bounds check.
+- For external images, also check the absolute AXI source address and final byte
+  before DMA. Update reset rejects a wrapping staging bundle before fetching its
+  manifest. Source-address overflow reports `DRIVER_DMA_AXI_ADDRESS_OVERFLOW`.
 - Ensure that Fw.Svn is greater than or equal to Fuse.Svn.
 
 <br> *(Note: Same SVN Validation is done for the FMC and RT)

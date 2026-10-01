@@ -115,6 +115,10 @@ impl UpdateResetFlow {
                 return Err(CaliptraError::ROM_UPDATE_RESET_FLOW_INVALID_FIRMWARE_COMMAND);
             }
 
+            if let Some(addr) = staging_addr {
+                AxiAddr::from(addr).checked_offset(0, img_bundle_sz as u64)?;
+            }
+
             let mci_base = env.soc_ifc.mci_base_addr();
             Self::load_manifest(
                 &mut manifest,
@@ -126,11 +130,16 @@ impl UpdateResetFlow {
             report_boot_status(UpdateResetLoadManifestComplete.into());
 
             let image_source = if env.soc_ifc.subsystem_mode() {
-                let axi_addr = staging_addr
-                    .unwrap_or_else(|| mci_base + caliptra_drivers::dma::MCU_SRAM_OFFSET);
+                let axi_start = match staging_addr {
+                    Some(addr) => AxiAddr::from(addr),
+                    None => AxiAddr::from(mci_base).checked_offset(
+                        caliptra_drivers::dma::MCU_SRAM_OFFSET,
+                        img_bundle_sz as u64,
+                    )?,
+                };
                 caliptra_common::verifier::ImageSource::Axi {
                     dma: &env.dma,
-                    axi_start: AxiAddr::from(axi_addr),
+                    axi_start,
                 }
             } else {
                 caliptra_common::verifier::ImageSource::MboxMemory(recv_txn.raw_mailbox_contents())
@@ -151,6 +160,11 @@ impl UpdateResetFlow {
                 Self::verify_image(&mut venv, &manifest, img_bundle_sz)
             });
             let info = okref(&info)?;
+            if let Some(addr) = staging_addr {
+                // Check the word-rounded DMA span before changing persistent boot state.
+                let copy_size = u64::from(manifest.runtime.size).div_ceil(4) * 4;
+                AxiAddr::from(addr).checked_offset(manifest.runtime.offset as u64, copy_size)?;
+            }
             report_boot_status(UpdateResetImageVerificationComplete.into());
 
             // Populate data vault
@@ -344,8 +358,10 @@ impl UpdateResetFlow {
                 runtime_size_words,
             )
         };
-        let runtime_offset = manifest.runtime.offset as usize;
-        let source_addr = AxiAddr::from(staging_addr + runtime_offset as u64);
+        let source_addr = AxiAddr::from(staging_addr).checked_offset(
+            manifest.runtime.offset as u64,
+            core::mem::size_of_val(runtime_words) as u64,
+        )?;
         dma.read_buffer(source_addr, runtime_words);
 
         Ok(())
@@ -406,7 +422,8 @@ impl UpdateResetFlow {
             )
         };
 
-        let source_addr = AxiAddr::from(staging_addr);
+        let source_addr = AxiAddr::from(staging_addr)
+            .checked_offset(0, core::mem::size_of_val(manifest_words) as u64)?;
         dma.read_buffer(source_addr, manifest_words);
 
         Ok(())

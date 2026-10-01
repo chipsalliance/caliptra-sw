@@ -1125,6 +1125,11 @@ impl CaliptraError {
             "DMA driver Error: AES cannot be split across multiple transfers"
         ),
         (
+            DRIVER_DMA_AXI_ADDRESS_OVERFLOW,
+            0x0000f008,
+            "DMA driver Error: AXI address range overflow"
+        ),
+        (
             DRIVER_SHA3_INVALID_STATE_ERR,
             0x0001f000,
             "SHA3 driver Error: Invalid op state"
