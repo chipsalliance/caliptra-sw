@@ -1158,6 +1158,9 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         if !verify_info.entry_point.is_multiple_of(4) {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_FMC_ENTRY_POINT_UNALIGNED)?;
         }
+        if verify_info.entry_point != verify_info.load_addr {
+            Err(CaliptraError::IMAGE_VERIFIER_ERR_FMC_ENTRY_POINT_NOT_AT_LOAD_ADDR)?;
+        }
 
         if cfi_launder(reason) == ResetReason::UpdateReset {
             if cfi_launder(actual) != self.env.get_fmc_digest_dv() {
@@ -1234,6 +1237,9 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         }
         if !verify_info.entry_point.is_multiple_of(4) {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_ENTRY_POINT_UNALIGNED)?;
+        }
+        if verify_info.entry_point != verify_info.load_addr {
+            Err(CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_ENTRY_POINT_NOT_AT_LOAD_ADDR)?;
         }
 
         let info = ImageVerificationExeInfo {
@@ -2539,10 +2545,14 @@ mod tests {
             Some(CaliptraError::IMAGE_VERIFIER_ERR_FMC_ENTRY_POINT_INVALID)
         );
 
-        // Entry point is at the last aligned address within the FMC image.
+        // Entry point is within image bounds but not at load_addr
+        // Expected to be rejected by the stricter entry_point==load_addr check
         verify_info.entry_point = verify_info.load_addr + verify_info.size - 4;
         let result = verifier.verify_fmc(&verify_info, ResetReason::ColdReset);
-        assert!(result.is_ok());
+        assert_eq!(
+            result.err(),
+            Some(CaliptraError::IMAGE_VERIFIER_ERR_FMC_ENTRY_POINT_NOT_AT_LOAD_ADDR)
+        );
     }
 
     #[test]
@@ -2648,10 +2658,14 @@ mod tests {
             Some(CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_ENTRY_POINT_INVALID)
         );
 
-        // Entry point is at the last aligned address within the Runtime image.
+        // Entry point is within image bounds but not at load_addr
+        // Expected to be rejected by the stricter entry_point==load_addr check
         verify_info.entry_point = verify_info.load_addr + verify_info.size - 4;
         let result = verifier.verify_runtime(&verify_info);
-        assert!(result.is_ok());
+        assert_eq!(
+            result.err(),
+            Some(CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_ENTRY_POINT_NOT_AT_LOAD_ADDR)
+        );
     }
 
     #[test]

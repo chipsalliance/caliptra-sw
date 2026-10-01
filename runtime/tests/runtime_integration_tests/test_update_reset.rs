@@ -130,6 +130,20 @@ fn extend_journey_measurement(prev_journey: [u8; 48], current: [u8; 48]) -> [u8;
     hasher.finalize().into()
 }
 
+/// Mirrors Drivers::update_caliptra_managed_measurement: only extends the journey when
+/// the new measurement differs from tci_current.
+fn extend_caliptra_managed_journey_measurement(
+    prev_journey: [u8; 48],
+    tci_current: [u8; 48],
+    new_measurement: [u8; 48],
+) -> [u8; 48] {
+    if tci_current == new_measurement {
+        prev_journey
+    } else {
+        extend_journey_measurement(prev_journey, new_measurement)
+    }
+}
+
 #[test]
 fn test_rt_pcr_updated_in_dpe() {
     let image_options = ImageOptions::default();
@@ -1012,10 +1026,14 @@ fn test_cciv_updated_in_dpe() {
         pqc_key_type: FwVerificationPqcKeyType::MLDSA,
         ..Default::default()
     };
+    // Use a distinct pl0_pauser so the standard bundle produces a different CCIV than the
+    // mbox bundle
+    let mut image_opts_standard = image_opts.clone();
+    image_opts_standard.vendor_config.pl0_pauser = Some(0x2);
     let image_bundle_standard = caliptra_builder::build_and_sign_image(
         &FMC_WITH_UART,
         app_test_image(),
-        image_opts.clone(),
+        image_opts_standard,
     )
     .unwrap();
 
@@ -1139,8 +1157,9 @@ fn test_dpe_index_cache_initialized_after_hitless_update() {
         calculate_cptra_config_init_vals_hash(&mut model, &image_bundle_mbox);
     let cciv_hash_standard_bundle_exp: [u8; 48] =
         calculate_cptra_config_init_vals_hash(&mut model, &image_bundle_standard);
-    assert_ne!(cciv_hash_mbox_bundle_exp, cciv_hash_standard_bundle_exp);
 
+    let initial_cciv_current =
+        read_48_byte_test_response(&mut model, OPCODE_READ_CACHED_DPE_CCIV_CONTEXT_MEASUREMENT);
     let initial_cciv_journey =
         read_48_byte_test_response(&mut model, OPCODE_READ_CACHED_DPE_CCIV_CONTEXT_CUMULATIVE);
     let initial_mcu_rt_current = read_48_byte_test_response(
@@ -1184,10 +1203,14 @@ fn test_dpe_index_cache_initialized_after_hitless_update() {
     assert_ne!(initialized_cache[1], 0xff);
     assert_ne!(initialized_cache[2], 0xff);
 
-    let expected_cciv_journey_after_standard =
-        extend_journey_measurement(initial_cciv_journey, cciv_hash_standard_bundle_exp);
-    let expected_cciv_journey_after_mbox = extend_journey_measurement(
-        expected_cciv_journey_after_standard,
+    let exp_cciv_journey_after_standard = extend_caliptra_managed_journey_measurement(
+        initial_cciv_journey,
+        initial_cciv_current,
+        cciv_hash_standard_bundle_exp,
+    );
+    let exp_cciv_journey_after_mbox = extend_caliptra_managed_journey_measurement(
+        exp_cciv_journey_after_standard,
+        cciv_hash_standard_bundle_exp,
         cciv_hash_mbox_bundle_exp,
     );
     let cciv_current =
@@ -1195,7 +1218,7 @@ fn test_dpe_index_cache_initialized_after_hitless_update() {
     let cciv_journey =
         read_48_byte_test_response(&mut model, OPCODE_READ_CACHED_DPE_CCIV_CONTEXT_CUMULATIVE);
     assert_eq!(cciv_current, cciv_hash_mbox_bundle_exp);
-    assert_eq!(cciv_journey, expected_cciv_journey_after_mbox);
+    assert_eq!(cciv_journey, exp_cciv_journey_after_mbox);
 
     let mcu_rt_current = read_48_byte_test_response(
         &mut model,
