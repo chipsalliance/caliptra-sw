@@ -1,14 +1,16 @@
 // Licensed under the Apache-2.0 license
 use crate::common::{run_rt_test, RuntimeTestArgs};
+use crate::test_authorize_and_stash::set_auth_manifest;
 use crate::test_set_auth_manifest::create_auth_manifest_with_metadata;
+use crate::test_set_owner_auth_manifest::{build_owner_manifest, send_set_owner_auth_manifest};
 use caliptra_api::mailbox::{ActivateFirmwareFlags, ActivateFirmwareReq};
 use caliptra_api::SocManager;
 use caliptra_auth_man_types::AuthManifestImageMetadata;
 use caliptra_auth_man_types::{Addr64, ImageMetadataFlags};
 use caliptra_common::checksum::calc_checksum;
 use caliptra_common::mailbox_api::{
-    AuthorizeAndStashReq, AuthorizeAndStashResp, CommandId, GetTaggedTciReq, GetTaggedTciResp,
-    ImageHashSource, MailboxReq, MailboxReqHeader, TagTciReq,
+    AuthManifestSource, AuthorizeAndStashReq, AuthorizeAndStashResp, CommandId, GetTaggedTciReq,
+    GetTaggedTciResp, ImageHashSource, MailboxReq, MailboxReqHeader, TagTciReq,
 };
 use caliptra_hw_model::{DefaultHwModel, HwModel, InitParams, ModelError};
 use caliptra_kat::CaliptraError;
@@ -414,6 +416,63 @@ fn test_activate_soc_fw_success() {
     send_activate_firmware_cmd(&mut model, activate_cmd, false)
         .unwrap()
         .expect("We should have received a response");
+}
+
+#[test]
+fn test_activate_firmware_selects_owner_manifest() {
+    const OWNER_SOC_FW_ID: u32 = 11;
+
+    let mut metadata_flags = ImageMetadataFlags(0);
+    metadata_flags.set_exec_bit(4);
+    let owner_manifest = build_owner_manifest(
+        vec![AuthManifestImageMetadata {
+            fw_id: OWNER_SOC_FW_ID,
+            flags: metadata_flags.0,
+            ..Default::default()
+        }],
+        1,
+    );
+    let mut model = set_auth_manifest(None);
+    send_set_owner_auth_manifest(&mut model, &owner_manifest);
+
+    let request = |flags| ActivateFirmwareReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        fw_id_count: 1,
+        fw_ids: {
+            let mut fw_ids = [0; ActivateFirmwareReq::MAX_FW_ID_COUNT];
+            fw_ids[0] = OWNER_SOC_FW_ID;
+            fw_ids
+        },
+        mcu_fw_image_size: 0,
+        flags,
+    };
+
+    let mut owner_cmd =
+        MailboxReq::ActivateFirmware(request(AuthManifestSource::Owner.flag_bits()));
+    owner_cmd.populate_chksum().unwrap();
+    model
+        .mailbox_execute(
+            u32::from(CommandId::ACTIVATE_FIRMWARE),
+            owner_cmd.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .expect("owner-only firmware activation should return a response");
+
+    let expected: u32 = CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS.into();
+    for flags in [
+        AuthManifestSource::VendorOwner.flag_bits(),
+        0b10 << AuthManifestSource::FLAG_SHIFT,
+    ] {
+        let mut invalid_cmd = MailboxReq::ActivateFirmware(request(flags));
+        invalid_cmd.populate_chksum().unwrap();
+        assert!(matches!(
+            model.mailbox_execute(
+                u32::from(CommandId::ACTIVATE_FIRMWARE),
+                invalid_cmd.as_bytes().unwrap(),
+            ),
+            Err(ModelError::MailboxCmdFailed(code)) if code == expected
+        ));
+    }
 }
 
 #[cfg_attr(feature = "fpga_realtime", ignore)]
