@@ -69,6 +69,27 @@ fn hex_decode(hex: &str, buf: &mut [u8]) -> Option<usize> {
     Some(n)
 }
 
+/// Decodes a fixed-size hex field into `buf`, panicking unless exactly
+/// `expected` bytes were decoded.
+///
+/// `hex_decode` rejects odd-length and over-long input, but a field shorter
+/// than its buffer decodes successfully and leaves the tail zeroed, which would
+/// silently run the test against a value the vector never specified.
+fn hex_decode_exact(hex: &str, buf: &mut [u8], expected: usize, field: &str) {
+    let n = hex_decode(hex, buf).unwrap_or_else(|| {
+        panic!(
+            "{} is not valid hex, or is longer than {} bytes",
+            field,
+            buf.len()
+        )
+    });
+    assert_eq!(
+        n, expected,
+        "{} must be exactly {} bytes, got {}",
+        field, expected, n
+    );
+}
+
 // test_kat_384 MUST be run first; it initializes CFI.
 fn test_kat_384() {
     let mut hmac384 = unsafe { Hmac::new(HmacReg::new()) };
@@ -121,7 +142,8 @@ fn test_kdf_acvp() {
 
     let mut key_buf = [0u8; HMAC384_HASH_SIZE];
     let mut label_buf = [0u8; MAX_LABEL_SIZE];
-    hex_decode(hex_key, &mut key_buf).unwrap();
+    hex_decode_exact(hex_key, &mut key_buf, HMAC384_HASH_SIZE, "key");
+    // The label is genuinely variable-length, so its decoded length is used.
     let label_len = hex_decode(hex_label, &mut label_buf).unwrap();
 
     let mut hmac = unsafe { Hmac::new(HmacReg::new()) };

@@ -48,10 +48,17 @@ use caliptra_registers::soc_ifc_trng::SocIfcTrngReg;
 use caliptra_test_harness::{print, test_suite};
 use zerocopy::{FromBytes, IntoBytes};
 
+/// Sizes of the fixed-width ML-KEM-1024 fields, in bytes.
+const MLKEM_SEED_SIZE: usize = 32;
+const MLKEM_MSG_SIZE: usize = 32;
+const MLKEM_EK_SIZE: usize = 1568;
+const MLKEM_DK_SIZE: usize = 3168;
+const MLKEM_CT_SIZE: usize = 1568;
+
 // Static buffers to avoid stack overflow for the large ML-KEM structures.
-static mut EK_BUF: [u8; 1568] = [0u8; 1568]; // encapsulation key
-static mut DK_BUF: [u8; 3168] = [0u8; 3168]; // decapsulation key
-static mut CT_BUF: [u8; 1568] = [0u8; 1568]; // ciphertext
+static mut EK_BUF: [u8; MLKEM_EK_SIZE] = [0u8; MLKEM_EK_SIZE]; // encapsulation key
+static mut DK_BUF: [u8; MLKEM_DK_SIZE] = [0u8; MLKEM_DK_SIZE]; // decapsulation key
+static mut CT_BUF: [u8; MLKEM_CT_SIZE] = [0u8; MLKEM_CT_SIZE]; // ciphertext
 
 /// Hands out a `&mut` to one of the static scratch buffers above.
 ///
@@ -89,6 +96,27 @@ fn hex_decode(hex: &str, buf: &mut [u8]) -> Option<usize> {
         buf[i] = (hi << 4) | lo;
     }
     Some(n)
+}
+
+/// Decodes a fixed-size hex field into `buf`, panicking unless exactly
+/// `expected` bytes were decoded.
+///
+/// `hex_decode` rejects odd-length and over-long input, but a field shorter
+/// than its buffer decodes successfully and leaves the tail zeroed, which would
+/// silently run the test against a value the vector never specified.
+fn hex_decode_exact(hex: &str, buf: &mut [u8], expected: usize, field: &str) {
+    let n = hex_decode(hex, buf).unwrap_or_else(|| {
+        panic!(
+            "{} is not valid hex, or is longer than {} bytes",
+            field,
+            buf.len()
+        )
+    });
+    assert_eq!(
+        n, expected,
+        "{} must be exactly {} bytes, got {}",
+        field, expected, n
+    );
 }
 
 fn new_trng() -> Trng {
@@ -155,8 +183,8 @@ fn test_acvp() {
 
             let mut d_bytes = [0u8; 32];
             let mut z_bytes = [0u8; 32];
-            hex_decode(hex_d, &mut d_bytes).unwrap();
-            hex_decode(hex_z, &mut z_bytes).unwrap();
+            hex_decode_exact(hex_d, &mut d_bytes, MLKEM_SEED_SIZE, "seed d");
+            hex_decode_exact(hex_z, &mut z_bytes, MLKEM_SEED_SIZE, "seed z");
 
             let seed_d = MlKem1024Seed::read_from_bytes(&d_bytes).unwrap();
             let seed_z = MlKem1024Seed::read_from_bytes(&z_bytes).unwrap();
@@ -182,10 +210,10 @@ fn test_acvp() {
             let hex_msg = lines.next().unwrap().trim();
 
             let ek_buf = static_buf!(EK_BUF);
-            hex_decode(hex_ek, ek_buf).unwrap();
+            hex_decode_exact(hex_ek, ek_buf, MLKEM_EK_SIZE, "encapsulation key");
 
             let mut msg_bytes = [0u8; 32];
-            hex_decode(hex_msg, &mut msg_bytes).unwrap();
+            hex_decode_exact(hex_msg, &mut msg_bytes, MLKEM_MSG_SIZE, "message");
 
             let encaps_key = MlKem1024EncapsKey::read_from_bytes(ek_buf.as_slice()).unwrap();
             let message = MlKem1024Message::read_from_bytes(&msg_bytes).unwrap();
@@ -217,8 +245,8 @@ fn test_acvp() {
 
             let dk_buf = static_buf!(DK_BUF);
             let ct_buf = static_buf!(CT_BUF);
-            hex_decode(hex_dk, dk_buf).unwrap();
-            hex_decode(hex_ct, ct_buf).unwrap();
+            hex_decode_exact(hex_dk, dk_buf, MLKEM_DK_SIZE, "decapsulation key");
+            hex_decode_exact(hex_ct, ct_buf, MLKEM_CT_SIZE, "ciphertext");
 
             let decaps_key = MlKem1024DecapsKey::read_from_bytes(dk_buf.as_slice()).unwrap();
             let ciphertext = MlKem1024Ciphertext::read_from_bytes(ct_buf.as_slice()).unwrap();

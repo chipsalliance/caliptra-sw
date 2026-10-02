@@ -69,6 +69,27 @@ fn hex_decode(hex: &str, buf: &mut [u8]) -> Option<usize> {
     Some(n)
 }
 
+/// Decodes a fixed-size hex field into `buf`, panicking unless exactly
+/// `expected` bytes were decoded.
+///
+/// `hex_decode` rejects odd-length and over-long input, but a field shorter
+/// than its buffer decodes successfully and leaves the tail zeroed, which would
+/// silently run the test against a value the vector never specified.
+fn hex_decode_exact(hex: &str, buf: &mut [u8], expected: usize, field: &str) {
+    let n = hex_decode(hex, buf).unwrap_or_else(|| {
+        panic!(
+            "{} is not valid hex, or is longer than {} bytes",
+            field,
+            buf.len()
+        )
+    });
+    assert_eq!(
+        n, expected,
+        "{} must be exactly {} bytes, got {}",
+        field, expected, n
+    );
+}
+
 fn test_sigver_acvp() {
     const CURRENT: &str = include_str!("../../stimulus/current.txt");
     let mut lines = CURRENT.lines();
@@ -84,8 +105,8 @@ fn test_sigver_acvp() {
     let mut sig_buf = [0u8; SIG_SIZE];
 
     let msg_len = hex_decode(hex_msg, &mut msg_buf).unwrap();
-    hex_decode(hex_pubkey, &mut pubkey_buf).unwrap();
-    hex_decode(hex_sig, &mut sig_buf).unwrap();
+    hex_decode_exact(hex_pubkey, &mut pubkey_buf, PUBKEY_SIZE, "public key");
+    hex_decode_exact(hex_sig, &mut sig_buf, SIG_SIZE, "signature");
 
     // Both types are `repr(C)` over zerocopy byteorder fields, so they are
     // align-1 and padding-free; `ref_from_bytes` checks the buffer size for us.

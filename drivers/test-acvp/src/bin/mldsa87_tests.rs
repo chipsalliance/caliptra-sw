@@ -52,6 +52,11 @@ use zerocopy::{FromBytes, IntoBytes};
 /// alignment and is not part of the signature.
 const MLDSA87_SIG_SIZE: usize = 4627;
 
+/// Sizes of the remaining fixed-width ML-DSA-87 fields, in bytes.
+const MLDSA87_SEED_SIZE: usize = 32;
+const MLDSA87_PUBKEY_SIZE: usize = 2592;
+const MLDSA87_PRIVKEY_SIZE: usize = 4896;
+
 // Static buffers sized for the largest ML-DSA-87 objects. These live in static
 // storage because they are far too large for the test harness stack.
 static mut ACVP_PUBKEY_BUF: [u8; 2592] = [0u8; 2592];
@@ -112,6 +117,27 @@ fn hex_decode(hex: &str, buf: &mut [u8]) -> Option<usize> {
     Some(n)
 }
 
+/// Decodes a fixed-size hex field into `buf`, panicking unless exactly
+/// `expected` bytes were decoded.
+///
+/// `hex_decode` rejects odd-length and over-long input, but a field shorter
+/// than its buffer decodes successfully and leaves the tail zeroed, which would
+/// silently run the test against a value the vector never specified.
+fn hex_decode_exact(hex: &str, buf: &mut [u8], expected: usize, field: &str) {
+    let n = hex_decode(hex, buf).unwrap_or_else(|| {
+        panic!(
+            "{} is not valid hex, or is longer than {} bytes",
+            field,
+            buf.len()
+        )
+    });
+    assert_eq!(
+        n, expected,
+        "{} must be exactly {} bytes, got {}",
+        field, expected, n
+    );
+}
+
 fn new_trng() -> Trng {
     unsafe {
         Trng::new(
@@ -158,7 +184,7 @@ fn test_acvp() {
 
             let hex_seed = lines.next().unwrap().trim();
             let seed_buf = static_buf!(ACVP_SEED_BUF);
-            hex_decode(hex_seed, seed_buf).unwrap();
+            hex_decode_exact(hex_seed, seed_buf, MLDSA87_SEED_SIZE, "seed");
 
             let mut trng = new_trng();
 
@@ -183,7 +209,7 @@ fn test_acvp() {
             let hex_msg = lines.next().unwrap().trim();
 
             let privkey_buf = static_buf!(ACVP_PRIVKEY_BUF);
-            hex_decode(hex_key, privkey_buf).unwrap();
+            hex_decode_exact(hex_key, privkey_buf, MLDSA87_PRIVKEY_SIZE, "private key");
 
             let msg_buf = static_buf!(ACVP_MSG_BUF);
             let msg_len = hex_decode(hex_msg, msg_buf).unwrap();
@@ -223,9 +249,9 @@ fn test_acvp() {
             let msg_buf = static_buf!(ACVP_MSG_BUF);
             let sig_buf = static_buf!(ACVP_SIG_BUF);
 
-            hex_decode(hex_pubkey, pubkey_buf).unwrap();
+            hex_decode_exact(hex_pubkey, pubkey_buf, MLDSA87_PUBKEY_SIZE, "public key");
             let msg_len = hex_decode(hex_msg, msg_buf).unwrap();
-            hex_decode(hex_sig, sig_buf).unwrap();
+            hex_decode_exact(hex_sig, sig_buf, MLDSA87_SIG_SIZE, "signature");
 
             let pub_key = Mldsa87PubKey::read_from_bytes(pubkey_buf.as_slice()).unwrap();
             let signature = Mldsa87Signature::read_from_bytes(sig_buf.as_slice()).unwrap();
