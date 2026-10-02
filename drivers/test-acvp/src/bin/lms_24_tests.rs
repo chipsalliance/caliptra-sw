@@ -109,7 +109,11 @@ fn test_sigver_acvp() {
     hex_decode_exact(hex_sig, &mut sig_buf, SIG_SIZE, "signature");
 
     // Both types are `repr(C)` over zerocopy byteorder fields, so they are
-    // align-1 and padding-free; `ref_from_bytes` checks the buffer size for us.
+    // align-1 and padding-free, and `ref_from_bytes` is sound over these buffers.
+    //
+    // Note it does not validate the vector: it compares against the buffer
+    // length, which is PUBKEY_SIZE / SIG_SIZE by construction and so always
+    // matches. A malformed field is caught by `hex_decode_exact` above.
     let lms_public_key = LmsPublicKey::<6>::ref_from_bytes(&pubkey_buf).unwrap();
     let lms_sig = LmsSignature::<6, 51, 15>::ref_from_bytes(&sig_buf).unwrap();
 

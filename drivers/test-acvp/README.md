@@ -146,9 +146,12 @@ LMS_SIGVER
 <hex-encoded signature, 1620 bytes>
 ```
 
-The public key and signature must be exactly 48 and 1620 bytes: they are converted with
-`zerocopy::FromBytes::ref_from_bytes`, which rejects any other length. Those sizes are
-fixed by the type parameters:
+The public key and signature must be exactly 48 and 1620 bytes. That is enforced when the
+hex is decoded: a field shorter than its buffer is rejected rather than zero-padded, and
+an odd-length or over-long field is rejected too. The `zerocopy::FromBytes::ref_from_bytes`
+conversion that follows also requires an exact size, but it compares against the buffer,
+which is the right size by construction — so it is the decode-time check that actually
+rejects a malformed vector. Those sizes are fixed by the type parameters:
 
 ```
 LmsPublicKey<6>       = 4 + 4 + 16 + 6*4                     =   48
