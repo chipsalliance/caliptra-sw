@@ -818,64 +818,69 @@ fn test_update_reset_external_dma_inputs() {
     )
     .unwrap();
     let image = image_bundle.to_bytes().unwrap();
-    // Test FMC resets directly into ROM, bypassing runtime's EXTM validation.
-    let mut model = caliptra_hw_model::new(
-        InitParams {
-            rom: &rom,
-            subsystem_mode: true,
-            ..Default::default()
-        },
-        BootParams {
-            fw_image: Some(&image),
-            ..Default::default()
-        },
-    )
-    .unwrap();
-    model.step_until_boot_status(ColdResetComplete.into(), true);
-    let address = model.write_payload_to_ss_staging_area(&image, 0).unwrap();
-    let request = |size, offset| {
-        let address = address + offset;
-        let mut request = MailboxReq::ExternalMailboxCmd(ExternalMailboxCmdReq {
-            command_id: CommandId::FIRMWARE_LOAD.into(),
-            command_size: size,
-            axi_address_start_low: address as u32,
-            axi_address_start_high: (address >> 32) as u32,
-            ..Default::default()
-        });
-        request.populate_chksum().unwrap();
-        request.as_bytes().unwrap().to_vec()
-    };
-    let valid = request(image.len() as u32, 0);
+    let size = image.len() as u32;
+    let envelope_size = core::mem::size_of::<ExternalMailboxCmdReq>();
     let malformed = [
-        request(0, 0),
-        request(4, 0),
-        request(image.len() as u32 + 1, 0),
-        request(image.len() as u32 + 2, 0),
-        request(image.len() as u32 + 3, 0),
-        request(image.len() as u32, 1),
-        request(image.len() as u32, 2),
-        request(image.len() as u32, 3),
-        valid[..8].to_vec(),
-        valid[..12].to_vec(),
-        valid[..16].to_vec(),
-        valid[..19].to_vec(),
-        [valid.as_slice(), &[0]].concat(),
+        (0, 0, envelope_size),
+        (4, 0, envelope_size),
+        (size + 1, 0, envelope_size),
+        (size + 2, 0, envelope_size),
+        (size + 3, 0, envelope_size),
+        (size, 1, envelope_size),
+        (size, 2, envelope_size),
+        (size, 3, envelope_size),
+        (size, 0, 8),
+        (size, 0, 12),
+        (size, 0, 16),
+        (size, 0, envelope_size - 1),
+        (size, 0, envelope_size + 1),
     ];
-    for bytes in malformed {
+    for (command_size, offset, length) in malformed {
+        // Test FMC resets directly into ROM, bypassing runtime's EXTM validation.
+        // Keep malformed-envelope cases independent of prior update resets.
+        let mut model = caliptra_hw_model::new(
+            InitParams {
+                rom: &rom,
+                subsystem_mode: true,
+                ..Default::default()
+            },
+            BootParams {
+                fw_image: Some(&image),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        model.step_until_boot_status(ColdResetComplete.into(), true);
+        let address = model.write_payload_to_ss_staging_area(&image, 0).unwrap();
+        let request = |size, offset| {
+            let address = address + offset;
+            let mut request = MailboxReq::ExternalMailboxCmd(ExternalMailboxCmdReq {
+                command_id: CommandId::FIRMWARE_LOAD.into(),
+                command_size: size,
+                axi_address_start_low: address as u32,
+                axi_address_start_high: (address >> 32) as u32,
+                ..Default::default()
+            });
+            request.populate_chksum().unwrap();
+            request.as_bytes().unwrap().to_vec()
+        };
+        let mut bytes = request(command_size, offset);
+        bytes.resize(length, 0);
         assert_eq!(
             model.mailbox_execute(CommandId::EXTERNAL_MAILBOX_CMD.into(), &bytes),
             Err(caliptra_hw_model::ModelError::MailboxCmdFailed(
                 CaliptraError::ROM_UPDATE_RESET_FLOW_MAILBOX_ACCESS_FAILURE.into()
             ))
         );
+        // Every rejection must still allow a subsequent valid update.
+        assert_eq!(
+            model.mailbox_execute(CommandId::EXTERNAL_MAILBOX_CMD.into(), &request(size, 0)),
+            Ok(None)
+        );
+        model.step_until_boot_status(UpdateResetComplete.into(), true);
+        model.mailbox_execute(0x1000_000C, &[]).unwrap();
+        model.step_until_exit_success().unwrap();
     }
-    assert_eq!(
-        model.mailbox_execute(CommandId::EXTERNAL_MAILBOX_CMD.into(), &valid),
-        Ok(None)
-    );
-    model.step_until_boot_status(UpdateResetComplete.into(), true);
-    model.mailbox_execute(0x1000_000C, &[]).unwrap();
-    model.step_until_exit_success().unwrap();
 }
 
 #[test]
@@ -893,20 +898,22 @@ fn test_update_reset_image_word_alignment() {
     let image = image_bundle.to_bytes().unwrap();
     let malformed_images = caliptra_test::firmware::unaligned_images(&image_bundle);
     for subsystem_mode in HW_MODEL_MODES_SUBSYSTEM {
-        let mut model = caliptra_hw_model::new(
-            InitParams {
-                rom: &rom,
-                subsystem_mode,
-                ..Default::default()
-            },
-            BootParams {
-                fw_image: Some(&image),
-                ..Default::default()
-            },
-        )
-        .unwrap();
-        model.step_until_boot_status(ColdResetComplete.into(), true);
         for (malformed, expected_error) in &malformed_images {
+            // Isolate cases: FPGA can stall in ROM startup after several update
+            // resets on one boot, before it reaches image validation.
+            let mut model = caliptra_hw_model::new(
+                InitParams {
+                    rom: &rom,
+                    subsystem_mode,
+                    ..Default::default()
+                },
+                BootParams {
+                    fw_image: Some(&image),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+            model.step_until_boot_status(ColdResetComplete.into(), true);
             assert_eq!(
                 model.mailbox_execute(CommandId::FIRMWARE_LOAD.into(), malformed),
                 Err(caliptra_hw_model::ModelError::MailboxCmdFailed(
@@ -917,10 +924,10 @@ fn test_update_reset_image_word_alignment() {
                 model.soc_ifc().cptra_fw_error_non_fatal().read(),
                 u32::from(*expected_error)
             );
+            // Each rejection must leave the original firmware usable.
+            model.mailbox_execute(0x1000_000C, &[]).unwrap();
+            model.step_until_exit_success().unwrap();
         }
-        // Rejections must leave the original firmware usable.
-        model.mailbox_execute(0x1000_000C, &[]).unwrap();
-        model.step_until_exit_success().unwrap();
     }
 }
 
