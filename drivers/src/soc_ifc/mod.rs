@@ -778,3 +778,6 @@ pub enum ResetReason {
     /// Unknown Reset
     Unknown,
 }
+
+#[cfg(feature = "stash-measurement-registers")]
+pub mod stash_measurement;

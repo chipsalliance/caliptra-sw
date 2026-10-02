@@ -41,6 +41,8 @@ mod test_set_owner_auth_manifest;
 mod test_sign_with_export_ecdsa;
 mod test_sign_with_export_mldsa;
 mod test_stash_measurement;
+#[cfg(feature = "stash-measurement-registers")]
+mod test_stash_measurement_registers;
 mod test_tagging;
 mod test_update_reset;
 mod test_warm_reset;
