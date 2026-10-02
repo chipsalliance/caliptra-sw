@@ -138,6 +138,19 @@ impl ModelEmulated {
 }
 
 impl ModelEmulated {
+    /// Write mailbox SRAM without advancing its FIFO pointers.
+    pub fn write_mailbox_word(
+        &mut self,
+        offset: u32,
+        value: u32,
+    ) -> Result<(), caliptra_emu_bus::BusError> {
+        self.cpu
+            .bus
+            .bus
+            .mailbox_sram
+            .write(RvSize::Word, offset, value)
+    }
+
     /// Returns true when the emulated CPU is halted via the VeeR MPMC
     /// low-power CSR (not the RISC-V `wfi` instruction, which this emulator
     /// treats as a no-op).

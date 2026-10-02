@@ -1063,6 +1063,12 @@ ROM locks the following entities to prevent any updates:
 
 ## Update reset flow
 
+ROM verifies the loaded Runtime bytes in ICCM against the authenticated manifest
+before completing the firmware-load transaction. A post-load digest failure is
+fatal: the previous Runtime has already been overwritten and cannot be used as
+a fallback. Cold reset similarly verifies the loaded FMC and Runtime images
+before completing the download.
+
 ![UPDATE RESET](doc/svg/update-reset.svg)
 <br> *(Note: Please note that Image validation for the update reset flow has some differences as compared to the cold boot flow. Please refer to the Image Validation Section for further details.)
 
@@ -1260,7 +1266,9 @@ Compare the computed hash with the hash specified in the RT TOC.
     - Ratchet the key ladder if necessary.
   - If validation fails during ROM boot, the new RT image will not be copied from
     the mailbox. ROM will boot the existing FMC/Runtime images. Validation
-    errors will be reported via the CPTRA_FW_ERROR_NON_FATAL register.
+    errors will be reported via the CPTRA_FW_ERROR_NON_FATAL register. This
+    fallback applies only before loading the new Runtime; post-load digest
+    failures are reported through the fatal-error handler instead.
 
 ## Fake ROM
 
