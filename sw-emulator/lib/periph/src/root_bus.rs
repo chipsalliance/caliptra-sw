@@ -208,6 +208,42 @@ impl From<Box<dyn FnMut() + 'static>> for ActionCb {
     }
 }
 
+/// Observes changes to `MANUF_DBG_UNLOCK_SUCCESS` (bit 0 of
+/// `SS_DBG_MANUF_SERVICE_REG_RSP`), which drives `ss_dbg_manuf_enable`.
+///
+/// Called synchronously after a successful write through either bus interface,
+/// only when that bit changes. The argument is the full stored register value,
+/// not just the success bit. Changes to other fields and repeated writes do not
+/// notify. Construction and the existing warm/update resets do not notify.
+/// The default callback does nothing; register access and reset behavior are
+/// unchanged. Callbacks must not reenter the SoC register bus.
+pub struct DbgManufServiceCb(Box<dyn FnMut(u32)>);
+impl DbgManufServiceCb {
+    pub fn new(f: impl FnMut(u32) + 'static) -> Self {
+        Self(Box::new(f))
+    }
+    pub(crate) fn take(&mut self) -> Box<dyn FnMut(u32)> {
+        std::mem::take(self).0
+    }
+}
+impl Default for DbgManufServiceCb {
+    fn default() -> Self {
+        Self(Box::new(|_| {}))
+    }
+}
+impl std::fmt::Debug for DbgManufServiceCb {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("DbgManufServiceCb")
+            .field(&"<unknown closure>")
+            .finish()
+    }
+}
+impl From<Box<dyn FnMut(u32) + 'static>> for DbgManufServiceCb {
+    fn from(value: Box<dyn FnMut(u32)>) -> Self {
+        Self(value)
+    }
+}
+
 /// Caliptra Root Bus Arguments
 pub struct CaliptraRootBusArgs<'a> {
     pub pic: Rc<Pic>,
@@ -228,6 +264,8 @@ pub struct CaliptraRootBusArgs<'a> {
     pub upload_update_fw: UploadUpdateFwCb,
     pub bootfsm_go_cb: ActionCb,
     pub download_idevid_csr_cb: DownloadIdevidCsrCb,
+    /// Optional observer of manufacturing debug success transitions.
+    pub dbg_manuf_service_cb: DbgManufServiceCb,
 
     // The obfuscation key, as passed to caliptra-top
     pub cptra_obf_key: [u32; 8],
@@ -259,6 +297,7 @@ impl Default for CaliptraRootBusArgs<'_> {
             upload_update_fw: Default::default(),
             bootfsm_go_cb: Default::default(),
             download_idevid_csr_cb: Default::default(),
+            dbg_manuf_service_cb: Default::default(),
             cptra_obf_key: words_from_bytes_be(&DEFAULT_DOE_KEY),
             itrng_nibbles: Some(Box::new(RandomNibbles::new_from_thread_rng())),
             etrng_responses: Box::new(RandomEtrngResponses::new_from_stdrng()),
