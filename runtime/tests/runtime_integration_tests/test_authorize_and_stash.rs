@@ -1104,7 +1104,7 @@ pub fn write_mcu_mbox_sram(model: &mut DefaultHwModel, data: &[u8]) {
         for (count, chunk) in data.chunks(4).enumerate() {
             mcu_mbox_sram_ptr
                 .offset(count as isize)
-                .write_volatile(u32::from_be_bytes(chunk.try_into().unwrap()));
+                .write_volatile(u32::from_le_bytes(chunk.try_into().unwrap()));
         }
     };
 }
