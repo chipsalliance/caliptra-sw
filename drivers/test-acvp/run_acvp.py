@@ -113,14 +113,36 @@ RESP_DIR = None
 RESP_PATTERN = None
 OUTPUT_FILE_TEMPLATE = None
 
+# tcIds whose cargo invocation exited non-zero. Collected here rather than
+# returned so the per-algorithm dispatch in main() stays unchanged.
+FAILED_TCIDS = []
+
 
 def run_cargo_test(tcId, alg):
-    """Executes the cargo test command and writes iteration output to a file."""
+    """Executes the cargo test command and writes iteration output to a file.
+
+    A non-zero exit means the build failed or the firmware panicked. The log is
+    kept for debugging but renamed so that gen_resp_file() will not scrape it:
+    a crashed run contributes an empty value to the response file, which for the
+    sigVer algorithms is written out as a plain `false` and is indistinguishable
+    from a genuine "signature invalid" verdict.
+    """
     output_file = OUTPUT_FILE_TEMPLATE.format(tcId)
 
     with open(output_file, "w") as outfile:
         outfile.write("--- {} tcId {} ---\n".format(alg, tcId))
-        subprocess.call(CARGO_COMMAND, stdout=outfile, stderr=outfile)
+        status = subprocess.call(CARGO_COMMAND, stdout=outfile, stderr=outfile)
+
+    if status != 0:
+        failed_file = output_file + ".failed"
+        os.replace(output_file, failed_file)
+        FAILED_TCIDS.append(int(tcId))
+        print(
+            "tcId {} FAILED (exit {}); log saved to {}".format(
+                tcId, status, failed_file
+            )
+        )
+        return
 
     print("tcId {} output saved to {}".format(tcId, output_file))
 
@@ -136,6 +158,12 @@ def gen_resp_file(input_dir, output_file, resp_pattern=None, kdf_labels=None):
         print("Existing output file '{}' removed.".format(output_file))
 
     files = [f for f in os.listdir(input_dir) if f.endswith(".log")]
+    if not files:
+        raise SystemExit(
+            "No .log files in {} - there is nothing to scrape. Every test case "
+            "either failed or never ran; the response file would be empty, "
+            "which is not the same as a clean run.".format(input_dir)
+        )
     files.sort(key=lambda f: os.path.getmtime(os.path.join(input_dir, f)))
 
     pattern = re.compile(r"{}".format(resp_pattern or RESP_PATTERN))
@@ -294,9 +322,10 @@ def main():
     os.makedirs(os.path.dirname(CURRENT_VECTOR_FILE), exist_ok=True)
     os.makedirs(RESP_DIR, exist_ok=True)
 
-    # Remove any leftover log files from a previous run
+    # Remove any leftover logs from a previous run, including ones a previous
+    # run marked failed.
     for f in os.listdir(RESP_DIR):
-        if f.endswith(".log"):
+        if f.endswith(".log") or f.endswith(".log.failed"):
             os.remove(os.path.join(RESP_DIR, f))
 
     kdf_labels = {}
@@ -428,7 +457,20 @@ def main():
                         f.write("{}\n{}".format(alg, hex_str))
                     run_cargo_test(tcId, alg)
 
+    if FAILED_TCIDS:
+        print()
+        print(
+            "WARNING: {} of the test cases failed to run and are omitted from "
+            "the response file:".format(len(FAILED_TCIDS))
+        )
+        print("  tcIds: {}".format(", ".join(str(t) for t in sorted(FAILED_TCIDS))))
+        print("  Their logs are kept alongside the others with a .failed suffix.")
+        print("  Re-run those cases before submitting the response file.")
+
     gen_resp_file(RESP_DIR, resp_file, kdf_labels=kdf_labels)
+
+    if FAILED_TCIDS:
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":
