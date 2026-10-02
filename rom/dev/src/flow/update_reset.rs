@@ -105,7 +105,13 @@ impl UpdateResetFlow {
 
             let manifest = &env.persistent_data.get().manifest2;
             Self::load_image(manifest, &mut recv_txn)?;
-            crate::flow::loaded_image::verify_runtime(manifest, &mut env.sha2_512_384)?;
+            if let Err(err) =
+                crate::flow::loaded_image::verify_runtime(manifest, &mut env.sha2_512_384)
+            {
+                // ICCM no longer contains the previously authenticated runtime, so this
+                // failure cannot use the non-fatal update fallback in `rom_entry`.
+                crate::handle_fatal_error(err.into());
+            }
             // Complete only after the loaded ICCM contents have been verified.
             recv_txn.complete(true)?;
             Ok(())
