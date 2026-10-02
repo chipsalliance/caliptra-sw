@@ -1,6 +1,9 @@
 // Licensed under the Apache-2.0 license
 
-use crate::common::{mailbox_execute_with_lock_retry, start_rt_test_pqc_model, RuntimeTestArgs};
+use crate::common::{
+    mailbox_execute_with_lock_retry, run_rt_test_return_fw, start_rt_test_pqc_model,
+    RuntimeTestArgs,
+};
 use caliptra_api::mailbox::{FirmwareVerifyResp, FirmwareVerifyResult};
 use caliptra_api::SocManager;
 use caliptra_common::mailbox_api::CommandId;
@@ -31,6 +34,30 @@ fn test_firmware_verify_success() {
         firmware_verify_resp.verify_result,
         FirmwareVerifyResult::Success as u32
     );
+}
+
+#[test]
+fn test_firmware_verify_image_word_alignment() {
+    #[cfg(feature = "fpga_subsystem")]
+    let modes = [true];
+    #[cfg(feature = "fpga_realtime")]
+    let modes = [false];
+    #[cfg(not(any(feature = "fpga_subsystem", feature = "fpga_realtime")))]
+    let modes = [false, true];
+    for subsystem_mode in modes {
+        let (mut model, image_bundle) = run_rt_test_return_fw(RuntimeTestArgs {
+            subsystem_mode,
+            ..Default::default()
+        });
+        for (image, _) in caliptra_test::firmware::unaligned_images(&image_bundle) {
+            let response = model
+                .mailbox_execute(CommandId::FIRMWARE_VERIFY.into(), &image)
+                .unwrap()
+                .unwrap();
+            let response = FirmwareVerifyResp::read_from_bytes(&response).unwrap();
+            assert_eq!(response.verify_result, FirmwareVerifyResult::Failure as u32);
+        }
+    }
 }
 
 #[test]

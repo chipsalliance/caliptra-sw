@@ -16,6 +16,8 @@ mod test_debug_unlock;
 mod test_disable;
 mod test_ecdsa;
 mod test_encrypted_firmware;
+#[cfg(not(feature = "fpga_realtime"))]
+mod test_external_mailbox;
 mod test_fe_programming;
 mod test_fips;
 mod test_firmware_verify;

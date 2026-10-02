@@ -2319,6 +2319,50 @@ fn test_fmc_offset_invalid_gap() {
 }
 
 #[test]
+fn test_image_word_alignment() {
+    // Released ROMs predate these image-format checks.
+    if caliptra_builder::get_ci_rom_version() != caliptra_builder::CiRomVersion::Latest {
+        return;
+    }
+    let image_bundle = helpers::build_image_bundle(ImageOptions::default());
+    let images = caliptra_test::firmware::unaligned_images(&image_bundle);
+    let rom = caliptra_builder::build_firmware_rom(helpers::rom_from_env()).unwrap();
+    for subsystem_mode in crate::test_derive_stable_key::HW_MODEL_MODES_SUBSYSTEM {
+        for (image, expected_error) in &images {
+            let mut model = caliptra_hw_model::new(
+                InitParams {
+                    rom: &rom,
+                    subsystem_mode,
+                    ..Default::default()
+                },
+                BootParams::default(),
+            )
+            .unwrap();
+            helpers::assert_fatal_fw_load(
+                &mut model,
+                FwVerificationPqcKeyType::MLDSA,
+                image,
+                *expected_error,
+            );
+        }
+    }
+}
+
+#[test]
+fn test_image_alignment_recovery_reason() {
+    for error in [
+        CaliptraError::IMAGE_VERIFIER_ERR_FMC_SIZE_UNALIGNED,
+        CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_SIZE_UNALIGNED,
+        CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_OFFSET_INVALID,
+    ] {
+        assert_eq!(
+            DmaRecovery::recovery_reason_from_firmware_verification_error(error),
+            DmaRecovery::RECOVERY_REASON_FIRMWARE_IMAGE_LAYOUT_INVALID
+        );
+    }
+}
+
+#[test]
 fn test_fmc_rt_load_address_range_overlap() {
     for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
         let image_options = ImageOptions {

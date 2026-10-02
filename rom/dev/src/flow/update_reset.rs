@@ -84,10 +84,13 @@ impl UpdateResetFlow {
             {
                 // Parse ExternalMailboxCmdReq to get actual command and staging address
                 let mbox_contents = recv_txn.raw_mailbox_contents();
-                if mbox_contents.len()
-                    < core::mem::size_of::<caliptra_common::mailbox_api::ExternalMailboxCmdReq>()
+                if recv_txn.dlen() as usize
+                    != core::mem::size_of::<caliptra_common::mailbox_api::ExternalMailboxCmdReq>()
+                    || mbox_contents.len()
+                        < core::mem::size_of::<caliptra_common::mailbox_api::ExternalMailboxCmdReq>(
+                        )
                 {
-                    cprintln!("External mailbox command too small");
+                    cprintln!("Invalid external mailbox command size");
                     return Err(CaliptraError::ROM_UPDATE_RESET_FLOW_MAILBOX_ACCESS_FAILURE);
                 }
 
@@ -98,6 +101,14 @@ impl UpdateResetFlow {
                         >()],
                     )
                     .map_err(|_| CaliptraError::ROM_UPDATE_RESET_FLOW_MAILBOX_ACCESS_FAILURE)?;
+
+                // Reject invalid DMA inputs before reading even the manifest.
+                if external_cmd.command_size < core::mem::size_of::<ImageManifest>() as u32
+                    || !external_cmd.command_size.is_multiple_of(4)
+                    || !external_cmd.axi_address_start_low.is_multiple_of(4)
+                {
+                    return Err(CaliptraError::ROM_UPDATE_RESET_FLOW_MAILBOX_ACCESS_FAILURE);
+                }
 
                 let staging_addr = ((external_cmd.axi_address_start_high as u64) << 32)
                     | (external_cmd.axi_address_start_low as u64);
@@ -357,7 +368,8 @@ impl UpdateResetFlow {
             let addr = (manifest.runtime.load_addr) as *mut u8;
             core::slice::from_raw_parts_mut(addr, manifest.runtime.size as usize)
         };
-        let runtime_size_words = runtime_dest.len().div_ceil(4);
+        // The image verifier requires word-aligned section sizes.
+        let runtime_size_words = runtime_dest.len() / size_of::<u32>();
         let runtime_words = unsafe {
             core::slice::from_raw_parts_mut(
                 runtime_dest.as_mut_ptr() as *mut u32,
