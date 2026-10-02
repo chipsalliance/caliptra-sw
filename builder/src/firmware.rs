@@ -42,7 +42,10 @@ pub fn fake_rom(fpga: bool) -> &'static FwId<'static> {
 pub const ROM: FwId = FwId {
     crate_name: "caliptra-rom",
     bin_name: "caliptra-rom",
-    fw_type: FirmwareType::Source { features: &["cfi"] },
+    fw_type: FirmwareType::Source {
+        features: &["cfi"],
+        hw_revision: None,
+    },
 };
 
 pub const ROM_FPGA: FwId = FwId {
@@ -50,6 +53,7 @@ pub const ROM_FPGA: FwId = FwId {
     bin_name: "caliptra-rom",
     fw_type: FirmwareType::Source {
         features: &["fpga_realtime", "cfi"],
+        hw_revision: None,
     },
 };
 
@@ -58,6 +62,7 @@ pub const ROM_WITH_UART: FwId = FwId {
     bin_name: "caliptra-rom",
     fw_type: FirmwareType::Source {
         features: &["emu", "cfi"],
+        hw_revision: None,
     },
 };
 
@@ -66,6 +71,7 @@ pub const ROM_FAKE_WITH_UART: FwId = FwId {
     bin_name: "caliptra-rom",
     fw_type: FirmwareType::Source {
         features: &["emu", "fake-rom", "cfi"],
+        hw_revision: None,
     },
 };
 
@@ -74,6 +80,7 @@ pub const ROM_FAKE_WITH_UART_FPGA: FwId = FwId {
     bin_name: "caliptra-rom",
     fw_type: FirmwareType::Source {
         features: &["emu", "fake-rom", "fpga_realtime", "cfi"],
+        hw_revision: None,
     },
 };
 
@@ -82,6 +89,7 @@ pub const ROM_WITH_FIPS_TEST_HOOKS: FwId = FwId {
     bin_name: "caliptra-rom",
     fw_type: FirmwareType::Source {
         features: &["fips-test-hooks", "cfi"],
+        hw_revision: None,
     },
 };
 
@@ -114,6 +122,7 @@ pub const ROM_WITH_FIPS_TEST_HOOKS_FPGA: FwId = FwId {
     bin_name: "caliptra-rom",
     fw_type: FirmwareType::Source {
         features: &["fips-test-hooks", "fpga_realtime", "cfi"],
+        hw_revision: None,
     },
 };
 
@@ -123,6 +132,7 @@ pub const ROM_FPGA_WITH_UART: FwId = FwId {
     bin_name: "caliptra-rom",
     fw_type: FirmwareType::Source {
         features: &["emu", "fpga_realtime", "cfi"],
+        hw_revision: None,
     },
 };
 
@@ -131,6 +141,7 @@ pub const FMC_WITH_UART: FwId = FwId {
     bin_name: "caliptra-fmc",
     fw_type: FirmwareType::Source {
         features: &["emu", "cfi"],
+        hw_revision: None,
     },
 };
 
@@ -139,6 +150,7 @@ pub const FMC_FAKE_WITH_UART: FwId = FwId {
     bin_name: "caliptra-fmc",
     fw_type: FirmwareType::Source {
         features: &["emu", "fake-fmc", "cfi"],
+        hw_revision: None,
     },
 };
 
@@ -148,6 +160,7 @@ pub const FMC_FPGA_WITH_UART: FwId = FwId {
     bin_name: "caliptra-fmc",
     fw_type: FirmwareType::Source {
         features: &["emu", "fpga_realtime", "cfi"],
+        hw_revision: None,
     },
 };
 
@@ -156,6 +169,7 @@ pub const APP: FwId = FwId {
     bin_name: "caliptra-runtime",
     fw_type: FirmwareType::Source {
         features: &["fips_self_test", "cfi"],
+        hw_revision: None,
     },
 };
 
@@ -164,6 +178,7 @@ pub const APP_WITH_UART: FwId = FwId {
     bin_name: "caliptra-runtime",
     fw_type: FirmwareType::Source {
         features: &["emu", "fips_self_test", "cfi"],
+        hw_revision: None,
     },
 };
 
@@ -172,6 +187,7 @@ pub const APP_WITH_UART_OCP_LOCK: FwId = FwId {
     bin_name: "caliptra-runtime",
     fw_type: FirmwareType::Source {
         features: &["emu", "fips_self_test", "ocp-lock", "cfi"],
+        hw_revision: None,
     },
 };
 
@@ -180,6 +196,7 @@ pub const APP_WITH_UART_FIPS_TEST_HOOKS: FwId = FwId {
     bin_name: "caliptra-runtime",
     fw_type: FirmwareType::Source {
         features: &["emu", "fips_self_test", "fips-test-hooks", "cfi"],
+        hw_revision: None,
     },
 };
 
@@ -194,6 +211,7 @@ pub const APP_WITH_UART_FIPS_TEST_HOOKS_FPGA: FwId = FwId {
             "fpga_subsystem",
             "cfi",
         ],
+        hw_revision: None,
     },
 };
 
@@ -202,6 +220,7 @@ pub const APP_WITH_UART_FPGA: FwId = FwId {
     bin_name: "caliptra-runtime",
     fw_type: FirmwareType::Source {
         features: &["emu", "fips_self_test", "fpga_realtime", "cfi"],
+        hw_revision: None,
     },
 };
 
@@ -210,19 +229,26 @@ pub const APP_WITH_UART_OCP_LOCK_FPGA: FwId = FwId {
     bin_name: "caliptra-runtime",
     fw_type: FirmwareType::Source {
         features: &["emu", "fips_self_test", "fpga_realtime", "ocp-lock", "cfi"],
+        hw_revision: None,
     },
 };
 
 pub const APP_ZEROS: FwId = FwId {
     crate_name: "caliptra-zeros",
     bin_name: "caliptra-zeros",
-    fw_type: FirmwareType::Source { features: &[] },
+    fw_type: FirmwareType::Source {
+        features: &[],
+        hw_revision: None,
+    },
 };
 
 pub const FMC_ZEROS: FwId = FwId {
     crate_name: "caliptra-zeros",
     bin_name: "caliptra-zeros",
-    fw_type: FirmwareType::Source { features: &["fmc"] },
+    fw_type: FirmwareType::Source {
+        features: &["fmc"],
+        hw_revision: None,
+    },
 };
 
 pub mod caliptra_builder_tests {
@@ -231,7 +257,10 @@ pub mod caliptra_builder_tests {
     pub const FWID: FwId = FwId {
         crate_name: "caliptra-drivers-test-bin",
         bin_name: "test_success",
-        fw_type: FirmwareType::Source { features: &[] },
+        fw_type: FirmwareType::Source {
+            features: &[],
+            hw_revision: None,
+        },
     };
 }
 
@@ -241,7 +270,10 @@ pub mod hw_model_tests {
     const BASE_FWID: FwId = FwId {
         crate_name: "caliptra-hw-model-test-fw",
         bin_name: "",
-        fw_type: FirmwareType::Source { features: &["emu"] },
+        fw_type: FirmwareType::Source {
+            features: &["emu"],
+            hw_revision: None,
+        },
     };
 
     pub const MAILBOX_RESPONDER: FwId = FwId {
@@ -311,7 +343,10 @@ pub mod driver_tests {
     const BASE_FWID: FwId = FwId {
         crate_name: "caliptra-drivers-test-bin",
         bin_name: "",
-        fw_type: FirmwareType::Source { features: &["emu"] },
+        fw_type: FirmwareType::Source {
+            features: &["emu"],
+            hw_revision: None,
+        },
     };
 
     pub const DOE: FwId = FwId {
@@ -353,6 +388,7 @@ pub mod driver_tests {
         bin_name: "keyvault",
         fw_type: FirmwareType::Source {
             features: &["emu", "fpga_realtime"],
+            hw_revision: None,
         },
         ..BASE_FWID
     };
@@ -442,11 +478,6 @@ pub mod driver_tests {
         ..BASE_FWID
     };
 
-    pub const SOC_IFC_WAIT_FOR_DEVICE_RESET: FwId = FwId {
-        bin_name: "soc_ifc_wait_for_device_reset",
-        ..BASE_FWID
-    };
-
     pub const TEST_LMS_24: FwId = FwId {
         bin_name: "test_lms_24",
         ..BASE_FWID
@@ -527,6 +558,7 @@ pub mod driver_tests {
         // Enables the CSRNG_RESEED_FAILURE hook to simulate a reseed failure.
         fw_type: FirmwareType::Source {
             features: &["emu", "fips-test-hooks"],
+            hw_revision: None,
         },
         ..BASE_FWID
     };
@@ -551,6 +583,7 @@ pub mod driver_tests {
         bin_name: "dma_sha384",
         fw_type: FirmwareType::Source {
             features: &["emu", "fpga_subsystem"],
+            hw_revision: None,
         },
         ..BASE_FWID
     };
@@ -559,6 +592,7 @@ pub mod driver_tests {
         bin_name: "ocp_lock",
         fw_type: FirmwareType::Source {
             features: &["fpga_realtime"],
+            hw_revision: None,
         },
         ..BASE_FWID
     };
@@ -567,6 +601,7 @@ pub mod driver_tests {
         bin_name: "ocp_lock_warm_reset",
         fw_type: FirmwareType::Source {
             features: &["fpga_realtime"],
+            hw_revision: None,
         },
         ..BASE_FWID
     };
@@ -575,6 +610,7 @@ pub mod driver_tests {
         bin_name: "dma_aes",
         fw_type: FirmwareType::Source {
             features: &["emu", "fpga_subsystem"],
+            hw_revision: None,
         },
         ..BASE_FWID
     };
@@ -583,6 +619,7 @@ pub mod driver_tests {
         bin_name: "axi_bypass",
         fw_type: FirmwareType::Source {
             features: &["emu", "fpga_subsystem"],
+            hw_revision: None,
         },
         ..BASE_FWID
     };
@@ -591,6 +628,7 @@ pub mod driver_tests {
         bin_name: "hpke",
         fw_type: FirmwareType::Source {
             features: &["emu", "fpga_subsystem"],
+            hw_revision: None,
         },
         ..BASE_FWID
     };
@@ -602,7 +640,10 @@ pub mod rom_tests {
     const BASE_FWID: FwId = FwId {
         crate_name: "caliptra-rom",
         bin_name: "",
-        fw_type: FirmwareType::Source { features: &["emu"] },
+        fw_type: FirmwareType::Source {
+            features: &["emu"],
+            hw_revision: None,
+        },
     };
 
     pub const ASM_TESTS: FwId = FwId {
@@ -615,6 +656,7 @@ pub mod rom_tests {
         bin_name: "caliptra-rom-test-fmc",
         fw_type: FirmwareType::Source {
             features: &["emu", "cfi"],
+            hw_revision: None,
         },
     };
 
@@ -623,6 +665,7 @@ pub mod rom_tests {
         bin_name: "caliptra-rom-test-rt",
         fw_type: FirmwareType::Source {
             features: &["emu", "cfi"],
+            hw_revision: None,
         },
     };
 
@@ -631,6 +674,7 @@ pub mod rom_tests {
         bin_name: "caliptra-rom-test-fmc",
         fw_type: FirmwareType::Source {
             features: &["emu", "fake-fmc", "cfi"],
+            hw_revision: None,
         },
     };
 
@@ -639,6 +683,7 @@ pub mod rom_tests {
         bin_name: "caliptra-rom-test-fmc",
         fw_type: FirmwareType::Source {
             features: &["emu", "interactive_test_fmc", "cfi"],
+            hw_revision: None,
         },
     };
 
@@ -647,6 +692,7 @@ pub mod rom_tests {
         bin_name: "caliptra-rom-test-fmc",
         fw_type: FirmwareType::Source {
             features: &["emu", "interactive_test_fmc", "fake-fmc", "cfi"],
+            hw_revision: None,
         },
     };
 
@@ -664,6 +710,7 @@ pub mod runtime_tests {
         bin_name: "",
         fw_type: FirmwareType::Source {
             features: &["emu", "riscv", "runtime", "cfi"],
+            hw_revision: None,
         },
     };
 
@@ -681,6 +728,7 @@ pub mod runtime_tests {
         bin_name: "mbox",
         fw_type: FirmwareType::Source {
             features: &["emu", "riscv", "runtime", "fpga_realtime", "cfi"],
+            hw_revision: None,
         },
         ..RUNTIME_TEST_FWID_BASE
     };
@@ -690,6 +738,7 @@ pub mod runtime_tests {
         bin_name: "mbox",
         fw_type: FirmwareType::Source {
             features: &["riscv", "runtime", "cfi"],
+            hw_revision: None,
         },
         ..RUNTIME_TEST_FWID_BASE
     };
@@ -698,6 +747,7 @@ pub mod runtime_tests {
         bin_name: "mbox",
         fw_type: FirmwareType::Source {
             features: &["riscv", "runtime", "fpga_realtime", "cfi"],
+            hw_revision: None,
         },
         ..RUNTIME_TEST_FWID_BASE
     };
@@ -716,6 +766,7 @@ pub mod runtime_tests {
         bin_name: "mock_rt_interact",
         fw_type: FirmwareType::Source {
             features: &["emu", "riscv", "runtime", "fpga_realtime", "cfi"],
+            hw_revision: None,
         },
         ..RUNTIME_TEST_FWID_BASE
     };
@@ -727,7 +778,10 @@ pub mod api_tests {
     const BASE_FWID: FwId = FwId {
         crate_name: "caliptra-api-test-bin",
         bin_name: "",
-        fw_type: FirmwareType::Source { features: &["emu"] },
+        fw_type: FirmwareType::Source {
+            features: &["emu"],
+            hw_revision: None,
+        },
     };
 
     pub const MAILBOX: FwId = FwId {
@@ -797,7 +851,6 @@ pub const REGISTERED_FW: &[&FwId] = &[
     &driver_tests::SHA512,
     &driver_tests::SHA2_512_384ACC,
     &driver_tests::STATUS_REPORTER,
-    &driver_tests::SOC_IFC_WAIT_FOR_DEVICE_RESET,
     &driver_tests::TEST_LMS_24,
     &driver_tests::TEST_LMS_32,
     &driver_tests::TEST_NEGATIVE_LMS,
