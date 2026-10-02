@@ -87,7 +87,15 @@ fn run_aft(hex_msg: &str) {
 /// redundant known-answer test per iteration.
 fn run_mct(hex_msg: &str) {
     let mut seed = [0u8; SHA1_HASH_SIZE];
-    hex_decode(hex_msg, &mut seed).unwrap();
+    // The seed is a fixed-size field. `hex_decode` rejects odd-length and
+    // over-long input, but a short seed would decode successfully and leave the
+    // tail of the buffer zeroed, running the whole chain on the wrong value.
+    let seed_len = hex_decode(hex_msg, &mut seed).unwrap();
+    assert_eq!(
+        seed_len, SHA1_HASH_SIZE,
+        "MCT seed must be exactly {} bytes, got {}",
+        SHA1_HASH_SIZE, seed_len
+    );
 
     let mut sha1 = Sha1::new().unwrap();
     let mut msg = [0u8; SHA1_HASH_SIZE * 3];
