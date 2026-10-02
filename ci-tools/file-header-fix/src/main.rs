@@ -23,6 +23,9 @@ const IGNORED_PATHS: &[&str] = &[
     "./hw/rev-2_1/rtl",
     "./hw/rev-2_1/caliptra-ss",
     "./hw/rev-2_1/i3c-core-rtl",
+    "./hw/rev-2_2/rtl",
+    "./hw/rev-2_2/caliptra-ss",
+    "./hw/rev-2_2/i3c-core-rtl",
     "./ci-tools/fpga-boss/image/mnt",
     "./ci-tools/fpga-image/out",
 ];
