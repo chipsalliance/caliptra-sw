@@ -31,6 +31,8 @@ use caliptra_ureg::{Mmio, MmioMut, RealMmioMut};
 use core::{cell::Cell, mem::size_of, ops::Add};
 
 const I3C_BLOCK_SIZE: u32 = 64;
+#[cfg(feature = "runtime")]
+const DMA_SINGLE_DWORD_XFER_SIZE: u32 = size_of::<u32>() as u32;
 pub const MCU_SRAM_OFFSET: u64 = 0xc0_0000;
 // SHA384 of empty stream
 const SHA384_EMPTY: Array4x12 = Array4x12::new([
@@ -1279,6 +1281,74 @@ impl<'a> DmaRecovery<'a> {
             drop(acc_op); // this causes acc_op to try to drop the lock, but it will fail
 
             // we have to release the SHA accelerator lock over DMA for it to take effect
+            dma_sha.lock().write(|w| w.lock(true));
+
+            #[cfg(feature = "fips-test-hooks")]
+            let digest = unsafe {
+                crate::FipsTestHook::corrupt_data_if_hook_set(
+                    crate::FipsTestHook::SHA384_CORRUPT_DIGEST,
+                    &digest,
+                )
+            };
+
+            Ok(digest)
+        })?
+    }
+
+    /// Hash an image using one four-byte DMA command per source word.
+    #[cfg(feature = "runtime")]
+    pub fn sha384_image_single_dword(
+        &self,
+        sha_acc: &'a mut Sha2_512_384Acc,
+        source: AxiAddr,
+        length: u32,
+    ) -> CaliptraResult<Array4x12> {
+        #[cfg(feature = "fips-test-hooks")]
+        unsafe {
+            crate::FipsTestHook::error_if_hook_set(crate::FipsTestHook::SHA384_DIGEST_FAILURE)?
+        }
+
+        if length == 0 {
+            return Ok(SHA384_EMPTY);
+        }
+        if ((source.lo | length) & (DMA_SINGLE_DWORD_XFER_SIZE - 1)) != 0 {
+            return Err(CaliptraError::DRIVER_DMA_TRANSACTION_ERROR);
+        }
+
+        self.with_sha_acc(|dma_sha| {
+            if dma_sha.lock().read().lock() {
+                return Err(CaliptraError::DRIVER_DMA_SHA_ACCELERATOR_NOT_LOCKED);
+            }
+
+            let mut acc_op = sha_acc
+                .try_start_operation(ShaAccLockState::AssumedLocked)?
+                .ok_or(CaliptraError::RUNTIME_INTERNAL)?;
+
+            dma_sha
+                .mode()
+                .write(|w| w.endian_toggle(false).mode(|_| ShaCmdE::ShaStream384));
+            dma_sha.dlen().write(|_| length);
+
+            // Safety: the dma_sha is relative to 0, so we can use it to get the offset of the data in register.
+            let write_addr = self.caliptra_base + (dma_sha.datain().ptr as u32 as u64);
+
+            for offset in (0..length).step_by(DMA_SINGLE_DWORD_XFER_SIZE as usize) {
+                self.transfer_payload_to_axi(
+                    source + offset,
+                    DMA_SINGLE_DWORD_XFER_SIZE,
+                    write_addr,
+                    false,
+                    true,
+                    AesDmaMode::None,
+                )?;
+            }
+
+            dma_sha.execute().write(|w| w.execute(true));
+
+            let mut digest = Array4x12::default();
+            acc_op.stream_wait_for_done_384(&mut digest)?;
+            drop(acc_op);
+
             dma_sha.lock().write(|w| w.lock(true));
 
             #[cfg(feature = "fips-test-hooks")]
