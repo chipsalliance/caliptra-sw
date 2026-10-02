@@ -36,6 +36,28 @@ fn test_error_cleared() {
 }
 
 #[test]
+fn test_mailbox_byte_granular_length() {
+    let mut model = run_rt_test(RuntimeTestArgs::default());
+    let command = u32::from(CommandId::VERSION);
+    for length in 1..=3 {
+        let tail = vec![0xa5; length];
+        let checksum = caliptra_common::checksum::calc_checksum(command, &tail);
+        let mut payload = checksum.to_le_bytes().to_vec();
+        payload.extend_from_slice(&tail);
+        model.mailbox_execute(command, &payload).unwrap().unwrap();
+
+        // The checksum must cover the final partial word, not just full words.
+        payload[4] ^= 1;
+        let error = model.mailbox_execute(command, &payload).unwrap_err();
+        assert_error(
+            &mut model,
+            caliptra_drivers::CaliptraError::RUNTIME_INVALID_CHECKSUM,
+            error,
+        );
+    }
+}
+
+#[test]
 fn test_unimplemented_cmds() {
     let mut model = run_rt_test(RuntimeTestArgs::default());
 

@@ -957,6 +957,21 @@ impl CaliptraError {
             "Image Verifier Error: Update reset FMC load address or size mismatch"
         ),
         (
+            IMAGE_VERIFIER_ERR_FMC_SIZE_UNALIGNED,
+            0x000b0067,
+            "Image Verifier Error: FMC size unaligned"
+        ),
+        (
+            IMAGE_VERIFIER_ERR_RUNTIME_SIZE_UNALIGNED,
+            0x000b0068,
+            "Image Verifier Error: Runtime size unaligned"
+        ),
+        (
+            IMAGE_VERIFIER_ERR_RUNTIME_OFFSET_UNALIGNED,
+            0x000b0069,
+            "Image Verifier Error: Runtime offset unaligned"
+        ),
+        (
             DRIVER_LMS_INVALID_LMS_ALGO_TYPE,
             0x000c0001,
             "Driver Error: LMS invalid LMS algorithm type"

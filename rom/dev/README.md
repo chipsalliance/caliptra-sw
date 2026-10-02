@@ -2096,6 +2096,11 @@ multi-word byte ordering:
 - Compute the SHA2-384 hash of the complete TOC data.
 - Compare the computed TOC hash with the hash embedded in the Header.
   - If the hashes match, the TOC data is validated.
+- Require FMC and Runtime section sizes and source offsets to be multiples of
+  four bytes. FMC already immediately follows the word-aligned manifest.
+  Reject unsupported partial-word lengths before hashing or loading payloads,
+  so the DMA loaders copy exactly the authenticated section lengths. These
+  image-format checks apply to both mailbox and external-memory sources.
 - Ensure that Fw.Svn is greater than or equal to Fuse.Svn.
 
 <br> *(Note: Same SVN Validation is done for the FMC and RT)

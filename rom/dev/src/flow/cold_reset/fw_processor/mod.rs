@@ -954,7 +954,8 @@ impl FirmwareProcessor {
         );
 
         // Load FMC from MCU SRAM
-        let fmc_size_words = manifest.fmc.size.div_ceil(4) as usize;
+        // The image verifier requires word-aligned section sizes.
+        let fmc_size_words = manifest.fmc.size as usize / size_of::<u32>();
         let fmc_words = unsafe {
             core::slice::from_raw_parts_mut(manifest.fmc.load_addr as *mut u32, fmc_size_words)
         };
@@ -968,7 +969,7 @@ impl FirmwareProcessor {
         );
 
         // Load Runtime from MCU SRAM
-        let runtime_size_words = manifest.runtime.size.div_ceil(4) as usize;
+        let runtime_size_words = manifest.runtime.size as usize / size_of::<u32>();
         let runtime_words = unsafe {
             core::slice::from_raw_parts_mut(
                 manifest.runtime.load_addr as *mut u32,

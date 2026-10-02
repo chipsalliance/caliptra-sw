@@ -1099,6 +1099,27 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_FMC_RUNTIME_LOAD_ADDR_OVERLAP)?;
         }
 
+        // Both mailbox and DMA loading must copy exactly the authenticated
+        // section lengths. DMA cannot transfer partial words or unaligned sources.
+        if !manifest.fmc.size.is_multiple_of(size_of::<u32>() as u32) {
+            Err(CaliptraError::IMAGE_VERIFIER_ERR_FMC_SIZE_UNALIGNED)?;
+        }
+        if !manifest
+            .runtime
+            .size
+            .is_multiple_of(size_of::<u32>() as u32)
+        {
+            Err(CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_SIZE_UNALIGNED)?;
+        }
+        // FMC's offset is already fixed to the word-aligned manifest size.
+        if !manifest
+            .runtime
+            .offset
+            .is_multiple_of(size_of::<u32>() as u32)
+        {
+            Err(CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_OFFSET_UNALIGNED)?;
+        }
+
         let info = ImageInfo {
             fmc: &manifest.fmc,
             runtime: &manifest.runtime,
@@ -2256,6 +2277,55 @@ mod tests {
             result.err(),
             Some(CaliptraError::IMAGE_VERIFIER_ERR_IMAGE_LEN_MORE_THAN_BUNDLE_SIZE)
         );
+    }
+
+    #[test]
+    fn test_toc_word_alignment() {
+        let mut manifest = ImageManifest::default();
+        manifest.fmc.offset = IMAGE_MANIFEST_BYTE_SIZE as u32;
+        manifest.fmc.size = 100;
+        manifest.fmc.load_addr = 0x1000;
+        manifest.runtime.offset = manifest.fmc.offset + manifest.fmc.size;
+        manifest.runtime.size = 200;
+        manifest.runtime.load_addr = 0x2000;
+        let mut verifier = ImageVerifier::new(TestEnv::default());
+        let toc_info = TocInfo {
+            len: MAX_TOC_ENTRY_COUNT,
+            digest: &ImageDigest384::default(),
+        };
+
+        for remainder in 1..=3 {
+            for (fmc_size, runtime_size, runtime_offset, expected) in [
+                (
+                    100 - remainder,
+                    200,
+                    manifest.fmc.offset + 100,
+                    CaliptraError::IMAGE_VERIFIER_ERR_FMC_SIZE_UNALIGNED,
+                ),
+                (
+                    100,
+                    200 - remainder,
+                    manifest.fmc.offset + 100,
+                    CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_SIZE_UNALIGNED,
+                ),
+                (
+                    100,
+                    200,
+                    manifest.fmc.offset + 100 + remainder,
+                    CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_OFFSET_UNALIGNED,
+                ),
+            ] {
+                manifest.fmc.size = fmc_size;
+                manifest.runtime.size = runtime_size;
+                manifest.runtime.offset = runtime_offset;
+                assert_eq!(
+                    verifier
+                        .verify_toc(&manifest, &toc_info, manifest.size + 304)
+                        .err(),
+                    Some(expected)
+                );
+            }
+        }
     }
 
     #[test]

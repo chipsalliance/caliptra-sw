@@ -268,6 +268,19 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         let external_cmd = ExternalMailboxCmdReq::ref_from_bytes(cmd_bytes)
             .map_err(|_| CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
 
+        // DMA accepts only nonempty, word-aligned transfers. Validate before
+        // either dispatching a command or resetting into the ROM update flow.
+        if external_cmd.command_size < size_of::<MailboxReqHeader>() as u32
+            || !external_cmd
+                .command_size
+                .is_multiple_of(size_of::<u32>() as u32)
+            || !external_cmd
+                .axi_address_start_low
+                .is_multiple_of(size_of::<u32>() as u32)
+        {
+            return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
+        }
+
         if external_cmd.command_id == CommandId::FIRMWARE_VERIFY.into() {
             let axi_addr = AxiAddr {
                 lo: external_cmd.axi_address_start_low,
