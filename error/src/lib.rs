@@ -957,6 +957,11 @@ impl CaliptraError {
             "Image Verifier Error: Update reset FMC load address or size mismatch"
         ),
         (
+            IMAGE_VERIFIER_ERR_RUNTIME_OFFSET_INVALID,
+            0x000b0066,
+            "Image Verifier Error: Runtime offset invalid (gap between FMC and Runtime)"
+        ),
+        (
             DRIVER_LMS_INVALID_LMS_ALGO_TYPE,
             0x000c0001,
             "Driver Error: LMS invalid LMS algorithm type"
@@ -1123,6 +1128,11 @@ impl CaliptraError {
             DRIVER_DMA_AES_CHUNKING_UNSUPPORTED,
             0x0000f007,
             "DMA driver Error: AES cannot be split across multiple transfers"
+        ),
+        (
+            DRIVER_DMA_AXI_ADDRESS_OVERFLOW,
+            0x0000f008,
+            "DMA driver Error: AXI address range overflow"
         ),
         (
             DRIVER_SHA3_INVALID_STATE_ERR,

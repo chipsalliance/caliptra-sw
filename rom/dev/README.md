@@ -161,11 +161,18 @@ firmware images contained in the bundle.
 
 Firmware manifest consists of preamble, header and table of contents.
 
+ROM copies the manifest into protected internal memory before verification.
+Public-key hashes, header signatures, and the table-of-contents digest are
+verified against that same snapshot, which is also used for image validation and
+loading. Changes to the manifest in external staging memory after capture do not
+change the authenticated metadata. Payloads are separately hashed against the
+authenticated TOC digests, including after loading into ICCM.
+
 #### Preamble
 
 It is the unsigned portion of the manifest. Preamble contains the signing public keys and signatures. ROM is responsible for parsing the preamble. ROM performs the following steps:
 
-- Loads the preamble from the mailbox.
+- Uses the preamble from the protected manifest snapshot.
 - Calculates the hash of ECC and LMS or MLDSA [Public Key Descriptors](#Public-Key-Descriptor) in the preamble and compares it against the hash in the fuse (FUSE_VENDOR_PK_HASH). If the hashes do not match, the boot fails.
 - Verifies the active Manufacturer Public Key(s) based on fuse (FUSE_ECC_REVOCATION for ECC public key, FUSE_LMS_REVOCATION for LMS public key or FUSE_MLDSA_REVOCATION for MLDSA public key)
 
@@ -1247,6 +1254,7 @@ The ROM executes the following operations:
 
 The basic flow for validating the firmware involves the following:
 
+- Capturing the firmware manifest in protected internal memory and using that snapshot for all manifest authentication and subsequent image validation.
 - Validating the manufacturer key descriptors in the preamble.
 - Validating the active manufacturer keys with the corresponding hash in the key descriptors.
 - Validating the owner key descriptors in the preamble.
@@ -1256,7 +1264,7 @@ The basic flow for validating the firmware involves the following:
 - If the manufacturer-signed header marks the bundle as a debug image, requiring subsystem mode, asserted `SS_DEBUG_INTENT`, and clear `SS_STRAP_GENERIC[3][31]`.
 - Validating the Manifest Header using the owner keys against the owner signatures.
 - On the completion of these validations, it is assured that the header portion is authentic.
-- Loading the FMC and Rutime (RT) TOC entries from the mailbox.
+- Reading the FMC and Runtime (RT) TOC entries from the protected manifest snapshot.
 - Validating the TOCs against the TOC hash in the header.
 - On successful validation, it is assured that the TOCs are valid. The next step is to use the Hash entry in the TOCs to validate the image sections.
 - Downloading the FMC Image portion of the firmware Image.
@@ -2087,10 +2095,20 @@ multi-word byte ordering:
 ## Table of contents validation
 
 - At this point both the Preamble and the Header have been validated.
-- Load the TOC entries (FMC TOC and RT TOC) from the mailbox.
+- Read the TOC entries (FMC TOC and RT TOC) from the protected manifest snapshot.
 - Compute the SHA2-384 hash of the complete TOC data.
 - Compare the computed TOC hash with the hash embedded in the Header.
   - If the hashes match, the TOC data is validated.
+- Require tightly packed image data: FMC immediately follows the manifest, and
+  Runtime immediately follows the checked end of FMC. A gap before Runtime is
+  rejected with `IMAGE_VERIFIER_ERR_RUNTIME_OFFSET_INVALID`. This source-layout
+  requirement does not require adjacent ICCM load addresses.
+- Check each image's `Offset + Size` for overflow and require the resulting end
+  offset to be within the supplied bundle length before hashing or loading its
+  payload. Trailing bundle padding remains permitted.
+- For external images, also check the absolute AXI source address and final byte
+  before DMA. Update reset rejects a wrapping staging bundle before fetching its
+  manifest. Source-address overflow reports `DRIVER_DMA_AXI_ADDRESS_OVERFLOW`.
 - Ensure that Fw.Svn is greater than or equal to Fuse.Svn.
 
 <br> *(Note: Same SVN Validation is done for the FMC and RT)

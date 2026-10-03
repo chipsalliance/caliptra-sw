@@ -181,7 +181,10 @@ impl FirmwareProcessor {
         } else {
             caliptra_common::verifier::ImageSource::Axi {
                 dma: &env.dma,
-                axi_start: AxiAddr::from(mci_base + caliptra_drivers::dma::MCU_SRAM_OFFSET),
+                axi_start: AxiAddr::from(mci_base).checked_offset(
+                    caliptra_drivers::dma::MCU_SRAM_OFFSET,
+                    image_size_bytes as u64,
+                )?,
             }
         };
         // Verify the image
