@@ -46,6 +46,9 @@ type DownloadIdevidCsrCallback =
 mod constants {
     #![allow(unused)]
 
+    pub const CPTRA_HW_REV_2_1: u32 = 0x0112;
+    pub const CPTRA_HW_REV_2_2: u32 = 0x0022;
+
     pub const CPTRA_HW_ERROR_FATAL_START: u32 = 0x0;
     pub const CPTRA_HW_ERROR_NON_FATAL_START: u32 = 0x4;
     pub const CPTRA_FW_ERROR_FATAL_START: u32 = 0x8;
@@ -1033,11 +1036,13 @@ impl SocRegistersImpl {
         let encryption_engine_offset =
             crate::dma::axi_root_bus::AxiRootBus::ENCRYPTION_ENGINE_OFFSET;
 
-        let stash_measurement_bank = match args.hw_version {
-            CaliptraHwVersion::V2_2 => {
-                StashMeasurementBankSlot::active(StashMeasurementBank::new(args.subsystem_mode))
-            }
-            _ => StashMeasurementBankSlot::disabled(),
+        // The revision ID follows the format: [3:0] Major, [7:4] Minor, [15:8] Patch
+        let (stash_measurement_bank, hw_rev_id) = match args.hw_version {
+            CaliptraHwVersion::V2_2 => (
+                StashMeasurementBankSlot::active(StashMeasurementBank::new(args.subsystem_mode)),
+                CPTRA_HW_REV_2_2,
+            ),
+            _ => (StashMeasurementBankSlot::disabled(), CPTRA_HW_REV_2_1),
         };
 
         let regs = Self {
@@ -1066,7 +1071,7 @@ impl SocRegistersImpl {
             cptra_clk_gating_en: ReadOnlyRegister::new(0),
             cptra_generic_input_wires: Default::default(),
             cptra_generic_output_wires: Default::default(),
-            cptra_hw_rev_id: ReadOnlyRegister::new(0x112), // [3:0] Major, [7:4] Minor, [15:8] Patch
+            cptra_hw_rev_id: ReadOnlyRegister::new(hw_rev_id),
             cptra_fw_rev_id: Default::default(),
             cptra_hw_config: ReadWriteRegister::new({
                 let mut hw_features = 0;
@@ -1745,6 +1750,7 @@ mod tests {
     use crate::stash_measurement_bank::Status;
     use crate::{root_bus::TbServicesCb, MailboxRam};
     use caliptra_emu_bus::Clock;
+    use caliptra_registers::soc_ifc::regs::CptraHwRevIdReadVal;
     use std::{
         fs::File,
         io::{Read, Write},
@@ -2426,5 +2432,29 @@ mod tests {
         assert_eq!(result, Err(BusError::LoadAccessFault));
         let result = reg.write(RvSize::Word, STASH_DATA_START, 0xff);
         assert_eq!(result, Err(BusError::StoreAccessFault));
+    }
+
+    #[test]
+    fn test_cptra_hw_rev_id() {
+        let clock = Rc::new(Clock::new());
+        let mailbox_ram = MailboxRam::default();
+        let mailbox = MailboxInternal::new(&clock, mailbox_ram);
+
+        let args = CaliptraRootBusArgs {
+            hw_version: CaliptraHwVersion::V2_2,
+            ..CaliptraRootBusArgs::default()
+        };
+        let mci = Mci::new(vec![]);
+        let reg = SocRegistersInternal::new(mailbox.clone(), Iccm::new(&clock), mci.clone(), args);
+        let rev_id = CptraHwRevIdReadVal::from(reg.regs.borrow().cptra_hw_rev_id.reg.get());
+        assert_eq!(CPTRA_HW_REV_2_2, rev_id.cptra_generation());
+
+        let args = CaliptraRootBusArgs {
+            ..CaliptraRootBusArgs::default()
+        };
+        let mci = Mci::new(vec![]);
+        let reg = SocRegistersInternal::new(mailbox.clone(), Iccm::new(&clock), mci.clone(), args);
+        let rev_id = CptraHwRevIdReadVal::from(reg.regs.borrow().cptra_hw_rev_id.reg.get());
+        assert_eq!(CPTRA_HW_REV_2_1, rev_id.cptra_generation());
     }
 }

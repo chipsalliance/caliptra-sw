@@ -5,9 +5,9 @@ This document tracks the ROM integration test functions declared under
 modules from `main.rs`, and the inventory below includes all current `#[test]`
 functions, including feature-gated tests, grouped by logical coverage area.
 
-Total declared test functions: **199**
+Total declared test functions: **200**
 
-The default host configuration compiles **194** tests. Four additional tests
+The default host configuration compiles **195** tests. Four additional tests
 require the `slow_tests` feature, while `test_mailbox_reserved_pauser` compiles
 only with the `verilator` or `fpga_realtime` feature.
 
@@ -29,7 +29,7 @@ behavior or checks state/data without expecting a ROM error code.
 | Firmware download, FMC alias, logs, and measurements | 15 | `test_fmcalias_derivation.rs`, `test_device_status_mode.rs` |
 | Identity, DICE, and certificate commands | 12 | `test_dice_derivations.rs`, `test_idevid_derivation.rs`, `tests_get_idev_csr.rs`, `test_ldev_cert_cmd.rs` |
 | Reset, watchdog, and fatal trap handling | 21 | `test_update_reset.rs`, `test_warm_reset.rs`, `test_wdt_activation_and_stoppage.rs`, `test_cpu_fault.rs` |
-| Mailbox commands and ROM services | 23 | `test_mailbox_errors.rs`, `test_cm_sha.rs`, `test_derive_stable_key.rs`, `test_capabilities.rs`, `test_version.rs`, `test_ecdsa_verify.rs`, `test_mldsa_verify.rs`, `test_shutdown.rs` |
+| Mailbox commands and ROM services | 24 | `test_mailbox_errors.rs`, `test_cm_sha.rs`, `test_derive_stable_key.rs`, `test_capabilities.rs`, `test_version.rs`, `test_ecdsa_verify.rs`, `test_mldsa_verify.rs`, `test_shutdown.rs` |
 | Debug unlock, UDS/FE, and hardware protections | 30 | `test_debug_unlock.rs`, `test_uds_fe.rs`, `test_ocp_lock.rs`, `test_pmp.rs`, `test_cfi.rs`, `test_fips_hooks.rs` |
 | ROM configuration, integrity, and test infrastructure | 14 | `test_fake_rom.rs`, `test_rom_integrity.rs`, `test_panic_missing.rs`, `test_symbols.rs`, `rv32_unit_tests.rs`, `helpers.rs` |
 
@@ -205,6 +205,7 @@ behavior or checks state/data without expecting a ROM error code.
 | Reject stable owner key derivation in passive mode | `test_derive_stable_owner_key_rejected_in_passive_mode` | `CMB_STABLE_OWNER_KEY_NOT_AVAILABLE` |
 | Generate random output through the ROM random command | `test_random_generate` | N/A |
 | Reject an unknown mailbox command as fatal | `test_unknown_command_is_fatal` | `FW_PROC_MAILBOX_INVALID_COMMAND` |
+| Report fatal errors without a recovery device-reset request with reserved strap bit 1 clear or set, in passive and subsystem modes; stop WDT1 and abort the pending mailbox command | `test_fatal_error_ignores_reserved_reset_strap` | `FW_PROC_MAILBOX_INVALID_COMMAND` |
 | Verify mailbox command state after fatal firmware-load error | `test_mailbox_command_aborted_after_handle_fatal_error` | `FW_PROC_INVALID_IMAGE_SIZE` |
 | Reject a mailbox command with an invalid checksum | `test_mailbox_invalid_checksum` | `FW_PROC_MAILBOX_INVALID_CHECKSUM` |
 | Reject a mailbox request larger than the supported request size | `test_mailbox_invalid_req_size_large` | `FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH` |
