@@ -1,9 +1,10 @@
 // Licensed under the Apache-2.0 license
 
+use caliptra_api::SocManager;
 use caliptra_builder::ImageOptions;
 use caliptra_common::mailbox_api::{CommandId, MailboxReqHeader, StashMeasurementReq};
 use caliptra_error::CaliptraError;
-use caliptra_hw_model::{Fuses, HwModel, ModelError};
+use caliptra_hw_model::{BootParams, Fuses, HwModel, InitParams, ModelError, SecurityState};
 use zerocopy::IntoBytes;
 
 use crate::helpers;
@@ -39,6 +40,63 @@ fn test_unknown_command_is_fatal() {
         CaliptraError::FW_PROC_MAILBOX_INVALID_COMMAND.into(),
         MAX_WAIT_CYCLES,
     );
+}
+
+#[test]
+#[cfg_attr(
+    any(feature = "fpga_realtime", feature = "fpga_subsystem"),
+    ignore = "requires SS_STRAP_GENERIC_3 strap override, which is not supported on FPGA"
+)]
+fn test_fatal_error_ignores_reserved_reset_strap() {
+    const UNKNOWN_COMMAND: u32 = 0xabcd_1234;
+    const RESERVED_RESET_STRAP: u32 = 1 << 1;
+
+    let rom = caliptra_builder::build_firmware_rom(helpers::rom_from_env()).unwrap();
+    let expected_error = u32::from(CaliptraError::FW_PROC_MAILBOX_INVALID_COMMAND);
+    let header = MailboxReqHeader {
+        chksum: caliptra_common::checksum::calc_checksum(UNKNOWN_COMMAND, &[]),
+    };
+
+    for subsystem_mode in [false, true] {
+        for strap in [0, RESERVED_RESET_STRAP] {
+            let mut hw = caliptra_hw_model::new(
+                InitParams {
+                    rom: &rom,
+                    subsystem_mode,
+                    security_state: *SecurityState::default().set_debug_locked(true),
+                    ..Default::default()
+                },
+                BootParams {
+                    initial_ss_strap_generic_3: Some(strap),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+
+            assert_eq!(hw.soc_ifc().ss_strap_generic().at(3).read(), strap);
+            hw.step_until_or_timeout("ready_for_mb_processing", MAX_WAIT_CYCLES, |m| {
+                m.soc_ifc()
+                    .cptra_flow_status()
+                    .read()
+                    .ready_for_mb_processing()
+            });
+            assert!(hw.soc_ifc().cptra_wdt_timer1_en().read().timer1_en());
+
+            // Do not send a recovery DEVICE_RESET request, even with the former wait bit set.
+            hw.start_mailbox_execute(UNKNOWN_COMMAND, header.as_bytes())
+                .unwrap();
+            hw.step_until_or_timeout("fatal error reporting", MAX_WAIT_CYCLES, |m| {
+                m.soc_ifc().cptra_fw_error_fatal().read() == expected_error
+                    && m.soc_ifc().cptra_fw_error_non_fatal().read() == expected_error
+            });
+
+            assert!(!hw.soc_ifc().cptra_wdt_timer1_en().read().timer1_en());
+            assert_eq!(
+                hw.finish_mailbox_execute(),
+                Err(ModelError::MailboxCmdFailed(expected_error))
+            );
+        }
+    }
 }
 
 #[test]

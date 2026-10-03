@@ -550,8 +550,6 @@ impl<'a> DmaRecovery<'a> {
     pub const DEVICE_STATUS_BOOT_FAILURE: u32 = 0xE;
     pub const DEVICE_STATUS_FATAL_ERROR: u32 = 0xF;
 
-    const DEVICE_RESET_CTRL_RESET_DEVICE: u32 = 0x1;
-
     const ACTIVATE_RECOVERY_IMAGE_CMD: u32 = 0xF;
 
     const RESET_VAL: u32 = 0x1;
@@ -711,7 +709,8 @@ impl<'a> DmaRecovery<'a> {
             | CaliptraError::RUNTIME_AUTH_MANIFEST_MLDSA_OWNER_SIG_INVALID
             | CaliptraError::RUNTIME_AUTH_MANIFEST_INVALID_PQC_KEY_TYPE_IN_FUSE
             | CaliptraError::RUNTIME_AUTH_MANIFEST_INVALID_PQC_KEY_TYPE
-            | CaliptraError::RUNTIME_AUTH_MANIFEST_PQC_KEY_TYPE_MISMATCH => {
+            | CaliptraError::RUNTIME_AUTH_MANIFEST_PQC_KEY_TYPE_MISMATCH
+            | CaliptraError::RUNTIME_AUTH_MANIFEST_UEID_MISMATCH => {
                 Self::RECOVERY_REASON_KEY_MANIFEST_AUTHENTICATION_FAILURE
             }
             _ => Self::RECOVERY_REASON_CORRUPTED_CRITICAL_DATA,
@@ -831,15 +830,6 @@ impl<'a> DmaRecovery<'a> {
             // Read RECOVERY_CTRL register 'Activate Recovery Image' field for 'Activate Recovery Image' (0xF) command.
             while recovery.recovery_ctrl().read().activate_rec_img()
                 != Self::ACTIVATE_RECOVERY_IMAGE_CMD
-            {}
-        })
-    }
-
-    pub fn wait_for_device_reset(&self) -> CaliptraResult<()> {
-        self.with_regs(|regs| {
-            let recovery = regs.sec_fw_recovery_if();
-            while recovery.device_reset().read().reset_ctrl()
-                != Self::DEVICE_RESET_CTRL_RESET_DEVICE
             {}
         })
     }

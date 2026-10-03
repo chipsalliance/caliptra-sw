@@ -92,10 +92,10 @@ The following table is the allocation registry for `SS_STRAP_GENERIC[0..3]` fiel
 | `SS_STRAP_GENERIC[2]` | `[30:19]` | Reserved. | — |
 | `SS_STRAP_GENERIC[2]` | `[31]` | Entropy-source conditioning bypass enable. | ROM entropy-source initialization |
 | `SS_STRAP_GENERIC[3]` | `[0]` | Stable Owner Key enable. | ROM stable-key derivation and Runtime cryptographic mailbox |
-| `SS_STRAP_GENERIC[3]` | `[1]` | Wait for device reset before fatal-error reporting. | ROM fatal-error handling |
-| `SS_STRAP_GENERIC[3]` | `[7:2]` | Reserved. | — |
+| `SS_STRAP_GENERIC[3]` | `[7:1]` | Reserved. | — |
 | `SS_STRAP_GENERIC[3]` | `[15:8]` | Owner Authorization Manifest minimum SVN, encoded as an unsigned integer. | Runtime owner authorization manifest verification |
-| `SS_STRAP_GENERIC[3]` | `[31:16]` | Reserved. | — |
+| `SS_STRAP_GENERIC[3]` | `[30:16]` | Reserved. | — |
+| `SS_STRAP_GENERIC[3]` | `[31]` | Disable vendor-authorized debug images. | ROM firmware image and Runtime authorization manifest verification |
 
 ### Entropy Source Configuration Registers
 
@@ -115,7 +115,7 @@ The ROM configures the entropy source (CSRNG) during initialization using the fo
 **Notes:**
 - If any threshold value is set to 0, the ROM uses the default value specified above.
 - The Adaptive Proportion default thresholds are derived from the FIPS window (75% high, 25% low). In single-bit mode entropy_src scales the health-test window by four, so when the default window is used the ROM scales these defaults to match (high: 3072, low: 1024). An explicit threshold or window supplied by the SoC is used as-is.
-- These configuration values are stored in persistent storage after first read to prevent malicious modification (reloaded on cold reset).
+- The thresholds, health-test window, and single-bit-mode values are stored in persistent storage after first read to prevent malicious modification (reloaded on cold reset). Conditioning bypass is read directly from the locked `SS_STRAP_GENERIC[2][31]` field.
 - In debug mode (`debug_locked == false`), entropy source configuration registers remain unlocked for characterization.
 - In production mode, ROM locks the entropy source configuration after programming to prevent modification.
 
@@ -324,7 +324,7 @@ The following flows are conducted when the ROM is operating in the manufacturing
     - The UDS Seed programming base address from the `SS_UDS_SEED_BASE_ADDR_L` and `SS_UDS_SEED_BASE_ADDR_H` registers.
     - The Fuse Controller's base address from the `SS_OTP_FC_BASE_ADDR_L` and `SS_OTP_FC_BASE_ADDR_H` registers.
 
-3. ROM then retrieves the UDS granularity from the `CPTRA_GENERIC_INPUT_WIRES` register0 Bit31 to learn if the fuse row is accessible with 32-bit or 64-bit granularity.  If the bit is reset, it indicates 64-bit granularity; otherwise, it indicates 32-bit granularity.
+3. ROM then retrieves the UDS granularity from `CPTRA_HW_CONFIG.FUSE_GRANULARITY`. If the bit is reset, it indicates 64-bit granularity; otherwise, it indicates 32-bit granularity.
 
 4. ROM computes the following values:
     - `STATUS` register address: Fuse Controller's base address + ((`SS_STRAP_GENERIC` register0) & 0xFFFF).
@@ -1226,14 +1226,9 @@ ROM locks the following entities to prevent any updates:
 ROM performs the same initialization sequence as specified [here](#Initialization)
 
 ### Error handling
-Fatal error reporting can be configured by the following subsystem strap:
-
-| Register                         | Field/Bits | Description                                             |
-| :------------------------------- | :--------- | :------------------------------------------------------ |
-| SS_STRAP_GENERIC[3]              | [1]        | Wait for device reset before fatal error reporting. When set to 1 in subsystem mode, ROM waits for the recovery interface `DEVICE_RESET.RESET_CTRL` field to be set to `0x1` (`Reset Device`) before updating `CPTRA_FW_ERROR_FATAL` in the fatal error handler. When clear, ROM reports fatal errors immediately. |
+ROM reports fatal errors after zeroization and watchdog shutdown, without waiting for a recovery `DEVICE_RESET` request. `SS_STRAP_GENERIC[3][1]` is reserved and has no effect on fatal-error reporting.
 
 The ROM executes the following operations:
-  - Updates the `cptra_fw_error_fatal` and `cptra_fw_error_non_fatal` registers with the error code ROM_UNKNOWN_RESET_FLOW (0x01040020) error code.
   - Zeroizes the following cryptographic hardware modules:
     - Ecc384
     - Hmac384
@@ -1242,6 +1237,7 @@ The ROM executes the following operations:
     - Sha2-512-384Acc
     - KeyVault
   - Stops the WatchDog Timer.
+  - Updates the `cptra_fw_error_fatal` and `cptra_fw_error_non_fatal` registers with the error code ROM_UNKNOWN_RESET_FLOW (0x01040020).
   - Enters an infinite loop, awaiting a reset.
 <br><br>
 

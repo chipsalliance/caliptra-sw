@@ -436,7 +436,7 @@ pub struct CaliptraRootBus {
     #[peripheral(offset = 0x3002_2000, len = 0xa14)]
     pub dma: Dma,
 
-    #[peripheral(offset = 0x3003_0000, len = 0xa38)]
+    #[peripheral(offset = 0x3003_0000, len = 0xf50)]
     pub soc_reg: SocRegistersInternal,
 
     #[peripheral(offset = 0x3004_0000, len = 0x40000)]

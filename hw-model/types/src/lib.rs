@@ -2,6 +2,7 @@
 
 use caliptra_api_types::{self};
 use std::array;
+use std::str::FromStr;
 
 pub use caliptra_api_types::DeviceLifecycle;
 use rand::{
@@ -16,6 +17,29 @@ pub enum CaliptraHwVersion {
     #[default]
     V2_1,
     V2_2,
+}
+
+impl FromStr for CaliptraHwVersion {
+    type Err = ();
+
+    fn from_str(v: &str) -> Result<Self, Self::Err> {
+        match v {
+            "2.0" => Ok(Self::V2_0),
+            "2.1" => Ok(Self::V2_1),
+            "2.2" => Ok(Self::V2_2),
+            _ => Err(()),
+        }
+    }
+}
+
+impl CaliptraHwVersion {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::V2_0 => "2.0",
+            Self::V2_1 => "2.1",
+            Self::V2_2 => "2.2",
+        }
+    }
 }
 
 // Rationale behind this choice
@@ -268,5 +292,18 @@ mod test {
                 ])
             )
         );
+    }
+
+    #[test]
+    fn test_hw_version() {
+        assert_eq!(CaliptraHwVersion::V2_0, "2.0".parse().unwrap());
+        assert_eq!(CaliptraHwVersion::V2_1, "2.1".parse().unwrap());
+        assert_eq!(CaliptraHwVersion::V2_2, "2.2".parse().unwrap());
+
+        assert_eq!(Err(()), "potato".parse::<CaliptraHwVersion>());
+
+        assert_eq!("2.0", CaliptraHwVersion::V2_0.as_str());
+        assert_eq!("2.1", CaliptraHwVersion::V2_1.as_str());
+        assert_eq!("2.2", CaliptraHwVersion::V2_2.as_str());
     }
 }
