@@ -21,6 +21,10 @@ on:
       ocp-lock:
         default: true
         type: boolean
+      stash-measurement-registers:
+        description: 'Build with stash-measurement-registers (also builds with CALIPTRA_HW_REV=2.2)'
+        default: false
+        type: boolean
       hw-version:
         default: "latest"
         type: string
@@ -155,6 +159,11 @@ jobs:
             if [ "${{ inputs.ocp-lock }}" == "true" ]; then
               FEATURES="${FEATURES},ocp-lock"
             fi
+            if [ "${{ inputs.stash-measurement-registers }}" == "true" ]; then
+              FEATURES="${FEATURES},stash-measurement-registers"
+              # registers/build.rs reads this at build time
+              export CALIPTRA_HW_REV=2.2
+            fi
           else
             FEATURES=fpga_realtime,itrng
           fi
@@ -198,6 +207,9 @@ jobs:
           FEATURES=""
           if [[ "${{ inputs.workflow_call }}" && "${{ inputs.hw-version }}" != "latest" ]]; then
             FEATURES=hw-${{ inputs.hw-version }}
+          fi
+          if [[ "${{ inputs.workflow_call }}" && "${{ inputs.stash-measurement-registers }}" == "true" ]]; then
+            export CALIPTRA_HW_REV=2.2
           fi
           cargo run --release -p caliptra-builder --features=${FEATURES} -- --all_elfs /tmp/caliptra-test-firmware
 

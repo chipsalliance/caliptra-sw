@@ -1,0 +1,22 @@
+name: FPGA Stash Measurement Registers
+
+on:
+  pull_request:
+  merge_group:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fpga:
+    uses: ./.github/workflows/fpga.yml
+    with:
+      artifact-suffix: -fpga-realtime-stash-measurement-registers
+      extra-features: itrng
+      hw-version: latest
+      rom-logging: true
+      fpga-itrng: true
+      ocp-lock: false
+      stash-measurement-registers: true
+      rom-version: latest
