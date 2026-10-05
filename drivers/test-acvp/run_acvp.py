@@ -81,13 +81,13 @@ ALGORITHMS = {
         "cargo_filter": "test_acvp_mldsa87",
         "resp_dir": "mldsa87_siggen_resp",
         "resp_pattern": r"MLDSA_SIGGEN:([0-9A-F]+)",
-        "vector_fmt": "AFT sigGen tgId tcId parameterSet hex_sk(9792) hex_msg [hex_ctx]",
+        "vector_fmt": "AFT sigGen tgId tcId parameterSet hex_sk(9792) hex_msg",
     },
     "MLDSA_SIGVER": {
         "hash_size": 1,
         "cargo_filter": "test_acvp_mldsa87",
         "resp_dir": "mldsa87_sigver_resp",
-        "vector_fmt": "AFT sigVer tgId tcId parameterSet hex_pk(5184) hex_msg hex_sig(9254) [hex_ctx]",
+        "vector_fmt": "AFT sigVer tgId tcId parameterSet hex_pk(5184) hex_msg hex_sig(9254)",
     },
     "MLKEM_KEYGEN": {
         "hash_size": 4736,  # 1568 (ek) + 3168 (dk)
@@ -125,6 +125,22 @@ def check_mldsa_parameter_set(parameter_set, tcId):
             "vector tcId {} is for {}, but this firmware implements {}".format(
                 tcId, parameter_set, MLDSA_PARAMETER_SET
             )
+        )
+
+
+def reject_mldsa_context(parts, expected_fields):
+    """Aborts if an ML-DSA vector line carries a trailing context field.
+
+    The registered capability is `contextLength: [0]` and the firmware signs
+    and verifies with no context, so a context-bearing vector cannot be
+    answered correctly. Writing it to the stimulus and signing without it would
+    produce a signature over different input and record it as valid.
+    """
+    if len(parts) > expected_fields:
+        raise SystemExit(
+            "vector tcId {} carries a context field, but the registered "
+            "capability is contextLength: [0] and the firmware signs and "
+            "verifies with no context".format(parts[3])
         )
 
 
@@ -387,23 +403,21 @@ def main():
                         f.write("MLDSA_KEYGEN\n{}".format(hex_seed))
                     run_cargo_test(tcId, "MLDSA_KEYGEN")
             elif ALG_NAME == "MLDSA_SIGGEN":
-                # Format: AFT sigGen tgId tcId parameterSet hex_sk(9792) hex_msg [hex_ctx]
-                if len(parts) not in (7, 8):
+                # Format: AFT sigGen tgId tcId parameterSet hex_sk(9792) hex_msg
+                reject_mldsa_context(parts, 7)
+                if len(parts) != 7:
                     continue
-                alg, mode, tgId, tcId, parameterSet, hex_sk, hex_msg = parts[:7]
-                hex_ctx = parts[7] if len(parts) == 8 else None
+                alg, mode, tgId, tcId, parameterSet, hex_sk, hex_msg = parts
                 if alg == "AFT" and mode == "sigGen":
                     check_mldsa_parameter_set(parameterSet, tcId)
                     print("Running MLDSA_SIGGEN test for tcId {}".format(tcId))
                     with open(CURRENT_VECTOR_FILE, "w") as f:
-                        content = "MLDSA_SIGGEN\n{}\n{}".format(hex_sk, hex_msg)
-                        if hex_ctx is not None:
-                            content += "\n{}".format(hex_ctx)
-                        f.write(content)
+                        f.write("MLDSA_SIGGEN\n{}\n{}".format(hex_sk, hex_msg))
                     run_cargo_test(tcId, "MLDSA_SIGGEN")
             elif ALG_NAME == "MLDSA_SIGVER":
-                # Format: AFT sigVer tgId tcId parameterSet hex_pk(5184) hex_msg hex_sig(9254) [hex_ctx]
-                if len(parts) not in (8, 9):
+                # Format: AFT sigVer tgId tcId parameterSet hex_pk(5184) hex_msg hex_sig(9254)
+                reject_mldsa_context(parts, 8)
+                if len(parts) != 8:
                     continue
                 (
                     alg,
@@ -414,18 +428,16 @@ def main():
                     hex_pubkey,
                     hex_msg,
                     hex_sig,
-                ) = parts[:8]
-                hex_ctx = parts[8] if len(parts) == 9 else None
+                ) = parts
                 if alg == "AFT" and mode == "sigVer":
                     check_mldsa_parameter_set(parameterSet, tcId)
                     print("Running MLDSA_SIGVER test for tcId {}".format(tcId))
                     with open(CURRENT_VECTOR_FILE, "w") as f:
-                        content = "MLDSA_SIGVER\n{}\n{}\n{}".format(
-                            hex_pubkey, hex_msg, hex_sig
+                        f.write(
+                            "MLDSA_SIGVER\n{}\n{}\n{}".format(
+                                hex_pubkey, hex_msg, hex_sig
+                            )
                         )
-                        if hex_ctx is not None:
-                            content += "\n{}".format(hex_ctx)
-                        f.write(content)
                     run_cargo_test(tcId, "MLDSA_SIGVER")
             elif ALG_NAME == "MLKEM_KEYGEN":
                 # Format: AFT tgId tcId hex_d(64) hex_z(64)
