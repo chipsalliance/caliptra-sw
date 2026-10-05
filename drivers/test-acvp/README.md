@@ -164,6 +164,16 @@ Output:
 
 The runner maps these to `true` / `false` in the response file.
 
+"Invalid" covers two cases. The driver may verify the signature and find that the hashes
+do not match, or it may reject the public key or signature as malformed while parsing it —
+a bogus algorithm type, an out-of-range `q`, a bad path depth. ACVP sigVer sets include
+malformed vectors deliberately (the 2.1 production set has one whose signature declares an
+LMS tree type that does not exist), and both cases are reported as `false`.
+
+An error from outside the LMS family is treated as an infrastructure failure rather than a
+verdict: the test aborts, and the runner omits that case from the response file instead of
+submitting a `false` that was never computed.
+
 ---
 
 ### ML-DSA-87 (`test_acvp_mldsa87`)
