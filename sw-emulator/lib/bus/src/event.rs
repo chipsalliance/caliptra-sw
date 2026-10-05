@@ -23,6 +23,7 @@ pub enum Device {
     RecoveryIntf,
     McuMbox0Sram,
     McuMbox1Sram,
+    ExternalSoc,
     External(&'static str),
 }
 
