@@ -871,9 +871,9 @@ impl<'a> DmaRecovery<'a> {
             // FPGA implementation: wait payload available and read dword by dword
             let total_words = image_size_bytes as usize / 4;
             let words_to_keep = total_words.min(buffer.len());
-            for i in 0..words_to_keep {
+            for word in buffer.iter_mut().take(words_to_keep) {
                 while !self.dma.payload_available() {}
-                buffer[i] = self.dma.read_dword(addr);
+                *word = self.dma.read_dword(addr);
             }
             // Drain any excess words beyond buffer capacity
             for _ in words_to_keep..total_words {
@@ -1133,7 +1133,7 @@ impl<'a> DmaRecovery<'a> {
                             + if read_transaction.fixed_addr { 0 } else { i },
                         fixed_addr: false,
                         length: 4,
-                        target: DmaReadTarget::Mbox(offset + i as u32),
+                        target: DmaReadTarget::Mbox(offset + i),
                         aes_mode: false,
                         aes_gcm: false,
                         block_mode: read_transaction.block_mode,

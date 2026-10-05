@@ -6,7 +6,7 @@ use crate::{
     test_authorize_and_stash::IMAGE_DIGEST1,
     test_info::{get_fwinfo, get_fwinfo_allow_attestation_disabled},
 };
-use caliptra_api::mailbox::{ExternalMailboxCmdReq, GetImageInfoReq};
+use caliptra_api::mailbox::{AuthManifestSource, ExternalMailboxCmdReq, GetImageInfoReq};
 use caliptra_api::{mailbox::ImageHashSource, SocManager};
 use caliptra_auth_man_gen::default_test_manifest::{
     create_test_auth_manifest_with_config, create_test_auth_manifest_with_metadata,
@@ -277,6 +277,7 @@ fn test_auth_manifest_matching_ueid() {
         let mut get_image_info = MailboxReq::GetImageInfo(GetImageInfoReq {
             hdr: MailboxReqHeader { chksum: 0 },
             fw_id: caliptra_auth_man_types::AUTH_MANIFEST_UEID_FW_ID.to_le_bytes(),
+            flags: AuthManifestSource::VendorOwner.flag_bits(),
         });
         get_image_info.populate_chksum().unwrap();
         let result = model.mailbox_execute(
