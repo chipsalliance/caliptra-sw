@@ -260,7 +260,7 @@ impl SetOwnerAuthManifestCmd {
     fn process_imc(
         cmd_buf: &[u8],
         preamble: &OwnerAuthManifestPreamble,
-        persistent: &mut OwnerAuthManifestImageMetadataCollection,
+        persistent: Option<&mut OwnerAuthManifestImageMetadataCollection>,
         auth_metadata_persistent: &AuthManifestImageMetadataCollection,
         sha2: &mut Sha2_512_384,
         ecc384: &mut Ecc384,
@@ -320,14 +320,20 @@ impl SetOwnerAuthManifestCmd {
             Err(CaliptraError::RUNTIME_OWNER_AUTH_MANIFEST_IMC_DUPLICATE_FW_ID)?;
         }
 
-        *persistent = imc_candidate;
+        if let Some(persistent) = persistent {
+            *persistent = imc_candidate;
+        }
 
         Ok(())
     }
 
     #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
-    pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<usize> {
+    pub(crate) fn execute(
+        drivers: &mut Drivers,
+        cmd_args: &[u8],
+        verify_only: bool,
+    ) -> CaliptraResult<usize> {
         // Restrict to PL0
         drivers.ensure_pl0()?;
 
@@ -356,13 +362,14 @@ impl SetOwnerAuthManifestCmd {
                 .ok_or(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?
         };
 
-        Self::set_owner_auth_manifest(drivers, manifest_buf)?;
+        Self::process_owner_auth_manifest(drivers, manifest_buf, verify_only)?;
         Ok(0)
     }
 
-    pub(crate) fn set_owner_auth_manifest(
+    fn process_owner_auth_manifest(
         drivers: &mut Drivers,
         manifest_buf: &[u8],
+        verify_only: bool,
     ) -> CaliptraResult<()> {
         let preamble_size = size_of::<OwnerAuthManifestPreamble>();
         let preamble = {
@@ -421,12 +428,17 @@ impl SetOwnerAuthManifestCmd {
             pqc_key_type,
         )?;
 
+        let owner_imc = if verify_only {
+            None
+        } else {
+            Some(&mut persistent_data.owner_auth_manifest_image_metadata_col)
+        };
         Self::process_imc(
             manifest_buf
                 .get(preamble_size..)
                 .ok_or(CaliptraError::RUNTIME_OWNER_AUTH_MANIFEST_IMC_INVALID_SIZE)?,
             preamble,
-            &mut persistent_data.owner_auth_manifest_image_metadata_col,
+            owner_imc,
             &persistent_data.auth_manifest_image_metadata_col,
             &mut drivers.sha2_512_384,
             &mut drivers.ecc384,
@@ -435,10 +447,12 @@ impl SetOwnerAuthManifestCmd {
             pqc_key_type,
         )?;
 
-        // Record the digest of the full manifest buffer for attestation.
-        persistent_data.owner_auth_manifest_digest =
-            drivers.sha2_512_384.sha384_digest(manifest_buf)?.0;
-        persistent_data.owner_auth_manifest_svn = preamble.svn;
+        if !verify_only {
+            // Record the digest of the full manifest buffer for attestation.
+            persistent_data.owner_auth_manifest_digest =
+                drivers.sha2_512_384.sha384_digest(manifest_buf)?.0;
+            persistent_data.owner_auth_manifest_svn = preamble.svn;
+        }
 
         Ok(())
     }

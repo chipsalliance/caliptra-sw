@@ -180,7 +180,7 @@ The Caliptra Measurement manifest feature expands on Caliptra-provided secure ve
 
 Each of these abilities are tied to Caliptra Vendor and Owner FW signing keys and should be independent of any SoC RoT FW signing keys.
 
-Manifest-based image authorization is implemented via three mailbox commands: [`SET_AUTH_MANIFEST`](#set-auth-manifest), [`SET_OWNER_AUTH_MANIFEST`](#set-owner-auth-manifest), and [`AUTHORIZE_AND_STASH`](#authorize-and-stash). A firmware ID identifies one platform firmware image and must be unique across the active vendor + owner and owner-only Image Metadata Collections. Both set commands reject a manifest containing an ID in the other active collection. `AUTHORIZE_AND_STASH` searches the vendor + owner collection first and then the owner-only collection; the provenance of the matching entry is reflected in its `auth_req_result` field.
+Manifest-based image authorization is implemented via three mailbox commands: [`SET_AUTH_MANIFEST`](#set-auth-manifest), [`SET_OWNER_AUTH_MANIFEST`](#set-owner-auth-manifest), and [`AUTHORIZE_AND_STASH`](#authorize-and-stash). A firmware ID identifies one platform firmware image and must be unique across the active vendor + owner and owner-only Image Metadata Collections. Both set commands reject a manifest containing an ID in the other active collection. Mailbox commands that look up a firmware ID select exactly one collection through bits `[2:1]` of their `flags` argument.
 
 ### Caliptra-Endorsed Aggregated Measured Boot
 
@@ -1327,6 +1327,14 @@ The maximum IMC capacity is 32 entries. Every active `fw_id` must be unique with
 The response is a `MailboxRespHeader` (no payload).
 
 
+### VERIFY_OWNER_AUTH_MANIFEST
+
+This command verifies the integrity, authenticity, policy fields, SVN, and firmware-ID collisions of an Owner Authorization Manifest. Unlike `SET_OWNER_AUTH_MANIFEST`, it does not replace the active owner-only metadata collection or update the owner manifest digest or current SVN.
+
+Command Code: `0x4F41_564D` ("OAVM")
+
+The input arguments and response are the same as the `SET_OWNER_AUTH_MANIFEST` command.
+
 ### AUTHORIZE_AND_STASH
 
 The SoC uses this command to request authorization of its various SoC images. This command has the option to receive the image hash directly from SoC or from an external source (e.g., SHA Acc).
@@ -1350,24 +1358,23 @@ Command Code: `0x4154_5348` ("ATSH")
 | image_size   | u32      | The size of the image to hash. Only valid if source is `ImageLoadAddress` or `StagingAddress` |
 
 *Table: `AUTHORIZE_AND_STASH_FLAGS` input flags*
-| **Name**    | **Value** |
-| ----------- | --------- |
-| SKIP\_STASH | 1 << 0    |
+| **Bits** | **Name**           | **Description** |
+| -------- | ------------------ | --------------- |
+| 0        | SKIP\_STASH        | Skip stashing the authorized measurement. |
+| [2:1]    | MANIFEST\_SOURCE   | `00`: vendor + owner manifest; `01`: owner-only manifest. `10` and `11` are invalid. |
 
 *Table: `AUTHORIZE_AND_STASH` output arguments*
 | **Name**        | **Type** | **Description**                                                            |
 | --------------- | -------- | -------------------------------------------------------------------------- |
 | chksum          | u32      | Checksum over other output arguments, computed by Caliptra. Little endian. |
 | fips_status     | u32      | Indicates if the command is FIPS approved or an error.                     |
-| auth_req_result | u32      |IMAGE_AUTHORIZED_VENDOR_OWNER (0xDEADC0DE, alias of legacy `AUTHORIZE_IMAGE`/`IMAGE_AUTHORIZED`), IMAGE_AUTHORIZED_OWNER_ONLY (0xC0DEDEAD), IMAGE_NOT_AUTHORIZED (0x21523F21) or IMAGE_HASH_MISMATCH (0x8BFB95CB). Lookup order: vendor + owner collection first, then owner-only collection populated by `SET_OWNER_AUTH_MANIFEST`. Active firmware IDs are unique across the collections, and the success value indicates which collection produced the match. |
+| auth_req_result | u32      |IMAGE_AUTHORIZED_VENDOR_OWNER (0xDEADC0DE, alias of legacy `AUTHORIZE_IMAGE`/`IMAGE_AUTHORIZED`), IMAGE_AUTHORIZED_OWNER_ONLY (0xC0DEDEAD), IMAGE_NOT_AUTHORIZED (0x21523F21) or IMAGE_HASH_MISMATCH (0x8BFB95CB). The success value identifies the selected collection that produced the match. |
 
 ### GET_IMAGE_INFO
 
 The MCU uses this command to retrieve the active Image Metadata Entry for a
-firmware ID. The Runtime searches the vendor + owner Image Metadata Collection
-first, then the owner-only collection installed by
-[`SET_OWNER_AUTH_MANIFEST`](#set_owner_auth_manifest). Active firmware IDs are
-unique across the collections, so the response is unambiguous.
+firmware ID from the collection selected by bits `[2:1]` of `flags`. Requests
+must include the `flags` field.
 
 Command Code: `0x494D_4530` ("IME0")
 
@@ -1376,7 +1383,8 @@ Command Code: `0x494D_4530` ("IME0")
 | **Name** | **Type** | **Description**                                                                                                                                                                                   |
 | -------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | chksum         | u32            | Checksum over other input arguments, computed by the caller. Little endian.                                                                                                                             |
-| fw_id          | u32            | Firmware id of the image, in little-endian format
+| fw_id          | u32            | Firmware id of the image, in little-endian format |
+| flags          | u32            | Bits `[2:1]` select the Image Metadata Collection: `00` selects the vendor + owner manifest; `01` selects the owner-only manifest. `10` and `11` are invalid. All other bits are reserved and must be zero. |
 
 *Table: `GET_IMAGE_INFO` output arguments*
 
@@ -1407,10 +1415,11 @@ Command Code: `0x4143_5446` ("ACTF")
 | count          | u32            | Number of image_ids to activate. Item count of image_ids array parameter |
 | mcu_image_size | u32            | Size of MCU image, if included in the activation |
 | image_ids      | Array of u8[4] | Array of Image ids in little-endian format                           |
-| flags          | u32            | Optional. All bits are reserved and must be zero on Caliptra 2.0. |
+| flags          | u32            | Optional. Bits `[2:1]` select the manifest as in `GET_IMAGE_INFO`. All other bits, including bit 0 (`INITIAL_ACTIVATE` on newer runtimes), are reserved and must be zero on Caliptra 2.0. |
 
-Legacy 524-byte requests omit `flags` and retain the existing activation behavior.
-Unknown flag bits are rejected with `RUNTIME_MAILBOX_INVALID_PARAMS`.
+Legacy 524-byte requests omit `flags` and select the vendor + owner collection.
+Unknown flag bits or reserved manifest selectors are rejected with
+`RUNTIME_MAILBOX_INVALID_PARAMS`.
 
 *Table: `ACTIVATE_FIRMWARE` output arguments*
 

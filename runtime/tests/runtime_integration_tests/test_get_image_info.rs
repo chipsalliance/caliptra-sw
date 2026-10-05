@@ -13,7 +13,8 @@ use caliptra_builder::ImageOptions;
 use caliptra_common::mailbox_api::{
     CommandId, ImageHashSource, MailboxReq, MailboxReqHeader, SetAuthManifestReq,
 };
-use caliptra_hw_model::{DefaultHwModel, HwModel};
+use caliptra_error::CaliptraError;
+use caliptra_hw_model::{DefaultHwModel, HwModel, ModelError};
 use caliptra_image_types::FwVerificationPqcKeyType;
 use caliptra_runtime::RtBootStatus;
 use zerocopy::{FromBytes, IntoBytes};
@@ -118,15 +119,25 @@ fn test_get_image_info_success() {
     let mut get_image_info_cmd = MailboxReq::GetImageInfo(GetImageInfoReq {
         hdr: MailboxReqHeader { chksum: 0 },
         fw_id: FW_ID_1.to_le_bytes(),
+        flags: 0,
     });
 
     get_image_info_cmd.populate_chksum().unwrap();
 
-    let resp = model
+    let request = get_image_info_cmd.as_bytes().unwrap();
+    let err = model
         .mailbox_execute(
             u32::from(CommandId::GET_IMAGE_INFO),
-            get_image_info_cmd.as_bytes().unwrap(),
+            &request[..core::mem::offset_of!(GetImageInfoReq, flags)],
         )
+        .unwrap_err();
+    assert_eq!(
+        err,
+        ModelError::MailboxCmdFailed(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY.into())
+    );
+
+    let resp = model
+        .mailbox_execute(u32::from(CommandId::GET_IMAGE_INFO), request)
         .unwrap()
         .expect("We should have received a response");
 
@@ -176,6 +187,7 @@ fn test_get_image_info_2() {
     let mut get_image_info_cmd = MailboxReq::GetImageInfo(GetImageInfoReq {
         hdr: MailboxReqHeader { chksum: 0 },
         fw_id: FW_ID_2.to_le_bytes(),
+        flags: 0,
     });
 
     get_image_info_cmd.populate_chksum().unwrap();
@@ -234,6 +246,7 @@ fn test_get_image_info_non_existent() {
     let mut get_image_info_cmd = MailboxReq::GetImageInfo(GetImageInfoReq {
         hdr: MailboxReqHeader { chksum: 0 },
         fw_id: FW_ID_BAD.to_le_bytes(),
+        flags: 0,
     });
 
     get_image_info_cmd.populate_chksum().unwrap();

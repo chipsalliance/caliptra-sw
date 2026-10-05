@@ -6,7 +6,8 @@ use crate::common::{
 use caliptra_api::{
     mailbox::{
         CertifyKeyChunksFlags, CertifyKeyChunksReq, CertifyKeyExtendedReq,
-        RevokeExportedCdiHandleReq, SignWithExportedEcdsaReq,
+        RevokeExportedCdiHandleReq, SignWithExportedEcdsaReq, VerifyAuthManifestReq,
+        VerifyOwnerAuthManifestReq,
     },
     SocManager,
 };
@@ -392,7 +393,7 @@ fn test_stash_measurement_cannot_be_called_from_pl1() {
 }
 
 #[test]
-fn test_set_auth_manifest_cannot_be_called_from_pl1() {
+fn test_set_and_verify_auth_manifest_cannot_be_called_from_pl1() {
     for pqc_key_type in PQC_KEY_TYPE.iter() {
         let mut image_opts = ImageOptions {
             pqc_key_type: *pqc_key_type,
@@ -416,6 +417,20 @@ fn test_set_auth_manifest_cannot_be_called_from_pl1() {
         let resp = model
             .mailbox_execute(
                 u32::from(CommandId::SET_AUTH_MANIFEST),
+                cmd.as_bytes().unwrap(),
+            )
+            .unwrap_err();
+        assert_error(
+            &mut model,
+            CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL,
+            resp,
+        );
+
+        let mut cmd = MailboxReq::VerifyAuthManifest(VerifyAuthManifestReq::default());
+        cmd.populate_chksum().unwrap();
+        let resp = model
+            .mailbox_execute(
+                u32::from(CommandId::VERIFY_AUTH_MANIFEST),
                 cmd.as_bytes().unwrap(),
             )
             .unwrap_err();
@@ -996,7 +1011,7 @@ fn test_external_dpe_responses_cannot_be_called_from_pl1() {
 }
 
 #[test]
-fn test_set_owner_auth_manifest_cannot_be_called_from_pl1() {
+fn test_set_and_verify_owner_auth_manifest_cannot_be_called_from_pl1() {
     for pqc_key_type in PQC_KEY_TYPE.iter() {
         let mut image_opts = ImageOptions {
             pqc_key_type: *pqc_key_type,
@@ -1024,6 +1039,20 @@ fn test_set_owner_auth_manifest_cannot_be_called_from_pl1() {
         let resp = model
             .mailbox_execute(
                 u32::from(CommandId::SET_OWNER_AUTH_MANIFEST),
+                cmd.as_bytes().unwrap(),
+            )
+            .unwrap_err();
+        assert_error(
+            &mut model,
+            CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL,
+            resp,
+        );
+
+        let mut cmd = MailboxReq::VerifyOwnerAuthManifest(VerifyOwnerAuthManifestReq::default());
+        cmd.populate_chksum().unwrap();
+        let resp = model
+            .mailbox_execute(
+                u32::from(CommandId::VERIFY_OWNER_AUTH_MANIFEST),
                 cmd.as_bytes().unwrap(),
             )
             .unwrap_err();
