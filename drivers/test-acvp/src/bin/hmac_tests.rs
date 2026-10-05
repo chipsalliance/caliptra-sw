@@ -8,20 +8,22 @@ File Name:
 
 Abstract:
 
-    File contains ACVP test cases for the HMAC-384 KDF (SP 800-108).
+    File contains ACVP test cases for the HMAC KDF (SP 800-108 counter mode),
+    in both the HMAC-384 and HMAC-512 variants.
 
     The vector under test is supplied out-of-band in `stimulus/current.txt`,
     which is rewritten by the host-side runner before each invocation:
 
-        line 1: hex-encoded key (48 bytes)
-        line 2: hex-encoded label
+        line 1: algorithm -- "HMAC384KDF" or "HMAC512KDF"
+        line 2: hex-encoded key (48 bytes for 384, 64 for 512)
+        line 3: hex-encoded label
 
     The label is fixed input data chosen by the implementation rather than
     supplied by the ACVP vector set, so the runner generates it and records it
     alongside the response.
 
-    The derived key is reported over UART as `HMAC384KDF:<hex byte>` lines, one
-    byte per line, for the runner to scrape.
+    The derived key is reported over UART as `HMAC384KDF:<hex byte>` or
+    `HMAC512KDF:<hex byte>` lines, one byte per line, for the runner to scrape.
 
 --*/
 
@@ -29,7 +31,9 @@ Abstract:
 #![no_main]
 
 use caliptra_cfi_lib::CfiCounter;
-use caliptra_drivers::{hmac_kdf, Array4x12, Hmac, HmacMode, PersistentDataAccessor, Trng};
+use caliptra_drivers::{
+    hmac_kdf, Array4x12, Array4x16, Hmac, HmacMode, PersistentDataAccessor, Trng,
+};
 use caliptra_kat::{Hmac384KdfKat, Hmac512KdfKat};
 use caliptra_registers::csrng::CsrngReg;
 use caliptra_registers::entropy_src::EntropySrcReg;
@@ -39,6 +43,7 @@ use caliptra_registers::soc_ifc_trng::SocIfcTrngReg;
 use caliptra_test_harness::test_suite;
 
 const HMAC384_HASH_SIZE: usize = 48;
+const HMAC512_HASH_SIZE: usize = 64;
 
 /// Largest label accepted, in bytes. The runner currently emits 16.
 const MAX_LABEL_SIZE: usize = 256;
@@ -134,20 +139,8 @@ fn test_kat_512() {
         .is_ok());
 }
 
-fn test_kdf_acvp() {
-    const CURRENT: &str = include_str!("../../stimulus/current.txt");
-    let mut lines = CURRENT.lines();
-    let hex_key = lines.next().unwrap().trim();
-    let hex_label = lines.next().unwrap().trim();
-
-    let mut key_buf = [0u8; HMAC384_HASH_SIZE];
-    let mut label_buf = [0u8; MAX_LABEL_SIZE];
-    hex_decode_exact(hex_key, &mut key_buf, HMAC384_HASH_SIZE, "key");
-    // The label is genuinely variable-length, so its decoded length is used.
-    let label_len = hex_decode(hex_label, &mut label_buf).unwrap();
-
-    let mut hmac = unsafe { Hmac::new(HmacReg::new()) };
-    let mut trng = unsafe {
+fn new_trng() -> Trng {
+    unsafe {
         Trng::new(
             CsrngReg::new(),
             EntropySrcReg::new(),
@@ -156,14 +149,22 @@ fn test_kdf_acvp() {
             PersistentDataAccessor::new(),
         )
         .unwrap()
-    };
+    }
+}
 
+/// Derives with HMAC-384: 48-byte key in, 48-byte key out.
+fn run_kdf_384(hex_key: &str, label: &[u8]) {
+    let mut key_buf = [0u8; HMAC384_HASH_SIZE];
+    hex_decode_exact(hex_key, &mut key_buf, HMAC384_HASH_SIZE, "key");
+
+    let mut hmac = unsafe { Hmac::new(HmacReg::new()) };
+    let mut trng = new_trng();
     let mut out_buf = Array4x12::default();
 
     hmac_kdf(
         &mut hmac,
         (&Array4x12::from(&key_buf)).into(),
-        &label_buf[..label_len],
+        label,
         None,
         &mut trng,
         (&mut out_buf).into(),
@@ -174,6 +175,51 @@ fn test_kdf_acvp() {
     let out = <[u8; HMAC384_HASH_SIZE]>::from(out_buf);
     for byte in out.iter() {
         println!("HMAC384KDF:{:02X}", byte);
+    }
+}
+
+/// Derives with HMAC-512: 64-byte key in, 64-byte key out.
+fn run_kdf_512(hex_key: &str, label: &[u8]) {
+    let mut key_buf = [0u8; HMAC512_HASH_SIZE];
+    hex_decode_exact(hex_key, &mut key_buf, HMAC512_HASH_SIZE, "key");
+
+    let mut hmac = unsafe { Hmac::new(HmacReg::new()) };
+    let mut trng = new_trng();
+    let mut out_buf = Array4x16::default();
+
+    hmac_kdf(
+        &mut hmac,
+        (&Array4x16::from(&key_buf)).into(),
+        label,
+        None,
+        &mut trng,
+        (&mut out_buf).into(),
+        HmacMode::Hmac512,
+    )
+    .unwrap();
+
+    let out = <[u8; HMAC512_HASH_SIZE]>::from(out_buf);
+    for byte in out.iter() {
+        println!("HMAC512KDF:{:02X}", byte);
+    }
+}
+
+fn test_kdf_acvp() {
+    const CURRENT: &str = include_str!("../../stimulus/current.txt");
+    let mut lines = CURRENT.lines();
+    let algorithm = lines.next().unwrap().trim();
+    let hex_key = lines.next().unwrap().trim();
+    let hex_label = lines.next().unwrap().trim();
+
+    // The label is genuinely variable-length, so its decoded length is used.
+    let mut label_buf = [0u8; MAX_LABEL_SIZE];
+    let label_len = hex_decode(hex_label, &mut label_buf).unwrap();
+    let label = &label_buf[..label_len];
+
+    match algorithm {
+        "HMAC384KDF" => run_kdf_384(hex_key, label),
+        "HMAC512KDF" => run_kdf_512(hex_key, label),
+        _ => panic!("unknown KDF algorithm"),
     }
 }
 

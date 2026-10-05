@@ -70,18 +70,20 @@ digest; MCT emits one digest per outer iteration (100 total), interleaved with
 
 ---
 
-### HMAC-384 KDF (`test_acvp_hmac`)
+### HMAC KDF (`test_acvp_hmac`)
 
-SP 800-108 key derivation. Note there is **no test-type line** for this algorithm:
+SP 800-108 counter-mode key derivation, in both the HMAC-384 and HMAC-512 variants.
 
 ```
-<hex-encoded key, 48 bytes>
+<algorithm: HMAC384KDF or HMAC512KDF>
+<hex-encoded key, 48 bytes for 384 or 64 bytes for 512>
 <hex-encoded label>
 ```
 
 Example:
 
 ```
+HMAC384KDF
 b57dc52354afee11edb4c9052a528344348b2c6b6c39f32133ed3bb72035a4ab55d6648c1529ef7a9170fec9ef26a81e
 17E641909DEDFE4968BB95D7F770E455
 ```
@@ -89,11 +91,15 @@ b57dc52354afee11edb4c9052a528344348b2c6b6c39f32133ed3bb72035a4ab55d6648c1529ef7a
 The label is fixed input data chosen by the implementation, not supplied by the ACVP
 vector set — the vector file provides only the key. The runner generates a fresh 16-byte
 label per test case and records it next to the response, since the lab needs to know
-which value was used. No context is applied.
+which value was used. No context is applied, so the derivation reduces to
+`HMAC(key, BE32(1) || label)`.
 
-Output: one `HMAC384KDF:XX` line per derived-key byte (48 lines). The runner's response
-pattern matches exactly two hex characters per line, so the bytes must be printed
-individually rather than as a single concatenated string.
+Output: one `HMAC384KDF:XX` or `HMAC512KDF:XX` line per derived-key byte (48 or 64
+lines). The runner's response pattern matches exactly two hex characters per line, so the
+bytes must be printed individually rather than as a single concatenated string.
+
+The key size is checked against the selected mode before the firmware is built: a
+48-byte key fed to `HMAC512KDF` is rejected rather than zero-extended.
 
 ---
 

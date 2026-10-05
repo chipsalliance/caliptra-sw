@@ -61,7 +61,15 @@ ALGORITHMS = {
         "hash_size": 48,
         "cargo_filter": "test_acvp_hmac",
         "resp_dir": "hmac384kdf_resp",
-        "vector_fmt": "AFT tcId hex_key",
+        "key_size": 48,
+        "vector_fmt": "AFT tcId hex_key(96)",
+    },
+    "HMAC512KDF": {
+        "hash_size": 64,
+        "cargo_filter": "test_acvp_hmac",
+        "resp_dir": "hmac512kdf_resp",
+        "key_size": 64,
+        "vector_fmt": "AFT tcId hex_key(128)",
     },
     "LMS_SIGVER": {
         "hash_size": 1,  # 1 byte response: 01=pass, 00=fail
@@ -107,6 +115,7 @@ ALGORITHMS = {
 
 # Populated by main() from the selected algorithm.
 ALG_NAME = None
+KDF_KEY_SIZE = None
 HASH_SIZE_BYTES = None
 CARGO_COMMAND = None
 RESP_DIR = None
@@ -368,7 +377,7 @@ def parse_args():
 
 
 def main():
-    global ALG_NAME, HASH_SIZE_BYTES, CARGO_COMMAND, RESP_DIR
+    global ALG_NAME, HASH_SIZE_BYTES, CARGO_COMMAND, RESP_DIR, KDF_KEY_SIZE
     global RESP_PATTERN, OUTPUT_FILE_TEMPLATE
 
     args = parse_args()
@@ -376,6 +385,7 @@ def main():
 
     ALG_NAME = args.alg
     HASH_SIZE_BYTES = cfg["hash_size"]
+    KDF_KEY_SIZE = cfg.get("key_size")
     RESP_DIR = args.resp_dir or os.path.join(".", cfg["resp_dir"])
     OUTPUT_FILE_TEMPLATE = os.path.join(RESP_DIR, "test_output_{}.log")
     RESP_PATTERN = cfg.get("resp_pattern", r"{}:(..)".format(ALG_NAME))
@@ -422,13 +432,20 @@ def main():
                 if len(parts) != 3:
                     continue
                 alg, tcId, hex_key = parts
+                if len(hex_key) // 2 != KDF_KEY_SIZE:
+                    raise SystemExit(
+                        "vector tcId {} has a {}-byte key, but {} derives from "
+                        "a {}-byte key".format(
+                            tcId, len(hex_key) // 2, ALG_NAME, KDF_KEY_SIZE
+                        )
+                    )
                 # Generate a fresh random 16-byte label each test
                 label_bytes = os.urandom(16)
                 hex_label = label_bytes.hex().upper()
                 kdf_labels[int(tcId)] = hex_label
-                print("Running KDF test for tcId {}".format(tcId))
+                print("Running {} test for tcId {}".format(ALG_NAME, tcId))
                 with open(CURRENT_VECTOR_FILE, "w") as f:
-                    f.write("{}\n{}".format(hex_key, hex_label))
+                    f.write("{}\n{}\n{}".format(ALG_NAME, hex_key, hex_label))
                 run_cargo_test(tcId, "KDF")
             elif ALG_NAME == "LMS_SIGVER":
                 # Format: AFT tgId tcId hex_msg hex_pubkey(96) hex_sig(3240)
