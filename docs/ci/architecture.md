@@ -162,7 +162,7 @@ The Nightly Release workflow (`nightly-release.yml`) automates the creation and 
    - **Generation**: Executes `ci-tools/release/build_release.sh` to generate the release artifacts.
      - **Binaries**: Builds ROM, FMC, and Runtime firmware binaries (both standard and "fake" variants for testing).
      - **Bundles**: Creates image bundles with different key types (LMS, MLDSA).
-     - **Source & Models**: Copies RTL source (`hw/latest/rtl`), `libcaliptra`, and FPGA model files.
+     - **Source & Models**: Copies RTL source (`hw/latest/caliptra-ss/third_party/caliptra-rtl`), `libcaliptra`, and FPGA model files.
      - **Verification**: Calculates an RTL hash to ensure integrity.
      - **Documentation**: Generates `release_notes.txt` containing version info, commit hashes, and the RTL hash.
      - **Zipping**: Packages everything into a single `caliptra_<tag>.zip`.

@@ -24,7 +24,7 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
         with:
-          submodules: 'true'
+          submodules: 'recursive'
 
       - name: Install verilator
         run: |
