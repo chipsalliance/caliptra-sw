@@ -195,7 +195,7 @@ that the driver normally performs (the ACVP vector set supplies no public key):
 ```
 MLDSA_SIGGEN
 <hex private key, 4896 bytes>
-<hex message>
+<hex message, up to 512 bytes>
 ```
 
 Output: `MLDSA_SIGGEN:<hex>` (4627 bytes).
@@ -205,7 +205,7 @@ Output: `MLDSA_SIGGEN:<hex>` (4627 bytes).
 ```
 MLDSA_SIGVER
 <hex public key, 2592 bytes>
-<hex message>
+<hex message, up to 512 bytes>
 <hex signature, 4627 bytes>
 ```
 
@@ -217,8 +217,14 @@ Notes:
   scrapes them with `[0-9A-F]+`, so lowercase output would silently match nothing.
 - The signature is 4627 bytes per FIPS 204, but the driver stores it in `[u32; 1157]`
   = 4628 bytes; the trailing padding byte is excluded from the output.
+- The 512-byte message limit is the registered capability, not an arbitrary buffer size:
+  `messageLength` is registered over the domain `{min: 8, max: 512, increment: 8}`. A
+  longer message is rejected by the runner before the firmware is rebuilt, and by the
+  firmware itself if one reaches it.
 - Deterministic signing is used (`sign_rnd` all zeros) and contextLength is always 0,
-  matching the vector sets, which carry no context field.
+  matching the vector sets, which carry no context field. A vector carrying a context is
+  rejected rather than signed without it, and a vector for a parameter set other than
+  ML-DSA-87 is rejected rather than run against this firmware.
 - `SIGGEN` uses `sign_var_no_verify`, which requires the `cavp-test-harness` feature on
   `caliptra-drivers`. That is already enabled in this crate's `Cargo.toml`.
 - `test_mldsa_name` runs first because it performs the `CfiCounter::reset` that the

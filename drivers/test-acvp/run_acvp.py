@@ -118,12 +118,33 @@ OUTPUT_FILE_TEMPLATE = None
 # output recorded as if it were valid.
 MLDSA_PARAMETER_SET = "ML-DSA-87"
 
+# Registered capability is messageLength {min: 8, max: 512, increment: 8}, so a
+# longer message means the vector set does not match what the lab was given.
+# Checked here as well as in the firmware so an out-of-range vector fails before
+# paying for a firmware rebuild.
+MLDSA_MAX_MSG_BYTES = 512
+
 
 def check_mldsa_parameter_set(parameter_set, tcId):
     if parameter_set != MLDSA_PARAMETER_SET:
         raise SystemExit(
             "vector tcId {} is for {}, but this firmware implements {}".format(
                 tcId, parameter_set, MLDSA_PARAMETER_SET
+            )
+        )
+
+
+def check_mldsa_message_length(hex_msg, tcId):
+    if len(hex_msg) % 2 != 0:
+        raise SystemExit(
+            "vector tcId {} has an odd-length message field".format(tcId)
+        )
+    n = len(hex_msg) // 2
+    if n > MLDSA_MAX_MSG_BYTES:
+        raise SystemExit(
+            "vector tcId {} has a {}-byte message, but the registered "
+            "capability caps messageLength at {} bytes".format(
+                tcId, n, MLDSA_MAX_MSG_BYTES
             )
         )
 
@@ -410,6 +431,7 @@ def main():
                 alg, mode, tgId, tcId, parameterSet, hex_sk, hex_msg = parts
                 if alg == "AFT" and mode == "sigGen":
                     check_mldsa_parameter_set(parameterSet, tcId)
+                    check_mldsa_message_length(hex_msg, tcId)
                     print("Running MLDSA_SIGGEN test for tcId {}".format(tcId))
                     with open(CURRENT_VECTOR_FILE, "w") as f:
                         f.write("MLDSA_SIGGEN\n{}\n{}".format(hex_sk, hex_msg))
@@ -431,6 +453,7 @@ def main():
                 ) = parts
                 if alg == "AFT" and mode == "sigVer":
                     check_mldsa_parameter_set(parameterSet, tcId)
+                    check_mldsa_message_length(hex_msg, tcId)
                     print("Running MLDSA_SIGVER test for tcId {}".format(tcId))
                     with open(CURRENT_VECTOR_FILE, "w") as f:
                         f.write(

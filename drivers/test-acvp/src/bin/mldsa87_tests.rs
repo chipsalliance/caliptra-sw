@@ -57,15 +57,35 @@ const MLDSA87_SEED_SIZE: usize = 32;
 const MLDSA87_PUBKEY_SIZE: usize = 2592;
 const MLDSA87_PRIVKEY_SIZE: usize = 4896;
 
+/// Largest message a conforming vector can carry.
+///
+/// This is not an arbitrary buffer size: the registered ACVP capability is
+/// `messageLength` over the domain `{min: 8, max: 512, increment: 8}`, so 512
+/// bytes is the ceiling the testing lab was given. A longer message means the
+/// vector set does not match the registered capability, and is rejected rather
+/// than silently truncated.
+const MLDSA87_MAX_MSG_SIZE: usize = 512;
+
 // Static buffers sized for the largest ML-DSA-87 objects. These live in static
 // storage because they are far too large for the test harness stack.
-static mut ACVP_PUBKEY_BUF: [u8; 2592] = [0u8; 2592];
-static mut ACVP_PRIVKEY_BUF: [u8; 4896] = [0u8; 4896];
+static mut ACVP_PUBKEY_BUF: [u8; MLDSA87_PUBKEY_SIZE] = [0u8; MLDSA87_PUBKEY_SIZE];
+static mut ACVP_PRIVKEY_BUF: [u8; MLDSA87_PRIVKEY_SIZE] = [0u8; MLDSA87_PRIVKEY_SIZE];
 static mut ACVP_KEYGEN_PRIVKEY: Mldsa87PrivKey = Mldsa87PrivKey::new([0u32; 1224]);
 static mut ACVP_SIG_BUF: [u8; 4628] = [0u8; 4628];
-static mut ACVP_MSG_BUF: [u8; 512] = [0u8; 512];
-static mut ACVP_SEED_BUF: [u8; 32] = [0u8; 32];
+static mut ACVP_MSG_BUF: [u8; MLDSA87_MAX_MSG_SIZE] = [0u8; MLDSA87_MAX_MSG_SIZE];
+static mut ACVP_SEED_BUF: [u8; MLDSA87_SEED_SIZE] = [0u8; MLDSA87_SEED_SIZE];
 static mut HEX_OUT_BUF: [u8; 9792] = [0u8; 9792]; // largest output: privkey 4896 bytes x 2
+
+/// Decodes a variable-length ACVP message, reporting the registered limit
+/// rather than panicking anonymously inside `hex_decode`.
+fn decode_message(hex_msg: &str, buf: &mut [u8]) -> usize {
+    hex_decode(hex_msg, buf).unwrap_or_else(|| {
+        panic!(
+            "message is not valid hex, or exceeds the registered maximum of {} bytes",
+            MLDSA87_MAX_MSG_SIZE
+        )
+    })
+}
 
 /// Hands out a `&mut` to one of the static scratch buffers above.
 ///
@@ -212,7 +232,7 @@ fn test_acvp() {
             hex_decode_exact(hex_key, privkey_buf, MLDSA87_PRIVKEY_SIZE, "private key");
 
             let msg_buf = static_buf!(ACVP_MSG_BUF);
-            let msg_len = hex_decode(hex_msg, msg_buf).unwrap();
+            let msg_len = decode_message(hex_msg, msg_buf);
 
             // contextLength is always 0 and deterministic signing is required
             // per the ACVP vector set, so sign_rnd is always all zeros.
@@ -250,7 +270,7 @@ fn test_acvp() {
             let sig_buf = static_buf!(ACVP_SIG_BUF);
 
             hex_decode_exact(hex_pubkey, pubkey_buf, MLDSA87_PUBKEY_SIZE, "public key");
-            let msg_len = hex_decode(hex_msg, msg_buf).unwrap();
+            let msg_len = decode_message(hex_msg, msg_buf);
             hex_decode_exact(hex_sig, sig_buf, MLDSA87_SIG_SIZE, "signature");
 
             let pub_key = Mldsa87PubKey::read_from_bytes(pubkey_buf.as_slice()).unwrap();
