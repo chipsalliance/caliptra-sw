@@ -114,6 +114,8 @@ impl CommandId {
     // The owner-only authorization manifest set command.
     pub const SET_OWNER_AUTH_MANIFEST: Self = Self(0x4F41_4D4E); // "OAMN"
 
+    pub const VERIFY_OWNER_AUTH_MANIFEST: Self = Self(0x4F41_564D); // "OAVM"
+
     // The authorize and stash command.
     pub const AUTHORIZE_AND_STASH: Self = Self(0x4154_5348); // "ATSH"
 
@@ -539,6 +541,7 @@ pub enum MailboxReq {
     SetAuthManifest(SetAuthManifestReq),
     VerifyAuthManifest(VerifyAuthManifestReq),
     SetOwnerAuthManifest(SetOwnerAuthManifestReq),
+    VerifyOwnerAuthManifest(VerifyOwnerAuthManifestReq),
     AuthorizeAndStash(AuthorizeAndStashReq),
     SignWithExportedEcdsa(SignWithExportedEcdsaReq),
     RevokeExportedCdiHandle(RevokeExportedCdiHandleReq),
@@ -621,6 +624,7 @@ impl MailboxReq {
             MailboxReq::SetAuthManifest(req) => Ok(req.as_bytes()),
             MailboxReq::VerifyAuthManifest(req) => Ok(req.as_bytes()),
             MailboxReq::SetOwnerAuthManifest(req) => Ok(req.as_bytes()),
+            MailboxReq::VerifyOwnerAuthManifest(req) => Ok(req.as_bytes()),
             MailboxReq::AuthorizeAndStash(req) => Ok(req.as_bytes()),
             MailboxReq::SignWithExportedEcdsa(req) => Ok(req.as_bytes()),
             MailboxReq::RevokeExportedCdiHandle(req) => Ok(req.as_bytes()),
@@ -701,6 +705,7 @@ impl MailboxReq {
             MailboxReq::SetAuthManifest(req) => Ok(req.as_mut_bytes()),
             MailboxReq::VerifyAuthManifest(req) => Ok(req.as_mut_bytes()),
             MailboxReq::SetOwnerAuthManifest(req) => Ok(req.as_mut_bytes()),
+            MailboxReq::VerifyOwnerAuthManifest(req) => Ok(req.as_mut_bytes()),
             MailboxReq::AuthorizeAndStash(req) => Ok(req.as_mut_bytes()),
             MailboxReq::SignWithExportedEcdsa(req) => Ok(req.as_mut_bytes()),
             MailboxReq::RevokeExportedCdiHandle(req) => Ok(req.as_mut_bytes()),
@@ -781,6 +786,7 @@ impl MailboxReq {
             MailboxReq::SetAuthManifest(_) => CommandId::SET_AUTH_MANIFEST,
             MailboxReq::VerifyAuthManifest(_) => CommandId::VERIFY_AUTH_MANIFEST,
             MailboxReq::SetOwnerAuthManifest(_) => CommandId::SET_OWNER_AUTH_MANIFEST,
+            MailboxReq::VerifyOwnerAuthManifest(_) => CommandId::VERIFY_OWNER_AUTH_MANIFEST,
             MailboxReq::AuthorizeAndStash(_) => CommandId::AUTHORIZE_AND_STASH,
             MailboxReq::SignWithExportedEcdsa(_) => CommandId::SIGN_WITH_EXPORTED_ECDSA,
             MailboxReq::RevokeExportedCdiHandle(_) => CommandId::REVOKE_EXPORTED_CDI_HANDLE,
@@ -911,6 +917,43 @@ impl Default for VarSizeDataResp {
     }
 }
 
+/// Selects the persistent Image Metadata Collection used for a firmware-ID lookup.
+#[repr(u32)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum AuthManifestSource {
+    #[default]
+    VendorOwner = 0,
+    Owner = 1,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct InvalidAuthManifestSource;
+
+impl TryFrom<u32> for AuthManifestSource {
+    type Error = InvalidAuthManifestSource;
+
+    fn try_from(value: u32) -> Result<Self, Self::Error> {
+        match value {
+            0 => Ok(Self::VendorOwner),
+            1 => Ok(Self::Owner),
+            _ => Err(InvalidAuthManifestSource),
+        }
+    }
+}
+
+impl AuthManifestSource {
+    pub const FLAG_SHIFT: u32 = 1;
+    pub const FLAG_MASK: u32 = 0b11 << Self::FLAG_SHIFT;
+
+    pub const fn flag_bits(self) -> u32 {
+        (self as u32) << Self::FLAG_SHIFT
+    }
+
+    pub fn from_flags(flags: u32) -> Result<Self, InvalidAuthManifestSource> {
+        Self::try_from((flags & Self::FLAG_MASK) >> Self::FLAG_SHIFT)
+    }
+}
+
 // ACTIVATE_FIRMWARE
 #[repr(C)]
 #[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
@@ -948,6 +991,7 @@ impl Default for ActivateFirmwareReq {
 bitflags::bitflags! {
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
     pub struct ActivateFirmwareFlags: u32 {
+        const MANIFEST_SOURCE_MASK = AuthManifestSource::FLAG_MASK;
     }
 }
 
@@ -2108,6 +2152,30 @@ impl Request for SetOwnerAuthManifestReq {
     type Resp = MailboxRespHeader;
 }
 
+// VERIFY_OWNER_AUTH_MANIFEST
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+pub struct VerifyOwnerAuthManifestReq {
+    pub hdr: MailboxReqHeader,
+    pub manifest_size: u32,
+    pub manifest: [u8; SetOwnerAuthManifestReq::MAX_MAN_SIZE],
+}
+
+impl Default for VerifyOwnerAuthManifestReq {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxReqHeader::default(),
+            manifest_size: 0,
+            manifest: [0u8; SetOwnerAuthManifestReq::MAX_MAN_SIZE],
+        }
+    }
+}
+
+impl Request for VerifyOwnerAuthManifestReq {
+    const ID: CommandId = CommandId::VERIFY_OWNER_AUTH_MANIFEST;
+    type Resp = MailboxRespHeader;
+}
+
 // GET_IDEV_ECC384_CSR
 #[repr(C)]
 #[derive(Default, Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
@@ -2343,6 +2411,7 @@ impl From<ImageHashSource> for u32 {
 bitflags::bitflags! {
     pub struct AuthAndStashFlags : u32 {
         const SKIP_STASH = 0x1;
+        const MANIFEST_SOURCE_MASK = AuthManifestSource::FLAG_MASK;
     }
 }
 
@@ -2959,10 +3028,18 @@ impl Request for CmRandomStirReq {
 pub struct GetImageInfoReq {
     pub hdr: MailboxReqHeader,
     pub fw_id: [u8; 4],
+    /// See [`GetImageInfoFlags`].
+    pub flags: u32,
 }
 impl Request for GetImageInfoReq {
     const ID: CommandId = CommandId::GET_IMAGE_INFO;
     type Resp = GetImageInfoResp;
+}
+
+bitflags::bitflags! {
+    pub struct GetImageInfoFlags: u32 {
+        const MANIFEST_SOURCE_MASK = AuthManifestSource::FLAG_MASK;
+    }
 }
 
 #[repr(C)]

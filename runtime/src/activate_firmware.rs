@@ -17,8 +17,10 @@ use core::mem::offset_of;
 use crate::authorize_and_stash::{self, AuthorizeAndStashCmd};
 use crate::drivers::{CaliptraManagedDpeContext, McuFwStatus, McuResetReason};
 use crate::Drivers;
-use crate::{manifest::find_metadata_entry, mutrefbytes};
-use caliptra_api::mailbox::{ActivateFirmwareFlags, AuthorizeAndStashReq, ImageHashSource};
+use crate::{manifest::find_metadata_entry_by_type, mutrefbytes};
+use caliptra_api::mailbox::{
+    ActivateFirmwareFlags, AuthManifestSource, AuthorizeAndStashReq, ImageHashSource,
+};
 use caliptra_auth_man_types::ImageMetadataFlags;
 use caliptra_common::mailbox_api::{ActivateFirmwareReq, ActivateFirmwareResp, MailboxRespHeader};
 use caliptra_drivers::dma::MCU_SRAM_OFFSET;
@@ -88,6 +90,8 @@ impl ActivateFirmwareCmd {
         if flags_raw & !ActivateFirmwareFlags::all().bits() != 0 {
             return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
         }
+        let manifest_source = AuthManifestSource::from_flags(flags_raw)
+            .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
 
         let mut images_to_activate_bitmap: [u32; 4] = [0; 4];
         for i in 0..fw_id_count {
@@ -108,12 +112,12 @@ impl ActivateFirmwareCmd {
             if fw_id == ActivateFirmwareReq::MCU_IMAGE_ID && mcu_image_size == 0 {
                 return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
             }
-            let image_metadata = find_metadata_entry(
-                &drivers
-                    .persistent_data
-                    .get()
-                    .auth_manifest_image_metadata_col,
+            let persistent_data = drivers.persistent_data.get();
+            let image_metadata = find_metadata_entry_by_type(
+                &persistent_data.auth_manifest_image_metadata_col,
+                &persistent_data.owner_auth_manifest_image_metadata_col,
                 fw_id,
+                manifest_source,
             )
             .ok_or(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
             let exec_bit = ImageMetadataFlags(image_metadata.flags).exec_bit() as u8;
@@ -126,8 +130,13 @@ impl ActivateFirmwareCmd {
             Self::set_bit(&mut images_to_activate_bitmap, exec_bit as usize);
         }
 
-        Self::activate_fw(drivers, &images_to_activate_bitmap, mcu_image_size as u32)
-            .map_err(|_| CaliptraError::IMAGE_VERIFIER_ACTIVATION_FAILED)?;
+        Self::activate_fw(
+            drivers,
+            &images_to_activate_bitmap,
+            mcu_image_size as u32,
+            manifest_source,
+        )
+        .map_err(|_| CaliptraError::IMAGE_VERIFIER_ACTIVATION_FAILED)?;
 
         let resp = mutrefbytes::<ActivateFirmwareResp>(resp)?;
         resp.hdr = MailboxRespHeader::default();
@@ -139,6 +148,7 @@ impl ActivateFirmwareCmd {
         drivers: &mut Drivers,
         activate_bitmap: &[u32; 4],
         mcu_image_size: u32,
+        manifest_source: AuthManifestSource,
     ) -> Result<(), ()> {
         let mci_base_addr: AxiAddr = drivers.soc_ifc.mci_base_addr().into();
         let mut go_bitmap: [u32; 4] = [0; 4];
@@ -187,12 +197,12 @@ impl ActivateFirmwareCmd {
             }
 
             // Caliptra will then have access to MCU SRAM Updatable Execution Region and update the FW image.
-            let image_metadata = find_metadata_entry(
-                &drivers
-                    .persistent_data
-                    .get()
-                    .auth_manifest_image_metadata_col,
+            let persistent_data = drivers.persistent_data.get();
+            let image_metadata = find_metadata_entry_by_type(
+                &persistent_data.auth_manifest_image_metadata_col,
+                &persistent_data.owner_auth_manifest_image_metadata_col,
                 ActivateFirmwareReq::MCU_IMAGE_ID,
+                manifest_source,
             )
             .ok_or(())?;
             let dma_image = DmaRecovery::new(
@@ -226,6 +236,7 @@ impl ActivateFirmwareCmd {
                 measurement: [0; 48],
                 source: ImageHashSource::LoadAddress.into(),
                 image_size: mcu_image_size,
+                flags: manifest_source.flag_bits(),
                 ..Default::default()
             };
 
@@ -235,7 +246,9 @@ impl ActivateFirmwareCmd {
                     .map_err(|_| ())?;
 
             // Make sure the image was properly authorized.
-            if authorization_result != authorize_and_stash::IMAGE_AUTHORIZED {
+            if authorization_result != authorize_and_stash::IMAGE_AUTHORIZED_VENDOR_OWNER
+                && authorization_result != authorize_and_stash::IMAGE_AUTHORIZED_OWNER_ONLY
+            {
                 return Err(());
             }
             drivers
