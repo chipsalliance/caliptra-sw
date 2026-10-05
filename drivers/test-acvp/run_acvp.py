@@ -149,6 +149,38 @@ def check_mldsa_message_length(hex_msg, tcId):
         )
 
 
+def check_sha_message_length(len_bits, hex_str, tcId):
+    """Aborts unless the declared bit length matches the hex actually carried.
+
+    The firmware hashes every byte it decodes and never sees `len_bits`, so a
+    vector whose declared length disagreed with its hex would silently produce
+    a digest for a different message. The registered capability is
+    messageLength {min: 32, max: 65536, increment: 32}, which rules out both
+    zero-length and non-byte-aligned messages, and the 2.1 production sets
+    agree on every line. This guards against a future set that does not.
+    """
+    try:
+        bits = int(len_bits)
+    except ValueError:
+        raise SystemExit(
+            "vector tcId {} has a non-numeric length field: {!r}".format(tcId, len_bits)
+        )
+    if bits % 8 != 0:
+        raise SystemExit(
+            "vector tcId {} declares {} bits, which is not a whole number of "
+            "bytes; the firmware hashes whole bytes only".format(tcId, bits)
+        )
+    declared = bits // 8
+    carried = len(hex_str) // 2
+    if declared != carried:
+        raise SystemExit(
+            "vector tcId {} declares {} bits ({} bytes) but carries {} bytes "
+            "of hex; the firmware would hash the wrong message".format(
+                tcId, bits, declared, carried
+            )
+        )
+
+
 def reject_mldsa_context(parts, expected_fields):
     """Aborts if an ML-DSA vector line carries a trailing context field.
 
@@ -496,6 +528,7 @@ def main():
                     continue
                 alg, tgId, tcId, len_bits, hex_str = parts
                 if alg in ("AFT", "MCT"):
+                    check_sha_message_length(len_bits, hex_str, tcId)
                     print("Running {} test for tcId {}".format(ALG_NAME, tcId))
                     with open(CURRENT_VECTOR_FILE, "w") as f:
                         f.write("{}\n{}\n{}".format(ALG_NAME, alg, hex_str))
@@ -505,6 +538,7 @@ def main():
                     continue
                 alg, tgId, tcId, len_bits, hex_str = parts
                 if alg in ("AFT", "MCT"):
+                    check_sha_message_length(len_bits, hex_str, tcId)
                     print("Running test for tcId {}".format(tcId))
                     with open(CURRENT_VECTOR_FILE, "w") as f:
                         f.write("{}\n{}".format(alg, hex_str))
