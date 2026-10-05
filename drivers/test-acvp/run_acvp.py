@@ -113,6 +113,21 @@ RESP_DIR = None
 RESP_PATTERN = None
 OUTPUT_FILE_TEMPLATE = None
 
+# The only ML-DSA parameter set this firmware implements. Vector files carry
+# the set in field 5; anything else would be run against the wrong code and the
+# output recorded as if it were valid.
+MLDSA_PARAMETER_SET = "ML-DSA-87"
+
+
+def check_mldsa_parameter_set(parameter_set, tcId):
+    if parameter_set != MLDSA_PARAMETER_SET:
+        raise SystemExit(
+            "vector tcId {} is for {}, but this firmware implements {}".format(
+                tcId, parameter_set, MLDSA_PARAMETER_SET
+            )
+        )
+
+
 # tcIds whose cargo invocation exited non-zero. Collected here rather than
 # returned so the per-algorithm dispatch in main() stays unchanged.
 FAILED_TCIDS = []
@@ -366,6 +381,7 @@ def main():
                     continue
                 alg, mode, tgId, tcId, parameterSet, hex_seed = parts
                 if alg == "AFT" and mode == "keyGen":
+                    check_mldsa_parameter_set(parameterSet, tcId)
                     print("Running MLDSA_KEYGEN test for tcId {}".format(tcId))
                     with open(CURRENT_VECTOR_FILE, "w") as f:
                         f.write("MLDSA_KEYGEN\n{}".format(hex_seed))
@@ -377,6 +393,7 @@ def main():
                 alg, mode, tgId, tcId, parameterSet, hex_sk, hex_msg = parts[:7]
                 hex_ctx = parts[7] if len(parts) == 8 else None
                 if alg == "AFT" and mode == "sigGen":
+                    check_mldsa_parameter_set(parameterSet, tcId)
                     print("Running MLDSA_SIGGEN test for tcId {}".format(tcId))
                     with open(CURRENT_VECTOR_FILE, "w") as f:
                         content = "MLDSA_SIGGEN\n{}\n{}".format(hex_sk, hex_msg)
@@ -400,6 +417,7 @@ def main():
                 ) = parts[:8]
                 hex_ctx = parts[8] if len(parts) == 9 else None
                 if alg == "AFT" and mode == "sigVer":
+                    check_mldsa_parameter_set(parameterSet, tcId)
                     print("Running MLDSA_SIGVER test for tcId {}".format(tcId))
                     with open(CURRENT_VECTOR_FILE, "w") as f:
                         content = "MLDSA_SIGVER\n{}\n{}\n{}".format(
