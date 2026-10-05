@@ -3,7 +3,9 @@
 use crate::common::{rom_for_fw_integration_tests, run_rt_test, RuntimeTestArgs};
 use caliptra_api::SocManager;
 use caliptra_api_types::SecurityState;
-use caliptra_builder::firmware::APP_WITH_UART_STASH_MEASUREMENT_REGISTERS;
+use caliptra_builder::firmware::{
+    APP_WITH_UART_STASH_MEASUREMENT_REGISTERS, APP_WITH_UART_STASH_MEASUREMENT_REGISTERS_FPGA,
+};
 use caliptra_common::{
     mailbox_api::{
         CommandId, GetTaggedTciReq, GetTaggedTciResp, MailboxReq, MailboxReqHeader,
@@ -63,7 +65,11 @@ fn run_model(
         ),
     ];
     let runtime_test_args = RuntimeTestArgs {
-        test_fwid: Some(&APP_WITH_UART_STASH_MEASUREMENT_REGISTERS),
+        test_fwid: Some(if cfg!(feature = "fpga_realtime") {
+            &APP_WITH_UART_STASH_MEASUREMENT_REGISTERS_FPGA
+        } else {
+            &APP_WITH_UART_STASH_MEASUREMENT_REGISTERS
+        }),
         successful_reach_rt: false,
         init_params: Some(InitParams {
             hw_version,
@@ -260,6 +266,9 @@ fn test_soc_never_asserted_end_of_stash() {
 }
 
 #[test]
+// The hardware revision is only honored by the emulated model. The version of
+// the FPGA bitstream version is fixed, so the scenario can't be set up in that case.
+#[cfg(not(feature = "fpga_realtime"))]
 fn test_draining_is_skipped_on_old_hardware() {
     let mut model = run_model(CaliptraHwVersion::V2_1, false, false);
 
