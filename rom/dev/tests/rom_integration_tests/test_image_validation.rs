@@ -1510,6 +1510,27 @@ fn test_fmc_invalid_entry_point_after_iccm() {
 }
 
 #[test]
+fn test_fmc_entry_point_outside_image() {
+    let (mut hw, mut image_bundle) =
+        helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
+
+    // Entry point is inside ICCM and aligned, but belongs to the other component's image.
+    let entry_point = image_bundle.manifest.runtime.load_addr;
+    let image = update_entry_point(&mut image_bundle, true, entry_point);
+    assert_eq!(
+        ModelError::MailboxCmdFailed(u32::from(
+            CaliptraError::IMAGE_VERIFIER_ERR_FMC_ENTRY_POINT_INVALID
+        )),
+        hw.upload_firmware(&image).unwrap_err()
+    );
+
+    assert_eq!(
+        hw.soc_ifc().cptra_boot_status().read(),
+        u32::from(FwProcessorManifestLoadComplete)
+    );
+}
+
+#[test]
 fn test_fmc_entry_point_unaligned() {
     let mut image_bundle = helpers::build_image_bundle(ImageOptions::default());
     let entry_point = image_bundle.manifest.fmc.entry_point;
@@ -1746,6 +1767,27 @@ fn test_runtime_invalid_entry_point_after_iccm() {
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
 
     let image = update_entry_point(&mut image_bundle, false, ICCM_END_ADDR + 1);
+    assert_eq!(
+        ModelError::MailboxCmdFailed(u32::from(
+            CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_ENTRY_POINT_INVALID
+        )),
+        hw.upload_firmware(&image).unwrap_err()
+    );
+
+    assert_eq!(
+        hw.soc_ifc().cptra_boot_status().read(),
+        u32::from(FwProcessorManifestLoadComplete)
+    );
+}
+
+#[test]
+fn test_runtime_entry_point_outside_image() {
+    let (mut hw, mut image_bundle) =
+        helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
+
+    // Entry point is inside ICCM and aligned, but belongs to the other component's image.
+    let entry_point = image_bundle.manifest.fmc.load_addr;
+    let image = update_entry_point(&mut image_bundle, false, entry_point);
     assert_eq!(
         ModelError::MailboxCmdFailed(u32::from(
             CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_ENTRY_POINT_INVALID

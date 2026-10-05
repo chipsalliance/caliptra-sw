@@ -138,7 +138,7 @@ It contains the image information and SHA-384 hash of individual firmware images
 | Image SVN | 4 | Security Version Number for the Image. This field is compared against the fuses (FMC SVN or RUNTIME SVN) |
 | Reserved | 4 | Reserved field |
 | Image Load Address | 4 | Load address |
-| Image Entry Point | 4 | Entry point to start the execution from  |
+| Image Entry Point | 4 | Entry point to start execution from. Must be within the image's load address range. |
 | Image Offset | 4 | Offset from beginning of the image |
 | Image Size | 4 | Image Size |
 | Image Hash | 48 | SHA2-384 hash of image |
