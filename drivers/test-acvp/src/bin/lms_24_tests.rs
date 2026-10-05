@@ -27,7 +27,7 @@ Abstract:
 #![no_std]
 #![no_main]
 
-use caliptra_drivers::{Lms, LmsResult, Sha256};
+use caliptra_drivers::{CaliptraError, Lms, LmsResult, Sha256};
 use caliptra_lms_types::{LmsPublicKey, LmsSignature};
 use caliptra_registers::sha256::Sha256Reg;
 use caliptra_test_harness::test_suite;
@@ -42,6 +42,19 @@ const PUBKEY_SIZE: usize = 48;
 
 /// Serialized size of `LmsSignature<6, 51, 15>`.
 const SIG_SIZE: usize = 1620;
+
+/// `DRIVER_LMS_*` occupies 0x000C_0000..=0x000C_FFFF, and every code in that
+/// range describes a malformed public key or signature: a bogus algorithm
+/// type, an out-of-range q, a bad path depth, and so on.
+///
+/// ACVP sigVer sets include such vectors deliberately - the 2.1 production set
+/// has one whose signature declares LMS tree type 0x17, which does not exist -
+/// and the expected answer for them is "signature invalid", not a crash. An
+/// error from outside this range is an infrastructure failure and must not be
+/// reported as a verification verdict.
+fn is_malformed_lms_input(e: CaliptraError) -> bool {
+    (0x000C_0000..=0x000C_FFFF).contains(&u32::from(e))
+}
 
 fn hex_nibble(b: u8) -> Option<u8> {
     match b {
@@ -128,7 +141,18 @@ fn test_sigver_acvp() {
 
     match result {
         Ok(LmsResult::Success) => println!("LMS_SIGVER:01"),
-        _ => println!("LMS_SIGVER:00"),
+        Ok(LmsResult::SigVerifyFailed) => println!("LMS_SIGVER:00"),
+
+        // The driver rejects a malformed signature while parsing it, before it
+        // ever gets to compare hashes, so this is still a "signature invalid"
+        // verdict and not a failure to produce one.
+        Err(e) if is_malformed_lms_input(e) => println!("LMS_SIGVER:00"),
+
+        // Anything else - a SHA-256 failure, say - is an infrastructure
+        // problem. Panic rather than recording it as a verdict: the runner
+        // treats the non-zero exit as a failed case and omits it from the
+        // response file instead of submitting a `false` we never computed.
+        Err(e) => panic!("LMS verification failed with a non-LMS error: {}", e),
     }
 }
 
