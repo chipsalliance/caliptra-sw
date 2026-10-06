@@ -20,6 +20,9 @@ Abstract:
         is changed while entropy_src is enabled.
       - generate12() succeeds (auto-enables entropy_src and reseeds) even
         when entropy_src was disabled before the call.
+      - Commands are acknowledged before their API calls return, including
+        multi-block Generate and re-instantiation.
+      - entropy_src can be disabled immediately after an explicit reseed.
 
 --*/
 #![no_std]
@@ -216,10 +219,73 @@ fn test_generate_reseed_auto_enables_entropy_src() {
 // binary built with the `fips-test-hooks` feature).
 // ---------------------------------------------------------------------------
 
+// A completed command must be acknowledged, not merely accepted into the
+// command FIFO. Exercise multi-block Generate without waiting before GENBITS
+// is drained, and serialize commands that reuse or replace the DRBG state.
+fn test_command_completion() {
+    let mut csrng = make_csrng_fixed();
+    let csrng_reg = unsafe { CsrngReg::new() };
+    let assert_completed = || {
+        let status = csrng_reg.regs().sw_cmd_sts().read();
+        assert!(status.cmd_ack(), "CSRNG command has not completed");
+        assert_eq!(status.cmd_sts(), 0);
+    };
+
+    assert_completed();
+    let expected = csrng.generate16().unwrap();
+    assert_completed();
+    for _ in 0..4 {
+        csrng.reinstantiate(FIXED_SEED).unwrap();
+        assert_completed();
+        assert_eq!(csrng.generate16().unwrap(), expected);
+        assert_completed();
+        csrng.update(&[0x1234_5678; 12]).unwrap();
+        assert_completed();
+        csrng.reseed(FIXED_SEED).unwrap();
+        assert_completed();
+        csrng.generate4().unwrap();
+        assert_completed();
+        csrng.zeroize().unwrap();
+        assert_completed();
+    }
+}
+
+// Disabling entropy_src immediately after Reseed must not clear seed material
+// that is still needed by a queued command. Keep automatic reseeding out of the
+// way so Generate cannot mask a prematurely completed explicit Reseed.
+fn test_reseed_completion_before_entropy_disable() {
+    let mut csrng = make_csrng_live();
+    let mut csrng_reg = unsafe { CsrngReg::new() };
+    let mut entropy_src_reg = unsafe { EntropySrcReg::new() };
+    csrng_reg.regs_mut().reseed_interval().write(|_| u32::MAX);
+
+    for _ in 0..4 {
+        csrng.reseed(CsrngSeed::EntropySrc).unwrap();
+        assert!(csrng_reg.regs().sw_cmd_sts().read().cmd_ack());
+        entropy_src_reg
+            .regs_mut()
+            .module_enable()
+            .write(|w| w.module_enable(9));
+        csrng.generate16().unwrap();
+        assert_eq!(
+            entropy_src_reg
+                .regs()
+                .module_enable()
+                .read()
+                .module_enable(),
+            9
+        );
+        csrng.reinstantiate(CsrngSeed::EntropySrc).unwrap();
+        assert!(csrng_reg.regs().sw_cmd_sts().read().cmd_ack());
+    }
+}
+
 test_suite! {
     test_generate_reseed_counter_near_zero,
     test_generate_reseed_counter_near_interval,
     test_generate_interval_shrunk_below_counter,
     test_generate_reseed_from_entropy_src_after_interval_change,
     test_generate_reseed_auto_enables_entropy_src,
+    test_command_completion,
+    test_reseed_completion_before_entropy_disable,
 }
