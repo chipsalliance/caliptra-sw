@@ -1,3 +1,57 @@
+# fw-2.1.4
+
+This is a combined runtime and FMC release.
+
+## Caliptra Firmware 2.1.4 Release Notes
+
+Release notes for changes introduced since Firmware 2.1.3.
+
+### Features
+
+- **Authorization & Attestation**:
+  - Support owner-only authorization manifests (#4233)
+  - Bind SoC manifests to optional device UEID (#4213)
+
+### Fixes
+
+- **Build Changes**:
+  - Force FMC and RT entry points to offset 0 in the binary (#4280)
+
+**Full Changelog**: https://github.com/chipsalliance/caliptra-sw/compare/fw-2.1.3...fw-2.1.4
+
+# rom-2.1.3
+
+## Caliptra ROM 2.1.3 Release Notes
+
+Release notes for changes introduced since ROM 2.1.2.
+
+### Features
+
+- Record subsystem mode in ROM `DeviceStatus` measurement (#3930)
+- Support vendor-authorized debug artifacts (#4210)
+
+### Fixes
+
+- **Boot & Image Loading**:
+  - Remove OTP status offset fallback (#3921)
+  - Chunk DMA image hashing to support images larger than 1 MiB (#3940)
+  - Additional FMC bounds checks in ROM (#4215)
+  - Validate FMC and Runtime entry points against image bounds (#4224)
+  - Force FMC and RT entry points to offset 0 in the binary (#4280)
+  - Authenticate firmware manifest fields from the protected in-memory snapshot (#4271)
+  - Reject firmware segments that extend beyond the declared bundle size (#4271)
+  - Reject AXI firmware source address ranges that overflow 64-bit address space (#4271)
+  - Require FMC and Runtime image data to be contiguous in the bundle (#4271)
+- **Security & Cryptography**:
+  - Add CSRNG KAT execution before CFI init (#4106)
+  - Add ML-KEM buffer size mismatch check and zeroize intermediate secret data (#4148)
+  - Dynamic power handling for `entropy_src` (#4038)
+- **Runtime Integrity**:
+  - Make post-load Runtime digest mismatch fatal on update reset (#4150)
+  - Remove BMC reset wait and free strap bit 1 (#4274)
+
+**Full Changelog**: https://github.com/chipsalliance/caliptra-sw/compare/rom-2.1.2...rom-2.1.3
+
 # fw-2.1.3
 
 This is a combined runtime and FMC release.
@@ -32,6 +86,10 @@ Release notes for changes introduced since Firmware 2.1.2.
   - Consolidate and expand PL0 privilege checks across runtime mailbox commands (#4131)
   - Reserve PCRs and restrict `EXTEND_PCR` to PL0 callers (#4138, #4197)
   - Mark device healthy after encrypted firmware recovery (#4214)
+- **DPE**:
+  - Fix multi-TCB info size calculations in certificate generation (#633 caliptra-dpe)
+  - Fix CSR signature double-stack-allocation causing potential ML-DSA stack overflow (#607 caliptra-dpe)
+  - Fix potential panic in DPE context optional-get under size optimization (#605 caliptra-dpe)
 - **Library, CI & Tests**:
   - Fix `libcaliptra` Zephyr include path and `caliptra_mldsa_verify_req` forward declaration (#4184)
   - Update MCU firmware revision and flash image test expectations (#4129)
