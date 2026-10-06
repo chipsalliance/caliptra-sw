@@ -46,7 +46,9 @@ fn add_filename(filename: &Path) -> impl FnOnce(std::io::Error) -> std::io::Erro
 
 fn sv_files(manifest_dir: &Path) -> Result<Vec<String>, std::io::Error> {
     let mut result = vec![];
-    let filename = manifest_dir.join("../latest/rtl/src/integration/config/caliptra_top_tb.vf");
+    let filename = manifest_dir.join(
+        "../latest/caliptra-ss/third_party/caliptra-rtl/src/integration/config/caliptra_top_tb.vf",
+    );
     for line in BufReader::new(File::open(&filename).map_err(add_filename(&filename))?).lines() {
         let line = line?;
         if line.starts_with('+') {
@@ -66,7 +68,8 @@ fn main() {
     let files = match sv_files(&manifest_dir) {
         Ok(files) => files,
         Err(e) => panic!(
-            "{e}; run \"git submodule update --init\" to ensure the RTL submodule is populated."
+            "{e}; run \"git submodule update --init --recursive hw/latest/caliptra-ss\" \
+             to ensure the Caliptra-SS hardware dependencies are populated."
         ),
     };
 
