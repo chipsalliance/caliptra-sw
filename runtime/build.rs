@@ -12,19 +12,9 @@ Abstract:
 
 --*/
 
-/*++
-
-Licensed under the Apache-2.0 license.
-
-File Name:
-
-    build.rs
-
-Abstract:
-
-    Build script for Caliptra Runtime.
-
---*/
+#[allow(dead_code)]
+#[path = "../builder/src/version.rs"]
+mod version;
 
 use caliptra_ocp_eat::cbor::{CborEncoder, TaggedOid};
 use caliptra_ocp_eat::cose::{CoseSign1, ProtectedHeader};
@@ -330,6 +320,18 @@ fn generate_attested_csr_templates(out_dir: &Path) {
 fn main() {
     let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
     generate_attested_csr_templates(&out_dir);
+
+    // Emit RT Alias CN strings derived from the canonical version constants.
+    let rt_ver = version::runtime_version_string();
+    println!(
+        "cargo:rustc-env=RT_ALIAS_CN_ECC384=Caliptra FW {} Ecc384 Rt Alias",
+        rt_ver
+    );
+    println!(
+        "cargo:rustc-env=RT_ALIAS_CN_MLDSA87=Caliptra FW {} MlDsa87 Rt Alias",
+        rt_ver
+    );
+    println!("cargo:rerun-if-changed=../builder/src/version.rs");
 
     cfg_if::cfg_if! {
         if #[cfg(not(feature = "std"))] {
