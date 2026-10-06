@@ -31,6 +31,7 @@ use caliptra_api::mailbox::{
     MLKEM1024_ENCAPS_KEY_SIZE, SHAKE256_MAX_DIGEST_BYTE_SIZE,
 };
 use caliptra_api::{Capabilities, SocManager};
+use caliptra_common::crypto::{EncryptedCmk, UnencryptedCmk};
 use caliptra_drivers::AES_BLOCK_SIZE_BYTES;
 use caliptra_hw_model::{DefaultHwModel, HwModel, InitParams, SubsystemInitParams, TrngMode};
 use caliptra_image_types::FwVerificationPqcKeyType;
@@ -152,7 +153,7 @@ fn test_import() {
     assert!(!cmk.iter().all(|&x| x == 0));
     assert_eq!(
         cm_import_resp.hdr.fips_status,
-        MailboxRespHeader::FIPS_STATUS_APPROVED
+        MailboxRespHeader::FIPS_STATUS_NOT_APPROVED_USER_SUPPLIED_KEY
     );
 
     let payload = MailboxReqHeader {
@@ -166,6 +167,94 @@ fn test_import() {
     let cm_resp = CmStatusResp::ref_from_bytes(status_resp.as_slice()).unwrap();
     assert_eq!(cm_resp.used_usage_storage, 1);
     assert_eq!(cm_resp.total_usage_storage, 256);
+}
+
+#[test]
+fn test_import_fips_status_all_key_usages() {
+    for &subsystem_mode in &HW_MODEL_MODES_SUBSYSTEM {
+        let mut model = run_rt_test(RuntimeTestArgs {
+            subsystem_mode,
+            ..Default::default()
+        });
+        if subsystem_mode != model.subsystem_mode() {
+            continue;
+        }
+        model.step_until_ready_for_runtime();
+
+        for (usage, size) in [
+            (CmKeyUsage::Aes, 32),
+            (CmKeyUsage::Hmac, 48),
+            (CmKeyUsage::Hmac, 64),
+            (CmKeyUsage::Ecdsa, 48),
+            (CmKeyUsage::Mldsa, 32),
+            (CmKeyUsage::Mlkem, 64),
+        ] {
+            let resp = model
+                .mailbox_execute_req(CmImportReq {
+                    key_usage: usage.into(),
+                    input_size: size,
+                    input: [0x5a; 64],
+                    ..Default::default()
+                })
+                .unwrap();
+            assert_eq!(
+                resp.hdr.fips_status,
+                MailboxRespHeader::FIPS_STATUS_NOT_APPROVED_USER_SUPPLIED_KEY
+            );
+            assert_ne!(resp.cmk.0, [0; CMK_SIZE_BYTES]);
+            delete_key(&mut model, &resp.cmk);
+        }
+        let resp = status(&mut model);
+        assert_eq!(
+            resp.hdr.fips_status,
+            MailboxRespHeader::FIPS_STATUS_APPROVED
+        );
+        assert_eq!(resp.used_usage_storage, 0);
+    }
+}
+
+#[test]
+fn test_import_cmk_approval_is_authenticated() {
+    for &subsystem_mode in &HW_MODEL_MODES_SUBSYSTEM {
+        let mut model = run_rt_test(RuntimeTestArgs {
+            subsystem_mode,
+            ..Default::default()
+        });
+        if subsystem_mode != model.subsystem_mode() {
+            continue;
+        }
+        model.step_until_ready_for_runtime();
+        let cmk = import_key(&mut model, &[0x42; 48], CmKeyUsage::Hmac);
+        let mut tampered_cmk = cmk.clone();
+        let approval_offset = core::mem::offset_of!(EncryptedCmk, ciphertext)
+            + core::mem::offset_of!(UnencryptedCmk, flags);
+        tampered_cmk.0[approval_offset] ^= UnencryptedCmk::FIPS_APPROVED;
+
+        let err = model
+            .mailbox_execute_req(CmHmacReq {
+                cmk: tampered_cmk,
+                hash_algorithm: CmHashAlgorithm::Sha384.into(),
+                ..Default::default()
+            })
+            .expect_err("Changing the encrypted approval flag must invalidate the CMK tag");
+        assert_error(
+            &mut model,
+            caliptra_drivers::CaliptraError::RUNTIME_DRIVER_AES_INVALID_TAG,
+            err,
+        );
+
+        let resp = model
+            .mailbox_execute_req(CmHmacReq {
+                cmk,
+                hash_algorithm: CmHashAlgorithm::Sha384.into(),
+                ..Default::default()
+            })
+            .unwrap();
+        assert_eq!(
+            resp.hdr.hdr.fips_status,
+            MailboxRespHeader::FIPS_STATUS_NOT_APPROVED_USER_SUPPLIED_KEY
+        );
+    }
 }
 
 #[test]
@@ -245,10 +334,12 @@ fn delete_key(model: &mut DefaultHwModel, cmk: &Cmk) {
     });
     req.populate_chksum().unwrap();
     let req = req.as_bytes().unwrap();
-    model
+    let resp = model
         .mailbox_execute(u32::from(CommandId::CM_DELETE), req)
         .unwrap()
         .expect("We should have received a response");
+    let resp = MailboxRespHeader::read_from_bytes(&resp).unwrap();
+    assert_eq!(resp.fips_status, MailboxRespHeader::FIPS_STATUS_APPROVED);
 }
 
 #[test]
@@ -841,7 +932,7 @@ fn test_aes_gcm_simple() {
     let resp = CmAesGcmEncryptInitResp::ref_from_bytes(resp_bytes.as_slice()).unwrap();
     assert_eq!(
         resp.hdr.fips_status,
-        MailboxRespHeader::FIPS_STATUS_APPROVED
+        MailboxRespHeader::FIPS_STATUS_NOT_APPROVED_USER_SUPPLIED_KEY
     );
 
     let mut cm_aes_encrypt_final = MailboxReq::CmAesGcmEncryptFinal(CmAesGcmEncryptFinalReq {
@@ -871,7 +962,7 @@ fn test_aes_gcm_simple() {
     };
     assert_eq!(
         final_resp.hdr.hdr.fips_status,
-        MailboxRespHeader::FIPS_STATUS_APPROVED
+        MailboxRespHeader::FIPS_STATUS_NOT_APPROVED_USER_SUPPLIED_KEY
     );
     let len = final_resp.hdr.ciphertext_size as usize;
     assert_eq!(len, 4);
@@ -923,7 +1014,7 @@ fn test_aes_gcm_random_encrypt_decrypt() {
             &aad,
             &plaintext,
             MAX_CMB_DATA_SIZE,
-            MailboxRespHeader::FIPS_STATUS_APPROVED,
+            MailboxRespHeader::FIPS_STATUS_NOT_APPROVED_USER_SUPPLIED_KEY,
         );
         let (rtag, rciphertext) = rustcrypto_gcm_encrypt(&keys[key_idx], &iv, &aad, &plaintext);
         assert_eq!(ciphertext, rciphertext);
@@ -936,7 +1027,7 @@ fn test_aes_gcm_random_encrypt_decrypt() {
             &ciphertext,
             &tag,
             MAX_CMB_DATA_SIZE,
-            MailboxRespHeader::FIPS_STATUS_APPROVED,
+            MailboxRespHeader::FIPS_STATUS_NOT_APPROVED_USER_SUPPLIED_KEY,
         );
         assert_eq!(dplaintext, plaintext);
         assert!(dtag);
@@ -979,7 +1070,7 @@ fn test_aes_gcm_random_encrypt_decrypt_1() {
             &aad,
             &plaintext,
             1,
-            MailboxRespHeader::FIPS_STATUS_APPROVED,
+            MailboxRespHeader::FIPS_STATUS_NOT_APPROVED_USER_SUPPLIED_KEY,
         );
         let (rtag, rciphertext) = rustcrypto_gcm_encrypt(&keys[key_idx], &iv, &aad, &plaintext);
         assert_eq!(ciphertext, rciphertext);
@@ -992,7 +1083,7 @@ fn test_aes_gcm_random_encrypt_decrypt_1() {
             &ciphertext,
             &tag,
             1,
-            MailboxRespHeader::FIPS_STATUS_APPROVED,
+            MailboxRespHeader::FIPS_STATUS_NOT_APPROVED_USER_SUPPLIED_KEY,
         );
         assert_eq!(dplaintext, plaintext);
         assert!(dtag);
@@ -1039,7 +1130,7 @@ fn test_aes_gcm_spdm_mode() {
         0x11,
         1,
         false,
-        MailboxRespHeader::FIPS_STATUS_APPROVED,
+        MailboxRespHeader::FIPS_STATUS_NOT_APPROVED_USER_SUPPLIED_KEY,
     );
 
     let iv = [
@@ -1065,7 +1156,7 @@ fn test_aes_gcm_spdm_mode() {
         0x11,
         1,
         false,
-        MailboxRespHeader::FIPS_STATUS_APPROVED,
+        MailboxRespHeader::FIPS_STATUS_NOT_APPROVED_USER_SUPPLIED_KEY,
     );
     assert!(ok);
     assert_eq!(check_plaintext, plaintext);
@@ -1080,7 +1171,7 @@ fn test_aes_gcm_spdm_mode() {
         0x11,
         1,
         true,
-        MailboxRespHeader::FIPS_STATUS_APPROVED,
+        MailboxRespHeader::FIPS_STATUS_NOT_APPROVED_USER_SUPPLIED_KEY,
     );
 
     let iv = [
@@ -1106,7 +1197,7 @@ fn test_aes_gcm_spdm_mode() {
         0x11,
         1,
         true,
-        MailboxRespHeader::FIPS_STATUS_APPROVED,
+        MailboxRespHeader::FIPS_STATUS_NOT_APPROVED_USER_SUPPLIED_KEY,
     );
     assert!(ok);
     assert_eq!(check_plaintext, plaintext);
@@ -1206,7 +1297,7 @@ fn test_aes_cbc_random_encrypt_decrypt() {
             &plaintext,
             MAX_CMB_DATA_SIZE,
             CmAesMode::Cbc,
-            MailboxRespHeader::FIPS_STATUS_APPROVED,
+            MailboxRespHeader::FIPS_STATUS_NOT_APPROVED_USER_SUPPLIED_KEY,
         );
         let rciphertext = rustcrypto_cbc_encrypt(&keys[key_idx], &iv, &plaintext);
         assert_eq!(ciphertext, rciphertext);
@@ -1217,7 +1308,7 @@ fn test_aes_cbc_random_encrypt_decrypt() {
             &ciphertext,
             MAX_CMB_DATA_SIZE,
             CmAesMode::Cbc,
-            MailboxRespHeader::FIPS_STATUS_APPROVED,
+            MailboxRespHeader::FIPS_STATUS_NOT_APPROVED_USER_SUPPLIED_KEY,
         );
         assert_eq!(dplaintext, plaintext);
     }
@@ -1286,7 +1377,7 @@ fn test_aes_ctr_crypt_1() {
             &plaintext,
             1,
             CmAesMode::Ctr,
-            MailboxRespHeader::FIPS_STATUS_APPROVED,
+            MailboxRespHeader::FIPS_STATUS_NOT_APPROVED_USER_SUPPLIED_KEY,
         );
         let rciphertext = rustcrypto_ctr_crypt(&keys[key_idx], &iv, &plaintext);
         assert_eq!(ciphertext, rciphertext);
@@ -1297,7 +1388,7 @@ fn test_aes_ctr_crypt_1() {
             &ciphertext,
             1,
             CmAesMode::Ctr,
-            MailboxRespHeader::FIPS_STATUS_APPROVED,
+            MailboxRespHeader::FIPS_STATUS_NOT_APPROVED_USER_SUPPLIED_KEY,
         );
         assert_eq!(dplaintext, plaintext);
     }
@@ -1337,7 +1428,7 @@ fn test_aes_ctr_random_encrypt_decrypt() {
             &plaintext,
             split,
             CmAesMode::Ctr,
-            MailboxRespHeader::FIPS_STATUS_APPROVED,
+            MailboxRespHeader::FIPS_STATUS_NOT_APPROVED_USER_SUPPLIED_KEY,
         );
         let rciphertext = rustcrypto_ctr_crypt(&keys[key_idx], &iv, &plaintext);
         assert_eq!(ciphertext, rciphertext);
@@ -1348,7 +1439,7 @@ fn test_aes_ctr_random_encrypt_decrypt() {
             &ciphertext,
             split,
             CmAesMode::Ctr,
-            MailboxRespHeader::FIPS_STATUS_APPROVED,
+            MailboxRespHeader::FIPS_STATUS_NOT_APPROVED_USER_SUPPLIED_KEY,
         );
         assert_eq!(dplaintext, plaintext);
     }
@@ -2014,7 +2105,7 @@ fn import_key(model: &mut DefaultHwModel, key: &[u8], key_usage: CmKeyUsage) -> 
     let cm_import_resp = CmImportResp::ref_from_bytes(resp.as_slice()).unwrap();
     assert_eq!(
         cm_import_resp.hdr.fips_status,
-        MailboxRespHeader::FIPS_STATUS_APPROVED
+        MailboxRespHeader::FIPS_STATUS_NOT_APPROVED_USER_SUPPLIED_KEY
     );
     cm_import_resp.cmk.clone()
 }
@@ -2182,7 +2273,7 @@ fn test_hmac_random() {
             };
             assert_eq!(
                 resp.hdr.hdr.fips_status,
-                MailboxRespHeader::FIPS_STATUS_APPROVED
+                MailboxRespHeader::FIPS_STATUS_NOT_APPROVED_USER_SUPPLIED_KEY
             );
             let len = resp.hdr.data_len as usize;
             assert!(len < MAX_CMB_DATA_SIZE);
@@ -2245,6 +2336,10 @@ fn test_hmac_kdf_counter_random() {
                 .unwrap();
             let resp = CmHmacKdfCounterResp::ref_from_bytes(resp_bytes.as_slice())
                 .expect("Response should be correct size");
+            assert_eq!(
+                resp.hdr.fips_status,
+                MailboxRespHeader::FIPS_STATUS_NOT_APPROVED_USER_SUPPLIED_KEY
+            );
 
             let cmk = &resp.kout;
 
@@ -2258,7 +2353,7 @@ fn test_hmac_kdf_counter_random() {
                 &[],
                 &plaintext,
                 MAX_CMB_DATA_SIZE,
-                MailboxRespHeader::FIPS_STATUS_APPROVED,
+                MailboxRespHeader::FIPS_STATUS_NOT_APPROVED_USER_SUPPLIED_KEY,
             );
             // encrypt with RustCrypto and check if everything matches
             let (rtag, rciphertext) = rustcrypto_gcm_encrypt(&key[..32], &iv, &[], &plaintext);
@@ -2378,7 +2473,7 @@ fn test_hkdf_random() {
                     .expect("Response should be correct size");
                 assert_eq!(
                     resp.hdr.fips_status,
-                    MailboxRespHeader::FIPS_STATUS_APPROVED
+                    MailboxRespHeader::FIPS_STATUS_NOT_APPROVED_USER_SUPPLIED_KEY
                 );
 
                 let len = seeded_rng.gen_range(0..MAX_CMB_DATA_SIZE);
@@ -2408,7 +2503,7 @@ fn test_hkdf_random() {
                     .expect("Response should be correct size");
                 assert_eq!(
                     resp.hdr.fips_status,
-                    MailboxRespHeader::FIPS_STATUS_APPROVED
+                    MailboxRespHeader::FIPS_STATUS_NOT_APPROVED_USER_SUPPLIED_KEY
                 );
 
                 let cmk = &resp.okm;
@@ -2422,7 +2517,7 @@ fn test_hkdf_random() {
                     &[],
                     &plaintext,
                     MAX_CMB_DATA_SIZE,
-                    MailboxRespHeader::FIPS_STATUS_APPROVED,
+                    MailboxRespHeader::FIPS_STATUS_NOT_APPROVED_USER_SUPPLIED_KEY,
                 );
                 // encrypt with RustCrypto and check if everything matches
                 let (rtag, rciphertext) = rustcrypto_gcm_encrypt(&key[..32], &iv, &[], &plaintext);
@@ -2466,7 +2561,7 @@ fn test_mlkem_hkdf() {
         let resp = CmMlkemKeyGenResp::ref_from_bytes(resp_bytes.as_slice()).unwrap();
         assert_eq!(
             resp.hdr.fips_status,
-            MailboxRespHeader::FIPS_STATUS_APPROVED
+            MailboxRespHeader::FIPS_STATUS_NOT_APPROVED_USER_SUPPLIED_KEY
         );
 
         // rustcrypto encap
@@ -2489,7 +2584,7 @@ fn test_mlkem_hkdf() {
         let ikm_cmk = CmMlkemDecapsulateResp::ref_from_bytes(resp_bytes.as_slice()).unwrap();
         assert_eq!(
             ikm_cmk.hdr.fips_status,
-            MailboxRespHeader::FIPS_STATUS_APPROVED
+            MailboxRespHeader::FIPS_STATUS_NOT_APPROVED_USER_SUPPLIED_KEY
         );
 
         // caliptra HKDF
@@ -2518,7 +2613,7 @@ fn test_mlkem_hkdf() {
             .expect("Response should be correct size");
         assert_eq!(
             resp.hdr.fips_status,
-            MailboxRespHeader::FIPS_STATUS_APPROVED
+            MailboxRespHeader::FIPS_STATUS_NOT_APPROVED_USER_SUPPLIED_KEY
         );
 
         let len = seeded_rng.gen_range(0..MAX_CMB_DATA_SIZE);
@@ -2548,7 +2643,7 @@ fn test_mlkem_hkdf() {
             .expect("Response should be correct size");
         assert_eq!(
             resp.hdr.fips_status,
-            MailboxRespHeader::FIPS_STATUS_APPROVED
+            MailboxRespHeader::FIPS_STATUS_NOT_APPROVED_USER_SUPPLIED_KEY
         );
 
         let cmk = &resp.okm;
@@ -2565,7 +2660,7 @@ fn test_mlkem_hkdf() {
             &[],
             &plaintext,
             MAX_CMB_DATA_SIZE,
-            MailboxRespHeader::FIPS_STATUS_APPROVED,
+            MailboxRespHeader::FIPS_STATUS_NOT_APPROVED_USER_SUPPLIED_KEY,
         );
         // encrypt with RustCrypto and check if everything matches
         let (rtag, rciphertext) = rustcrypto_gcm_encrypt(&key[..32], &iv, &[], &plaintext);
@@ -2600,7 +2695,7 @@ fn test_mldsa_public_key() {
     let resp = CmMldsaPublicKeyResp::ref_from_bytes(resp_bytes.as_slice()).unwrap();
     assert_eq!(
         resp.hdr.fips_status,
-        MailboxRespHeader::FIPS_STATUS_APPROVED
+        MailboxRespHeader::FIPS_STATUS_NOT_APPROVED_USER_SUPPLIED_KEY
     );
 
     let expected_public_key: [u8; 2592] = [
@@ -2877,7 +2972,7 @@ fn test_mldsa_sign_verify() {
         let resp = CmMldsaSignResp::ref_from_bytes(resp_bytes.as_slice()).unwrap();
         assert_eq!(
             resp.hdr.fips_status,
-            MailboxRespHeader::FIPS_STATUS_APPROVED
+            MailboxRespHeader::FIPS_STATUS_NOT_APPROVED_USER_SUPPLIED_KEY
         );
 
         let sign_seed = [0u8; 32];
@@ -2920,7 +3015,10 @@ fn test_mldsa_sign_verify() {
             .expect("Should have succeeded")
             .unwrap();
         let resp = MailboxRespHeader::ref_from_bytes(resp_bytes.as_slice()).unwrap();
-        assert_eq!(resp.fips_status, MailboxRespHeader::FIPS_STATUS_APPROVED);
+        assert_eq!(
+            resp.fips_status,
+            MailboxRespHeader::FIPS_STATUS_NOT_APPROVED_USER_SUPPLIED_KEY
+        );
     }
 }
 
@@ -2944,7 +3042,7 @@ fn test_ecdsa_public_key() {
     let resp = CmEcdsaPublicKeyResp::ref_from_bytes(resp_bytes.as_slice()).unwrap();
     assert_eq!(
         resp.hdr.fips_status,
-        MailboxRespHeader::FIPS_STATUS_APPROVED
+        MailboxRespHeader::FIPS_STATUS_NOT_APPROVED_USER_SUPPLIED_KEY
     );
 
     let expected_pub_key_x: [u8; 48] = [
@@ -3012,7 +3110,7 @@ fn test_ecdsa_sign_verify() {
         let resp = CmEcdsaSignResp::ref_from_bytes(resp_bytes.as_slice()).unwrap();
         assert_eq!(
             resp.hdr.fips_status,
-            MailboxRespHeader::FIPS_STATUS_APPROVED
+            MailboxRespHeader::FIPS_STATUS_NOT_APPROVED_USER_SUPPLIED_KEY
         );
 
         let mut hasher = Sha384::new();
@@ -3061,7 +3159,10 @@ fn test_ecdsa_sign_verify() {
             .expect("Should have succeeded")
             .unwrap();
         let resp = MailboxRespHeader::ref_from_bytes(resp_bytes.as_slice()).unwrap();
-        assert_eq!(resp.fips_status, MailboxRespHeader::FIPS_STATUS_APPROVED);
+        assert_eq!(
+            resp.fips_status,
+            MailboxRespHeader::FIPS_STATUS_NOT_APPROVED_USER_SUPPLIED_KEY
+        );
     }
 }
 
@@ -3792,7 +3893,7 @@ fn derive_stable_key(model: &mut DefaultHwModel, usage: CmKeyUsage, key_size: Op
 
     let response = CmHmacKdfCounterResp::ref_from_bytes(response.as_bytes()).unwrap();
     assert_eq!(
-        resp.hdr.fips_status,
+        response.hdr.fips_status,
         MailboxRespHeader::FIPS_STATUS_APPROVED
     );
     response.kout.clone()
@@ -3995,50 +4096,195 @@ fn test_stable_key_hkdf_fips_status() {
                 continue;
             }
             model.step_until_ready_for_runtime();
-            let cmk = derive_stable_key(&mut model, CmKeyUsage::Hmac, Some(size));
-            let expected_fips_status = MailboxRespHeader::FIPS_STATUS_APPROVED;
+            let approved = derive_stable_key(&mut model, CmKeyUsage::Hmac, Some(size));
+            let imported = import_key(&mut model, &vec![0; size as usize], CmKeyUsage::Hmac);
 
-            let salt_cmk = import_key(&mut model, &[0; 64], CmKeyUsage::Hmac);
+            for (ikm_approved, salt_approved) in
+                [(true, true), (true, false), (false, true), (false, false)]
+            {
+                let expected_fips_status =
+                    MailboxRespHeader::fips_status_for_key(ikm_approved && salt_approved);
+                let resp = model
+                    .mailbox_execute_req(CmHkdfExtractReq {
+                        ikm: if ikm_approved { &approved } else { &imported }.clone(),
+                        salt: if salt_approved { &approved } else { &imported }.clone(),
+                        hash_algorithm: hash_algorithm.into(),
+                        ..Default::default()
+                    })
+                    .unwrap();
+                assert_eq!(resp.hdr.fips_status, expected_fips_status);
 
-            let mut cm_hkdf_extract = MailboxReq::CmHkdfExtract(CmHkdfExtractReq {
-                ikm: cmk.clone(),
-                hash_algorithm: hash_algorithm.into(),
-                salt: salt_cmk,
-                ..Default::default()
-            });
-            cm_hkdf_extract.populate_chksum().unwrap();
+                let resp = model
+                    .mailbox_execute_req(CmHkdfExpandReq {
+                        prk: resp.prk,
+                        hash_algorithm: hash_algorithm.into(),
+                        key_usage: CmKeyUsage::Mldsa.into(),
+                        key_size: 32,
+                        ..Default::default()
+                    })
+                    .unwrap();
+                assert_eq!(resp.hdr.fips_status, expected_fips_status);
 
-            let resp_bytes = model
-                .mailbox_execute(
-                    u32::from(CommandId::CM_HKDF_EXTRACT),
-                    cm_hkdf_extract.as_bytes().unwrap(),
-                )
-                .expect("Should have succeeded")
+                let resp = model
+                    .mailbox_execute_req(CmMldsaPublicKeyReq {
+                        cmk: resp.okm,
+                        ..Default::default()
+                    })
+                    .unwrap();
+                assert_eq!(resp.hdr.fips_status, expected_fips_status);
+            }
+        }
+    }
+}
+
+#[test]
+fn test_import_fips_taint_transitive() {
+    let expected_fips_status = MailboxRespHeader::FIPS_STATUS_NOT_APPROVED_USER_SUPPLIED_KEY;
+    for &subsystem_mode in &HW_MODEL_MODES_SUBSYSTEM {
+        let mut model = run_rt_test(RuntimeTestArgs {
+            subsystem_mode,
+            ..Default::default()
+        });
+        if subsystem_mode != model.subsystem_mode() {
+            continue;
+        }
+        model.step_until_ready_for_runtime();
+
+        for (hash_algorithm, size) in [(CmHashAlgorithm::Sha384, 48), (CmHashAlgorithm::Sha512, 64)]
+        {
+            let imported = import_key(&mut model, &vec![0x42; size as usize], CmKeyUsage::Hmac);
+            let derived = model
+                .mailbox_execute_req(CmHmacKdfCounterReq {
+                    kin: imported,
+                    hash_algorithm: hash_algorithm.into(),
+                    key_usage: CmKeyUsage::Hmac.into(),
+                    key_size: size,
+                    ..Default::default()
+                })
                 .unwrap();
-            let resp = CmHkdfExtractResp::ref_from_bytes(resp_bytes.as_slice())
-                .expect("Response should be correct size");
+            assert_eq!(derived.hdr.fips_status, expected_fips_status);
+
+            let resp = model
+                .mailbox_execute_req(CmHmacReq {
+                    cmk: derived.kout.clone(),
+                    hash_algorithm: hash_algorithm.into(),
+                    ..Default::default()
+                })
+                .unwrap();
+            assert_eq!(resp.hdr.hdr.fips_status, expected_fips_status);
+            assert_eq!(resp.hdr.data_len, size);
+
+            let aes = model
+                .mailbox_execute_req(CmHmacKdfCounterReq {
+                    kin: derived.kout.clone(),
+                    hash_algorithm: hash_algorithm.into(),
+                    key_usage: CmKeyUsage::Aes.into(),
+                    key_size: 32,
+                    ..Default::default()
+                })
+                .unwrap();
+            assert_eq!(aes.hdr.fips_status, expected_fips_status);
+
+            let plaintext = [0xa5; 48];
+            for (mode, split) in [(CmAesMode::Cbc, 16), (CmAesMode::Ctr, 7)] {
+                let (iv, ciphertext) = mailbox_aes_encrypt(
+                    &mut model,
+                    &aes.kout,
+                    &plaintext,
+                    split,
+                    mode,
+                    expected_fips_status,
+                );
+                let decrypted = mailbox_aes_decrypt(
+                    &mut model,
+                    &aes.kout,
+                    &iv,
+                    &ciphertext,
+                    split,
+                    mode,
+                    expected_fips_status,
+                );
+                assert_eq!(decrypted, plaintext);
+            }
+            let (iv, tag, ciphertext) = mailbox_gcm_encrypt(
+                &mut model,
+                &aes.kout,
+                &[],
+                &plaintext,
+                7,
+                expected_fips_status,
+            );
+            let (ok, decrypted) = mailbox_gcm_decrypt(
+                &mut model,
+                &aes.kout,
+                &iv,
+                &[],
+                &ciphertext,
+                &tag,
+                7,
+                expected_fips_status,
+            );
+            assert!(ok);
+            assert_eq!(decrypted, plaintext);
+
+            let (tag, ciphertext) = mailbox_spdm_gcm_encrypt(
+                &mut model,
+                &derived.kout,
+                &[],
+                &plaintext,
+                0x12,
+                1,
+                false,
+                expected_fips_status,
+            );
+            let (ok, decrypted) = mailbox_spdm_gcm_decrypt(
+                &mut model,
+                &derived.kout,
+                &[],
+                &ciphertext,
+                &tag,
+                0x12,
+                1,
+                false,
+                expected_fips_status,
+            );
+            assert!(ok);
+            assert_eq!(decrypted, plaintext);
+
+            let ecdsa = model
+                .mailbox_execute_req(CmHmacKdfCounterReq {
+                    kin: derived.kout.clone(),
+                    hash_algorithm: hash_algorithm.into(),
+                    key_usage: CmKeyUsage::Ecdsa.into(),
+                    key_size: 48,
+                    ..Default::default()
+                })
+                .unwrap();
+            assert_eq!(ecdsa.hdr.fips_status, expected_fips_status);
+            let resp = model
+                .mailbox_execute_req(CmEcdsaPublicKeyReq {
+                    cmk: ecdsa.kout,
+                    ..Default::default()
+                })
+                .unwrap();
             assert_eq!(resp.hdr.fips_status, expected_fips_status);
 
-            let cm_hkdf_expand = CmHkdfExpandReq {
-                prk: resp.prk.clone(),
-                hash_algorithm: hash_algorithm.into(),
-                key_usage: CmKeyUsage::Mldsa.into(),
-                key_size: 32,
-                info_size: 0,
-                ..Default::default()
-            };
-            let mut cm_hkdf_expand = MailboxReq::CmHkdfExpand(cm_hkdf_expand);
-            cm_hkdf_expand.populate_chksum().unwrap();
-
-            let resp_bytes = model
-                .mailbox_execute(
-                    u32::from(CommandId::CM_HKDF_EXPAND),
-                    cm_hkdf_expand.as_bytes().unwrap(),
-                )
-                .expect("Should have succeeded")
+            let mldsa = model
+                .mailbox_execute_req(CmHmacKdfCounterReq {
+                    kin: derived.kout,
+                    hash_algorithm: hash_algorithm.into(),
+                    key_usage: CmKeyUsage::Mldsa.into(),
+                    key_size: 32,
+                    ..Default::default()
+                })
                 .unwrap();
-            let resp = CmHkdfExpandResp::ref_from_bytes(resp_bytes.as_slice())
-                .expect("Response should be correct size");
+            assert_eq!(mldsa.hdr.fips_status, expected_fips_status);
+            let resp = model
+                .mailbox_execute_req(CmMldsaPublicKeyReq {
+                    cmk: mldsa.kout,
+                    ..Default::default()
+                })
+                .unwrap();
             assert_eq!(resp.hdr.fips_status, expected_fips_status);
         }
     }
@@ -4788,7 +5034,7 @@ fn test_mlkem_key_gen() {
     let resp = CmMlkemKeyGenResp::ref_from_bytes(resp_bytes.as_slice()).unwrap();
     assert_eq!(
         resp.hdr.fips_status,
-        MailboxRespHeader::FIPS_STATUS_APPROVED
+        MailboxRespHeader::FIPS_STATUS_NOT_APPROVED_USER_SUPPLIED_KEY
     );
 
     // Verify the encaps key is not all zeros (it should be a valid key)
@@ -4841,7 +5087,7 @@ fn test_mlkem_encapsulate_decapsulate() {
     let key_gen_resp = CmMlkemKeyGenResp::ref_from_bytes(resp_bytes.as_slice()).unwrap();
     assert_eq!(
         key_gen_resp.hdr.fips_status,
-        MailboxRespHeader::FIPS_STATUS_APPROVED
+        MailboxRespHeader::FIPS_STATUS_NOT_APPROVED_USER_SUPPLIED_KEY
     );
 
     // Step 2: Encapsulate using the encapsulation key
@@ -4880,7 +5126,7 @@ fn test_mlkem_encapsulate_decapsulate() {
     let decaps_resp = CmMlkemDecapsulateResp::ref_from_bytes(resp_bytes.as_slice()).unwrap();
     assert_eq!(
         decaps_resp.hdr.fips_status,
-        MailboxRespHeader::FIPS_STATUS_APPROVED
+        MailboxRespHeader::FIPS_STATUS_NOT_APPROVED_USER_SUPPLIED_KEY
     );
 
     // Verify both CMKs contain the same shared key by using one to encrypt
@@ -4902,7 +5148,7 @@ fn test_mlkem_encapsulate_decapsulate() {
         &ciphertext,
         &tag,
         MAX_CMB_DATA_SIZE,
-        MailboxRespHeader::FIPS_STATUS_APPROVED,
+        MailboxRespHeader::FIPS_STATUS_NOT_APPROVED_USER_SUPPLIED_KEY,
     );
     assert!(success, "Decryption with decapsulate CMK must succeed");
     assert_eq!(
@@ -5016,7 +5262,7 @@ fn test_mlkem_multiple_encapsulate_decapsulate() {
             &ciphertext,
             &tag,
             MAX_CMB_DATA_SIZE,
-            MailboxRespHeader::FIPS_STATUS_APPROVED,
+            MailboxRespHeader::FIPS_STATUS_NOT_APPROVED_USER_SUPPLIED_KEY,
         );
         assert!(success, "Shared keys must match in iteration {i}");
         assert_eq!(
@@ -5099,7 +5345,7 @@ fn test_mlkem_corrupt_ciphertext() {
     let decaps_resp = CmMlkemDecapsulateResp::ref_from_bytes(resp_bytes.as_slice()).unwrap();
     assert_eq!(
         decaps_resp.hdr.fips_status,
-        MailboxRespHeader::FIPS_STATUS_APPROVED
+        MailboxRespHeader::FIPS_STATUS_NOT_APPROVED_USER_SUPPLIED_KEY
     );
 
     // The shared key should NOT match when ciphertext is corrupted —
@@ -5113,7 +5359,7 @@ fn test_mlkem_corrupt_ciphertext() {
         &ciphertext,
         &tag,
         MAX_CMB_DATA_SIZE,
-        MailboxRespHeader::FIPS_STATUS_APPROVED,
+        MailboxRespHeader::FIPS_STATUS_NOT_APPROVED_USER_SUPPLIED_KEY,
     );
     assert!(
         !success,
@@ -5146,7 +5392,7 @@ fn test_gcm_streaming_ghash_tamper_undetected_mailbox() {
         &[],
         &plaintext,
         32,
-        MailboxRespHeader::FIPS_STATUS_APPROVED,
+        MailboxRespHeader::FIPS_STATUS_NOT_APPROVED_USER_SUPPLIED_KEY,
     );
 
     assert_eq!(ciphertext.len(), plaintext.len());
@@ -5178,7 +5424,7 @@ fn test_gcm_streaming_ghash_tamper_undetected_mailbox() {
         &tampered_ct,
         &tag,
         32,
-        MailboxRespHeader::FIPS_STATUS_APPROVED,
+        MailboxRespHeader::FIPS_STATUS_NOT_APPROVED_USER_SUPPLIED_KEY,
     );
     assert_ne!(plaintext[..48], decrypted[..48]);
     assert!(!tag_verified);
@@ -5226,7 +5472,7 @@ fn test_aes_gcm_empty_aad_small_chunks() {
                 &[],
                 &plaintext,
                 split,
-                MailboxRespHeader::FIPS_STATUS_APPROVED,
+                MailboxRespHeader::FIPS_STATUS_NOT_APPROVED_USER_SUPPLIED_KEY,
             );
             let (ref_tag, ref_ct) = rustcrypto_gcm_encrypt(&key, &iv, &[], &plaintext);
             assert_eq!(
@@ -5248,7 +5494,7 @@ fn test_aes_gcm_empty_aad_small_chunks() {
                 &ciphertext,
                 &tag,
                 split,
-                MailboxRespHeader::FIPS_STATUS_APPROVED,
+                MailboxRespHeader::FIPS_STATUS_NOT_APPROVED_USER_SUPPLIED_KEY,
             );
             assert!(
                 ok,
@@ -5275,7 +5521,7 @@ fn test_aes_gcm_empty_aad_small_chunks() {
                     &tampered,
                     &tag,
                     split,
-                    MailboxRespHeader::FIPS_STATUS_APPROVED,
+                    MailboxRespHeader::FIPS_STATUS_NOT_APPROVED_USER_SUPPLIED_KEY,
                 );
                 assert!(
                     !ok,

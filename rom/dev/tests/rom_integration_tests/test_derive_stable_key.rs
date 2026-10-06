@@ -197,6 +197,8 @@ fn test_derive_stable_key() {
 
             let cmk = parse_encrypted_cmk(&cmk);
             let cmk = decrypt_cmk(&aes_key, &cmk).unwrap();
+            assert!(cmk.fips_approved());
+            assert_eq!(cmk.to_mailbox_fips_status(), expected_fips_status);
 
             let computed_mac = hmac512(&cmk.key_material, &data);
             assert_eq!(computed_mac, expected_mac);

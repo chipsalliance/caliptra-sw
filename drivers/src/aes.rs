@@ -23,7 +23,7 @@ use crate::{
     CaliptraError, CaliptraResult, KeyId, KeyReadArgs, KeyUsage, KeyWriteArgs, LEArray4x16,
     LEArray4x3, LEArray4x4, LEArray4x8, Trng,
 };
-use caliptra_api::mailbox::CmAesMode;
+use caliptra_api::mailbox::{CmAesMode, MailboxRespHeader};
 #[cfg(feature = "cfi")]
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_registers::{aes::AesReg, aes_clp::AesClpReg};
@@ -124,26 +124,66 @@ pub enum GcmPhase {
     Tag = 1 << 5,
 }
 
-#[derive(Clone, Copy, Debug, Eq, FromBytes, Immutable, IntoBytes, KnownLayout, PartialEq)]
+// Preserve the existing serialized offsets, using the first reserved byte for approval.
+#[repr(C)]
+#[derive(
+    Clone, Copy, Debug, Default, Eq, FromBytes, Immutable, IntoBytes, KnownLayout, PartialEq,
+)]
 pub struct AesGcmContext {
     pub key: AesKeyBlock,
+    pub ghash_state: AesBlock,
+    pub buffer: [u8; 16],
+    fips_approved: u8,
+    pub reserved: [u8; 15],
     pub iv: LEArray4x3,
     pub aad_len: u32,
-    pub ghash_state: AesBlock,
     pub buffer_len: u32,
-    pub buffer: [u8; 16],
-    pub reserved: [u32; 4],
+}
+
+impl AesGcmContext {
+    /// Whether the context's key is FIPS approved.
+    pub fn fips_approved(&self) -> bool {
+        self.fips_approved == 1
+    }
+
+    /// Sets approval derived from authenticated key metadata.
+    pub fn set_fips_approved(&mut self, fips_approved: bool) {
+        self.fips_approved = u8::from(fips_approved);
+    }
+
+    pub fn to_mailbox_fips_status(&self) -> u32 {
+        MailboxRespHeader::fips_status_for_key(self.fips_approved())
+    }
 }
 
 const _: () = assert!(core::mem::size_of::<AesGcmContext>() == AES_GCM_CONTEXT_SIZE_BYTES);
 
+// Preserve the existing serialized offsets, using the first padding byte for approval.
+#[repr(C)]
 #[derive(Clone, Copy, Debug, Eq, FromBytes, Immutable, IntoBytes, KnownLayout, PartialEq)]
 pub struct AesContext {
-    pub mode: u32,
     pub key: AesKeyBlock,
     pub last_ciphertext: AesBlock,
+    pub mode: u32,
     pub last_block_index: u8,
-    _padding: [u8; 75],
+    fips_approved: u8,
+    _padding: [u8; 74],
+}
+
+impl AesContext {
+    /// Whether the context's key is FIPS approved.
+    pub fn fips_approved(&self) -> bool {
+        self.fips_approved == 1
+    }
+
+    /// Sets approval derived from authenticated key metadata.
+    pub fn set_fips_approved(&mut self, fips_approved: bool) {
+        self.fips_approved = u8::from(fips_approved);
+    }
+
+    pub fn to_mailbox_fips_status(&self) -> u32 {
+        MailboxRespHeader::fips_status_for_key(self.fips_approved())
+    }
 }
 
 impl Default for AesContext {
@@ -153,7 +193,8 @@ impl Default for AesContext {
             key: AesKeyBlock::default(),
             last_ciphertext: AesBlock::default(),
             last_block_index: 0,
-            _padding: [0; 75],
+            fips_approved: 0,
+            _padding: [0; 74],
         }
     }
 }
@@ -275,7 +316,8 @@ impl Aes {
             ghash_state,
             buffer_len: 0,
             buffer: [0; 16],
-            reserved: [0; 4],
+            fips_approved: 0,
+            reserved: [0; 15],
         })
     }
 
@@ -334,7 +376,8 @@ impl Aes {
                     ghash_state: context.ghash_state,
                     buffer_len: len as u32,
                     buffer,
-                    reserved: [0; 4],
+                    fips_approved: context.fips_approved,
+                    reserved: [0; 15],
                 },
             ));
         }
@@ -396,7 +439,8 @@ impl Aes {
                 ghash_state,
                 buffer_len: len as u32,
                 buffer,
-                reserved: [0; 4],
+                fips_approved: context.fips_approved,
+                reserved: [0; 15],
             },
         ))
     }
@@ -1676,5 +1720,154 @@ impl AesCmacOp for Aes {
 impl AesCmacOp for AesGcm {
     fn cmac(&mut self, key: AesKey, message: &[u8]) -> CaliptraResult<LEArray4x4> {
         AesGcm::cmac(self, key, message)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use core::mem::{align_of, offset_of, size_of};
+
+    #[test]
+    fn test_aes_context_layout() {
+        assert_eq!(size_of::<AesContext>(), AES_CONTEXT_SIZE_BYTES);
+        assert_eq!(align_of::<AesContext>(), 4);
+        assert_eq!(offset_of!(AesContext, key), 0);
+        assert_eq!(offset_of!(AesContext, last_ciphertext), 32);
+        assert_eq!(offset_of!(AesContext, mode), 48);
+        assert_eq!(offset_of!(AesContext, last_block_index), 52);
+        assert_eq!(offset_of!(AesContext, fips_approved), 53);
+        assert_eq!(offset_of!(AesContext, _padding), 54);
+    }
+
+    #[test]
+    fn test_aes_gcm_context_layout() {
+        assert_eq!(size_of::<AesGcmContext>(), AES_GCM_CONTEXT_SIZE_BYTES);
+        assert_eq!(align_of::<AesGcmContext>(), 4);
+        assert_eq!(offset_of!(AesGcmContext, key), 0);
+        assert_eq!(offset_of!(AesGcmContext, ghash_state), 32);
+        assert_eq!(offset_of!(AesGcmContext, buffer), 48);
+        assert_eq!(offset_of!(AesGcmContext, fips_approved), 64);
+        assert_eq!(offset_of!(AesGcmContext, reserved), 65);
+        assert_eq!(offset_of!(AesGcmContext, iv), 80);
+        assert_eq!(offset_of!(AesGcmContext, aad_len), 92);
+        assert_eq!(offset_of!(AesGcmContext, buffer_len), 96);
+    }
+
+    #[test]
+    fn test_context_defaults_non_approved() {
+        let context = AesContext::default();
+        assert_eq!(context.as_bytes(), &[0; AES_CONTEXT_SIZE_BYTES]);
+        assert!(!context.fips_approved());
+        assert_eq!(
+            context.to_mailbox_fips_status(),
+            MailboxRespHeader::FIPS_STATUS_NOT_APPROVED_USER_SUPPLIED_KEY
+        );
+        assert_eq!(
+            AesContext::read_from_bytes(&[0; AES_CONTEXT_SIZE_BYTES]).unwrap(),
+            context
+        );
+
+        let context = AesGcmContext::default();
+        assert_eq!(context.as_bytes(), &[0; AES_GCM_CONTEXT_SIZE_BYTES]);
+        assert!(!context.fips_approved());
+        assert_eq!(
+            context.to_mailbox_fips_status(),
+            MailboxRespHeader::FIPS_STATUS_NOT_APPROVED_USER_SUPPLIED_KEY
+        );
+        assert_eq!(
+            AesGcmContext::read_from_bytes(&[0; AES_GCM_CONTEXT_SIZE_BYTES]).unwrap(),
+            context
+        );
+    }
+
+    #[test]
+    fn test_aes_context_fips_round_trip() {
+        let mut context = AesContext {
+            mode: CmAesMode::Ctr as u32,
+            key: AesKeyBlock::new([0x1122_3344; 8]),
+            last_ciphertext: AesBlock::new([0x5566_7788; 4]),
+            last_block_index: 7,
+            _padding: [0xee; 74],
+            ..Default::default()
+        };
+        let original_bytes: [u8; AES_CONTEXT_SIZE_BYTES] = context.as_bytes().try_into().unwrap();
+
+        for approved in [true, false] {
+            context.set_fips_approved(approved);
+            assert_eq!(context.as_bytes()[53], u8::from(approved));
+            assert_eq!(&context.as_bytes()[..53], &original_bytes[..53]);
+            assert_eq!(&context.as_bytes()[54..], &original_bytes[54..]);
+
+            let decoded = AesContext::read_from_bytes(context.as_bytes()).unwrap();
+            assert_eq!(decoded, context);
+            assert_eq!(decoded.fips_approved(), approved);
+            assert_eq!(
+                decoded.to_mailbox_fips_status(),
+                if approved {
+                    MailboxRespHeader::FIPS_STATUS_APPROVED
+                } else {
+                    MailboxRespHeader::FIPS_STATUS_NOT_APPROVED_USER_SUPPLIED_KEY
+                }
+            );
+        }
+    }
+
+    #[test]
+    fn test_aes_gcm_context_fips_round_trip() {
+        let mut context = AesGcmContext {
+            key: AesKeyBlock::new([0x1122_3344; 8]),
+            iv: LEArray4x3::new([0x5566_7788; 3]),
+            aad_len: 19,
+            ghash_state: AesBlock::new([0x99aa_bbcc; 4]),
+            buffer_len: 23,
+            buffer: [0xdd; 16],
+            reserved: [0xee; 15],
+            ..Default::default()
+        };
+        let original_bytes: [u8; AES_GCM_CONTEXT_SIZE_BYTES] =
+            context.as_bytes().try_into().unwrap();
+
+        for approved in [true, false] {
+            context.set_fips_approved(approved);
+            assert_eq!(context.as_bytes()[64], u8::from(approved));
+            assert_eq!(&context.as_bytes()[..64], &original_bytes[..64]);
+            assert_eq!(&context.as_bytes()[65..], &original_bytes[65..]);
+
+            let decoded = AesGcmContext::read_from_bytes(context.as_bytes()).unwrap();
+            assert_eq!(decoded, context);
+            assert_eq!(decoded.fips_approved(), approved);
+            assert_eq!(
+                decoded.to_mailbox_fips_status(),
+                if approved {
+                    MailboxRespHeader::FIPS_STATUS_APPROVED
+                } else {
+                    MailboxRespHeader::FIPS_STATUS_NOT_APPROVED_USER_SUPPLIED_KEY
+                }
+            );
+        }
+    }
+
+    #[test]
+    fn test_noncanonical_approval_not_approved() {
+        for approval in [2, u8::MAX] {
+            let mut bytes = [0; AES_CONTEXT_SIZE_BYTES];
+            bytes[53] = approval;
+            let context = AesContext::read_from_bytes(&bytes).unwrap();
+            assert!(!context.fips_approved());
+            assert_eq!(
+                context.to_mailbox_fips_status(),
+                MailboxRespHeader::FIPS_STATUS_NOT_APPROVED_USER_SUPPLIED_KEY
+            );
+
+            let mut bytes = [0; AES_GCM_CONTEXT_SIZE_BYTES];
+            bytes[64] = approval;
+            let context = AesGcmContext::read_from_bytes(&bytes).unwrap();
+            assert!(!context.fips_approved());
+            assert_eq!(
+                context.to_mailbox_fips_status(),
+                MailboxRespHeader::FIPS_STATUS_NOT_APPROVED_USER_SUPPLIED_KEY
+            );
+        }
     }
 }

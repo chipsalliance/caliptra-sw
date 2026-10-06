@@ -1222,6 +1222,7 @@ impl FirmwareProcessor {
         // Convert the tag to CMK
         let unencrypted_cmk = UnencryptedCmk {
             version: 1,
+            flags: UnencryptedCmk::FIPS_APPROVED,
             length: key_material.len() as u16,
             key_usage: CmKeyUsage::Hmac as u32 as u8,
             id: [0u8; 3],

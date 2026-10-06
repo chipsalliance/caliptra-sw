@@ -1688,7 +1688,9 @@ pub trait HwModel: SocManager {
 
         let cm_import_resp = CmImportResp::ref_from_bytes(resp.as_slice())
             .map_err(|_| ModelError::MailboxNoResponseData)?;
-        if cm_import_resp.hdr.fips_status != MailboxRespHeader::FIPS_STATUS_APPROVED {
+        if cm_import_resp.hdr.fips_status
+            != MailboxRespHeader::FIPS_STATUS_NOT_APPROVED_USER_SUPPLIED_KEY
+        {
             return Err(ModelError::MailboxRespInvalidFipsStatus(
                 cm_import_resp.hdr.fips_status,
             ));
@@ -1724,6 +1726,13 @@ pub trait HwModel: SocManager {
 
         let decrypt_resp = CmAesGcmDecryptDmaResp::ref_from_bytes(resp.as_slice())
             .map_err(|_| ModelError::MailboxNoResponseData)?;
+        if decrypt_resp.hdr.fips_status
+            != MailboxRespHeader::FIPS_STATUS_NOT_APPROVED_USER_SUPPLIED_KEY
+        {
+            return Err(ModelError::MailboxRespInvalidFipsStatus(
+                decrypt_resp.hdr.fips_status,
+            ));
+        }
         if decrypt_resp.tag_verified != 1 {
             return Err(ModelError::MailboxCmdFailed(0));
         }
@@ -2422,6 +2431,25 @@ mod tests {
                 data: *b"HI!!",
             },
         );
+
+        for fips_status in [
+            MailboxRespHeader::FIPS_STATUS_NOT_APPROVED_USER_SUPPLIED_DIGEST,
+            MailboxRespHeader::FIPS_STATUS_NOT_APPROVED_USER_SUPPLIED_KEY,
+        ] {
+            let mut expected = TestResp {
+                hdr: MailboxRespHeader {
+                    fips_status,
+                    ..Default::default()
+                },
+                data: *b"HI!!",
+            };
+            mailbox::Response::populate_chksum(&mut expected);
+            set_response(&mut model, expected.as_bytes());
+            let resp = model
+                .mailbox_exec_req(TestReq::default(), &mut packet)
+                .unwrap();
+            assert_eq!(resp, expected);
+        }
 
         // Set wrong length in response
         set_response(
