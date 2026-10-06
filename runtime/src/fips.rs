@@ -126,7 +126,7 @@ pub mod fips_self_test_cmd {
                 data_vault: &env.persistent_data.get().rom.data_vault,
                 pcr_bank: &mut env.pcr_bank,
                 image_source,
-                persistent_data: &env.persistent_data.get(),
+                persistent_data: env.persistent_data.get(),
             };
 
             let mut verifier = ImageVerifier::new(&mut venv);

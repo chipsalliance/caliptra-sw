@@ -700,6 +700,18 @@ pub mod rom_tests {
         bin_name: "pmp_tests",
         ..BASE_FWID
     };
+
+    // ROM with stash-measurement-registers feature on but without hardware revision
+    // specified, only used in ROM integration tests to make sure the mailbox command
+    // is handled correctly.
+    pub const ROM_WITH_STASH_MEASUREMENT_FEATURE: FwId = FwId {
+        crate_name: "caliptra-rom",
+        bin_name: "caliptra-rom",
+        fw_type: FirmwareType::Source {
+            features: &["cfi", "stash-measurement-registers"],
+            hw_revision: None,
+        },
+    };
 }
 
 pub mod runtime_tests {
@@ -883,6 +895,7 @@ pub const REGISTERED_FW: &[&FwId] = &[
     &rom_tests::FAKE_TEST_FMC_INTERACTIVE,
     &rom_tests::TEST_RT_WITH_UART,
     &rom_tests::TEST_PMP_TESTS,
+    &rom_tests::ROM_WITH_STASH_MEASUREMENT_FEATURE,
     &runtime_tests::BOOT,
     &runtime_tests::MBOX,
     &runtime_tests::MBOX_FPGA,

@@ -76,7 +76,7 @@ This script provides a number of configuration options for features that can be 
 | GUI         | Open the Vivado GUI.
 | ITRNG       | Enable Caliptra's ITRNG.
 | CG_EN       | Removes FPGA optimizations and allows clock gating.
-| RTL_VERSION | RTL directory under hw/. latest or 1.0.
+| RTL_VERSION | Hardware revision directory under `hw/`. `latest` or `rev-2_1`.
 | BOARD       | VCK190 or VMK180 (TODO: VMK180 not fully enabled)
 
  - Build FPGA image without GUI

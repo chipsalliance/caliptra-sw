@@ -461,7 +461,12 @@ fn execute_command(
         CommandId::SHUTDOWN => FipsShutdownCmd::execute(drivers),
         CommandId::SET_AUTH_MANIFEST => SetAuthManifestCmd::execute(drivers, cmd_bytes, false),
         CommandId::VERIFY_AUTH_MANIFEST => SetAuthManifestCmd::execute(drivers, cmd_bytes, true),
-        CommandId::SET_OWNER_AUTH_MANIFEST => SetOwnerAuthManifestCmd::execute(drivers, cmd_bytes),
+        CommandId::SET_OWNER_AUTH_MANIFEST => {
+            SetOwnerAuthManifestCmd::execute(drivers, cmd_bytes, false)
+        }
+        CommandId::VERIFY_OWNER_AUTH_MANIFEST => {
+            SetOwnerAuthManifestCmd::execute(drivers, cmd_bytes, true)
+        }
         CommandId::GET_IDEV_ECC384_CSR => GetIdevCsrCmd::execute(drivers, resp),
         CommandId::GET_IDEV_MLDSA87_CSR => GetIdevMldsaCsrCmd::execute(drivers, resp),
         CommandId::GET_FMC_ALIAS_ECC384_CSR => GetFmcAliasCsrCmd::execute(drivers, resp),

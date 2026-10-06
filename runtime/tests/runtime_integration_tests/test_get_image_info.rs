@@ -2,7 +2,7 @@
 
 use crate::test_authorize_and_stash::set_auth_manifest;
 use crate::test_set_auth_manifest::create_auth_manifest_with_metadata;
-use caliptra_api::mailbox::{GetImageInfoReq, GetImageInfoResp};
+use caliptra_api::mailbox::{AuthManifestSource, GetImageInfoReq, GetImageInfoResp};
 use caliptra_auth_man_types::{Addr64, AuthManifestImageMetadata, ImageMetadataFlags};
 use caliptra_common::mailbox_api::{CommandId, ImageHashSource, MailboxReq, MailboxReqHeader};
 use caliptra_hw_model::HwModel;
@@ -61,6 +61,7 @@ fn test_get_image_info_success() {
     let mut get_image_info_cmd = MailboxReq::GetImageInfo(GetImageInfoReq {
         hdr: MailboxReqHeader { chksum: 0 },
         fw_id: FW_ID_1.to_le_bytes(),
+        flags: AuthManifestSource::VendorOwner.flag_bits(),
     });
 
     get_image_info_cmd.populate_chksum().unwrap();
@@ -119,6 +120,7 @@ fn test_get_image_info_2() {
     let mut get_image_info_cmd = MailboxReq::GetImageInfo(GetImageInfoReq {
         hdr: MailboxReqHeader { chksum: 0 },
         fw_id: FW_ID_2.to_le_bytes(),
+        flags: AuthManifestSource::VendorOwner.flag_bits(),
     });
 
     get_image_info_cmd.populate_chksum().unwrap();
@@ -177,6 +179,7 @@ fn test_get_image_info_non_existent() {
     let mut get_image_info_cmd = MailboxReq::GetImageInfo(GetImageInfoReq {
         hdr: MailboxReqHeader { chksum: 0 },
         fw_id: FW_ID_BAD.to_le_bytes(),
+        flags: AuthManifestSource::VendorOwner.flag_bits(),
     });
 
     get_image_info_cmd.populate_chksum().unwrap();
