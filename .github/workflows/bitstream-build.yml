@@ -26,39 +26,50 @@ jobs:
           submodules: 'recursive'
 
       - name: Create Core bitstream
+        env:
+          STAGING_DIR: ${{ runner.temp }}/bitstream
         run: |
           source /vck190-tools/Vivado/2024.2/settings64.sh
+          mkdir -p "$STAGING_DIR"
           cd hw/fpga/
           /vck190-tools/Vivado/2024.2/bin/vivado -mode batch -source fpga_configuration.tcl -tclargs BUILD=TRUE SEGMENTED=${{ matrix.segmented }}
-          cp caliptra_build/*.xsa /tmp/ || true
-          cp caliptra_build/*.pdi /tmp/ || true
+          cp caliptra_build/*.xsa "$STAGING_DIR/" || true
+          cp caliptra_build/*.pdi "$STAGING_DIR/" || true
 
       - name: 'Upload bitstream'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a #v7.0.1
         with:
           name: caliptra-bitstream-${{ matrix.segmented }}
           path: |
-            /tmp/*.xsa
-            /tmp/*.pdi
+            ${{ runner.temp }}/bitstream/*.xsa
+            ${{ runner.temp }}/bitstream/*.pdi
           retention-days: 7
 
       - name: Bundle bitstream
+        env:
+          STAGING_DIR: ${{ runner.temp }}/bitstream
         run: |
           SEGMENTED_ARG=""
           if [ "${{ matrix.segmented }}" = "true" ]; then
             SEGMENTED_ARG="--segmented"
           fi
           
-          # Find the xsa and pdi files in /tmp
-          XSA_FILE=$(ls /tmp/*.xsa 2>/dev/null | head -n 1)
-          PDI_FILE=$(ls /tmp/*.pdi 2>/dev/null | head -n 1)
+          # Find the xsa and pdi files in the staging directory
+          XSA_FILE=$(ls "$STAGING_DIR"/*.xsa 2>/dev/null | head -n 1)
+          PDI_FILE=$(ls "$STAGING_DIR"/*.pdi 2>/dev/null | head -n 1)
+
+          if [ -z "$XSA_FILE" ]; then
+            echo "Error: no .xsa file produced by the bitstream build"
+            exit 1
+          fi
 
           PDI_ARG=""
           if [ -n "$PDI_FILE" ]; then
             PDI_ARG="--pdi-file $PDI_FILE"
           fi
 
-          # Leave a copy for the uploader
+          # The bundle is left in the checkout (inside the runner's _work volume)
+          # so the host-side post-job hook can find it and upload it to GCS.
           mkdir manifest-bundle
           
           caliptra-bitstream-downloader bundle-manifest \
@@ -74,20 +85,18 @@ jobs:
             $PDI_ARG \
             --output-dir manifest-bundle
 
-          cp manifest-bundle/caliptra-bitstream.tar.gz /tmp
-
       - name: 'Upload bitstream bundle'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a #v7.0.1
         with:
           name: caliptra-bitstream-bundle-${{ matrix.segmented && 'segmented' || 'standard' }}
-          path: /tmp/caliptra-bitstream.tar.gz
+          path: manifest-bundle/caliptra-bitstream.tar.gz
           retention-days: 7
 
+      # Both matrix jobs would otherwise upload a manifest to the same GCS path
+      # (v1/<sha>/manifest.toml); only the segmented build is used by the FPGA CI.
       - name: Clean up bundle for non-segmented build
         if: matrix.segmented == false
-        run: |
-          rm -rf manifest-bundle
-          rm -f /tmp/caliptra-bitstream.tar.gz
+        run: rm -rf manifest-bundle
 
   open-pr:
     needs: build-bitstream
