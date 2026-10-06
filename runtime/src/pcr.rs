@@ -19,7 +19,7 @@ use caliptra_common::mailbox_api::{
     ExtendPcrReq, GetPcrLogResp, IncrementPcrResetCounterReq, MailboxRespHeader, QuotePcrsReq,
     QuotePcrsResp,
 };
-use caliptra_drivers::{CaliptraError, CaliptraResult, PcrId};
+use caliptra_drivers::{CaliptraError, CaliptraResult, PcrBank, PcrId};
 use zerocopy::{FromZeros, IntoBytes};
 
 pub struct IncrementPcrResetCounterCmd;
@@ -54,22 +54,18 @@ impl GetPcrQuoteCmd {
 
         let pcr_hash = drivers.sha384.gen_pcr_hash(args.nonce.into())?;
         let signature = drivers.ecc384.pcr_sign_flow(&mut drivers.trng)?;
-        let raw_pcrs = drivers.pcr_bank.read_all_pcrs();
 
-        let mut pcrs = [[0u8; 48]; 32];
-        for (i, p) in raw_pcrs.iter().enumerate() {
-            pcrs[i] = p.into()
+        // Build the response in place to avoid large intermediate PCR arrays.
+        let mut resp = QuotePcrsResp::new_zeroed();
+        resp.hdr = MailboxRespHeader::default();
+        for (dst, id) in resp.pcrs.iter_mut().zip(PcrBank::ALL_PCR_IDS) {
+            *dst = drivers.pcr_bank.read_pcr(id).into();
         }
-
-        let mut resp = QuotePcrsResp {
-            hdr: MailboxRespHeader::default(),
-            nonce: args.nonce,
-            pcrs,
-            reset_ctrs: drivers.persistent_data.get().pcr_reset.all_counters(),
-            digest: pcr_hash.into(),
-            signature_r: signature.r.into(),
-            signature_s: signature.s.into(),
-        };
+        resp.nonce = args.nonce;
+        resp.reset_ctrs = drivers.persistent_data.get().pcr_reset.all_counters();
+        resp.digest = pcr_hash.into();
+        resp.signature_r = signature.r.into();
+        resp.signature_s = signature.s.into();
         copy_to_mbox(drivers, resp.as_mut_bytes())
     }
 }
