@@ -19,10 +19,11 @@ use crate::packet::copy_from_mbox;
 use crate::Drivers;
 use caliptra_auth_man_types::{
     AuthManifestFlags, AuthManifestImageMetadata, AuthManifestImageMetadataCollection,
-    AuthManifestPreamble, AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT, AUTH_MANIFEST_MARKER,
+    AuthManifestPreamble, AuthManifestSignatures, AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT,
+    AUTH_MANIFEST_MARKER,
 };
 use caliptra_cfi_derive::cfi_impl_fn;
-use caliptra_cfi_lib::cfi_launder;
+use caliptra_cfi_lib::{cfi_assert, cfi_assert_bool, cfi_launder};
 use caliptra_common::mailbox_api::{MailboxRespHeader, SetAuthManifestReq};
 use caliptra_drivers::{
     Array4x12, Array4xN, CaliptraError, CaliptraResult, Ecc384, Ecc384PubKey, Ecc384Signature,
@@ -34,6 +35,13 @@ use caliptra_image_types::{
 };
 use zerocopy::{FromBytes, FromZeros, IntoBytes};
 use zeroize::Zeroize;
+
+/// Which party's signatures are being verified.
+#[derive(Clone, Copy)]
+enum Signer {
+    Vendor,
+    Owner,
+}
 
 pub struct SetAuthManifestCmd;
 impl SetAuthManifestCmd {
@@ -90,6 +98,61 @@ impl SetAuthManifestCmd {
         Lms::default().verify_lms_signature_cfi(sha256, &message, pub_key, sig)
     }
 
+    /// Verify the ECC (and, if enabled, LMS) signatures in `sigs` over `digest`.
+    ///
+    /// `ecc_key` / `lms_key` are `None` if the key could not be located; this is
+    /// reported as the corresponding signature-invalid error. `lms_key` is only
+    /// examined if LMS verification is enabled. `signer` selects between the
+    /// owner and vendor error codes.
+    #[allow(clippy::too_many_arguments)]
+    #[inline(never)]
+    fn verify_sigs(
+        digest: &ImageDigest,
+        ecc_key: Option<&ImageEccPubKey>,
+        lms_key: Option<&ImageLmsPublicKey>,
+        sigs: &AuthManifestSignatures,
+        signer: Signer,
+        ecc384: &mut Ecc384,
+        sha256: &mut Sha256,
+        soc_ifc: &SocIfc,
+    ) -> CaliptraResult<()> {
+        let (ecc_err, lms_err) = match signer {
+            Signer::Owner => (
+                CaliptraError::RUNTIME_AUTH_MANIFEST_OWNER_ECC_SIGNATURE_INVALID,
+                CaliptraError::RUNTIME_AUTH_MANIFEST_OWNER_LMS_SIGNATURE_INVALID,
+            ),
+            Signer::Vendor => (
+                CaliptraError::RUNTIME_AUTH_MANIFEST_VENDOR_ECC_SIGNATURE_INVALID,
+                CaliptraError::RUNTIME_AUTH_MANIFEST_VENDOR_LMS_SIGNATURE_INVALID,
+            ),
+        };
+
+        // Verify the ECC signature.
+        let ecc_key = ecc_key.ok_or(ecc_err)?;
+        let verify_r =
+            Self::ecc384_verify(ecc384, digest, ecc_key, &sigs.ecc_sig).map_err(|_| ecc_err)?;
+        if cfi_launder(verify_r) != caliptra_drivers::Array4xN(sigs.ecc_sig.r) {
+            Err(ecc_err)?;
+        } else {
+            caliptra_cfi_lib::cfi_assert_eq_12_words(&verify_r.0, &sigs.ecc_sig.r);
+        }
+
+        // Verify the LMS signature.
+        if cfi_launder(Self::lms_verify_enabled(soc_ifc)) {
+            let lms_key = lms_key.ok_or(lms_err)?;
+            let candidate_key =
+                Self::lms_verify(sha256, digest, lms_key, &sigs.lms_sig).map_err(|_| lms_err)?;
+            let pub_key_digest = HashValue::from(lms_key.digest);
+            if candidate_key != pub_key_digest {
+                Err(lms_err)?;
+            } else {
+                caliptra_cfi_lib::cfi_assert_eq_6_words(&candidate_key.0, &pub_key_digest.0);
+            }
+        }
+
+        Ok(())
+    }
+
     fn verify_vendor_signed_data(
         auth_manifest_preamble: &AuthManifestPreamble,
         fw_preamble: &ImagePreamble,
@@ -106,57 +169,28 @@ impl SetAuthManifestCmd {
             range.len() as u32,
         )?;
 
-        // Verify the vendor ECC signature.
-        let vendor_fw_ecc_key = &fw_preamble
-            .vendor_pub_keys
-            .ecc_pub_keys
-            .get(fw_preamble.vendor_ecc_pub_key_idx as usize)
-            .ok_or(CaliptraError::RUNTIME_AUTH_MANIFEST_VENDOR_ECC_SIGNATURE_INVALID)?;
-
-        let verify_r = Self::ecc384_verify(
-            ecc384,
+        let result = Self::verify_sigs(
             &digest_vendor,
-            vendor_fw_ecc_key,
-            &auth_manifest_preamble.vendor_pub_keys_signatures.ecc_sig,
-        )
-        .map_err(|_| CaliptraError::RUNTIME_AUTH_MANIFEST_VENDOR_ECC_SIGNATURE_INVALID)?;
-        if cfi_launder(verify_r)
-            != caliptra_drivers::Array4xN(
-                auth_manifest_preamble.vendor_pub_keys_signatures.ecc_sig.r,
-            )
-        {
-            Err(CaliptraError::RUNTIME_AUTH_MANIFEST_VENDOR_ECC_SIGNATURE_INVALID)?;
-        } else {
-            caliptra_cfi_lib::cfi_assert_eq_12_words(
-                &verify_r.0,
-                &auth_manifest_preamble.vendor_pub_keys_signatures.ecc_sig.r,
-            );
-        }
-
-        // Verify vendor LMS signature.
-        if cfi_launder(Self::lms_verify_enabled(soc_ifc)) {
-            let vendor_fw_lms_key = &fw_preamble
+            fw_preamble
+                .vendor_pub_keys
+                .ecc_pub_keys
+                .get(fw_preamble.vendor_ecc_pub_key_idx as usize),
+            fw_preamble
                 .vendor_pub_keys
                 .lms_pub_keys
-                .get(fw_preamble.vendor_lms_pub_key_idx as usize)
-                .ok_or(CaliptraError::RUNTIME_AUTH_MANIFEST_VENDOR_LMS_SIGNATURE_INVALID)?;
-
-            let candidate_key = Self::lms_verify(
-                sha256,
-                &digest_vendor,
-                vendor_fw_lms_key,
-                &auth_manifest_preamble.vendor_pub_keys_signatures.lms_sig,
-            )
-            .map_err(|_| CaliptraError::RUNTIME_AUTH_MANIFEST_VENDOR_LMS_SIGNATURE_INVALID)?;
-            let pub_key_digest = HashValue::from(vendor_fw_lms_key.digest);
-            if candidate_key != pub_key_digest {
-                Err(CaliptraError::RUNTIME_AUTH_MANIFEST_VENDOR_LMS_SIGNATURE_INVALID)?;
-            } else {
-                caliptra_cfi_lib::cfi_assert_eq_6_words(&candidate_key.0, &pub_key_digest.0);
-            }
+                .get(fw_preamble.vendor_lms_pub_key_idx as usize),
+            &auth_manifest_preamble.vendor_pub_keys_signatures,
+            Signer::Vendor,
+            ecc384,
+            sha256,
+            soc_ifc,
+        );
+        if cfi_launder(result.is_ok()) {
+            cfi_assert!(result.is_ok());
+        } else {
+            cfi_assert!(result.is_err());
         }
-
-        Ok(())
+        result
     }
 
     fn verify_owner_pub_keys(
@@ -175,48 +209,22 @@ impl SetAuthManifestCmd {
             range.len() as u32,
         )?;
 
-        // Verify the owner ECC signature.
-        let owner_fw_ecc_key = &fw_preamble.owner_pub_keys.ecc_pub_key;
-        let verify_r = Self::ecc384_verify(
-            ecc384,
+        let result = Self::verify_sigs(
             &digest_owner,
-            owner_fw_ecc_key,
-            &auth_manifest_preamble.owner_pub_keys_signatures.ecc_sig,
-        )
-        .map_err(|_| CaliptraError::RUNTIME_AUTH_MANIFEST_OWNER_ECC_SIGNATURE_INVALID)?;
-        if cfi_launder(verify_r)
-            != caliptra_drivers::Array4xN(
-                auth_manifest_preamble.owner_pub_keys_signatures.ecc_sig.r,
-            )
-        {
-            Err(CaliptraError::RUNTIME_AUTH_MANIFEST_OWNER_ECC_SIGNATURE_INVALID)?;
+            Some(&fw_preamble.owner_pub_keys.ecc_pub_key),
+            Some(&fw_preamble.owner_pub_keys.lms_pub_key),
+            &auth_manifest_preamble.owner_pub_keys_signatures,
+            Signer::Owner,
+            ecc384,
+            sha256,
+            soc_ifc,
+        );
+        if cfi_launder(result.is_ok()) {
+            cfi_assert!(result.is_ok());
         } else {
-            caliptra_cfi_lib::cfi_assert_eq_12_words(
-                &verify_r.0,
-                &auth_manifest_preamble.owner_pub_keys_signatures.ecc_sig.r,
-            );
+            cfi_assert!(result.is_err());
         }
-
-        // Verify owner LMS signature.
-        if cfi_launder(Self::lms_verify_enabled(soc_ifc)) {
-            let owner_fw_lms_key = &fw_preamble.owner_pub_keys.lms_pub_key;
-
-            let candidate_key = Self::lms_verify(
-                sha256,
-                &digest_owner,
-                owner_fw_lms_key,
-                &auth_manifest_preamble.owner_pub_keys_signatures.lms_sig,
-            )
-            .map_err(|_| CaliptraError::RUNTIME_AUTH_MANIFEST_OWNER_LMS_SIGNATURE_INVALID)?;
-            let pub_key_digest = HashValue::from(owner_fw_lms_key.digest);
-            if candidate_key != pub_key_digest {
-                Err(CaliptraError::RUNTIME_AUTH_MANIFEST_OWNER_LMS_SIGNATURE_INVALID)?;
-            } else {
-                caliptra_cfi_lib::cfi_assert_eq_6_words(&candidate_key.0, &pub_key_digest.0);
-            }
-        }
-
-        Ok(())
+        result
     }
 
     fn verify_vendor_image_metadata_col(
@@ -230,55 +238,23 @@ impl SetAuthManifestCmd {
         if !flags.contains(AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED) {
             return Ok(());
         }
-        // Verify the vendor ECC signature over the image metadata collection.
-        let verify_r = Self::ecc384_verify(
-            ecc384,
+        // Verify the vendor signatures over the image metadata collection.
+        let result = Self::verify_sigs(
             image_metadata_col_digest,
-            &auth_manifest_preamble.vendor_pub_keys.ecc_pub_key,
-            &auth_manifest_preamble
-                .vendor_image_metdata_signatures
-                .ecc_sig,
-        )
-        .map_err(|_| CaliptraError::RUNTIME_AUTH_MANIFEST_VENDOR_ECC_SIGNATURE_INVALID)?;
-        if cfi_launder(verify_r)
-            != caliptra_drivers::Array4xN(
-                auth_manifest_preamble
-                    .vendor_image_metdata_signatures
-                    .ecc_sig
-                    .r,
-            )
-        {
-            Err(CaliptraError::RUNTIME_AUTH_MANIFEST_VENDOR_ECC_SIGNATURE_INVALID)?;
+            Some(&auth_manifest_preamble.vendor_pub_keys.ecc_pub_key),
+            Some(&auth_manifest_preamble.vendor_pub_keys.lms_pub_key),
+            &auth_manifest_preamble.vendor_image_metdata_signatures,
+            Signer::Vendor,
+            ecc384,
+            sha256,
+            soc_ifc,
+        );
+        if cfi_launder(result.is_ok()) {
+            cfi_assert!(result.is_ok());
         } else {
-            caliptra_cfi_lib::cfi_assert_eq_12_words(
-                &verify_r.0,
-                &auth_manifest_preamble
-                    .vendor_image_metdata_signatures
-                    .ecc_sig
-                    .r,
-            );
+            cfi_assert!(result.is_err());
         }
-
-        // Verify vendor LMS signature over the image metadata collection.
-        if cfi_launder(Self::lms_verify_enabled(soc_ifc)) {
-            let candidate_key = Self::lms_verify(
-                sha256,
-                image_metadata_col_digest,
-                &auth_manifest_preamble.vendor_pub_keys.lms_pub_key,
-                &auth_manifest_preamble
-                    .vendor_image_metdata_signatures
-                    .lms_sig,
-            )
-            .map_err(|_| CaliptraError::RUNTIME_AUTH_MANIFEST_VENDOR_LMS_SIGNATURE_INVALID)?;
-            let pub_key_digest =
-                HashValue::from(auth_manifest_preamble.vendor_pub_keys.lms_pub_key.digest);
-            if candidate_key != pub_key_digest {
-                Err(CaliptraError::RUNTIME_AUTH_MANIFEST_VENDOR_LMS_SIGNATURE_INVALID)?;
-            } else {
-                caliptra_cfi_lib::cfi_assert_eq_6_words(&candidate_key.0, &pub_key_digest.0);
-            }
-        }
-        Ok(())
+        result
     }
 
     fn verify_owner_image_metadata_col(
@@ -288,56 +264,23 @@ impl SetAuthManifestCmd {
         sha256: &mut Sha256,
         soc_ifc: &SocIfc,
     ) -> CaliptraResult<()> {
-        // Verify the owner ECC signature.
-        let verify_r = Self::ecc384_verify(
-            ecc384,
+        // Verify the owner signatures over the image metadata collection.
+        let result = Self::verify_sigs(
             image_metadata_col_digest,
-            &auth_manifest_preamble.owner_pub_keys.ecc_pub_key,
-            &auth_manifest_preamble
-                .owner_image_metdata_signatures
-                .ecc_sig,
-        )
-        .map_err(|_| CaliptraError::RUNTIME_AUTH_MANIFEST_OWNER_ECC_SIGNATURE_INVALID)?;
-        if cfi_launder(verify_r)
-            != caliptra_drivers::Array4xN(
-                auth_manifest_preamble
-                    .owner_image_metdata_signatures
-                    .ecc_sig
-                    .r,
-            )
-        {
-            Err(CaliptraError::RUNTIME_AUTH_MANIFEST_OWNER_ECC_SIGNATURE_INVALID)?;
+            Some(&auth_manifest_preamble.owner_pub_keys.ecc_pub_key),
+            Some(&auth_manifest_preamble.owner_pub_keys.lms_pub_key),
+            &auth_manifest_preamble.owner_image_metdata_signatures,
+            Signer::Owner,
+            ecc384,
+            sha256,
+            soc_ifc,
+        );
+        if cfi_launder(result.is_ok()) {
+            cfi_assert!(result.is_ok());
         } else {
-            caliptra_cfi_lib::cfi_assert_eq_12_words(
-                &verify_r.0,
-                &auth_manifest_preamble
-                    .owner_image_metdata_signatures
-                    .ecc_sig
-                    .r,
-            );
+            cfi_assert!(result.is_err());
         }
-
-        // Verify owner LMS signature.
-        if cfi_launder(Self::lms_verify_enabled(soc_ifc)) {
-            let candidate_key = Self::lms_verify(
-                sha256,
-                image_metadata_col_digest,
-                &auth_manifest_preamble.owner_pub_keys.lms_pub_key,
-                &auth_manifest_preamble
-                    .owner_image_metdata_signatures
-                    .lms_sig,
-            )
-            .map_err(|_| CaliptraError::RUNTIME_AUTH_MANIFEST_OWNER_LMS_SIGNATURE_INVALID)?;
-            let pub_key_digest =
-                HashValue::from(auth_manifest_preamble.owner_pub_keys.lms_pub_key.digest);
-            if candidate_key != pub_key_digest {
-                Err(CaliptraError::RUNTIME_AUTH_MANIFEST_OWNER_LMS_SIGNATURE_INVALID)?;
-            } else {
-                caliptra_cfi_lib::cfi_assert_eq_6_words(&candidate_key.0, &pub_key_digest.0);
-            }
-        }
-
-        Ok(())
+        result
     }
 
     fn process_image_metadata_col(
