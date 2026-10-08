@@ -1696,6 +1696,28 @@ fn test_fmc_svn_less_than_fuse_svn() {
 }
 
 #[test]
+fn test_fmc_entry_point_not_at_load_addr() {
+    let (mut hw, mut image_bundle) =
+        helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
+
+    // Entry point is aligned and still within the FMC image range, but is
+    // not at the load address.
+    let skewed = image_bundle.manifest.fmc.load_addr + 4;
+    let image = update_entry_point(&mut image_bundle, true, skewed);
+    assert_eq!(
+        ModelError::MailboxCmdFailed(
+            CaliptraError::IMAGE_VERIFIER_ERR_FMC_ENTRY_POINT_NOT_AT_LOAD_ADDR.into()
+        ),
+        hw.upload_firmware(&image).unwrap_err()
+    );
+
+    assert_eq!(
+        hw.soc_ifc().cptra_boot_status().read(),
+        u32::from(FwProcessorManifestLoadComplete)
+    );
+}
+
+#[test]
 fn test_toc_rt_size_zero() {
     let (mut hw, mut image_bundle) =
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
@@ -1885,6 +1907,28 @@ fn test_runtime_entry_point_unaligned() {
         ModelError::MailboxCmdFailed(u32::from(
             CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_ENTRY_POINT_UNALIGNED
         )),
+        hw.upload_firmware(&image).unwrap_err()
+    );
+
+    assert_eq!(
+        hw.soc_ifc().cptra_boot_status().read(),
+        u32::from(FwProcessorManifestLoadComplete)
+    );
+}
+
+#[test]
+fn test_runtime_entry_point_not_at_load_addr() {
+    let (mut hw, mut image_bundle) =
+        helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
+
+    // Entry point is aligned and still within the Runtime image range, but is
+    // not at the load address.
+    let skewed = image_bundle.manifest.runtime.load_addr + 4;
+    let image = update_entry_point(&mut image_bundle, false, skewed);
+    assert_eq!(
+        ModelError::MailboxCmdFailed(
+            CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_ENTRY_POINT_NOT_AT_LOAD_ADDR.into()
+        ),
         hw.upload_firmware(&image).unwrap_err()
     );
 

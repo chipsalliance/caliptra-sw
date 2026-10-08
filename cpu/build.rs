@@ -10,12 +10,15 @@ fn main() {
     // Put the linker script somewhere the linker can find it.
     fs::write(
         out_dir.join("link.x"),
-        r#"SECTIONS 
+        r#"ENTRY(_fw_entry)
+
+    SECTIONS
     {
         .text : ALIGN(4)
         {
             _stext = .;
-    
+
+            KEEP(*(.init.entry));    /* trampoline to _start; must be first */
             KEEP(*(.init .init.*));
             *(.text .text.*);
             KEEP(*(.vectors))
@@ -113,6 +116,7 @@ fn main() {
     _bss_len  = SIZEOF(.bss);
     _data_len = SIZEOF(.data);
     
+    ASSERT(_fw_entry == ORIGIN(REGION_TEXT), "_fw_entry must be at load address");
     ASSERT(SIZEOF(.got) == 0, ".got section detected");
     ASSERT(SIZEOF(.bss) == 0, ".bss section detected");
     ASSERT(SIZEOF(.stack) == STACK_SIZE, ".stack section overflow");

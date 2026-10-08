@@ -383,12 +383,12 @@ fn test_cciv_updated_in_dpe() {
         ImageOptions::default(),
     )
     .unwrap();
-    let image_bundle_standard = caliptra_builder::build_and_sign_image(
-        &FMC_WITH_UART,
-        &APP_WITH_UART,
-        ImageOptions::default(),
-    )
-    .unwrap();
+    // Distinct pl0_pauser gives the standard bundle a different CCIV than the mbox bundle
+    let mut image_opts_standard = ImageOptions::default();
+    image_opts_standard.vendor_config.pl0_pauser = Some(0x2);
+    let image_bundle_standard =
+        caliptra_builder::build_and_sign_image(&FMC_WITH_UART, &APP_WITH_UART, image_opts_standard)
+            .unwrap();
 
     // Boot the initial FW
     model
