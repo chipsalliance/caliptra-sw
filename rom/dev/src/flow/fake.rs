@@ -227,6 +227,17 @@ impl ImageVerificationEnv for &mut FakeRomImageVerificationEnv<'_, '_> {
         Ok(self.sha2_512_384.sha512_digest(data)?.0)
     }
 
+    fn sha384_acc_digest_slice(
+        &mut self,
+        data: &[u8],
+        digest_failure: CaliptraError,
+    ) -> CaliptraResult<ImageDigest384> {
+        self.sha2_512_384
+            .sha384_digest(data)
+            .map(|digest| digest.0)
+            .map_err(|_| digest_failure)
+    }
+
     fn sha384_acc_digest(
         &mut self,
         offset: u32,

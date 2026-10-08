@@ -210,7 +210,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
 
         // Verify Owner Public Key Info Digest
         let (owner_pub_keys_digest, owner_pub_keys_digest_in_fuses) =
-            self.verify_owner_pk_digest(reason)?;
+            self.verify_owner_pk_digest(preamble, reason)?;
 
         // Verify ECC Vendor Key Index
         let (vendor_ecc_pub_key_idx, vendor_ecc_pub_key_revocation) =
@@ -495,8 +495,6 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_PQC_KEY_DESCRIPTOR_HASH_COUNT_GT_MAX)?;
         }
 
-        let range = ImageManifest::vendor_pub_key_descriptors_range();
-
         #[cfg(feature = "fips-test-hooks")]
         unsafe {
             caliptra_drivers::FipsTestHook::update_hook_cmd_if_hook_set(
@@ -505,9 +503,8 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             )
         };
 
-        let actual = &self.env.sha384_acc_digest(
-            range.start,
-            range.len() as u32,
+        let actual = &self.env.sha384_acc_digest_slice(
+            preamble.vendor_pub_key_info.as_bytes(),
             CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PUB_KEY_DIGEST_FAILURE,
         )?;
 
@@ -533,15 +530,8 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             .get(ecc_key_idx as usize)
             .ok_or(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_PUB_KEY_INDEX_OUT_OF_BOUNDS)?;
 
-        let range = {
-            let offset = offset_of!(ImageManifest, preamble) as u32;
-            let span = span_of!(ImagePreamble, vendor_ecc_active_pub_key);
-            span.start as u32 + offset..span.end as u32 + offset
-        };
-
-        let actual = &self.env.sha384_acc_digest(
-            range.start,
-            range.len() as u32,
+        let actual = &self.env.sha384_acc_digest_slice(
+            preamble.vendor_ecc_active_pub_key.as_bytes(),
             CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PUB_KEY_DIGEST_FAILURE,
         )?;
 
@@ -578,21 +568,14 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
 
         let expected = expected.unwrap();
 
-        let start = {
-            let offset = offset_of!(ImageManifest, preamble) as u32;
-            let span = span_of!(ImagePreamble, vendor_pqc_active_pub_key);
-            span.start as u32 + offset
-        };
-
         let size = if pqc_key_type == FwVerificationPqcKeyType::MLDSA {
             MLDSA87_PUB_KEY_BYTE_SIZE
         } else {
             LMS_PUB_KEY_BYTE_SIZE
-        } as u32;
+        };
 
-        let actual = &self.env.sha384_acc_digest(
-            start,
-            size,
+        let actual = &self.env.sha384_acc_digest_slice(
+            &preamble.vendor_pqc_active_pub_key.0.as_bytes()[..size],
             CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_PUB_KEY_DIGEST_FAILURE,
         )?;
 
@@ -609,10 +592,9 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
     /// Returns a bool indicating whether the digest was in fuses.
     fn verify_owner_pk_digest(
         &mut self,
+        preamble: &ImagePreamble,
         reason: ResetReason,
     ) -> CaliptraResult<(ImageDigest384, bool)> {
-        let range = ImageManifest::owner_pub_key_range();
-
         #[cfg(feature = "fips-test-hooks")]
         unsafe {
             caliptra_drivers::FipsTestHook::update_hook_cmd_if_hook_set(
@@ -621,9 +603,8 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             )
         };
 
-        let actual = &self.env.sha384_acc_digest(
-            range.start,
-            range.len() as u32,
+        let actual = &self.env.sha384_acc_digest_slice(
+            preamble.owner_pub_keys.as_bytes(),
             CaliptraError::IMAGE_VERIFIER_ERR_OWNER_PUB_KEY_DIGEST_FAILURE,
         )?;
 
@@ -667,8 +648,8 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         info: &HeaderInfo,
     ) -> CaliptraResult<TocInfo<'a>> {
         // Calculate the digest for the header
-        let range = ImageManifest::header_range();
         let vendor_header_len = offset_of!(ImageHeader, owner_data);
+        let vendor_header = &header.as_bytes()[..vendor_header_len];
 
         #[cfg(feature = "fips-test-hooks")]
         unsafe {
@@ -679,9 +660,8 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         };
 
         // Vendor header digest is calculated up to the owner_data field.
-        let vendor_digest_384 = self.env.sha384_acc_digest(
-            range.start,
-            vendor_header_len as u32,
+        let vendor_digest_384 = self.env.sha384_acc_digest_slice(
+            vendor_header,
             CaliptraError::IMAGE_VERIFIER_ERR_HEADER_DIGEST_FAILURE,
         )?;
 
@@ -690,9 +670,8 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             mldsa_msg: None,
         };
 
-        let owner_digest_384 = self.env.sha384_acc_digest(
-            range.start,
-            range.len() as u32,
+        let owner_digest_384 = self.env.sha384_acc_digest_slice(
+            header.as_bytes(),
             CaliptraError::IMAGE_VERIFIER_ERR_HEADER_DIGEST_FAILURE,
         )?;
 
@@ -703,8 +682,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
 
         // Update vendor_signdata_holder and owner_signdata_holder with data if MLDSA validation is required.
         if let PqcKeyInfo::Mldsa(_, _) = info.vendor_pqc_info {
-            vendor_signdata_holder.mldsa_msg =
-                Some(header.as_bytes().get(..vendor_header_len).unwrap());
+            vendor_signdata_holder.mldsa_msg = Some(vendor_header);
             owner_signdata_holder.mldsa_msg = Some(header.as_bytes());
         }
 
@@ -1020,8 +998,6 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             cfi_assert_eq(verify_info.len, MAX_TOC_ENTRY_COUNT);
         }
 
-        let range = ImageManifest::toc_range();
-
         #[cfg(feature = "fips-test-hooks")]
         unsafe {
             caliptra_drivers::FipsTestHook::update_hook_cmd_if_hook_set(
@@ -1030,9 +1006,8 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             )
         };
 
-        let actual = self.env.sha384_acc_digest(
-            range.start,
-            range.len() as u32,
+        let actual = self.env.sha384_acc_digest_slice(
+            &manifest.as_bytes()[span_of!(ImageManifest, fmc..=runtime)],
             CaliptraError::IMAGE_VERIFIER_ERR_TOC_DIGEST_FAILURE,
         )?;
 
@@ -1076,6 +1051,14 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         // Ensure the fmc section is before the runtime section in the manifest.
         if fmc_range.end > runtime_range.start {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_FMC_RUNTIME_INCORRECT_ORDER)?;
+        }
+
+        if fmc_range.end > img_bundle_sz || runtime_range.end > img_bundle_sz {
+            Err(CaliptraError::IMAGE_VERIFIER_ERR_IMAGE_LEN_MORE_THAN_BUNDLE_SIZE)?;
+        }
+
+        if runtime_range.start != fmc_range.end {
+            Err(CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_OFFSET_INVALID)?;
         }
 
         // Check if fmc and runtime images don't overlap on loading in the ICCM.
@@ -1268,6 +1251,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
 mod tests {
     use super::*;
     use caliptra_common::memory_layout::*;
+    use std::{vec, vec::Vec};
 
     const DUMMY_DATA: [u32; 12] = [
         0xdeadbeef, 0xdeadbeef, 0xdeadbeef, 0xdeadbeef, 0xdeadbeef, 0xdeadbeef, 0xdeadbeef,
@@ -1295,6 +1279,66 @@ mod tests {
         r: DUMMY_DATA,
         s: DUMMY_DATA,
     };
+
+    #[test]
+    fn test_preamble_hashes_manifest_snapshot() {
+        for pqc_key_type in [
+            FwVerificationPqcKeyType::LMS,
+            FwVerificationPqcKeyType::MLDSA,
+        ] {
+            let mut preamble = ImagePreamble {
+                vendor_pub_key_info: ImageVendorPubKeyInfo {
+                    ecc_key_descriptor: ImageEccKeyDescriptor {
+                        version: KEY_DESCRIPTOR_VERSION,
+                        key_hash_count: 1,
+                        key_hash: [DUMMY_DATA; VENDOR_ECC_MAX_KEY_COUNT as usize],
+                        ..Default::default()
+                    },
+                    pqc_key_descriptor: ImagePqcKeyDescriptor {
+                        version: KEY_DESCRIPTOR_VERSION,
+                        key_type: pqc_key_type as u8,
+                        key_hash_count: 1,
+                        key_hash: [DUMMY_DATA; VENDOR_PQC_MAX_KEY_COUNT as usize],
+                    },
+                },
+                vendor_ecc_active_pub_key: VENDOR_ECC_PUBKEY,
+                owner_pub_keys: ImageOwnerPubKeys {
+                    ecc_pub_key: OWNER_ECC_PUBKEY,
+                    ..Default::default()
+                },
+                ..Default::default()
+            };
+            preamble.vendor_pqc_active_pub_key.0[0] = 0x5a;
+            let mut verifier = ImageVerifier::new(TestEnv {
+                lifecycle: Lifecycle::Production,
+                vendor_pub_key_digest: DUMMY_DATA,
+                owner_pub_key_digest: DUMMY_DATA,
+                digest_384: DUMMY_DATA,
+                ..Default::default()
+            });
+
+            verifier
+                .verify_vendor_pub_key_info_digest(&preamble, pqc_key_type)
+                .unwrap();
+            verifier
+                .verify_owner_pk_digest(&preamble, ResetReason::ColdReset)
+                .unwrap();
+
+            let pqc_key_size = match pqc_key_type {
+                FwVerificationPqcKeyType::LMS => LMS_PUB_KEY_BYTE_SIZE,
+                FwVerificationPqcKeyType::MLDSA => MLDSA87_PUB_KEY_BYTE_SIZE,
+            };
+            assert_eq!(
+                verifier.env.manifest_digest_inputs,
+                vec![
+                    preamble.vendor_pub_key_info.as_bytes().to_vec(),
+                    preamble.vendor_ecc_active_pub_key.as_bytes().to_vec(),
+                    preamble.vendor_pqc_active_pub_key.0.as_bytes()[..pqc_key_size].to_vec(),
+                    preamble.owner_pub_keys.as_bytes().to_vec(),
+                ]
+            );
+        }
+    }
 
     #[test]
     fn test_vendor_ecc_pk_idx_update_rst() {
@@ -1915,6 +1959,13 @@ mod tests {
         let toc_info = verifier.verify_header(&header, &header_info).unwrap();
         assert_eq!(toc_info.len, 100);
         assert_eq!(toc_info.digest, &DUMMY_DATA);
+        assert_eq!(
+            verifier.env.manifest_digest_inputs,
+            vec![
+                header.as_bytes()[..offset_of!(ImageHeader, owner_data)].to_vec(),
+                header.as_bytes().to_vec(),
+            ]
+        );
     }
 
     #[test]
@@ -2044,6 +2095,10 @@ mod tests {
         assert_eq!(
             result.err(),
             Some(CaliptraError::IMAGE_VERIFIER_ERR_TOC_DIGEST_MISMATCH)
+        );
+        assert_eq!(
+            verifier.env.manifest_digest_inputs,
+            vec![manifest.as_bytes()[span_of!(ImageManifest, fmc..=runtime)].to_vec()]
         );
     }
 
@@ -2287,6 +2342,67 @@ mod tests {
         );
 
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_toc_source_bounds() {
+        let manifest_size = IMAGE_MANIFEST_BYTE_SIZE as u32;
+        let mut manifest = ImageManifest {
+            fmc: ImageTocEntry {
+                offset: manifest_size,
+                size: 128,
+                load_addr: ICCM_ORG,
+                ..Default::default()
+            },
+            runtime: ImageTocEntry {
+                offset: manifest_size + 256,
+                size: 128,
+                load_addr: ICCM_ORG + 256,
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let mut verifier = ImageVerifier::new(TestEnv::default());
+        let toc_info = TocInfo {
+            len: MAX_TOC_ENTRY_COUNT,
+            digest: &ImageDigest384::default(),
+        };
+        let runtime_end = manifest.runtime.image_range().unwrap().end;
+        let size_sum = manifest.size + manifest.fmc.size + manifest.runtime.size;
+
+        for bundle_size in [size_sum, runtime_end - 1] {
+            assert_eq!(
+                verifier.verify_toc(&manifest, &toc_info, bundle_size).err(),
+                Some(CaliptraError::IMAGE_VERIFIER_ERR_IMAGE_LEN_MORE_THAN_BUNDLE_SIZE)
+            );
+        }
+
+        let fmc_end = manifest.fmc.image_range().unwrap().end;
+        for gap in [1, 4, 16, 128] {
+            manifest.runtime.offset = fmc_end + gap;
+            let runtime_end = manifest.runtime.image_range().unwrap().end;
+            for bundle_size in [runtime_end, runtime_end + 16] {
+                assert_eq!(
+                    verifier.verify_toc(&manifest, &toc_info, bundle_size).err(),
+                    Some(CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_OFFSET_INVALID),
+                    "runtime gap {gap}, bundle size {bundle_size}"
+                );
+            }
+        }
+
+        manifest.runtime.offset = fmc_end;
+        let runtime_end = manifest.runtime.image_range().unwrap().end;
+        for bundle_size in [runtime_end, runtime_end + 16] {
+            assert!(verifier
+                .verify_toc(&manifest, &toc_info, bundle_size)
+                .is_ok());
+        }
+
+        manifest.runtime.offset = u32::MAX - 64;
+        assert_eq!(
+            verifier.verify_toc(&manifest, &toc_info, u32::MAX).err(),
+            Some(CaliptraError::IMAGE_VERIFIER_ERR_TOC_ENTRY_RANGE_ARITHMETIC_OVERFLOW)
+        );
     }
 
     #[test]
@@ -2559,6 +2675,7 @@ mod tests {
     struct TestEnv {
         digest_384: ImageDigest384,
         digest_512: ImageDigest512,
+        manifest_digest_inputs: Vec<Vec<u8>>,
         fmc_digest: ImageDigest384,
         verify_result: bool,
         verify_pqc_result: bool,
@@ -2578,6 +2695,7 @@ mod tests {
             TestEnv {
                 digest_384: ImageDigest384::default(),
                 digest_512: ImageDigest512::default(),
+                manifest_digest_inputs: Vec::new(),
                 fmc_digest: ImageDigest384::default(),
                 verify_result: false,
                 verify_pqc_result: false,
@@ -2601,6 +2719,15 @@ mod tests {
 
         fn sha512_digest(&mut self, _offset: u32, _len: u32) -> CaliptraResult<ImageDigest512> {
             Ok(self.digest_512)
+        }
+
+        fn sha384_acc_digest_slice(
+            &mut self,
+            data: &[u8],
+            _digest_failure: CaliptraError,
+        ) -> CaliptraResult<ImageDigest384> {
+            self.manifest_digest_inputs.push(data.to_vec());
+            Ok(self.digest_384)
         }
 
         fn sha384_acc_digest(

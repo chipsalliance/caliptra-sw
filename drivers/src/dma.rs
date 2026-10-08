@@ -45,6 +45,17 @@ pub struct AxiAddr {
     pub hi: u32,
 }
 
+impl AxiAddr {
+    /// Return the offset address only if the entire byte range fits in AXI address space.
+    /// An empty range checks only the starting address.
+    pub fn checked_offset(self, offset: u64, length: u64) -> CaliptraResult<Self> {
+        let err = CaliptraError::DRIVER_DMA_AXI_ADDRESS_OVERFLOW;
+        let start = u64::from(self).checked_add(offset).ok_or(err)?;
+        start.checked_add(length.saturating_sub(1)).ok_or(err)?;
+        Ok(Self::from(start))
+    }
+}
+
 impl Add<u32> for AxiAddr {
     type Output = Self;
 
@@ -603,6 +614,7 @@ impl<'a> DmaRecovery<'a> {
             | CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_LOAD_ADDRESS_IMAGE_SIZE_ARITHMETIC_OVERFLOW
             | CaliptraError::IMAGE_VERIFIER_ERR_TOC_ENTRY_RANGE_ARITHMETIC_OVERFLOW
             | CaliptraError::IMAGE_VERIFIER_ERR_FMC_OFFSET_INVALID
+            | CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_OFFSET_INVALID
             | CaliptraError::IMAGE_VERIFIER_ERR_UPDATE_RESET_FMC_LOAD_ADDR_MISMATCH => {
                 Self::RECOVERY_REASON_FIRMWARE_IMAGE_LAYOUT_INVALID
             }
@@ -989,7 +1001,9 @@ impl<'a> DmaRecovery<'a> {
         sha_acc: &'a mut Sha2_512_384Acc,
         length: u32,
     ) -> CaliptraResult<Array4x12> {
-        let source = self.mci_base + MCU_SRAM_OFFSET;
+        let source = self
+            .mci_base
+            .checked_offset(MCU_SRAM_OFFSET, u64::from(length))?;
         self.sha384_image(sha_acc, source, length)
     }
 
@@ -1016,6 +1030,8 @@ impl<'a> DmaRecovery<'a> {
         source: AxiAddr,
         length: u32,
     ) -> CaliptraResult<Array4x12> {
+        let source = source.checked_offset(0, u64::from(length))?;
+
         // the hardware does not support hashing an empty stream
         if length == 0 {
             return Ok(SHA384_EMPTY);
@@ -1114,5 +1130,51 @@ impl<'a> DmaOtpCtrl<'a> {
             unsafe { FuseCtrlRegisterBlock::new_with_mmio(core::ptr::null_mut::<u32>(), &mmio) };
         let t = f(regs);
         mmio.check_error(t)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_axi_address_range_carries_into_high_word() {
+        assert_eq!(
+            AxiAddr::from(0xffff_fffc_u64).checked_offset(8, 4),
+            Ok(AxiAddr::from(0x1_0000_0004_u64))
+        );
+    }
+
+    #[test]
+    fn test_axi_address_range_last_byte() {
+        let base = AxiAddr::from(u64::MAX - 7);
+        assert_eq!(base.checked_offset(4, 4), Ok(AxiAddr::from(u64::MAX - 3)));
+        assert_eq!(
+            base.checked_offset(4, 5),
+            Err(CaliptraError::DRIVER_DMA_AXI_ADDRESS_OVERFLOW)
+        );
+    }
+
+    #[test]
+    fn test_axi_address_range_start_overflow() {
+        assert_eq!(
+            AxiAddr::from(u64::MAX - 3).checked_offset(4, 4),
+            Err(CaliptraError::DRIVER_DMA_AXI_ADDRESS_OVERFLOW)
+        );
+        assert_eq!(
+            AxiAddr::from(u64::MAX).checked_offset(1, 0),
+            Err(CaliptraError::DRIVER_DMA_AXI_ADDRESS_OVERFLOW)
+        );
+    }
+
+    #[test]
+    fn test_axi_address_range_empty() {
+        let base = AxiAddr::from(u64::MAX);
+        assert_eq!(base.checked_offset(0, 0), Ok(base));
+        assert_eq!(base.checked_offset(0, 1), Ok(base));
+        assert_eq!(
+            base.checked_offset(0, 2),
+            Err(CaliptraError::DRIVER_DMA_AXI_ADDRESS_OVERFLOW)
+        );
     }
 }
