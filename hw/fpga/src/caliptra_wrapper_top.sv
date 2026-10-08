@@ -365,9 +365,13 @@ caliptra_top caliptra_top_dut (
     .cptra_error_fatal    (hwif_in.interface_regs.status.cptra_error_fatal.next),
     .cptra_error_non_fatal(hwif_in.interface_regs.status.cptra_error_non_fatal.next),
 
-    .etrng_req             (etrng_req),
-    .itrng_data            (itrng_data),
-    .itrng_valid           (itrng_valid),
+    .etrng0_req            (etrng_req),
+    .etrng1_req            (),
+    .itrng0_data           (itrng_data),
+    .itrng0_valid          (itrng_valid),
+    .itrng1_data           (4'b0),
+    .itrng1_valid          (1'b0),
+    .itrng1_en             (1'b0),
 
     .generic_input_wires({hwif_out.interface_regs.generic_input_wires[0].value.value, hwif_out.interface_regs.generic_input_wires[1].value.value}),
     .generic_output_wires({hwif_in.interface_regs.generic_output_wires[0].value.next, hwif_in.interface_regs.generic_output_wires[1].value.next}),

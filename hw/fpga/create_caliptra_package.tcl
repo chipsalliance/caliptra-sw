@@ -30,10 +30,6 @@ add_files [ glob $rtlDir/src/*/rtl/caliptra_reg/*.svh ]
 add_files [ glob $rtlDir/src/*/rtl/*.sv ]
 add_files [ glob $rtlDir/src/*/rtl/*.v ]
 
-# Remove spi_host files that aren't used yet and are flagged as having syntax errors
-# TODO: Re-include these files when spi_host is used.
-remove_files [ glob $rtlDir/src/spi_host/rtl/*.sv ]
-
 # Add FPGA specific sources
 add_files [ glob $fpgaDir/src/*.sv]
 add_files [ glob $fpgaDir/src/*.v]
@@ -46,6 +42,27 @@ file copy [ glob $rtlDir/src/ahb_lite_bus/rtl/ahb_lite_address_decoder.sv ] $out
 exec sed -i {1i `include \"config_defines.svh\"} $outputDir/ahb_lite_address_decoder.sv
 remove_files [ glob $rtlDir/src/ahb_lite_bus/rtl/ahb_lite_address_decoder.sv ]
 add_files $outputDir/ahb_lite_address_decoder.sv
+
+# Workaround: Vivado IP packaging flattens all sources into a single directory, so
+# el2_mubi_pkg.sv's subdirectory-relative `include "lib/el2_assert.sv" can't resolve
+# even though el2_assert.sv is packaged alongside it. Strip the "lib/" prefix.
+file copy [ glob $rtlDir/src/riscv_core/veer_el2/rtl/el2_mubi_pkg.sv ] $outputDir/el2_mubi_pkg.sv
+exec sed -i {s#`include "lib/el2_assert.sv"#`include "el2_assert.sv"#} $outputDir/el2_mubi_pkg.sv
+remove_files [ glob $rtlDir/src/riscv_core/veer_el2/rtl/el2_mubi_pkg.sv ]
+add_files $outputDir/el2_mubi_pkg.sv
+
+# Workaround: Vivado's IP packager only flattens/copies files it reaches via module
+# instantiation it can statically trace. el2_assert.sv is include-only (no module) and
+# el2_prim_generic_buf.sv is only instantiated via the `RV_PRIM_BUF_IMPL macro, so neither
+# is detected and both get silently dropped from the packaged IP. Force them in the same
+# way as the workarounds above.
+file copy [ glob $rtlDir/src/riscv_core/veer_el2/rtl/lib/el2_assert.sv ] $outputDir/el2_assert.sv
+remove_files [ glob $rtlDir/src/riscv_core/veer_el2/rtl/lib/el2_assert.sv ]
+add_files $outputDir/el2_assert.sv
+
+file copy [ glob $rtlDir/src/riscv_core/veer_el2/rtl/lib/el2_prim_generic_buf.sv ] $outputDir/el2_prim_generic_buf.sv
+remove_files [ glob $rtlDir/src/riscv_core/veer_el2/rtl/lib/el2_prim_generic_buf.sv ]
+add_files $outputDir/el2_prim_generic_buf.sv
 
 # Mark all Verilog sources as SystemVerilog because some of them have SystemVerilog syntax.
 set_property file_type SystemVerilog [get_files *.v]
