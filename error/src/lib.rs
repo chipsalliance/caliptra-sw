@@ -657,6 +657,11 @@ impl CaliptraError {
             0x000b0065,
             "Image Verifier Error: Update reset FMC load address or size mismatch"
         ),
+        (
+            IMAGE_VERIFIER_ERR_RUNTIME_OFFSET_INVALID,
+            0x000b0066,
+            "Image Verifier Error: Runtime offset invalid (gap between FMC and Runtime)"
+        ),
         // Driver Error: LMS
         (
             DRIVER_LMS_INVALID_LMS_ALGO_TYPE,

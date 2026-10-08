@@ -55,6 +55,10 @@ impl ImageVerificationEnv for TestEnv {
         Ok(self.digest)
     }
 
+    fn sha384_digest_slice(&mut self, _data: &[u8]) -> CaliptraResult<ImageDigest> {
+        Ok(self.digest)
+    }
+
     fn ecc384_verify(
         &mut self,
         _digest: &ImageDigest,

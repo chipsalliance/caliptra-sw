@@ -78,6 +78,13 @@ firmware images contained in the bundle.
 
 Firmware manifest consists of preamble, header and table of contents.
 
+ROM copies the manifest into protected internal memory before verification.
+Public-key hashes, header signatures, and the table-of-contents digest are
+verified against that same snapshot, which is also used for image validation and
+loading. Changes to the manifest in the mailbox after it has been copied do not
+change the authenticated metadata. Payloads are separately hashed against the
+authenticated TOC digests, including after loading into ICCM.
+
 #### Preamble
 
 It is the unsigned portion of the manifest. Preamble contains the signing public keys and signatures. ROM is responsible for parsing the preamble. ROM performs the following steps:
@@ -638,6 +645,13 @@ The following are the pre-conditions that should be satisfied:
 - Generate the hash of the entire TOC data.
 - Compare the hash of the TOC data with the hash in the header.
 - If the hash matches, the TOC data is valid.
+- Require tightly packed image data: Runtime must immediately follow the end of
+  FMC in the image bundle. A gap before Runtime is rejected with
+  `IMAGE_VERIFIER_ERR_RUNTIME_OFFSET_INVALID`. This source-layout requirement
+  does not require adjacent ICCM load addresses.
+- Check each image's `Offset + Size` for overflow and require the resulting end
+  offset to be within the supplied bundle length before hashing or loading its
+  payload. Trailing bundle padding remains permitted.
 - Ensure that Fw.Svn >= Fuse.Svn.
 
 <br> *(Note: Same SVN Validation is done for the FMC and RT)

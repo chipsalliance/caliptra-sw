@@ -44,6 +44,11 @@ impl<'a, 'b> ImageVerificationEnv for &mut FirmwareImageVerificationEnv<'a, 'b> 
             .ok_or(err)?
             .get(..len as usize)
             .ok_or(err)?;
+        self.sha384_digest_slice(data)
+    }
+
+    /// Calculate SHA-384 digest of bytes held in the protected manifest copy
+    fn sha384_digest_slice(&mut self, data: &[u8]) -> CaliptraResult<ImageDigest> {
         Ok(self.sha384.digest(data)?.0)
     }
 
