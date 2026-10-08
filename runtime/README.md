@@ -3201,6 +3201,55 @@ Command Code: `0x4645_5052` ("FEPR")
 
 `FE_PROG` returns no output arguments other than the mailbox response header.
 
+### ZEROIZE\_UDS\_FE
+
+Permanently zeroizes the selected UDS and Field Entropy (FE) OTP partitions, including
+their seeds, digests, and zeroization markers. Runtime uses the same OTP programming
+flow and read-back verification as ROM.
+
+This command is restricted to **PL0** and **subsystem mode**, where Caliptra can
+access the OTP fuse controller through DMA. The caller must authorize the destructive
+operation before submitting it; this command does not implement the MCU's external
+challenge/signature authorization protocol.
+
+Command Code: `0x5A45_5546` ("ZEUF")
+
+*Table: `ZEROIZE_UDS_FE` input arguments*
+
+| **Name** | **Type** | **Description**
+| -------- | -------- | ---------------
+| chksum   | u32      | Checksum over other input arguments, computed by the caller. Little endian.
+| flags    | u32      | Partition-selection bitmask: bit 0 selects UDS; bits 1 through 4 select FE0 through FE3.
+
+At least one partition must be selected. Reserved flag bits must be zero. Invalid
+lengths or flags are rejected before OTP changes or shutdown. Requests from PL1 or
+outside subsystem mode are also rejected without changing OTP or shutting down.
+
+*Table: `ZEROIZE_UDS_FE` output arguments*
+
+| **Name**    | **Type** | **Description**
+| ----------- | -------- | ---------------
+| chksum      | u32      | Checksum over other output arguments, computed by Caliptra. Little endian.
+| fips_status | u32      | Standard mailbox response status.
+| dpe_result  | u32      | `0` if every selected partition passed zeroization read-back verification; `1` if zeroization failed.
+
+The response is the existing 12-byte `ZeroizeUdsFeResp` used by ROM. Callers must
+read and check `dpe_result`; successful mailbox transport or an 8-byte response
+header alone is not proof of zeroization. A failure may follow partial, irreversible
+zeroization, and unattempted or unselected partitions are not reported as zeroized.
+The specific OTP error is reported in `CPTRA_FW_ERROR_NON_FATAL`.
+
+After any valid zeroization attempt, Runtime clears its cryptographic engines,
+key vault, and persistent state using the existing shutdown cleanup path. It returns
+the result and enters the terminal `RUNTIME_SHUTDOWN` state even if OTP zeroization
+failed. A cleanup failure causes mailbox command failure and still enters terminal
+shutdown. Caliptra cannot service further Runtime requests without reset.
+
+This command does not transition the lifecycle controller to RMA or update the
+MCU's field-entropy state markers. The MCU remains responsible for those operations,
+and must not request RMA unless zeroization has succeeded and the required OTP state
+has been verified.
+
 ### PRODUCTION\_AUTH\_DEBUG\_UNLOCK\_REQ
 
 Initiates the production debug unlock flow by generating a cryptographic challenge. The caller

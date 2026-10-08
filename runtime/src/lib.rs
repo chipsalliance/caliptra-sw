@@ -53,6 +53,7 @@ mod stash_measurement;
 mod subject_alt_name;
 mod update;
 mod verify;
+mod zeroize_uds_fe;
 
 // Used by runtime tests
 pub mod mailbox;
@@ -75,6 +76,7 @@ use fe_programming::FeProgrammingCmd;
 use mailbox::Mailbox;
 use populate_idev::PopulateIDevIdMldsa87CertCmd;
 use zerocopy::{FromBytes, IntoBytes, KnownLayout};
+use zeroize_uds_fe::ZeroizeUdsFeCmd;
 
 use crate::capabilities::CapabilitiesCmd;
 pub use crate::certify_key_extended::CertifyKeyExtendedCmd;
@@ -623,6 +625,7 @@ fn execute_command(
             )
         }),
         CommandId::FE_PROG => FeProgrammingCmd::execute(drivers, cmd_bytes),
+        CommandId::ZEROIZE_UDS_FE => ZeroizeUdsFeCmd::execute(drivers, cmd_bytes, resp),
         CommandId::REALLOCATE_DPE_CONTEXT_LIMITS => {
             ReallocateDpeContextLimitsCmd::execute(drivers, cmd_bytes, resp)
         }

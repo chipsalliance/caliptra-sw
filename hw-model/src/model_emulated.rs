@@ -192,6 +192,11 @@ impl ModelEmulated {
             .otp_fc
             .set_error_injection(enable);
     }
+
+    /// Read the emulated UDS/FE fuse bank, including digests and zeroization markers.
+    pub fn otp_fuse_bank(&self) -> &[u32] {
+        self.cpu.bus.inner().bus.dma.axi.otp_fc.fuse_bank()
+    }
 }
 
 impl SocManager for ModelEmulated {
