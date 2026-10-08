@@ -58,3 +58,4 @@ caliptra-hw-model-types.workspace = true
 caliptra-hw-model.workspace = true
 caliptra-test.workspace = true
 openssl.workspace = true
+tempfile = "3.20.0"
