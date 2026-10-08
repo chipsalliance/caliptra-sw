@@ -2631,6 +2631,37 @@ fn test_fmc_entry_point_unaligned() {
 }
 
 #[test]
+fn test_fmc_entry_point_not_at_load_addr() {
+    for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
+        let image_options = ImageOptions {
+            pqc_key_type: *pqc_key_type,
+            ..Default::default()
+        };
+        let fuses = Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
+            ..Default::default()
+        };
+        let mut image_bundle = helpers::build_image_bundle(image_options);
+        // Set entry_point past load_addr but still within the FMC image range
+        let skewed = image_bundle.manifest.fmc.load_addr + 4;
+        let image = update_entry_point(&mut image_bundle, true, skewed);
+        let mut hw = helpers::build_hw_model(fuses);
+
+        helpers::assert_fatal_fw_load(
+            &mut hw,
+            *pqc_key_type,
+            &image,
+            CaliptraError::IMAGE_VERIFIER_ERR_FMC_ENTRY_POINT_NOT_AT_LOAD_ADDR,
+        );
+
+        assert_eq!(
+            hw.soc_ifc().cptra_boot_status().read(),
+            u32::from(FwProcessorManifestLoadComplete)
+        );
+    }
+}
+
+#[test]
 fn test_toc_rt_size_zero() {
     for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
         let image_options = ImageOptions {
@@ -2918,6 +2949,37 @@ fn test_runtime_entry_point_unaligned() {
             *pqc_key_type,
             &image,
             CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_ENTRY_POINT_UNALIGNED,
+        );
+
+        assert_eq!(
+            hw.soc_ifc().cptra_boot_status().read(),
+            u32::from(FwProcessorManifestLoadComplete)
+        );
+    }
+}
+
+#[test]
+fn test_runtime_entry_point_not_at_load_addr() {
+    for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
+        let image_options = ImageOptions {
+            pqc_key_type: *pqc_key_type,
+            ..Default::default()
+        };
+        let fuses = Fuses {
+            fuse_pqc_key_type: *pqc_key_type as u32,
+            ..Default::default()
+        };
+        let (mut hw, mut image_bundle) =
+            helpers::build_hw_model_and_image_bundle(fuses, image_options);
+        // Set entry_point past load_addr but still within the Runtime image range
+        let skewed = image_bundle.manifest.runtime.load_addr + 4;
+        let image = update_entry_point(&mut image_bundle, false, skewed);
+
+        helpers::assert_fatal_fw_load(
+            &mut hw,
+            *pqc_key_type,
+            &image,
+            CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_ENTRY_POINT_NOT_AT_LOAD_ADDR,
         );
 
         assert_eq!(
