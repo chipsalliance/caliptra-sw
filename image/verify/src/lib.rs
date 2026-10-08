@@ -13,6 +13,9 @@ Abstract:
 --*/
 #![cfg_attr(not(feature = "std"), no_std)]
 
+#[cfg(all(test, not(feature = "std")))]
+extern crate std;
+
 mod verifier;
 
 use caliptra_drivers::*;
@@ -104,6 +107,10 @@ pub struct ImageVerificationInfo {
 pub trait ImageVerificationEnv {
     /// Calculate SHA-384 Digest
     fn sha384_digest(&mut self, offset: u32, len: u32) -> CaliptraResult<ImageDigest>;
+
+    /// Calculate SHA-384 digest of bytes already held in ROM-protected memory
+    /// (the manifest copy), rather than re-reading the image source.
+    fn sha384_digest_slice(&mut self, data: &[u8]) -> CaliptraResult<ImageDigest>;
 
     /// Perform ECC-384 Verification
     fn ecc384_verify(

@@ -691,3 +691,62 @@ fn test_update_reset_fmc_load_addr_mismatch() {
 
     hw.step_until_exit_success().unwrap();
 }
+
+#[test]
+fn test_update_reset_runtime_gap() {
+    const GAP_SIZE: usize = 16;
+
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
+    let mut image_bundle = caliptra_builder::build_and_sign_image(
+        &TEST_FMC_INTERACTIVE,
+        &APP_WITH_UART,
+        ImageOptions::default(),
+    )
+    .unwrap();
+
+    let mut hw = caliptra_hw_model::new(
+        InitParams {
+            rom: &rom,
+            ..Default::default()
+        },
+        BootParams {
+            fw_image: Some(&image_bundle.to_bytes().unwrap()),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+
+    hw.step_until_boot_status(ColdResetComplete.into(), true);
+
+    // Move the runtime source offset GAP_SIZE bytes past the end of FMC and
+    // insert matching padding into the bundle. The image is otherwise valid.
+    let runtime_offset = image_bundle.manifest.runtime.offset as usize;
+    image_bundle.manifest.runtime.offset += GAP_SIZE as u32;
+    let contiguous_image = rebuild_image_after_toc_change(&mut image_bundle);
+    let mut image = contiguous_image[..runtime_offset].to_vec();
+    image.extend_from_slice(&[0; GAP_SIZE]);
+    image.extend_from_slice(&contiguous_image[runtime_offset..]);
+
+    hw.start_mailbox_execute(CommandId::FIRMWARE_LOAD.into(), &image)
+        .unwrap();
+
+    hw.step_until_boot_status(UpdateResetStarted.into(), true);
+
+    let expected = CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_OFFSET_INVALID;
+    assert_eq!(
+        hw.finish_mailbox_execute(),
+        Err(caliptra_hw_model::ModelError::MailboxCmdFailed(
+            expected.into()
+        ))
+    );
+    assert_eq!(
+        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
+        u32::from(expected)
+    );
+    assert_eq!(hw.soc_ifc().cptra_fw_error_fatal().read(), 0);
+
+    // Exit test-fmc with success
+    hw.mailbox_execute(0x1000_000C, &[]).unwrap();
+
+    hw.step_until_exit_success().unwrap();
+}

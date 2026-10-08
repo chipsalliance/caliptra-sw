@@ -1183,6 +1183,80 @@ fn test_toc_invalid_toc_digest() {
     );
 }
 
+enum TocSourceLayout {
+    RuntimePastBundle,
+    RuntimeGap,
+    ContiguousWithPadding,
+}
+
+fn run_toc_source_bounds_test(layout: TocSourceLayout) {
+    const GAP_SIZE: usize = 16;
+    const PADDING_SIZE: usize = 16;
+
+    let (declared_gap, actual_gap, padding, expected_error) = match layout {
+        TocSourceLayout::RuntimePastBundle => (
+            GAP_SIZE,
+            0,
+            0,
+            Some(CaliptraError::IMAGE_VERIFIER_ERR_IMAGE_LEN_MORE_THAN_BUNDLE_SIZE),
+        ),
+        TocSourceLayout::RuntimeGap => (
+            GAP_SIZE,
+            GAP_SIZE,
+            PADDING_SIZE,
+            Some(CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_OFFSET_INVALID),
+        ),
+        TocSourceLayout::ContiguousWithPadding => (0, 0, PADDING_SIZE, None),
+    };
+
+    let (mut hw, mut image_bundle) =
+        helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
+    let fmc = image_bundle.manifest.fmc;
+    let runtime = image_bundle.manifest.runtime;
+    let contiguous_image = update_fmc_runtime_ranges(
+        &mut image_bundle,
+        fmc.offset,
+        fmc.size,
+        runtime.offset + declared_gap as u32,
+        runtime.size,
+    );
+    let mut image = contiguous_image[..runtime.offset as usize].to_vec();
+    image.resize(image.len() + actual_gap, 0);
+    image.extend_from_slice(&contiguous_image[runtime.offset as usize..]);
+    image.resize(image.len() + padding, 0);
+
+    if let Some(expected_error) = expected_error {
+        assert_eq!(
+            ModelError::MailboxCmdFailed(expected_error.into()),
+            hw.upload_firmware(&image).unwrap_err()
+        );
+        assert_eq!(
+            hw.soc_ifc().cptra_boot_status().read(),
+            u32::from(FwProcessorManifestLoadComplete)
+        );
+    } else {
+        // Trailing padding after the runtime is permitted.
+        hw.upload_firmware(&image).unwrap();
+        hw.step_until_boot_status(ColdResetComplete.into(), true);
+        assert_eq!(hw.soc_ifc().cptra_fw_error_fatal().read(), 0);
+    }
+}
+
+#[test]
+fn test_toc_source_bounds_reject_runtime_past_bundle() {
+    run_toc_source_bounds_test(TocSourceLayout::RuntimePastBundle);
+}
+
+#[test]
+fn test_toc_source_bounds_reject_runtime_gap() {
+    run_toc_source_bounds_test(TocSourceLayout::RuntimeGap);
+}
+
+#[test]
+fn test_toc_source_bounds_allow_trailing_padding() {
+    run_toc_source_bounds_test(TocSourceLayout::ContiguousWithPadding);
+}
+
 #[test]
 fn test_toc_fmc_size_zero() {
     let (mut hw, mut image_bundle) =
