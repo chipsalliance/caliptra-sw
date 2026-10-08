@@ -13,7 +13,7 @@ use caliptra_builder::{
     },
     FwId, ImageOptions,
 };
-use caliptra_common::mailbox_api::CommandId;
+use caliptra_common::mailbox_api::{CommandId, ExternalMailboxCmdReq, MailboxReq};
 use caliptra_common::RomBootStatus::*;
 use caliptra_drivers::DataVault;
 use caliptra_error::CaliptraError;
@@ -138,6 +138,149 @@ fn test_update_reset_success() {
             // Exit test-fmc with success
             hw.mailbox_execute(0x1000_000C, &[]).unwrap();
 
+            hw.step_until_exit_success().unwrap();
+        }
+    }
+}
+
+#[test]
+#[cfg_attr(any(feature = "fpga_realtime", feature = "fpga_subsystem"), ignore)]
+fn test_update_reset_axi_source_bounds() {
+    for pqc_key_type in helpers::PQC_KEY_TYPE {
+        let rom = caliptra_builder::build_firmware_rom(helpers::rom_from_env()).unwrap();
+        let image_bundle = caliptra_builder::build_and_sign_image(
+            &TEST_FMC_INTERACTIVE,
+            &APP_WITH_UART_FPGA,
+            ImageOptions {
+                pqc_key_type,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let image_bytes = image_bundle.to_bytes().unwrap();
+        let manifest_size = image_bundle.manifest.as_bytes().len() as u64;
+
+        for staging_addr in [
+            u64::MAX - manifest_size + 5,
+            u64::MAX - image_bytes.len() as u64 + 5,
+        ] {
+            let mut hw = caliptra_hw_model::new(
+                InitParams {
+                    fuses: Fuses {
+                        fuse_pqc_key_type: pqc_key_type as u32,
+                        ..Default::default()
+                    },
+                    rom: &rom,
+                    subsystem_mode: true,
+                    ..Default::default()
+                },
+                BootParams {
+                    fw_image: Some(&image_bytes),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+            hw.step_until_boot_status(ColdResetComplete.into(), true);
+
+            let mut request = MailboxReq::ExternalMailboxCmd(ExternalMailboxCmdReq {
+                command_id: CommandId::FIRMWARE_LOAD.into(),
+                command_size: image_bytes.len() as u32,
+                axi_address_start_low: staging_addr as u32,
+                axi_address_start_high: (staging_addr >> 32) as u32,
+                ..Default::default()
+            });
+            request.populate_chksum().unwrap();
+            hw.start_mailbox_execute(
+                CommandId::EXTERNAL_MAILBOX_CMD.into(),
+                request.as_bytes().unwrap(),
+            )
+            .unwrap();
+
+            let expected = CaliptraError::DRIVER_DMA_AXI_ADDRESS_OVERFLOW;
+            assert_eq!(
+                hw.finish_mailbox_execute(),
+                Err(caliptra_hw_model::ModelError::MailboxCmdFailed(
+                    expected.into()
+                ))
+            );
+            assert_eq!(
+                hw.soc_ifc().cptra_fw_error_non_fatal().read(),
+                u32::from(expected)
+            );
+            assert_eq!(hw.soc_ifc().cptra_fw_error_fatal().read(), 0);
+            assert_eq!(
+                hw.soc_ifc().cptra_boot_status().read(),
+                u32::from(UpdateResetStarted)
+            );
+
+            hw.mailbox_execute(0x1000_000C, &[]).unwrap();
+            hw.step_until_exit_success().unwrap();
+        }
+    }
+}
+
+#[test]
+fn test_update_reset_runtime_gap() {
+    const GAP_SIZE: usize = 16;
+
+    for &subsystem_mode in &HW_MODEL_MODES_SUBSYSTEM {
+        for pqc_key_type in helpers::PQC_KEY_TYPE {
+            let rom = caliptra_builder::build_firmware_rom(helpers::rom_from_env()).unwrap();
+            let mut image_bundle = caliptra_builder::build_and_sign_image(
+                &TEST_FMC_INTERACTIVE,
+                &APP_WITH_UART_FPGA,
+                ImageOptions {
+                    pqc_key_type,
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+            let image_bytes = image_bundle.to_bytes().unwrap();
+            let mut hw = caliptra_hw_model::new(
+                InitParams {
+                    fuses: Fuses {
+                        fuse_pqc_key_type: pqc_key_type as u32,
+                        ..Default::default()
+                    },
+                    rom: &rom,
+                    subsystem_mode,
+                    ..Default::default()
+                },
+                BootParams {
+                    fw_image: Some(&image_bytes),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+            hw.step_until_boot_status(ColdResetComplete.into(), true);
+
+            let runtime_offset = image_bundle.manifest.runtime.offset as usize;
+            image_bundle.manifest.runtime.offset += GAP_SIZE as u32;
+            let contiguous_image = rebuild_image_after_toc_change(&mut image_bundle);
+            let mut image = contiguous_image[..runtime_offset].to_vec();
+            image.extend_from_slice(&[0; GAP_SIZE]);
+            image.extend_from_slice(&contiguous_image[runtime_offset..]);
+            hw.start_mailbox_execute(CommandId::FIRMWARE_LOAD.into(), &image)
+                .unwrap();
+
+            let expected = CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_OFFSET_INVALID;
+            assert_eq!(
+                hw.finish_mailbox_execute(),
+                Err(caliptra_hw_model::ModelError::MailboxCmdFailed(
+                    expected.into()
+                ))
+            );
+            assert_eq!(
+                hw.soc_ifc().cptra_fw_error_non_fatal().read(),
+                u32::from(expected)
+            );
+            assert_eq!(hw.soc_ifc().cptra_fw_error_fatal().read(), 0);
+            assert_eq!(
+                hw.soc_ifc().cptra_boot_status().read(),
+                u32::from(UpdateResetLoadManifestComplete)
+            );
+
+            hw.mailbox_execute(0x1000_000C, &[]).unwrap();
             hw.step_until_exit_success().unwrap();
         }
     }
