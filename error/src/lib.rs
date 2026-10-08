@@ -872,6 +872,11 @@ impl CaliptraError {
             "Image Verifier Error: Update reset FMC load address or size mismatch"
         ),
         (
+            IMAGE_VERIFIER_ERR_RUNTIME_OFFSET_INVALID,
+            0x000b0066,
+            "Image Verifier Error: Runtime offset invalid (gap between FMC and Runtime)"
+        ),
+        (
             DRIVER_LMS_INVALID_LMS_ALGO_TYPE,
             0x000c0001,
             "Driver Error: LMS invalid LMS algorithm type"
@@ -1023,6 +1028,11 @@ impl CaliptraError {
             DRIVER_DMA_FIFO_INVALID_SIZE,
             0x0000f004,
             "DMA driver Error: FIFO invalid size"
+        ),
+        (
+            DRIVER_DMA_AXI_ADDRESS_OVERFLOW,
+            0x0000f008,
+            "DMA driver Error: AXI address range overflow"
         ),
         (RUNTIME_INTERNAL, 0x000E0001, "Runtime Error: Internal"),
         (
