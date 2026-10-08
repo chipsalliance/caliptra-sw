@@ -800,6 +800,59 @@ fn image_revision_from_str(commit_id_str: &str, is_clean: bool) -> io::Result<Im
 mod test {
 
     use super::*;
+    use caliptra_image_gen::ImageGeneratorExecutable;
+
+    #[test]
+    fn test_firmware_entry_at_load_addr() {
+        for fwid in [&firmware::FMC_WITH_UART, &firmware::APP_WITH_UART] {
+            let elf = build_firmware_elf(fwid).unwrap();
+            let executable = ElfExecutable::new(&elf, 0, [0; 20]).unwrap();
+            assert_eq!(executable.entry_point(), executable.load_addr(), "{fwid:?}");
+        }
+    }
+
+    #[test]
+    fn test_generator_rejects_nonzero_entry_offset() {
+        let fmc_elf = build_firmware_elf(&firmware::FMC_WITH_UART).unwrap();
+        let runtime_elf = build_firmware_elf(&firmware::APP_WITH_UART).unwrap();
+        let gen = ImageGenerator::new(Crypto::default());
+
+        for (is_fmc, name) in [(true, "FMC"), (false, "Runtime")] {
+            let mut fmc_elf = fmc_elf.to_vec();
+            let mut runtime_elf = runtime_elf.to_vec();
+            let elf = if is_fmc {
+                &mut fmc_elf
+            } else {
+                &mut runtime_elf
+            };
+            let executable = ElfExecutable::new(elf, 0, [0; 20]).unwrap();
+            let load_addr = executable.load_addr();
+            let entry_point = load_addr + 4;
+            assert!(executable.size() > 4);
+            assert_eq!(elf[4], elf::abi::ELFCLASS32);
+            assert_eq!(elf[5], elf::abi::ELFDATA2LSB);
+            // ELF32 stores e_entry at byte offset 24.
+            elf[24..28].copy_from_slice(&entry_point.to_le_bytes());
+
+            let opts = ImageOptions::default();
+            let result = gen.generate(&ImageGeneratorConfig {
+                fmc: ElfExecutable::new(&fmc_elf, 0, [0; 20]).unwrap(),
+                runtime: ElfExecutable::new(&runtime_elf, 0, [0; 20]).unwrap(),
+                fw_svn: opts.fw_svn,
+                vendor_config: opts.vendor_config,
+                owner_config: opts.owner_config,
+                pqc_key_type: opts.pqc_key_type,
+            });
+            let err = result.expect_err("nonzero entry offset must be rejected");
+            assert_eq!(
+                err.to_string(),
+                format!(
+                    "{name} entry_point {entry_point:#010x} != load_addr {load_addr:#010x}; \
+                     firmware must be built with _fw_entry trampoline at load address"
+                )
+            );
+        }
+    }
 
     #[test]
     fn test_build_firmware() {

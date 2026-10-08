@@ -220,7 +220,7 @@ It contains the image information and SHA-384 hash of individual firmware images
 | Image SVN | 4 | Security Version Number for the image. It is compared to FW SVN fuses. FMC TOC entry's SVN field is ignored. |
 | Reserved | 4 | Reserved field |
 | Image Load Address | 4 | Load address |
-| Image Entry Point | 4 | Entry point to start execution from. Must be within the image's load address range. |
+| Image Entry Point | 4 | Entry point to start the execution from. Must equal Image Load Address. |
 | Image Offset | 4 | Offset from beginning of the image |
 | Image Size | 4 | Image Size |
 | Image Hash | 48 | SHA2-384 hash of image |

@@ -487,6 +487,85 @@ fn test_update_reset_boot_status() {
     feature = "fpga_subsystem"
 )))]
 #[test]
+fn test_update_reset_rejects_nonzero_entry_offset() {
+    for &subsystem_mode in &HW_MODEL_MODES_SUBSYSTEM {
+        for &pqc_key_type in &helpers::PQC_KEY_TYPE {
+            for (is_fmc, expected_error) in [
+                (
+                    true,
+                    CaliptraError::IMAGE_VERIFIER_ERR_FMC_ENTRY_POINT_NOT_AT_LOAD_ADDR,
+                ),
+                (
+                    false,
+                    CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_ENTRY_POINT_NOT_AT_LOAD_ADDR,
+                ),
+            ] {
+                let mut image_bundle = caliptra_builder::build_and_sign_image(
+                    &TEST_FMC_WITH_UART,
+                    &APP_WITH_UART,
+                    ImageOptions {
+                        pqc_key_type,
+                        ..Default::default()
+                    },
+                )
+                .unwrap();
+                let initial_image = image_bundle.to_bytes().unwrap();
+                let entry = if is_fmc {
+                    &mut image_bundle.manifest.fmc
+                } else {
+                    &mut image_bundle.manifest.runtime
+                };
+                assert!(entry.size > 4);
+                entry.entry_point = entry.load_addr + 4;
+                let legacy_image = rebuild_image_after_toc_change(&mut image_bundle);
+
+                let rom =
+                    caliptra_builder::build_firmware_rom(crate::helpers::rom_from_env()).unwrap();
+                let mut hw = caliptra_hw_model::new(
+                    InitParams {
+                        fuses: Fuses {
+                            fuse_pqc_key_type: pqc_key_type as u32,
+                            ..Default::default()
+                        },
+                        rom: &rom,
+                        subsystem_mode,
+                        ..Default::default()
+                    },
+                    BootParams {
+                        fw_image: Some(&initial_image),
+                        ..Default::default()
+                    },
+                )
+                .unwrap();
+                hw.step_until_boot_status(ColdResetComplete.into(), true);
+                hw.start_mailbox_execute(CommandId::FIRMWARE_LOAD.into(), &legacy_image)
+                    .unwrap();
+                assert_eq!(
+                    hw.finish_mailbox_execute(),
+                    Err(caliptra_hw_model::ModelError::MailboxCmdFailed(
+                        expected_error.into()
+                    ))
+                );
+                hw.step_until_exit_success().unwrap();
+                assert_eq!(
+                    hw.soc_ifc().cptra_fw_error_non_fatal().read(),
+                    u32::from(expected_error)
+                );
+                assert_eq!(
+                    hw.soc_ifc().cptra_boot_status().read(),
+                    u32::from(UpdateResetLoadManifestComplete)
+                );
+            }
+        }
+    }
+}
+
+#[cfg(not(any(
+    feature = "verilator",
+    feature = "fpga_realtime",
+    feature = "fpga_subsystem"
+)))]
+#[test]
 fn test_update_reset_post_load_digest_mismatch_is_fatal() {
     let pqc_key_type = helpers::PQC_KEY_TYPE[0];
     let image_options = ImageOptions {

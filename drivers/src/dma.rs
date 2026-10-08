@@ -615,7 +615,9 @@ impl<'a> DmaRecovery<'a> {
             | CaliptraError::IMAGE_VERIFIER_ERR_TOC_ENTRY_RANGE_ARITHMETIC_OVERFLOW
             | CaliptraError::IMAGE_VERIFIER_ERR_FMC_OFFSET_INVALID
             | CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_OFFSET_INVALID
-            | CaliptraError::IMAGE_VERIFIER_ERR_UPDATE_RESET_FMC_LOAD_ADDR_MISMATCH => {
+            | CaliptraError::IMAGE_VERIFIER_ERR_UPDATE_RESET_FMC_LOAD_ADDR_MISMATCH
+            | CaliptraError::IMAGE_VERIFIER_ERR_FMC_ENTRY_POINT_NOT_AT_LOAD_ADDR
+            | CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_ENTRY_POINT_NOT_AT_LOAD_ADDR => {
                 Self::RECOVERY_REASON_FIRMWARE_IMAGE_LAYOUT_INVALID
             }
             _ => Self::RECOVERY_REASON_CORRUPTED_CRITICAL_DATA,
@@ -1136,6 +1138,19 @@ impl<'a> DmaOtpCtrl<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_entry_point_recovery_reason() {
+        for err in [
+            CaliptraError::IMAGE_VERIFIER_ERR_FMC_ENTRY_POINT_NOT_AT_LOAD_ADDR,
+            CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_ENTRY_POINT_NOT_AT_LOAD_ADDR,
+        ] {
+            assert_eq!(
+                DmaRecovery::recovery_reason_from_firmware_verification_error(err),
+                DmaRecovery::RECOVERY_REASON_FIRMWARE_IMAGE_LAYOUT_INVALID
+            );
+        }
+    }
 
     #[test]
     fn test_axi_address_range_carries_into_high_word() {
