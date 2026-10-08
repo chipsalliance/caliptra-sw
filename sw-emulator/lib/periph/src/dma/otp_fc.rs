@@ -385,4 +385,8 @@ impl FuseController {
     pub fn set_error_injection(&mut self, enable: bool) {
         self.state_machine.context.error_injection = enable;
     }
+
+    pub fn fuse_bank(&self) -> &[u32] {
+        &self.state_machine.context.fuse_bank
+    }
 }

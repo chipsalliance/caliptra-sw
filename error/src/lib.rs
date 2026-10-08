@@ -2043,6 +2043,11 @@ impl CaliptraError {
             0x000E00B4,
             "Runtime Error: Auth manifest UEID does not match device UEID"
         ),
+        (
+            RUNTIME_ZEROIZE_UDS_FE_NOT_SUBSYSTEM_MODE,
+            0x000E00B5,
+            "Runtime Error: UDS/FE zeroization requires subsystem mode"
+        ),
         // FMC Errors
         (FMC_GLOBAL_NMI, 0x000F0001, "FMC Error: Global NMI"),
         (
