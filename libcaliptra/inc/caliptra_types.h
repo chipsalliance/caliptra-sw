@@ -424,6 +424,18 @@ struct caliptra_reallocate_dpe_context_limits_resp
     uint32_t new_pl1_context_limit;
 };
 
+struct caliptra_install_owner_pk_hash_req
+{
+    struct caliptra_req_header hdr;
+    uint32_t digest[12];
+};
+
+struct caliptra_install_owner_pk_hash_resp
+{
+    struct caliptra_resp_header hdr;
+    uint32_t dpe_result;
+};
+
 // DPE commands
 
 #define DPE_MAGIC 0x44504543 // "DPEC"

@@ -1578,6 +1578,19 @@ int caliptra_reallocate_dpe_context_limits(struct caliptra_reallocate_dpe_contex
     return pack_and_execute_command(&p, async);
 }
 
+// Install Owner PK Hash
+int caliptra_install_owner_pk_hash(struct caliptra_install_owner_pk_hash_req *req, struct caliptra_install_owner_pk_hash_resp *resp, bool async)
+{
+    if (!req || !resp)
+    {
+        return INVALID_PARAMS;
+    }
+
+    CREATE_PARCEL(p, OP_INSTALL_OWNER_PK_HASH, req, resp);
+
+    return pack_and_execute_command(&p, async);
+}
+
 // OCP LOCK: Report HEK Metadata
 int caliptra_ocp_lock_report_hek_metadata(struct caliptra_ocp_lock_report_hek_metadata_req *req, struct caliptra_ocp_lock_report_hek_metadata_resp *resp, bool async)
 {
