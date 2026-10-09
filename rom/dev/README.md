@@ -2109,6 +2109,11 @@ multi-word byte ordering:
 - For external images, also check the absolute AXI source address and final byte
   before DMA. Update reset rejects a wrapping staging bundle before fetching its
   manifest. Source-address overflow reports `DRIVER_DMA_AXI_ADDRESS_OVERFLOW`.
+- Require FMC and Runtime section sizes and source offsets to be multiples of
+  four bytes. FMC already immediately follows the word-aligned manifest.
+  Reject unsupported partial-word lengths before hashing or loading payloads,
+  so the DMA loaders copy exactly the authenticated section lengths. These
+  image-format checks apply to both mailbox and external-memory sources.
 - Ensure that Fw.Svn is greater than or equal to Fuse.Svn.
 
 <br> *(Note: Same SVN Validation is done for the FMC and RT)

@@ -158,8 +158,9 @@ impl Csrng {
             });
         }
 
-        send_command(&mut result.csrng, Command::Uninstantiate)?;
+        result.zeroize()?;
         send_command(&mut result.csrng, Command::Instantiate(seed))?;
+        result.wait_for_command_completion(CaliptraError::DRIVER_CSRNG_INSTANTIATE)?;
 
         Ok(result)
     }
@@ -183,12 +184,14 @@ impl Csrng {
             },
         )?;
         wait::until(|| self.csrng.regs().genbits_vld().read().genbits_vld());
-        Ok((
+        let result = (
             self.csrng.regs().genbits().read(),
             self.csrng.regs().genbits().read(),
             self.csrng.regs().genbits().read(),
             self.csrng.regs().genbits().read(),
-        ))
+        );
+        self.wait_for_command_completion(CaliptraError::DRIVER_CSRNG_GENERATE)?;
+        Ok(result)
     }
 
     /// Return 12 randomly generated [`u32`]s.
@@ -230,7 +233,8 @@ impl Csrng {
     ///
     /// Must be called only after any in-flight Reseed has consumed its seed
     /// from the esfinal FIFO; disabling mid-Reseed clears that FIFO and hangs
-    /// the CSRNG in `MainSmReseedPrep`. Pair with `wait_for_csrng_idle`.
+    /// the CSRNG in `MainSmReseedPrep`. `reseed` waits for the command ACK
+    /// before returning, so it is safe to disable the source afterward.
     pub(crate) fn disable_entropy_source(&mut self) {
         self.entropy_src
             .regs_mut()
@@ -286,6 +290,9 @@ impl Csrng {
                 *word = self.csrng.regs().genbits().read();
             }
         }
+        // Drain GENBITS before waiting for ACK: a full output FIFO can prevent
+        // a multi-block Generate from completing.
+        self.wait_for_command_completion(CaliptraError::DRIVER_CSRNG_GENERATE)?;
         Ok(result)
     }
 
@@ -330,7 +337,7 @@ impl Csrng {
             crate::FipsTestHook::error_if_hook_set(crate::FipsTestHook::CSRNG_RESEED_FAILURE)?;
         }
         send_command(&mut self.csrng, Command::Reseed(seed))?;
-        self.wait_for_csrng_idle()
+        self.wait_for_command_completion(CaliptraError::DRIVER_CSRNG_RESEED)
     }
 
     /// Tear down the current DRBG instance and create a new one with the
@@ -349,8 +356,9 @@ impl Csrng {
     /// `Instantiate` command fails.
     pub fn reinstantiate(&mut self, seed: Seed) -> CaliptraResult<()> {
         self.ensure_entropy_src_enabled(&seed)?;
-        send_command(&mut self.csrng, Command::Uninstantiate)?;
-        send_command(&mut self.csrng, Command::Instantiate(seed))
+        self.zeroize()?;
+        send_command(&mut self.csrng, Command::Instantiate(seed))?;
+        self.wait_for_command_completion(CaliptraError::DRIVER_CSRNG_INSTANTIATE)
     }
 
     /// Enables entropy_src and waits for it to be ready if the seed source is
@@ -377,6 +385,7 @@ impl Csrng {
         // if we are given too much data, do multiple updates
         for data in additional_data.chunks(MAX_SEED_WORDS) {
             send_command(&mut self.csrng, Command::Update(data))?;
+            self.wait_for_command_completion(CaliptraError::DRIVER_CSRNG_UPDATE)?;
         }
         Ok(())
     }
@@ -392,31 +401,35 @@ impl Csrng {
     }
 
     pub fn uninstantiate(mut self) {
-        let _ = send_command(&mut self.csrng, Command::Uninstantiate);
+        let _ = self.zeroize();
     }
 
     pub fn zeroize(&mut self) -> CaliptraResult<()> {
-        send_command(&mut self.csrng, Command::Uninstantiate)
+        send_command(&mut self.csrng, Command::Uninstantiate)?;
+        self.wait_for_command_completion(CaliptraError::DRIVER_CSRNG_UNINSTANTIATE)
     }
 
-    /// Wait for the CSRNG main SM to return to Idle. `send_command` returns
-    /// when the command is accepted into the staging FIFO, not when the CSRNG
-    /// finishes executing it.
-    fn wait_for_csrng_idle(&self) -> CaliptraResult<()> {
-        const MAIN_SM_IDLE: u32 = 0x4e;
+    /// CMD_RDY only indicates space in the staging FIFO. The main SM can still
+    /// be Idle before a queued command starts, so neither proves completion.
+    /// CMD_ACK is cleared by CMD_REQ writes and stays set after completion.
+    fn wait_for_command_completion(&self, err: CaliptraError) -> CaliptraResult<()> {
         const ALERT_HANG: u32 = 0x1fb;
         loop {
-            let csrng_state = self.csrng.regs().main_sm_state().read().main_sm_state();
-            let es_state = self
+            let status = self.csrng.regs().sw_cmd_sts().read();
+            if status.cmd_sts() != 0 || u32::from(self.csrng.regs().err_code().read()) != 0 {
+                return Err(err);
+            }
+            if status.cmd_ack() {
+                return Ok(());
+            }
+            if self
                 .entropy_src
                 .regs()
                 .main_sm_state()
                 .read()
-                .main_sm_state();
-            if csrng_state == MAIN_SM_IDLE {
-                return Ok(());
-            }
-            if es_state == ALERT_HANG {
+                .main_sm_state()
+                == ALERT_HANG
+            {
                 return check_for_alert_state(self.entropy_src.regs());
             }
         }
@@ -566,6 +579,8 @@ fn send_command(csrng: &mut CsrngReg, command: Command) -> CaliptraResult<()> {
         }
     }
 
+    // CMD_RDY is FIFO backpressure, including between seed words.
+    wait_for_command_ready(csrng, err)?;
     // Write mandatory 32-bit command header.
     csrng.regs_mut().cmd_req().write(|w| {
         w.acmd(acmd)
@@ -576,10 +591,15 @@ fn send_command(csrng: &mut CsrngReg, command: Command) -> CaliptraResult<()> {
 
     // Write optional extra words.
     for &word in extra_words {
+        wait_for_command_ready(csrng, err)?;
         csrng.regs_mut().cmd_req().write(|_| word.into());
     }
 
-    // Wait for command.
+    // Wait for the final word to be accepted, not for command completion.
+    wait_for_command_ready(csrng, err)
+}
+
+fn wait_for_command_ready(csrng: &CsrngReg, err: CaliptraError) -> CaliptraResult<()> {
     loop {
         let reg = csrng.regs().sw_cmd_sts().read();
 
@@ -590,8 +610,6 @@ fn send_command(csrng: &mut CsrngReg, command: Command) -> CaliptraResult<()> {
             return Err(err);
         }
 
-        // TODO: if the hardware is fixed to make the ack flag sticky, we should
-        // check that as well before exiting the loop.
         if reg.cmd_rdy() {
             return Ok(());
         }

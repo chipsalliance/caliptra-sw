@@ -1022,6 +1022,133 @@ fn test_update_reset_max_fw_image() {
 }
 
 #[test]
+#[cfg(not(feature = "fpga_realtime"))]
+fn test_update_reset_external_dma_inputs() {
+    if caliptra_builder::get_ci_rom_version() != caliptra_builder::CiRomVersion::Latest {
+        return;
+    }
+    let rom = caliptra_builder::build_firmware_rom(helpers::rom_from_env()).unwrap();
+    let image_bundle = caliptra_builder::build_and_sign_image(
+        &TEST_FMC_INTERACTIVE,
+        &APP_WITH_UART_FPGA,
+        ImageOptions::default(),
+    )
+    .unwrap();
+    let image = image_bundle.to_bytes().unwrap();
+    let size = image.len() as u32;
+    let envelope_size = core::mem::size_of::<ExternalMailboxCmdReq>();
+    let malformed = [
+        (0, 0, envelope_size),
+        (4, 0, envelope_size),
+        (size + 1, 0, envelope_size),
+        (size + 2, 0, envelope_size),
+        (size + 3, 0, envelope_size),
+        (size, 1, envelope_size),
+        (size, 2, envelope_size),
+        (size, 3, envelope_size),
+        (size, 0, 8),
+        (size, 0, 12),
+        (size, 0, 16),
+        (size, 0, envelope_size - 1),
+        (size, 0, envelope_size + 1),
+    ];
+    for (command_size, offset, length) in malformed {
+        // Test FMC resets directly into ROM, bypassing runtime's EXTM validation.
+        // Keep malformed-envelope cases independent of prior update resets.
+        let mut model = caliptra_hw_model::new(
+            InitParams {
+                rom: &rom,
+                subsystem_mode: true,
+                ..Default::default()
+            },
+            BootParams {
+                fw_image: Some(&image),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        model.step_until_boot_status(ColdResetComplete.into(), true);
+        let address = model.write_payload_to_ss_staging_area(&image, 0).unwrap();
+        let request = |size, offset| {
+            let address = address + offset;
+            let mut request = MailboxReq::ExternalMailboxCmd(ExternalMailboxCmdReq {
+                command_id: CommandId::FIRMWARE_LOAD.into(),
+                command_size: size,
+                axi_address_start_low: address as u32,
+                axi_address_start_high: (address >> 32) as u32,
+                ..Default::default()
+            });
+            request.populate_chksum().unwrap();
+            request.as_bytes().unwrap().to_vec()
+        };
+        let mut bytes = request(command_size, offset);
+        bytes.resize(length, 0);
+        assert_eq!(
+            model.mailbox_execute(CommandId::EXTERNAL_MAILBOX_CMD.into(), &bytes),
+            Err(caliptra_hw_model::ModelError::MailboxCmdFailed(
+                CaliptraError::ROM_UPDATE_RESET_FLOW_MAILBOX_ACCESS_FAILURE.into()
+            ))
+        );
+        // Every rejection must still allow a subsequent valid update.
+        assert_eq!(
+            model.mailbox_execute(CommandId::EXTERNAL_MAILBOX_CMD.into(), &request(size, 0)),
+            Ok(None)
+        );
+        model.step_until_boot_status(UpdateResetComplete.into(), true);
+        model.mailbox_execute(0x1000_000C, &[]).unwrap();
+        model.step_until_exit_success().unwrap();
+    }
+}
+
+#[test]
+fn test_update_reset_image_word_alignment() {
+    if caliptra_builder::get_ci_rom_version() != caliptra_builder::CiRomVersion::Latest {
+        return;
+    }
+    let rom = caliptra_builder::build_firmware_rom(helpers::rom_from_env()).unwrap();
+    let image_bundle = caliptra_builder::build_and_sign_image(
+        &TEST_FMC_INTERACTIVE,
+        &APP_WITH_UART_FPGA,
+        ImageOptions::default(),
+    )
+    .unwrap();
+    let image = image_bundle.to_bytes().unwrap();
+    let malformed_images = caliptra_test::firmware::unaligned_images(&image_bundle);
+    for subsystem_mode in HW_MODEL_MODES_SUBSYSTEM {
+        for (malformed, expected_error) in &malformed_images {
+            // Isolate cases: FPGA can stall in ROM startup after several update
+            // resets on one boot, before it reaches image validation.
+            let mut model = caliptra_hw_model::new(
+                InitParams {
+                    rom: &rom,
+                    subsystem_mode,
+                    ..Default::default()
+                },
+                BootParams {
+                    fw_image: Some(&image),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+            model.step_until_boot_status(ColdResetComplete.into(), true);
+            assert_eq!(
+                model.mailbox_execute(CommandId::FIRMWARE_LOAD.into(), malformed),
+                Err(caliptra_hw_model::ModelError::MailboxCmdFailed(
+                    (*expected_error).into()
+                ))
+            );
+            assert_eq!(
+                model.soc_ifc().cptra_fw_error_non_fatal().read(),
+                u32::from(*expected_error)
+            );
+            // Each rejection must leave the original firmware usable.
+            model.mailbox_execute(0x1000_000C, &[]).unwrap();
+            model.step_until_exit_success().unwrap();
+        }
+    }
+}
+
+#[test]
 fn test_update_reset_fmc_load_addr_mismatch() {
     for &subsystem_mode in &HW_MODEL_MODES_SUBSYSTEM {
         let rom = caliptra_builder::build_firmware_rom(crate::helpers::rom_from_env()).unwrap();
