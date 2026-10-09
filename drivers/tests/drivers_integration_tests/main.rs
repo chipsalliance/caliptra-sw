@@ -15,10 +15,8 @@ use caliptra_hw_model::{
 };
 use caliptra_hw_model_types::EtrngResponse;
 use caliptra_registers::mbox::enums::MboxStatusE;
-use caliptra_registers::soc_ifc::{
-    meta::{CptraItrngEntropyConfig0, CptraItrngEntropyConfig1},
-    regs::{CptraItrngEntropyConfig0WriteVal, CptraItrngEntropyConfig1WriteVal},
-};
+use caliptra_registers::soc_ifc::meta::{CptraItrngEntropyConfig0, CptraItrngEntropyConfig1};
+use caliptra_registers::{CptraItrngEntropyConfig0WriteVal, CptraItrngEntropyConfig1WriteVal};
 use caliptra_test::{
     crypto::derive_ecdsa_keypair,
     derive::{DoeInput, DoeOutput},

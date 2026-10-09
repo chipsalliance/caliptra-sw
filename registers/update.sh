@@ -30,4 +30,4 @@ fi
 git -C "$ss_dir" submodule update --init --recursive
 
 cargo run --locked --manifest-path registers/bin/generator/Cargo.toml -- \
-    "$rtl_dir" registers/bin/extra-rdl "$i3c_dir" "$ss_dir" "$dest_dir"
+    "$revision" "$rtl_dir" registers/bin/extra-rdl "$i3c_dir" "$ss_dir" "$dest_dir"

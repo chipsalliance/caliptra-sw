@@ -26,9 +26,7 @@ use zerocopy::{FromBytes, FromZeros, IntoBytes};
 use caliptra_emu_periph::MailboxRequester;
 use caliptra_registers::mbox;
 use caliptra_registers::mbox::enums::{MboxFsmE, MboxStatusE};
-use caliptra_registers::soc_ifc::regs::{
-    CptraItrngEntropyConfig0WriteVal, CptraItrngEntropyConfig1WriteVal,
-};
+use caliptra_registers::{CptraItrngEntropyConfig0WriteVal, CptraItrngEntropyConfig1WriteVal};
 
 use rand::{rngs::StdRng, SeedableRng};
 use sha2::Digest;
