@@ -1564,6 +1564,19 @@ int caliptra_reallocate_dpe_context_limits(struct caliptra_reallocate_dpe_contex
     return pack_and_execute_command(&p, async);
 }
 
+// Install Owner PK Hash
+int caliptra_install_owner_pk_hash(struct caliptra_install_owner_pk_hash_req *req, struct caliptra_install_owner_pk_hash_resp *resp, bool async)
+{
+    if (!req || !resp)
+    {
+        return INVALID_PARAMS;
+    }
+
+    CREATE_PARCEL(p, OP_INSTALL_OWNER_PK_HASH, req, resp);
+
+    return pack_and_execute_command(&p, async);
+}
+
 int caliptra_retrieve_idevid_csr(struct caliptra_buffer* caliptra_idevid_csr)
 {
     if (!caliptra_idevid_csr) {
