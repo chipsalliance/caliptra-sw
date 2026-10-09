@@ -2288,6 +2288,16 @@ impl CaliptraError {
             "Firmware Processor Error: Mailbox invalid parameters"
         ),
         (
+            FW_PROC_MAILBOX_SELF_TEST_RESULT_PENDING,
+            0x0102000F,
+            "Firmware Processor Error: Self-test result pending"
+        ),
+        (
+            FW_PROC_MAILBOX_SELF_TEST_NOT_STARTED,
+            0x01020010,
+            "Firmware Processor Error: Self-test not started"
+        ),
+        (
             FMC_ALIAS_CERT_VERIFY_FAILURE,
             0x01030001,
             "FMC Alias Layer Error: Certificate verification failure"
