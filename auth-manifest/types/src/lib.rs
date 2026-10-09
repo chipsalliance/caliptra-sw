@@ -150,6 +150,7 @@ bitfield! {
     pub struct ImageMetadataFlags(u32);
     pub image_source, set_image_source: 1, 0;
     pub ignore_auth_check, set_ignore_auth_check: 2;
+    pub dma_single_dword_read, set_dma_single_dword_read: 3;
     pub exec_bit, set_exec_bit: 14,8;
 }
 
@@ -169,7 +170,7 @@ pub struct AuthManifestImageMetadata {
     pub fw_id: u32,
     pub component_id: u32,
     pub classification: u32,
-    pub flags: u32, // ImageMetadataFlags(image_source, ignore_auth_check)
+    pub flags: u32, // ImageMetadataFlags
     pub image_load_address: Addr64,
     pub image_staging_address: Addr64,
     pub digest: [u8; 48],
@@ -368,10 +369,10 @@ pub struct OwnerAuthorizationManifest {
 #[cfg(test)]
 mod test {
     use crate::{
-        AuthManifestImageMetadata, AuthManifestPreamble, OwnerAuthManifestPreamble,
-        OwnerAuthorizationManifest, AUTH_MANIFEST_PREAMBLE_SIZE, AUTH_MANIFEST_UEID_FW_ID,
-        AUTH_MANIFEST_UEID_LEN, OWNER_AUTH_MANIFEST_MARKER, OWNER_AUTH_MANIFEST_PREAMBLE_SIZE,
-        OWNER_AUTH_MANIFEST_SIZE,
+        AuthManifestImageMetadata, AuthManifestPreamble, ImageMetadataFlags,
+        OwnerAuthManifestPreamble, OwnerAuthorizationManifest, AUTH_MANIFEST_PREAMBLE_SIZE,
+        AUTH_MANIFEST_UEID_FW_ID, AUTH_MANIFEST_UEID_LEN, OWNER_AUTH_MANIFEST_MARKER,
+        OWNER_AUTH_MANIFEST_PREAMBLE_SIZE, OWNER_AUTH_MANIFEST_SIZE,
     };
     use zerocopy::IntoBytes;
 
@@ -387,6 +388,15 @@ mod test {
             &metadata.digest[AUTH_MANIFEST_UEID_LEN..],
             &[0; 48 - AUTH_MANIFEST_UEID_LEN]
         );
+    }
+
+    #[test]
+    fn test_dma_single_dword_read_flag_encoding() {
+        let mut flags = ImageMetadataFlags(0);
+        flags.set_dma_single_dword_read(true);
+
+        assert!(flags.dma_single_dword_read());
+        assert_eq!(flags.0, 1 << 3);
     }
 
     #[test]
