@@ -15,6 +15,10 @@ Abstract:
 use crate::{wait, Array4xN, CaliptraError, CaliptraResult};
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_registers::kmac::{regs::CfgShadowedWriteVal, Kmac as KmacReg};
+use zeroize::Zeroizing;
+
+// DONE clears Keccak state, but the legacy message FIFO retains ten 64-bit data slots.
+const SHA3_FIFO_SCRUB_BYTES: usize = 10 * 8;
 
 #[allow(unused)]
 #[derive(Copy, Clone)]
@@ -136,9 +140,7 @@ impl Sha3 {
         }
         self.active_session_token = None;
         self.finalize()?;
-        let digest = self.read_digest::<16, 64>(Sha3Mode::Shake, Sha3KStrength::L256)?;
-        self.zeroize_internal();
-        Ok(digest)
+        self.read_digest_and_scrub(Sha3Mode::Shake, Sha3KStrength::L256)
     }
 
     // Additional modes may be added by simply creating analogous functions for the two below
@@ -243,13 +245,7 @@ impl Sha3 {
         // FINALIZE
         self.finalize()?;
 
-        // READ DIGEST
-        let digest = self.read_digest(mode, strength)?;
-
-        // Complete and zeroize
-        self.zeroize_internal();
-
-        Ok(digest)
+        self.read_digest_and_scrub(mode, strength)
     }
 
     // Initialize the digest operation and wait for the absorb state to be set
@@ -358,18 +354,44 @@ impl Sha3 {
         Ok(digest)
     }
 
-    /// Zeroize the hardware registers.
-    fn zeroize_internal(&mut self) {
+    fn read_digest_and_scrub<const W: usize, const B: usize>(
+        &mut self,
+        mode: Sha3Mode,
+        strength: Sha3KStrength,
+    ) -> CaliptraResult<Array4xN<W, B>> {
+        let digest = self.read_digest(mode, strength).map(Zeroizing::new);
+        self.zeroize_internal()?;
+        digest.map(|digest| *digest)
+    }
+
+    /// Finish the real operation and overwrite retained message FIFO data.
+    fn zeroize_internal(&mut self) -> CaliptraResult<()> {
+        self.finish_operation();
+
+        // Use the low-level sequence so the scrub does not recursively invoke cleanup.
+        self.digest_start(Sha3Mode::Sha3, Sha3KStrength::L256)?;
+        self.stream_msg(&[0; SHA3_FIFO_SCRUB_BYTES])?;
+        self.finalize()?;
+        wait::until(|| self.sha3.regs().status().read().sha3_squeeze());
+        self.finish_operation();
+
+        Ok(())
+    }
+
+    fn finish_operation(&mut self) {
         self.active_session_token = None;
         self.sha3
             .regs_mut()
             .cmd()
             .write(|w| w.cmd(Sha3Cmd::Done.reg_value()));
+        wait::until(|| self.sha3.regs().status().read().sha3_idle());
     }
 
-    /// Zeroize the hardware registers.
+    /// Issue a nonblocking DONE request for best-effort hardware-state clearing.
     ///
-    /// This is useful to call from a fatal-error-handling routine.
+    /// This is useful to call from a fatal-error-handling routine. It does not
+    /// run the normal completion scrub or overwrite message FIFO storage, and
+    /// DONE is only accepted when the hardware is squeezing.
     ///
     /// # Safety
     ///
@@ -447,12 +469,7 @@ impl Sha3DigestOp<'_> {
         self.state = Sha3DigestState::Final;
 
         self.sha3.finalize()?;
-
-        let digest = self.sha3.read_digest(self.mode, self.strength)?;
-
-        self.sha3.zeroize_internal();
-
-        Ok(digest)
+        self.sha3.read_digest_and_scrub(self.mode, self.strength)
     }
 }
 

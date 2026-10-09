@@ -16,7 +16,7 @@ Abstract:
 #![no_main]
 
 use caliptra_cfi_lib::CfiCounter;
-use caliptra_drivers::{Array4x16, Array4x8, Sha3};
+use caliptra_drivers::{Array4x16, Array4x8, CaliptraError, Sha3};
 use caliptra_kat::Shake256Kat;
 use caliptra_registers::kmac::Kmac as KmacReg;
 
@@ -224,6 +224,66 @@ fn test_shake256_op4() {
     assert_eq!(digest, Array4x8::from(expected));
 }
 
+const SHA3_256_ABC: [u8; 32] = [
+    0x3a, 0x98, 0x5d, 0xa7, 0x4f, 0xe2, 0x25, 0xb2, 0x04, 0x5c, 0x17, 0x2d, 0x6b, 0xd3, 0x90, 0xbd,
+    0x85, 0x5f, 0x08, 0x6e, 0x3e, 0x9d, 0x52, 0x5b, 0x46, 0xbf, 0xe2, 0x45, 0x11, 0x43, 0x15, 0x32,
+];
+
+const SHAKE256_ABC: [u8; 64] = [
+    0x48, 0x33, 0x66, 0x60, 0x13, 0x60, 0xa8, 0x77, 0x1c, 0x68, 0x63, 0x08, 0x0c, 0xc4, 0x11, 0x4d,
+    0x8d, 0xb4, 0x45, 0x30, 0xf8, 0xf1, 0xe1, 0xee, 0x4f, 0x94, 0xea, 0x37, 0xe7, 0x8b, 0x57, 0x39,
+    0xd5, 0xa1, 0x5b, 0xef, 0x18, 0x6a, 0x53, 0x86, 0xc7, 0x57, 0x44, 0xc0, 0x52, 0x7e, 0x1f, 0xaa,
+    0x9f, 0x87, 0x26, 0xe4, 0x62, 0xa1, 0x2a, 0x4f, 0xeb, 0x06, 0xbd, 0x88, 0x01, 0xe7, 0x51, 0xe4,
+];
+
+fn test_sha3_256_digest() {
+    let mut sha3 = unsafe { Sha3::new(KmacReg::new()) };
+    let digest = sha3.sha3_256_digest(b"abc").unwrap();
+    assert_eq!(digest, Array4x8::from(SHA3_256_ABC));
+}
+
+fn test_sha3_256_digest_ext() {
+    let mut sha3 = unsafe { Sha3::new(KmacReg::new()) };
+    let data = [b"a".as_slice(), b"bc".as_slice()];
+    let digest = sha3.sha3_256_digest_ext(data.iter()).unwrap();
+    assert_eq!(digest, Array4x8::from(SHA3_256_ABC));
+}
+
+fn test_shake256_streaming() {
+    let mut sha3 = unsafe { Sha3::new(KmacReg::new()) };
+    let token = 0x1234;
+    let expected = Array4x16::from(SHAKE256_ABC);
+
+    sha3.shake256_streaming_start(token).unwrap();
+    sha3.shake256_streaming_update(token, b"a").unwrap();
+    assert_eq!(
+        sha3.shake256_streaming_update(token + 1, b"x"),
+        Err(CaliptraError::DRIVER_SHA3_INVALID_STATE_ERR)
+    );
+    assert_eq!(
+        sha3.shake256_streaming_finalize(token + 1),
+        Err(CaliptraError::DRIVER_SHA3_INVALID_STATE_ERR)
+    );
+    sha3.shake256_streaming_update(token, b"b").unwrap();
+    sha3.shake256_streaming_update(token, b"c").unwrap();
+    assert_eq!(sha3.shake256_streaming_finalize(token).unwrap(), expected);
+    assert_eq!(
+        sha3.shake256_streaming_update(token, b"x"),
+        Err(CaliptraError::DRIVER_SHA3_INVALID_STATE_ERR)
+    );
+    assert_eq!(
+        sha3.shake256_streaming_finalize(token),
+        Err(CaliptraError::DRIVER_SHA3_INVALID_STATE_ERR)
+    );
+
+    sha3.shake256_streaming_start(token + 1).unwrap();
+    sha3.shake256_streaming_update(token + 1, b"abc").unwrap();
+    assert_eq!(
+        sha3.shake256_streaming_finalize(token + 1).unwrap(),
+        expected
+    );
+}
+
 fn test_kat() {
     // Init CFI
     CfiCounter::reset(&mut || Ok((0xdeadbeef, 0xdeadbeef, 0xdeadbeef, 0xdeadbeef)));
@@ -248,4 +308,7 @@ test_suite! {
     test_shake256_op2,
     test_shake256_op3,
     test_shake256_op4,
+    test_sha3_256_digest,
+    test_sha3_256_digest_ext,
+    test_shake256_streaming,
 }

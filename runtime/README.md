@@ -1871,6 +1871,13 @@ The context MUST be passed in from `CM_SHAKE256_INIT` or `CM_SHAKE256_UPDATE`.
 
 The output is always a 64-byte SHAKE256 digest.
 
+After saving the requested digest, normal SHA3/SHAKE completion runs a dummy
+SHA3-256 operation on 80 bytes of fixed zero data to overwrite the legacy
+hardware message FIFO, then returns the engine to idle. The dummy digest is
+discarded and does not change the returned hash. Streaming cleanup occurs only
+after `CM_SHAKE256_FINAL`, not between `INIT` and `UPDATE`. Fatal-error handling
+remains nonblocking and does not run this normal-completion scrub.
+
 Command Code: `0x434D_5846` ("CMXF")
 
 *Table: `CM_SHAKE256_FINAL` input arguments*

@@ -27,6 +27,9 @@ use caliptra_ureg::ResettableReg;
 use openssl::{hash::MessageDigest, pkey::PKey};
 use zerocopy::{FromBytes, IntoBytes};
 
+#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
+mod sha3;
+
 const STACK_START: u32 = 0x50014F74;
 const STACK_END: u32 = STACK_START - (64 * 1024);
 
@@ -38,22 +41,23 @@ fn default_init_params() -> InitParams<'static> {
     }
 }
 
-fn start_driver_test(test_rom: &'static FwId) -> Result<DefaultHwModel, Box<dyn Error>> {
-    let rom = caliptra_builder::build_firmware_rom(test_rom)?;
+fn driver_init_params(rom: &[u8]) -> InitParams<'_> {
     let image_info = vec![ImageInfo::new(
         StackRange::new(STACK_START, STACK_END),
         // The whole binary is using the same stack.
         CodeRange::new(0, u32::MAX),
     )];
-    caliptra_hw_model::new(
-        InitParams {
-            rom: &rom,
-            subsystem_mode: true,
-            stack_info: Some(StackInfo::new(image_info)),
-            ..default_init_params()
-        },
-        BootParams::default(),
-    )
+    InitParams {
+        rom,
+        subsystem_mode: true,
+        stack_info: Some(StackInfo::new(image_info)),
+        ..default_init_params()
+    }
+}
+
+fn start_driver_test(test_rom: &'static FwId) -> Result<DefaultHwModel, Box<dyn Error>> {
+    let rom = caliptra_builder::build_firmware_rom(test_rom)?;
+    caliptra_hw_model::new(driver_init_params(&rom), BootParams::default())
 }
 
 fn run_driver_test(test_rom: &'static FwId) {
@@ -820,7 +824,10 @@ fn test_sha2_512_384acc() {
 
 #[test]
 fn test_sha3() {
+    #[cfg(any(feature = "fpga_realtime", feature = "fpga_subsystem"))]
     run_driver_test(&firmware::driver_tests::SHA3);
+    #[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
+    sha3::run_test();
 }
 
 #[test]

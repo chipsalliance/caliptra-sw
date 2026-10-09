@@ -665,6 +665,7 @@ dependencies = [
  "caliptra-ureg",
  "cfg-if",
  "openssl",
+ "tempfile",
  "ufmt",
  "zerocopy",
  "zeroize",
