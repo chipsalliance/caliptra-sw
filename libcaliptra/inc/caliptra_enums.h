@@ -63,6 +63,7 @@ enum device_lifecycle {
  */
 enum fips_status {
     FIPS_STATUS_APPROVED = 0,
+    FIPS_STATUS_NOT_APPROVED_USER_SUPPLIED_KEY = 0x5553524B,
 };
 
 /**
@@ -198,4 +199,3 @@ enum hpke_algorithms {
 enum access_key_sizes {
     LEN_256 = (1UL << 0),
 };
-
