@@ -79,7 +79,10 @@ const DISABLE_VENDOR_DEBUG_IMAGES: u32 = 1 << 31;
 
 fn rom_supports_vendor_debug_image_enforcement() -> bool {
     match get_ci_rom_version() {
-        CiRomVersion::Rom2_0_0 | CiRomVersion::Rom2_0_1 | CiRomVersion::Rom2_0_2 => false,
+        CiRomVersion::Rom2_0_0
+        | CiRomVersion::Rom2_0_1
+        | CiRomVersion::Rom2_0_2
+        | CiRomVersion::Rom2_0_3 => false,
         CiRomVersion::Latest => true,
     }
 }

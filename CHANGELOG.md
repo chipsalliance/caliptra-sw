@@ -1,3 +1,24 @@
+# rom-2.0.4
+
+## Caliptra ROM 2.0.4 Release Notes
+
+Release notes for changes introduced since ROM 2.0.3 (`bf9ca633`) through `eb148980` on the `caliptra-2.0` branch.
+
+The published [`rom-2.0.4rc1` release](https://github.com/chipsalliance/caliptra-sw/releases/tag/release_v20260928_0-2.0) was built from `b5198fc0` with the embedded ROM version still set to 2.0.3. ROM 2.0.4 artifacts must be rebuilt from a commit containing this version bump; the already-published RC artifacts are unchanged.
+
+### Features
+
+- **Support vendor-authorized debug artifacts with fuse-controlled enforcement** ([#4219](https://github.com/chipsalliance/caliptra-sw/pull/4219))
+- **Record subsystem mode in ROM DeviceStatus measurements** ([#3930](https://github.com/chipsalliance/caliptra-sw/pull/3930))
+- **Add the OCP EAT profile and ECC/ML-DSA algorithm selection to DICE certificate generation** ([#4181](https://github.com/chipsalliance/caliptra-sw/pull/4181))
+
+### Fixes
+
+- **Validate FMC image offsets and bounds before cold-boot and update-reset loading** ([#4215](https://github.com/chipsalliance/caliptra-sw/pull/4215), [#4236](https://github.com/chipsalliance/caliptra-sw/pull/4236))
+- **Run the CSRNG KAT before CFI initialization consumes entropy** ([#4106](https://github.com/chipsalliance/caliptra-sw/pull/4106), [#4236](https://github.com/chipsalliance/caliptra-sw/pull/4236))
+- **Handle dynamic entropy-source power state during CSRNG use** ([#4072](https://github.com/chipsalliance/caliptra-sw/pull/4072))
+- **Chunk DMA image hashing to support images larger than 1 MiB** ([#3940](https://github.com/chipsalliance/caliptra-sw/pull/3940))
+
 # fw-2.0.2
 
 ## Caliptra FW 2.0.2 Release Notes

@@ -1,5 +1,5 @@
 
-# Caliptra - ROM Specification v2.0.3
+# Caliptra - ROM Specification v2.0.4
 
 *Spec Version: 1.0*
 

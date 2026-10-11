@@ -67,7 +67,10 @@ fn get_rom_test_params() -> RomTestParams<'static> {
 
 fn device_status_includes_subsystem_mode() -> bool {
     match caliptra_builder::get_ci_rom_version() {
-        CiRomVersion::Rom2_0_0 | CiRomVersion::Rom2_0_1 | CiRomVersion::Rom2_0_2 => false,
+        CiRomVersion::Rom2_0_0
+        | CiRomVersion::Rom2_0_1
+        | CiRomVersion::Rom2_0_2
+        | CiRomVersion::Rom2_0_3 => false,
         CiRomVersion::Latest => true,
     }
 }

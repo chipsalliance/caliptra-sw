@@ -75,7 +75,18 @@ const ROM_EXP_2_0_3: RomExpVals = RomExpVals {
     ..ROM_EXP_2_0_2
 };
 
-const ROM_EXP_CURRENT: RomExpVals = RomExpVals { ..ROM_EXP_2_0_3 };
+const ROM_EXP_2_0_4: RomExpVals = RomExpVals {
+    rom_version: 0x1004, // 2.0.4
+    ..ROM_EXP_2_0_3
+};
+
+const ROM_EXP_CURRENT: RomExpVals = RomExpVals { ..ROM_EXP_2_0_4 };
+
+#[test]
+fn current_rom_version_matches_builder() {
+    assert_eq!(ROM_EXP_CURRENT.rom_version, 0x1004);
+    assert_eq!(ROM_EXP_CURRENT.rom_version, version::get_rom_version());
+}
 
 // ===  RUNTIME  ===
 pub struct RtExpVals {
@@ -129,6 +140,7 @@ impl RomExpVals {
                 "2_0_1" => ROM_EXP_2_0_1,
                 "2_0_2" => ROM_EXP_2_0_2,
                 "2_0_3" => ROM_EXP_2_0_3,
+                "2_0_4" => ROM_EXP_2_0_4,
                 _ => panic!(
                     "FIPS Test: Unknown version for expected ROM values ({})",
                     version

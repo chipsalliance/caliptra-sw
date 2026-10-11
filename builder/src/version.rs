@@ -2,7 +2,7 @@
 
 pub const ROM_VERSION_MAJOR: u16 = 2;
 pub const ROM_VERSION_MINOR: u16 = 0;
-pub const ROM_VERSION_PATCH: u16 = 3;
+pub const ROM_VERSION_PATCH: u16 = 4;
 
 pub const FMC_VERSION_MAJOR: u16 = 2;
 pub const FMC_VERSION_MINOR: u16 = 0;
@@ -40,4 +40,14 @@ pub fn get_runtime_version() -> u32 {
     ((RUNTIME_VERSION_MAJOR & 0xFF) << 24)
         | ((RUNTIME_VERSION_MINOR & 0xFF) << 16)
         | (RUNTIME_VERSION_PATCH & 0xFFFF)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn rom_version_is_2_0_4() {
+        assert_eq!(get_rom_version(), 0x1004);
+    }
 }

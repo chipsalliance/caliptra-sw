@@ -35,6 +35,7 @@ fn test_get_ecc_csr() {
         CiRomVersion::Rom2_0_0
         | CiRomVersion::Rom2_0_1
         | CiRomVersion::Rom2_0_2
+        | CiRomVersion::Rom2_0_3
         | CiRomVersion::Latest => {
             let response = result.unwrap().unwrap();
 
@@ -77,6 +78,7 @@ fn test_get_mldsa_csr() {
         CiRomVersion::Rom2_0_0
         | CiRomVersion::Rom2_0_1
         | CiRomVersion::Rom2_0_2
+        | CiRomVersion::Rom2_0_3
         | CiRomVersion::Latest => {
             let response = result.unwrap().unwrap();
 
@@ -119,6 +121,7 @@ fn test_missing_csr() {
         CiRomVersion::Rom2_0_0
         | CiRomVersion::Rom2_0_1
         | CiRomVersion::Rom2_0_2
+        | CiRomVersion::Rom2_0_3
         | CiRomVersion::Latest => assert_eq!(
             response,
             ModelError::MailboxCmdFailed(CaliptraError::RUNTIME_GET_IDEV_ID_UNPROVISIONED.into())
@@ -140,6 +143,7 @@ fn test_missing_csr() {
         CiRomVersion::Rom2_0_0
         | CiRomVersion::Rom2_0_1
         | CiRomVersion::Rom2_0_2
+        | CiRomVersion::Rom2_0_3
         | CiRomVersion::Latest => assert_eq!(
             response,
             ModelError::MailboxCmdFailed(CaliptraError::RUNTIME_GET_IDEV_ID_UNPROVISIONED.into())
