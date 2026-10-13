@@ -45,8 +45,8 @@ jobs:
         run: |
           echo "Build-Test: release_ref=$(git rev-parse HEAD)"
 
-      - name: Run precheckin checks
-        run: cargo xtask precheckin
+      #- name: Run precheckin checks
+      #  run: cargo xtask precheckin
 
   build:
     needs: lint

@@ -48,6 +48,7 @@ aes.workspace = true
 aes-gcm.workspace = true
 anyhow.workspace = true
 caliptra-api.workspace = true
+caliptra-api-types.workspace = true
 caliptra-builder.workspace = true
 caliptra-common = { workspace = true, default-features = false, features = [
     "std",
@@ -111,3 +112,4 @@ fpga_subsystem = [
 ]
 fips-test-hooks = ["caliptra-drivers/fips-test-hooks", "caliptra-kat/fips-test-hooks"]
 ocp-lock = ["caliptra-hw-model/ocp-lock"]
+stash-measurement-registers = ["caliptra-drivers/stash-measurement-registers"]
