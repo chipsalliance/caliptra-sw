@@ -27,7 +27,7 @@ use tock_registers::interfaces::{ReadWriteable, Readable, Writeable};
 use tock_registers::register_bitfields;
 
 pub mod axi_root_bus;
-use axi_root_bus::{AxiAddr, AxiRootBus};
+use axi_root_bus::{AxiAddr, AxiRootBus, SubsystemAddresses};
 pub mod otp_fc;
 pub mod recovery;
 
@@ -210,6 +210,8 @@ impl Dma {
         mci: Mci,
         test_sram: Option<&[u8]>,
         use_mcu_recovery_interface: bool,
+        enable_external_soc_dma: bool,
+        subsystem_addresses: SubsystemAddresses,
     ) -> Self {
         Self {
             name: ReadOnlyRegister::new(Self::NAME),
@@ -235,6 +237,8 @@ impl Dma {
                 mci,
                 test_sram,
                 use_mcu_recovery_interface,
+                enable_external_soc_dma,
+                subsystem_addresses,
             ),
             mailbox,
             pending_axi_to_axi: None,
@@ -573,6 +577,7 @@ impl Dma {
 mod tests {
     use std::rc::Rc;
 
+    use caliptra_emu_bus::{Device, EventData};
     use tock_registers::registers::InMemoryRegister;
 
     use crate::{CaliptraRootBusArgs, Iccm, MailboxInternal};
@@ -675,6 +680,8 @@ mod tests {
             mci.clone(),
             None,
             false,
+            false,
+            SubsystemAddresses::default(),
         );
 
         assert_eq!(
@@ -686,6 +693,95 @@ mod tests {
         assert_eq!(
             dma_read_u32(&mut dma, &clock.clone(), AXI_TEST_OFFSET),
             test_value
+        );
+        assert!(!dma.axi.must_schedule(0xffff));
+        assert_eq!(
+            dma.axi.schedule_read(0xffff, 4),
+            Err(BusError::LoadAccessFault)
+        );
+        assert_eq!(
+            dma.axi.write(RvSize::Word, 0xffff, 0x1234_5678),
+            Err(BusError::StoreAccessFault)
+        );
+    }
+
+    #[test]
+    fn custom_subsystem_addresses_configure_registers_and_axi_routing() {
+        let clock = Rc::new(Clock::new());
+        let mbox_ram = MailboxRam::default();
+        let addresses = SubsystemAddresses {
+            caliptra: 0x3000_0000,
+            mci: 0x0100_0000,
+            recovery: 0x0006_0100,
+            otp_fc: 0x0005_0000,
+            uds_seed: 0x48,
+        };
+        let args = CaliptraRootBusArgs {
+            clock: clock.clone(),
+            subsystem_addresses: Some(addresses),
+            ..CaliptraRootBusArgs::default()
+        };
+        let mailbox_internal = MailboxInternal::new(&clock, mbox_ram.clone());
+        let mci = Mci::new(vec![]);
+        let mut soc_reg =
+            SocRegistersInternal::new(mailbox_internal, Iccm::new(&clock), mci.clone(), args);
+
+        assert_eq!(soc_reg.read(RvSize::Word, 0x508), Ok(addresses.mci as u32));
+        assert_eq!(
+            soc_reg.read(RvSize::Word, 0x510),
+            Ok(addresses.recovery as u32)
+        );
+        assert_eq!(
+            soc_reg.read(RvSize::Word, 0x518),
+            Ok(addresses.otp_fc as u32)
+        );
+
+        let mut dma = Dma::new(
+            &clock,
+            mbox_ram.clone(),
+            soc_reg,
+            Sha512Accelerator::new(&clock, mbox_ram),
+            mci,
+            None,
+            false,
+            true,
+            addresses,
+        );
+
+        assert!(dma.axi.read(RvSize::Word, addresses.mci).is_ok());
+        assert!(dma.axi.read(RvSize::Word, addresses.recovery).is_ok());
+        assert!(dma.axi.read(RvSize::Word, addresses.otp_fc + 0x10).is_ok());
+
+        let (sender, receiver) = mpsc::channel();
+        dma.axi.register_outgoing_events(sender);
+        let external_address = 0x7000_0000;
+        assert!(dma.axi.must_schedule(external_address));
+        dma.axi.schedule_read(external_address, 4).unwrap();
+        assert_eq!(
+            receiver.recv().unwrap(),
+            Event::new(
+                Device::CaliptraCore,
+                Device::ExternalSoc,
+                EventData::MemoryRead {
+                    start_addr: external_address as u32,
+                    len: 4,
+                },
+            )
+        );
+
+        dma.axi
+            .write(RvSize::Word, external_address, 0x1234_5678)
+            .unwrap();
+        assert_eq!(
+            receiver.recv().unwrap(),
+            Event::new(
+                Device::CaliptraCore,
+                Device::ExternalSoc,
+                EventData::MemoryWrite {
+                    start_addr: external_address as u32,
+                    data: 0x1234_5678u32.to_le_bytes().to_vec(),
+                },
+            )
         );
     }
 }
