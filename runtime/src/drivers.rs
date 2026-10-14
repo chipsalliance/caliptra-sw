@@ -33,14 +33,13 @@ use caliptra_common::mailbox_api::AddSubjectAltNameReq;
 use caliptra_dpe_response_buffer::SliceResponseBuffer;
 use caliptra_drivers::KeyId;
 use caliptra_drivers::{
-    cprintln,
+    hand_off::DataStore, FirmwareHandoffTable, Hmac384, Mldsa87, Mldsa87PubKey, Mldsa87Seed,
+    PcrBank, Sha256, Sha256Alg, Sha2_512_384Acc, Sha384, Trng,
+};
+use caliptra_drivers::{
     pcr_log::{RT_FW_CURRENT_PCR, RT_FW_JOURNEY_PCR},
     Array4x12, CaliptraError, CaliptraResult, DataVault, Ecc384, KeyVault, Lms,
     PersistentDataAccessor, Pic, ResetReason, Sha1, SocIfc,
-};
-use caliptra_drivers::{
-    hand_off::DataStore, FirmwareHandoffTable, Hmac384, Mldsa87, Mldsa87PubKey, Mldsa87Seed,
-    PcrBank, Sha256, Sha256Alg, Sha2_512_384Acc, Sha384, Trng,
 };
 use caliptra_image_types::ImageManifest;
 use caliptra_registers::el2_pic_ctrl::El2PicCtrl;
@@ -276,6 +275,40 @@ impl Drivers {
         }
     }
 
+    /// Disable attestation after a failed integrity check.
+    ///
+    /// On success, optionally stores `extended_err` in
+    /// CPTRA_FW_EXTENDED_ERROR_INFO and reports `non_fatal_err`. On failure,
+    /// stores the error in CPTRA_FW_EXTENDED_ERROR_INFO and returns
+    /// RUNTIME_GLOBAL_EXCEPTION. Shared by all
+    /// callers so the CFI-checked sequence is compiled once.
+    #[inline(never)]
+    pub(crate) fn disable_attestation_and_report(
+        drivers: &mut Drivers,
+        extended_err: Option<u32>,
+        non_fatal_err: u32,
+    ) -> CaliptraResult<()> {
+        let result = DisableAttestationCmd::execute(drivers);
+        if cfi_launder(result.is_ok()) {
+            cfi_assert!(result.is_ok());
+        } else {
+            cfi_assert!(result.is_err());
+        }
+        match result {
+            Ok(_) => {
+                if let Some(ext) = extended_err {
+                    drivers.soc_ifc.set_fw_extended_error(ext);
+                }
+                caliptra_drivers::report_fw_error_non_fatal(non_fatal_err);
+                Ok(())
+            }
+            Err(e) => {
+                drivers.soc_ifc.set_fw_extended_error(e.into());
+                Err(CaliptraError::RUNTIME_GLOBAL_EXCEPTION)
+            }
+        }
+    }
+
     /// Validate DPE and disable attestation if validation fails
     #[inline(never)]
     fn validate_dpe_structure(drivers: &mut Drivers) -> CaliptraResult<()> {
@@ -284,25 +317,17 @@ impl Drivers {
         let validation_result = dpe_validator.validate_dpe();
         if let Err(e) = validation_result {
             // If SRAM Dpe Instance validation fails, disable attestation
-            let result = DisableAttestationCmd::execute(drivers);
+            let result = Self::disable_attestation_and_report(
+                drivers,
+                Some(e.get_error_code()),
+                CaliptraError::RUNTIME_DPE_VALIDATION_FAILED.into(),
+            );
             if cfi_launder(result.is_ok()) {
                 cfi_assert!(result.is_ok());
             } else {
                 cfi_assert!(result.is_err());
             }
-            match result {
-                Ok(_) => {
-                    // store specific validation error in CPTRA_FW_EXTENDED_ERROR_INFO
-                    drivers.soc_ifc.set_fw_extended_error(e.get_error_code());
-                    caliptra_drivers::report_fw_error_non_fatal(
-                        CaliptraError::RUNTIME_DPE_VALIDATION_FAILED.into(),
-                    );
-                }
-                Err(e) => {
-                    cprintln!("{}", e.0);
-                    return Err(CaliptraError::RUNTIME_GLOBAL_EXCEPTION);
-                }
-            }
+            result?;
         } else {
             // check that DPE used context limits are not exceeded
             let dpe_context_threshold_exceeded =
@@ -313,21 +338,14 @@ impl Drivers {
                 cfi_assert!(dpe_context_threshold_exceeded.is_err());
             }
             if let Err(e) = dpe_context_threshold_exceeded {
-                let result = DisableAttestationCmd::execute(drivers);
+                let result =
+                    Self::disable_attestation_and_report(drivers, Some(e.into()), e.into());
                 if cfi_launder(result.is_ok()) {
                     cfi_assert!(result.is_ok());
                 } else {
                     cfi_assert!(result.is_err());
                 }
-                match result {
-                    Ok(_) => {
-                        caliptra_drivers::report_fw_error_non_fatal(e.into());
-                    }
-                    Err(e) => {
-                        cprintln!("{}", e.0);
-                        return Err(CaliptraError::RUNTIME_GLOBAL_EXCEPTION);
-                    }
-                }
+                result?;
             }
         }
 
@@ -406,27 +424,18 @@ impl Drivers {
         // Ensure TCIs from SRAM == PCRs
         if latest_pcr != latest_tci || journey_pcr != journey_tci {
             // If pcr validation fails, disable attestation
-            let result = DisableAttestationCmd::execute(drivers);
+            let error = if latest_pcr != latest_tci {
+                CaliptraError::RUNTIME_RT_CURRENT_PCR_VALIDATION_FAILED
+            } else {
+                CaliptraError::RUNTIME_RT_JOURNEY_PCR_VALIDATION_FAILED
+            };
+            let result = Self::disable_attestation_and_report(drivers, None, error.into());
             if cfi_launder(result.is_ok()) {
                 cfi_assert!(result.is_ok());
             } else {
                 cfi_assert!(result.is_err());
             }
-            match result {
-                Ok(_) => {
-                    let error = if latest_pcr != latest_tci {
-                        CaliptraError::RUNTIME_RT_CURRENT_PCR_VALIDATION_FAILED
-                    } else {
-                        CaliptraError::RUNTIME_RT_JOURNEY_PCR_VALIDATION_FAILED
-                    };
-
-                    caliptra_drivers::report_fw_error_non_fatal(error.into());
-                }
-                Err(e) => {
-                    cprintln!("{}", e.0);
-                    return Err(CaliptraError::RUNTIME_GLOBAL_EXCEPTION);
-                }
-            }
+            result?;
         } else {
             cfi_assert_eq_12_words(
                 &<[u32; 12]>::from(latest_tci),

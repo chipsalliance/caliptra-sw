@@ -325,24 +325,18 @@ pub fn handle_mailbox_commands(drivers: &mut Drivers) -> CaliptraResult<()> {
         let reset_reason = drivers.soc_ifc.reset_reason();
         if reset_reason == ResetReason::WarmReset {
             cfi_assert_eq(drivers.soc_ifc.reset_reason(), ResetReason::WarmReset);
-            let result = DisableAttestationCmd::execute(drivers);
+            let result = Drivers::disable_attestation_and_report(
+                drivers,
+                None,
+                CaliptraError::RUNTIME_CMD_BUSY_DURING_WARM_RESET.into(),
+            );
             if cfi_launder(result.is_ok()) {
                 cfi_assert!(result.is_ok());
+                cprintln!("Disabled attest - cmd busy + warm rst");
             } else {
                 cfi_assert!(result.is_err());
             }
-            match result {
-                Ok(_) => {
-                    cprintln!("Disabled attest - cmd busy + warm rst");
-                    caliptra_drivers::report_fw_error_non_fatal(
-                        CaliptraError::RUNTIME_CMD_BUSY_DURING_WARM_RESET.into(),
-                    );
-                }
-                Err(e) => {
-                    cprintln!("{}", e.0);
-                    return Err(CaliptraError::RUNTIME_GLOBAL_EXCEPTION);
-                }
-            }
+            result?;
         }
     } else {
         cfi_assert!(!command_was_running);
