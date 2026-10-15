@@ -43,6 +43,11 @@ pub struct Csrng {
     #[register(offset = 0x38)]
     err_code: ReadOnlyRegister<u32>,
 
+    // MAIN_SM_STATE (0x40): CSRNG main SM state. The emulator processes
+    // commands synchronously, so it always reads Idle (0x4e = MainSmIdle).
+    #[register(offset = 0x40)]
+    main_sm_state_csrng: ReadOnlyRegister<u32>,
+
     // Entropy Source registers
     #[register(offset = 0x1020, write_fn = module_enable_write)]
     module_enable: u32,
@@ -88,6 +93,7 @@ impl Csrng {
             genbits_vld: ReadOnlyRegister::new(0b01),
             genbits: ReadOnlyRegister::new(0),
             err_code: ReadOnlyRegister::new(0),
+            main_sm_state_csrng: ReadOnlyRegister::new(0x4e), // MainSmIdle (csrng_pkg.sv)
             module_enable: 0x9,
             conf: 0x909099,
             health_test_windows: ReadOnlyRegister::new(0x600200),
@@ -117,6 +123,15 @@ impl Csrng {
                 self.seed.push(data);
                 if self.seed.len() == num_words {
                     self.ctr_drbg.instantiate(Instantiate::Words(&self.seed));
+                    self.seed.clear();
+                    self.cmd_req_state = CmdReqState::ExpectNewCommand;
+                }
+            }
+
+            CmdReqState::ExpectReseedWords { num_words } => {
+                self.seed.push(data);
+                if self.seed.len() == num_words {
+                    self.ctr_drbg.reseed(Instantiate::Words(&self.seed));
                     self.seed.clear();
                     self.cmd_req_state = CmdReqState::ExpectNewCommand;
                 }
@@ -215,6 +230,7 @@ impl Csrng {
 
     fn process_new_cmd(&mut self, data: RvData) {
         const INSTANTIATE: u32 = 1;
+        const RESEED: u32 = 2;
         const GENERATE: u32 = 3;
         const UNINSTANTIATE: u32 = 5;
 
@@ -250,6 +266,33 @@ impl Csrng {
                     }
 
                     _ => unreachable!("invalid INSTANTIATE state: flag0={flag0}, clen={clen}"),
+                }
+            }
+
+            RESEED => {
+                const FALSE: u32 = MultiBitBool::False as u32;
+                const TRUE: u32 = MultiBitBool::True as u32;
+
+                // Mirror INSTANTIATE flag handling for RESEED.
+                match [flag0, clen] {
+                    [FALSE, 0] => {
+                        let seed = self.get_conditioned_seed();
+                        self.ctr_drbg.reseed(Instantiate::Bytes(&seed));
+                    }
+
+                    [FALSE, _] => unimplemented!("reseed: entropy_src XOR constant"),
+
+                    [TRUE, 0] => {
+                        self.ctr_drbg.reseed(Instantiate::default());
+                    }
+
+                    [TRUE, _] => {
+                        self.cmd_req_state = CmdReqState::ExpectReseedWords {
+                            num_words: clen as usize,
+                        };
+                    }
+
+                    _ => unreachable!("invalid RESEED state: flag0={flag0}, clen={clen}"),
                 }
             }
 
@@ -350,9 +393,11 @@ impl ExactSizeIterator for Words {
     }
 }
 
+#[allow(clippy::enum_variant_names)]
 enum CmdReqState {
     ExpectNewCommand,
     ExpectSeedWords { num_words: usize },
+    ExpectReseedWords { num_words: usize },
 }
 
 #[repr(u32)]

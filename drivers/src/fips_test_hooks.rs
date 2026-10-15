@@ -36,6 +36,7 @@ impl FipsTestHook {
     pub const HMAC384_FAILURE: u8 = 0x47;
     pub const LMS_VERIFY_FAILURE: u8 = 0x48;
     pub const ECC384_KEY_PAIR_GENERATE_FAILURE: u8 = 0x49;
+    pub const CSRNG_RESEED_FAILURE: u8 = 0x4D;
 
     // FW Load Errors
     pub const FW_LOAD_VENDOR_PUB_KEY_DIGEST_FAILURE: u8 = 0x50;

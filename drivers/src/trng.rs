@@ -84,4 +84,10 @@ impl Trng {
             },
         }
     }
+
+    pub fn disable_entropy_source(&mut self) {
+        if let Self::Internal(csrng) = self {
+            csrng.disable_entropy_source()
+        }
+    }
 }
