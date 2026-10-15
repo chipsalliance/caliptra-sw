@@ -424,6 +424,13 @@ impl MailboxRegs {
             States::RdyForDlen => Status::MBOX_FSM_PS::MBOX_RDY_FOR_DLEN,
             States::Error => Status::MBOX_FSM_PS::MBOX_ERROR,
         });
+
+        let context = &self.state_machine.context;
+        let soc_has_lock =
+            context.locked != 0 && matches!(context.user, MailboxRequester::SocUser(_));
+
+        result.modify(Status::SOC_HAS_LOCK.val(u32::from(soc_has_lock)));
+
         Ok(result.get())
     }
 
@@ -733,6 +740,57 @@ mod tests {
     }
 
     #[test]
+    fn test_soc_has_lock_status() {
+        for owner in [0u32, 1u32] {
+            let mut caliptra = MailboxInternal::new(&Clock::new(), MailboxRam::default());
+            let mut soc = caliptra.as_external(MailboxRequester::SocUser(owner));
+            let mut other = caliptra.as_external(MailboxRequester::SocUser(owner + 10));
+            let soc_regs = soc.regs();
+            let other_regs = other.regs();
+            let uc_regs = caliptra.regs();
+
+            assert!(!soc_regs.status().read().soc_has_lock());
+            assert!(!soc_regs.lock().read().lock());
+            assert_eq!(soc_regs.user().read(), owner);
+            assert!(soc_regs.status().read().soc_has_lock());
+            assert!(uc_regs.status().read().soc_has_lock());
+
+            // A failed acquisition by another requester must not change ownership.
+            assert!(other_regs.lock().read().lock());
+            assert_eq!(soc_regs.user().read(), owner);
+            assert!(other_regs.status().read().soc_has_lock());
+
+            soc_regs.cmd().write(|_| 0x55);
+            soc_regs.dlen().write(|_| 0);
+            soc_regs.execute().write(|w| w.execute(true));
+            assert!(soc_regs.status().read().soc_has_lock());
+
+            // Updating command status must preserve the original lock ownership.
+            uc_regs.status().write(|w| w.status(|w| w.data_ready()));
+            let response = soc_regs.status().read();
+            assert!(response.status().data_ready());
+            assert!(response.mbox_fsm_ps().mbox_execute_soc());
+            assert!(response.soc_has_lock());
+
+            soc_regs.execute().write(|w| w.execute(false));
+            assert!(!soc_regs.status().read().soc_has_lock());
+            assert!(!uc_regs.status().read().soc_has_lock());
+
+            // Force unlock must also clear ownership despite the remembered user.
+            assert!(!soc_regs.lock().read().lock());
+            assert!(soc_regs.status().read().soc_has_lock());
+            uc_regs.unlock().write(|w| w.unlock(true));
+            assert!(!soc_regs.status().read().soc_has_lock());
+
+            // A held Caliptra-owned lock is not SoC ownership.
+            assert!(!uc_regs.lock().read().lock());
+            assert!(soc_regs.lock().read().lock());
+            assert!(!soc_regs.status().read().soc_has_lock());
+            assert!(!uc_regs.status().read().soc_has_lock());
+        }
+    }
+
+    #[test]
     fn test_soc_to_caliptra_lock() {
         let mut caliptra = MailboxInternal::new(&Clock::new(), MailboxRam::default());
         let mut soc = caliptra.as_external(MailboxRequester::SocUser(1u32));
@@ -798,7 +856,10 @@ mod tests {
 
         assert_eq!(
             u32::from(uc_regs.status().read()),
-            (Status::STATUS::DATA_READY + Status::MBOX_FSM_PS::MBOX_EXECUTE_UC).value
+            (Status::STATUS::DATA_READY
+                + Status::MBOX_FSM_PS::MBOX_EXECUTE_UC
+                + Status::SOC_HAS_LOCK::SET)
+                .value
         );
 
         assert_eq!(uc_regs.cmd().read(), 0x55);
