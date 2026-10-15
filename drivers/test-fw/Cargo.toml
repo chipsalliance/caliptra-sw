@@ -22,6 +22,7 @@ emu = ["caliptra-test-harness/emu"]
 fpga_realtime = []
 runtime = []
 "hw-1.0" = ["caliptra-drivers/hw-1.0"]
+fips-test-hooks = ["caliptra-drivers/fips-test-hooks"]
 
 
 # This feature is used to filter all these binary targets during normal builds
@@ -174,5 +175,15 @@ required-features = ["riscv"]
 [[bin]]
 name = "trng_driver_responder"
 path = "src/bin/trng_driver_responder.rs"
+required-features = ["riscv"]
+
+[[bin]]
+name = "csrng_reseed_tests"
+path = "src/bin/csrng_reseed_tests.rs"
+required-features = ["riscv"]
+
+[[bin]]
+name = "csrng_reseed_health_fail_tests"
+path = "src/bin/csrng_reseed_health_fail_tests.rs"
 required-features = ["riscv"]
 
