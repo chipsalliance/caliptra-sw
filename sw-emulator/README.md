@@ -9,6 +9,14 @@ do not imply support for building or booting 2.1 firmware on this branch.
 
 ## Peripheral emulation
 
+### HMAC
+
+The driver and emulator use the 2.2 final-block protocol: only the final padded
+message block sets `LAST`. Earlier commands expose the inner SHA digest; `LAST`
+produces the outer HMAC tag. The driver arms key-vault tag output only for that
+final command. The emulator models the six-word, write-only LFSR seed bank,
+live-key OPAD finalization, command pulses, and zeroize cancellation.
+
 ### Mailbox
 
 #### Class diagram

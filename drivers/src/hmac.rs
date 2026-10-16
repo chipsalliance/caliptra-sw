@@ -151,6 +151,12 @@ struct HmacParams<'a> {
     csr_mode: bool,
 }
 
+#[derive(Clone, Copy)]
+struct HmacBlockCommand {
+    first: bool,
+    last: bool,
+}
+
 pub struct Hmac {
     hmac: HmacReg,
 }
@@ -231,8 +237,8 @@ impl Hmac {
         let hmac = self.hmac.regs_mut();
 
         let rand_data = trng.generate()?;
-        let iv: [u32; 12] = rand_data.0[..12].try_into().unwrap();
-        KvAccess::copy_from_arr(&Array4x12::from(iv), hmac.hmac512_lfsr_seed())?;
+        hmac.hmac512_lfsr_seed()
+            .write(&core::array::from_fn(|i| rand_data.0[i]));
         Ok(())
     }
 
@@ -402,7 +408,14 @@ impl Hmac {
                     // the panic.
                     if let Some(slice) = buf.get(offset..offset + HMAC_BLOCK_SIZE_BYTES) {
                         let block = <&[u8; HMAC_BLOCK_SIZE_BYTES]>::try_from(slice).unwrap();
-                        self.hmac_block(block, first, key, dest_key, hmac_mode, csr_mode)?;
+                        self.hmac_block(
+                            block,
+                            HmacBlockCommand { first, last: false },
+                            key,
+                            dest_key,
+                            hmac_mode,
+                            csr_mode,
+                        )?;
                         bytes_remaining -= HMAC_BLOCK_SIZE_BYTES;
                         first = false;
                     } else {
@@ -440,7 +453,16 @@ impl Hmac {
         )
         .map_err(|err| err.into_read_data_err())?;
 
-        self.hmac_op(true, key, dest_key, hmac_mode, false)
+        self.hmac_op(
+            HmacBlockCommand {
+                first: true,
+                last: true,
+            },
+            key,
+            dest_key,
+            hmac_mode,
+            false,
+        )
     }
 
     fn hmac_partial_block(&mut self, params: HmacParams) -> CaliptraResult<()> {
@@ -469,7 +491,10 @@ impl Hmac {
         // Calculate the digest of the op
         self.hmac_block(
             &block,
-            params.first,
+            HmacBlockCommand {
+                first: params.first,
+                last: slice.len() < HMAC_BLOCK_LEN_OFFSET,
+            },
             params.key,
             params.dest_key,
             params.hmac_mode,
@@ -482,7 +507,10 @@ impl Hmac {
             set_block_len(params.buf_size, &mut block);
             self.hmac_block(
                 &block,
-                false,
+                HmacBlockCommand {
+                    first: false,
+                    last: true,
+                },
                 params.key,
                 params.dest_key,
                 params.hmac_mode,
@@ -499,7 +527,7 @@ impl Hmac {
     /// # Arguments
     ///
     /// * `block`: Block to calculate the digest
-    /// * `first` - Flag indicating if this is the first block
+    /// * `command` - First and final block flags
     /// * `key` - Key vault slot to use for the hmac key
     /// * `dest_key` - Destination key vault slot to store the hmac tag
     /// * `hmac_mode` - Hmac mode to use
@@ -510,7 +538,7 @@ impl Hmac {
     fn hmac_block(
         &mut self,
         block: &[u8; HMAC_BLOCK_SIZE_BYTES],
-        first: bool,
+        command: HmacBlockCommand,
         key: Option<KeyReadArgs>,
         dest_key: Option<KeyWriteArgs>,
         hmac_mode: HmacMode,
@@ -518,7 +546,7 @@ impl Hmac {
     ) -> CaliptraResult<()> {
         let hmac = self.hmac.regs_mut();
         Array4x32::from(block).write_to_reg(hmac.hmac512_block());
-        self.hmac_op(first, key, dest_key, hmac_mode, csr_mode)
+        self.hmac_op(command, key, dest_key, hmac_mode, csr_mode)
     }
 
     ///
@@ -526,7 +554,7 @@ impl Hmac {
     ///
     /// # Arguments
     ///
-    /// * `first` - Flag indicating if this is the first block
+    /// * `command` - First and final block flags
     /// * `key` - Key vault slot to use for the hmac key
     /// * `dest_key` - Destination key vault slot to store the hmac tag
     /// * `hmac_mode` - Hmac mode to use
@@ -536,13 +564,16 @@ impl Hmac {
     /// * `CaliptraResult<()>` - Result of the operation
     fn hmac_op(
         &mut self,
-        first: bool,
+        command: HmacBlockCommand,
         key: Option<KeyReadArgs>,
         dest_key: Option<KeyWriteArgs>,
         hmac_mode: HmacMode,
         csr_mode: bool,
     ) -> CaliptraResult<()> {
         let hmac = self.hmac.regs_mut();
+        let write_tag = command.last;
+
+        wait::until(|| hmac.hmac512_status().read().ready());
 
         if let Some(key) = key {
             KvAccess::copy_from_kv(
@@ -553,45 +584,36 @@ impl Hmac {
             .map_err(|err| err.into_read_key_err())?
         };
         if let Some(dest_key) = dest_key {
-            KvAccess::begin_copy_to_kv(
-                hmac.hmac512_kv_wr_status(),
-                hmac.hmac512_kv_wr_ctrl(),
-                dest_key,
-            )?;
+            if write_tag {
+                KvAccess::begin_copy_to_kv(
+                    hmac.hmac512_kv_wr_status(),
+                    hmac.hmac512_kv_wr_ctrl(),
+                    dest_key,
+                )?;
+            } else {
+                KvAccess::begin_copy_to_arr(
+                    hmac.hmac512_kv_wr_status(),
+                    hmac.hmac512_kv_wr_ctrl(),
+                )?;
+            }
         }
 
-        // Wait for the hardware to be ready
-        wait::until(|| hmac.hmac512_status().read().ready());
-
-        if first {
-            // Submit the first block
-            hmac.hmac512_ctrl().write(|w| {
-                w.init(true)
-                    .next(false)
-                    .mode(hmac_mode == HmacMode::Hmac512)
-                    .csr_mode(csr_mode)
-            });
-        } else {
-            // Submit next block in existing hashing chain
-            hmac.hmac512_ctrl().write(|w| {
-                w.init(false)
-                    .next(true)
-                    .mode(hmac_mode == HmacMode::Hmac512)
-                    .csr_mode(csr_mode)
-            });
-        }
-
-        // Wait for the hmac operation to finish
-        wait::until(|| {
-            hmac.hmac512_status().read().valid() || hmac.hmac512_status().read().ready()
+        hmac.hmac512_ctrl().write(|w| {
+            w.init(command.first)
+                .next(!command.first)
+                .mode(hmac_mode == HmacMode::Hmac512)
+                .csr_mode(csr_mode)
+                .last(command.last)
         });
+
+        wait::until(|| hmac.hmac512_status().read().ready());
 
         // check for a hardware error
         if !hmac.hmac512_status().read().valid() {
             return Err(CaliptraError::DRIVER_HMAC_INVALID_STATE);
         }
 
-        if let Some(dest_key) = dest_key {
+        if let Some(dest_key) = dest_key.filter(|_| write_tag) {
             KvAccess::end_copy_to_kv(hmac.hmac512_kv_wr_status(), dest_key)
                 .map_err(|err| err.into_write_tag_err())?;
         }
@@ -676,7 +698,10 @@ impl HmacOp<'_> {
             if self.buf_idx == self.buf.len() {
                 self.hmac_engine.hmac_block(
                     &self.buf,
-                    self.is_first(),
+                    HmacBlockCommand {
+                        first: self.is_first(),
+                        last: false,
+                    },
                     self.key,
                     self.dest_key(),
                     self.hmac_mode,
