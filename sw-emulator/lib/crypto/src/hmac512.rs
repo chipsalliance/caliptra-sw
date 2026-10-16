@@ -44,6 +44,12 @@ pub trait Hmac512Interface {
     ///
     /// * `tag` - Buffer to copy the tag to
     fn tag(&self, tag: &mut [u8]);
+
+    /// Retrieve the inner SHA digest without the outer HMAC hash.
+    fn inner_tag(&self, tag: &mut [u8]);
+
+    /// Update the outer-hash key without restarting the inner hash.
+    fn set_outer_key(&mut self, key: &[u8]);
 }
 
 /// HMAC-512 Mode
@@ -131,9 +137,7 @@ impl<const KEY_SIZE: usize> Hmac512Interface for Hmac512<KEY_SIZE> {
         let mut key_le = *key;
         key_le.to_little_endian();
 
-        // Expand the key and XOR it with OPAD
-        self.opad[..KEY_SIZE].copy_from_slice(&key_le);
-        self.opad.iter_mut().for_each(|b| *b ^= OPAD);
+        self.set_outer_key(key);
 
         // Expand the key and XOR it with IPAD
         let mut ipad = [0u8; BLOCK_SIZE];
@@ -199,6 +203,19 @@ impl<const KEY_SIZE: usize> Hmac512Interface for Hmac512<KEY_SIZE> {
     /// * `tag` - Buffer to copy the tag to
     fn tag(&self, tag: &mut [u8]) {
         self.hash2.copy_hash(tag);
+    }
+
+    fn inner_tag(&self, tag: &mut [u8]) {
+        self.hash1.copy_hash(tag);
+    }
+
+    fn set_outer_key(&mut self, key: &[u8]) {
+        let mut key_le: [u8; KEY_SIZE] = key.try_into().expect("key size mismatch");
+        key_le.to_little_endian();
+        self.opad.fill(OPAD);
+        for (pad, byte) in self.opad.iter_mut().zip(key_le) {
+            *pad ^= byte;
+        }
     }
 }
 

@@ -1043,6 +1043,277 @@ fn test_hmac512_multi_block() {
     assert_eq!(out_tag, Array4x16::from(result));
 }
 
+fn test_hmac_padding_boundaries() {
+    // Independent vectors from Python hmac/hashlib: key 0x0b, message 'a' repeated.
+    const CASES_384: &[(usize, [u32; 12])] = &[
+        (
+            0,
+            [
+                0xb93a3e87, 0xa1bc85c8, 0x7b54f81d, 0xabb499a5, 0xe1a66254, 0x9198594c, 0x9088733c,
+                0x8edd0068, 0x83e4d461, 0x823e6259, 0x8b07a904, 0x28f9add9,
+            ],
+        ),
+        (
+            1,
+            [
+                0x11ae51d9, 0x5baf38a8, 0x612c8cd5, 0x4682ac41, 0x87b65d3f, 0x5cfc1786, 0x940aaa6d,
+                0x77883a5c, 0x4932d4eb, 0xe596ae79, 0x96c4977f, 0x643311cf,
+            ],
+        ),
+        (
+            111,
+            [
+                0x155d61b2, 0x20f895fc, 0xe2ac3cca, 0xd9022ae8, 0x89bcd052, 0xecdac2d0, 0xab58c0e2,
+                0x7bc0fc43, 0xc5200253, 0x195ff646, 0xa58f4e37, 0xd546a4c3,
+            ],
+        ),
+        (
+            112,
+            [
+                0x2f924ee9, 0x19a1400d, 0x9746fbea, 0xd4916cbc, 0xdd15a95b, 0x518e752b, 0xf63a0a24,
+                0x445f774d, 0x8ad2a9de, 0xe40adb31, 0x594cae0d, 0xa8aceaca,
+            ],
+        ),
+        (
+            127,
+            [
+                0xae791942, 0x71eeea36, 0xe249c81c, 0x6d6de4da, 0xf311ee5e, 0x54b715b0, 0xa9d19749,
+                0x466b5e85, 0xf60d75ff, 0xd861cea9, 0x6eac40e5, 0x302c9b6d,
+            ],
+        ),
+        (
+            128,
+            [
+                0x6473f6d9, 0xc9f6a391, 0xc5917a0f, 0x8fae839c, 0x1ca28c27, 0x5eb544c9, 0xc206281c,
+                0xfe64c9d4, 0xfca1ed94, 0xc8327335, 0x3484ef03, 0x759aa331,
+            ],
+        ),
+        (
+            129,
+            [
+                0xd25f92d6, 0xd7c4d47f, 0x95bfc350, 0xb40330eb, 0x65d32366, 0x64a339f4, 0x9aaf3f2b,
+                0x76ec9e2b, 0xd36fdd08, 0x675e783d, 0x078c6510, 0xab7f5e62,
+            ],
+        ),
+        (
+            239,
+            [
+                0xc6d111f7, 0x1bb5725d, 0xc4cb2b95, 0x9cda9dbf, 0xbfb5b636, 0xa0b2da0e, 0x2f55a142,
+                0x612abb2f, 0xfccb49bc, 0xdf2e8b9d, 0x22ae0458, 0x16cf7dfc,
+            ],
+        ),
+        (
+            240,
+            [
+                0xa132bcd3, 0xa6c5373d, 0x491064ba, 0x02382b8c, 0xc52d5865, 0x21c8cab7, 0x14fc6dda,
+                0xa8ce8cd6, 0x5b5b6fbd, 0x10c2dd87, 0x42ab20ec, 0x761b4a29,
+            ],
+        ),
+        (
+            255,
+            [
+                0xd9238fce, 0xd3990d9c, 0x594c89df, 0x9e0189a4, 0xe513af37, 0x2625bb56, 0x4e756704,
+                0xb16ae8bf, 0xab872628, 0x0dce58c6, 0x105a2d4f, 0xadcc6125,
+            ],
+        ),
+        (
+            256,
+            [
+                0xc896818e, 0xf306a790, 0x9e4780c6, 0x0bd3df06, 0xccab025e, 0x98ee3361, 0xe77528a9,
+                0x8ab466db, 0x4712ec0b, 0xad84fea3, 0xdc5c3075, 0x77fa4f63,
+            ],
+        ),
+    ];
+    const CASES_512: &[(usize, [u32; 16])] = &[
+        (
+            0,
+            [
+                0xfbb23f5d, 0x678f4d3b, 0xf351d3a6, 0x565da691, 0x94e87c13, 0xbfc0bd07, 0x8554014e,
+                0xe74b6ad2, 0x8f3d3965, 0x1ee3a91d, 0xfd959349, 0x3b9314b9, 0xbf561fd9, 0xc3cb3315,
+                0x8a4f4866, 0x73acfd13,
+            ],
+        ),
+        (
+            1,
+            [
+                0xcaa221b4, 0x938f8920, 0x6f5cce3f, 0x0b71a1a3, 0x938579e8, 0x6b11f666, 0x43fd906e,
+                0x8670cd34, 0xb4a6c977, 0x50041c7d, 0xff5714b1, 0x96e7dbef, 0x7df4f556, 0xce36a100,
+                0x1b87af23, 0x2625054f,
+            ],
+        ),
+        (
+            111,
+            [
+                0xe441a61f, 0x5ee41e98, 0xb519d734, 0xa3fe3fd2, 0x6ec473da, 0xdff5c44d, 0xaaca885f,
+                0x5e2a4529, 0x1a195a57, 0x4ff4af2e, 0x0cea0216, 0x7506092e, 0x42074cbc, 0x22182ad6,
+                0xbf65e41b, 0xd943eba2,
+            ],
+        ),
+        (
+            112,
+            [
+                0x27328b12, 0xa581719d, 0xd11ef674, 0x611ad824, 0x9a097543, 0xbc992a06, 0x6d8130c3,
+                0x8d9079df, 0xd4df5335, 0x8497bca7, 0x0dca56dc, 0x7ed257e5, 0x2638e79e, 0x33162898,
+                0x5b48297e, 0xbc8344fc,
+            ],
+        ),
+        (
+            127,
+            [
+                0xf065d060, 0x7116d7b1, 0x07f3dce0, 0x35c04ae0, 0xdb57d682, 0x243fb538, 0x276b2ffe,
+                0x6ac48ee3, 0xf979a0bf, 0xca78faa8, 0x90c891a3, 0x5d1573d8, 0x2b34a4bb, 0xaad19fc0,
+                0x1dd77f57, 0x394fb004,
+            ],
+        ),
+        (
+            128,
+            [
+                0x1b8dc086, 0x0560a62e, 0x71db8e27, 0x1464a774, 0x9bf03028, 0x1fe486b8, 0xf7ad6907,
+                0xc9266b9f, 0x7c56f2e0, 0x8b77ae51, 0x280fd3a1, 0x5dc5be0b, 0x02d24f8e, 0x49a55a94,
+                0x4107af63, 0xc1282c4c,
+            ],
+        ),
+        (
+            129,
+            [
+                0x0b7af8af, 0x85803fe1, 0x813f80e1, 0xc5b33a0d, 0x3ac2d0a6, 0xe580d916, 0xf0426c0a,
+                0x2352c751, 0xf3fde809, 0x0a2ec030, 0x9c50a69f, 0x460f6ed9, 0x44260894, 0x4c7462b7,
+                0x0672ab48, 0xf78c6e0b,
+            ],
+        ),
+        (
+            239,
+            [
+                0x8b65f0f7, 0x342def07, 0x1d52c617, 0x459ac598, 0x8704b865, 0x0fa2c56c, 0xafe0f04e,
+                0x4dd717b5, 0x033693d8, 0x542858d2, 0xc4a5db63, 0x18201804, 0xc06940d5, 0x13dc4ee2,
+                0xb7fe3459, 0x464e99fc,
+            ],
+        ),
+        (
+            240,
+            [
+                0x640f3d6b, 0x645ff06c, 0xde0f15c4, 0x91ef47a3, 0xe9470b65, 0xe8d775c2, 0x344160cd,
+                0xb7a6ef4b, 0x6edc0248, 0x93f986a8, 0xc9d0e6b2, 0xde3fc926, 0x972927f3, 0x54827bc9,
+                0xe2ca62d1, 0x7e6993cd,
+            ],
+        ),
+        (
+            255,
+            [
+                0xff2fb731, 0xbb0eaf44, 0xa8001f8b, 0xc4c0c3ca, 0xf750dfd9, 0x9d51ff18, 0xde89ed8e,
+                0x03ebcaba, 0x55bf9396, 0x36c8ae9b, 0x5d4d59d0, 0x2e535d08, 0xf44be001, 0x078ab228,
+                0xad563038, 0xb21b301e,
+            ],
+        ),
+        (
+            256,
+            [
+                0x034c53b7, 0x4e87b84b, 0xcf6bf527, 0xd77f2410, 0xe0bc3654, 0x1d9ebcee, 0xd8890d6c,
+                0x44547a72, 0x333be94f, 0xe1af3341, 0x588c6369, 0x7b0811cb, 0x6b6682cb, 0x5db44688,
+                0xa584aa3c, 0x855cb4d8,
+            ],
+        ),
+    ];
+    let mut hmac = unsafe { Hmac::new(HmacReg::new()) };
+    let mut trng = unsafe {
+        Trng::new(
+            CsrngReg::new(),
+            EntropySrcReg::new(),
+            SocIfcTrngReg::new(),
+            &SocIfcReg::new(),
+            PersistentDataAccessor::new(),
+        )
+        .unwrap()
+    };
+    let data = [b'a'; 256];
+    let key384 = Array4x12::from([0x0b0b0b0b; 12]);
+    for &(length, expected) in CASES_384 {
+        let mut tag = Array4x12::default();
+        hmac.hmac(
+            (&key384).into(),
+            (&data[..length]).into(),
+            &mut trng,
+            (&mut tag).into(),
+            HmacMode::Hmac384,
+        )
+        .unwrap();
+        assert_eq!(tag, Array4x12::from(expected));
+        {
+            let mut op = hmac
+                .hmac_init(
+                    (&key384).into(),
+                    &mut trng,
+                    (&mut tag).into(),
+                    HmacMode::Hmac384,
+                )
+                .unwrap();
+            for chunk in data[..length].chunks(17) {
+                op.update(chunk).unwrap();
+            }
+            op.finalize().unwrap();
+        }
+        assert_eq!(tag, Array4x12::from(expected));
+    }
+    let key512 = Array4x16::from([0x0b0b0b0b; 16]);
+    for &(length, expected) in CASES_512 {
+        let mut tag = Array4x16::default();
+        hmac.hmac(
+            (&key512).into(),
+            (&data[..length]).into(),
+            &mut trng,
+            (&mut tag).into(),
+            HmacMode::Hmac512,
+        )
+        .unwrap();
+        assert_eq!(tag, Array4x16::from(expected));
+        {
+            let mut op = hmac
+                .hmac_init(
+                    (&key512).into(),
+                    &mut trng,
+                    (&mut tag).into(),
+                    HmacMode::Hmac512,
+                )
+                .unwrap();
+            for chunk in data[..length].chunks(17) {
+                op.update(chunk).unwrap();
+            }
+            op.finalize().unwrap();
+        }
+        assert_eq!(tag, Array4x16::from(expected));
+    }
+}
+
+fn test_hmac_streaming_kv_output_is_final_only() {
+    let mut hmac = unsafe { Hmac::new(HmacReg::new()) };
+    // This read-only observer checks status between single-threaded driver calls.
+    let observer = unsafe { HmacReg::new() };
+    let status = observer.regs();
+    let mut trng = unsafe {
+        Trng::new(
+            CsrngReg::new(),
+            EntropySrcReg::new(),
+            SocIfcTrngReg::new(),
+            &SocIfcReg::new(),
+            PersistentDataAccessor::new(),
+        )
+        .unwrap()
+    };
+    let key = Array4x12::from([0x0b0b0b0b; 12]);
+    let mut op = hmac
+        .hmac_init(
+            (&key).into(),
+            &mut trng,
+            KeyWriteArgs::new(KeyId::KeyId20, KeyUsage::default().set_hmac_data_en()).into(),
+            HmacMode::Hmac384,
+        )
+        .unwrap();
+    op.update(&[b'a'; 128]).unwrap();
+    assert!(!status.hmac512_kv_wr_ctrl().read().write_en());
+    assert!(!status.hmac512_kv_wr_status().read().valid());
+    op.finalize().unwrap();
+}
+
 // test_kat MUST be ran first.
 test_suite! {
     test_kat_384,
@@ -1065,4 +1336,6 @@ test_suite! {
     test_hmac2_512,
     test_hmac3_512,
     test_hmac512_multi_block,
+    test_hmac_padding_boundaries,
+    test_hmac_streaming_kv_output_is_final_only,
 }
