@@ -69,18 +69,14 @@ struct caliptra_model* hwmod_get_or_init(void)
  *
  * @param[in] address Memory address to write
  * @param[in] data Data to write at address
- *
- * @return 0 if successful, other if error (TBD)
  */
-int caliptra_write_u32(uint32_t address, uint32_t data)
+void caliptra_write_u32(uint32_t address, uint32_t data)
 {
     struct caliptra_model *m = hwmod_get_or_init();
 
-    int result = caliptra_model_apb_write_u32(m, address, (int)data);
+    caliptra_model_apb_write_u32(m, address, (int)data);
 
     caliptra_model_step(m);
-
-    return result;
 }
 
 /**
@@ -90,12 +86,10 @@ int caliptra_write_u32(uint32_t address, uint32_t data)
  *
  * @param[in] address Memory address to read
  * @param[in] data Pointer to a uint32_t to store the data
- *
- * @return 0 if successful, other if error (TBD)
  */
-int caliptra_read_u32(uint32_t address, uint32_t *data)
+void caliptra_read_u32(uint32_t address, uint32_t *data)
 {
-    return caliptra_model_apb_read_u32(hwmod_get_or_init(), address, (uint*)data);
+    caliptra_model_apb_read_u32(hwmod_get_or_init(), address, (uint*)data);
 }
 
 /**
