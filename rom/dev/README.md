@@ -1213,7 +1213,10 @@ The following are the pre-conditions that should be satisfied:
 - DMA image hashing checks the absolute AXI source address and final byte before
   access. Source-address overflow reports `DRIVER_DMA_AXI_ADDRESS_OVERFLOW`.
   The 2.0 update-reset loader continues to consume the mailbox FIFO.
-- Ensure that Fw.Svn is greater than or equal to Fuse.Svn.
+- Enforce the maximum supported firmware SVN in every lifecycle, including when
+  anti-rollback is disabled.
+- When rollback protection is required, ensure that Fw.Svn is greater than or
+  equal to Fuse.Svn.
 
 <br> *(Note: Same SVN Validation is done for the FMC and RT)
 
