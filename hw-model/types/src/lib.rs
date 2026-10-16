@@ -14,8 +14,8 @@ use rand::{
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum CaliptraHwVersion {
     V2_0,
-    #[default]
     V2_1,
+    #[default]
     V2_2,
 }
 

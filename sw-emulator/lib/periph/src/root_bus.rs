@@ -353,7 +353,7 @@ pub struct CaliptraRootBusArgs<'a> {
 impl Default for CaliptraRootBusArgs<'_> {
     fn default() -> Self {
         Self {
-            hw_version: CaliptraHwVersion::V2_1,
+            hw_version: CaliptraHwVersion::V2_2,
             clock: Default::default(),
             pic: Default::default(),
             rom: Default::default(),

@@ -13,8 +13,6 @@ fi
 
 revision="$1"
 ss_dir="hw/$revision/caliptra-ss"
-rtl_dir="$ss_dir/third_party/caliptra-rtl"
-i3c_dir="$ss_dir/third_party/i3c-core"
 dest_dir="hw/$revision/registers/src"
 
 if [[ "$revision" == */* || ! -d "$dest_dir" ]]; then
@@ -24,10 +22,11 @@ fi
 
 echo "Updating $dest_dir from $ss_dir and its pinned dependencies"
 
+# Preserve an explicitly selected Caliptra-SS commit when populating its dependencies.
 if [[ ! -e "$ss_dir/.git" ]]; then
     git submodule update --init -- "$ss_dir"
 fi
 git -C "$ss_dir" submodule update --init --recursive
 
 cargo run --locked --manifest-path registers/bin/generator/Cargo.toml -- \
-    "$revision" "$rtl_dir" registers/bin/extra-rdl "$i3c_dir" "$ss_dir" "$dest_dir"
+    "$ss_dir" registers/bin/extra-rdl "$dest_dir"

@@ -4,8 +4,8 @@ use caliptra_emu_bus::{BusError, ReadOnlyRegister, WriteOnlyRegister};
 use caliptra_emu_derive::Bus;
 use caliptra_emu_types::{RvData, RvSize};
 use caliptra_registers::entropy_src::regs::{
-    AdaptpHiThresholdsReadVal, AdaptpLoThresholdsReadVal, ConfReadVal, HealthTestWindowsReadVal,
-    RepcntThresholdsReadVal, RepcntsThresholdsReadVal,
+    AdaptpHiThresholdReadVal, AdaptpLoThresholdReadVal, ConfReadVal, HealthTestWindowsReadVal,
+    RepcntThresholdReadVal, RepcntsThresholdReadVal,
 };
 use sha3::{Digest, Sha3_384};
 use std::mem;
@@ -77,28 +77,28 @@ pub struct Csrng {
     #[register(offset = 0x1030, write_fn = health_test_windows_write)]
     health_test_windows: u32,
 
-    #[register(offset = 0x1034, write_fn = repcnt_thresholds_write)]
-    repcnt_thresholds: u32,
+    #[register(offset = 0x1038, write_fn = repcnt_threshold_write)]
+    repcnt_threshold: u32,
 
-    #[register(offset = 0x1038, write_fn = repcnts_thresholds_write)]
-    repcnts_thresholds: u32,
+    #[register(offset = 0x103c, write_fn = repcnts_threshold_write)]
+    repcnts_threshold: u32,
 
-    #[register(offset = 0x103c, write_fn = adaptp_hi_thresholds_write)]
-    adaptp_hi_thresholds: u32,
+    #[register(offset = 0x1040, write_fn = adaptp_hi_threshold_write)]
+    adaptp_hi_threshold: u32,
 
-    #[register(offset = 0x1040, write_fn = adaptp_lo_thresholds_write)]
-    adaptp_lo_thresholds: u32,
+    #[register(offset = 0x1044, write_fn = adaptp_lo_threshold_write)]
+    adaptp_lo_threshold: u32,
 
-    #[register(offset = 0x10a0)]
-    alert_thresholds: u32, // TODO: implement this
+    #[register(offset = 0x1090)]
+    alert_threshold: u32, // TODO: implement this
 
-    #[register(offset = 0x10a4, read_fn = alert_summary_fail_counts_read)]
+    #[register(offset = 0x1094, read_fn = alert_summary_fail_counts_read)]
     alert_summary_fail_counts: ReadOnlyRegister<u32>,
 
-    #[register(offset = 0x10a8, read_fn = alert_fail_counts_read)]
+    #[register(offset = 0x1098, read_fn = alert_fail_counts_read)]
     alert_fail_counts: ReadOnlyRegister<u32>,
 
-    #[register(offset = 0x10e0, read_fn = main_sm_state_read)]
+    #[register(offset = 0x10d0, read_fn = main_sm_state_read)]
     main_sm_state: ReadOnlyRegister<u32>,
 
     cmd_req_state: CmdReqState,
@@ -129,13 +129,13 @@ impl Csrng {
             me_regwen: 1, // Reset value: enabled (writable)
             sw_regupd: 1, // Reset value: enabled (writable)
             module_enable: 0x9,
-            conf: 0x909099,
-            health_test_windows: 0x600200,
-            repcnt_thresholds: 0xffffffff,
-            repcnts_thresholds: 0xffffffff,
-            adaptp_hi_thresholds: 0xffffffff,
-            adaptp_lo_thresholds: 0,
-            alert_thresholds: 2,
+            conf: 0x999999,
+            health_test_windows: 0x1800200,
+            repcnt_threshold: 0xffff,
+            repcnts_threshold: 0xffff,
+            adaptp_hi_threshold: 0xffff,
+            adaptp_lo_threshold: 0,
+            alert_threshold: 0xfffd0002,
             alert_summary_fail_counts: ReadOnlyRegister::new(0),
             alert_fail_counts: ReadOnlyRegister::new(0),
             main_sm_state: ReadOnlyRegister::new(0x2c), // StartupHTStart, entropy_src_main_sm_pkg.sv
@@ -289,8 +289,7 @@ impl Csrng {
     }
 
     /// HEALTH_TEST_WINDOWS write handler.
-    /// Sets the FIPS health-test window size in clock cycles. Each clock
-    /// produces a 4-bit RNG nibble, so `window_size_bits = 4 * FIPS_WINDOW`.
+    /// Sets the FIPS health-test window size in samples per RNG lane.
     /// Protected by SW_REGUPD just like the other configuration registers.
     fn health_test_windows_write(&mut self, _: RvSize, data: RvData) -> Result<(), BusError> {
         if self.sw_regupd == 0 {
@@ -299,36 +298,35 @@ impl Csrng {
         self.health_test_windows = data;
 
         let fips_window = HealthTestWindowsReadVal::from(data).fips_window() as usize;
-        let window_size_bits = BITS_PER_NIBBLE * fips_window;
-        self.health_tester.set_window_size_bits(window_size_bits);
+        self.health_tester.set_window_size_samples(fips_window);
         Ok(())
     }
 
-    fn repcnt_thresholds_write(&mut self, _: RvSize, data: RvData) -> Result<(), BusError> {
+    fn repcnt_threshold_write(&mut self, _: RvSize, data: RvData) -> Result<(), BusError> {
         self.health_tester
             .repcnt
-            .set_threshold(RepcntThresholdsReadVal::from(data));
+            .set_threshold(RepcntThresholdReadVal::from(data));
         Ok(())
     }
 
-    fn repcnts_thresholds_write(&mut self, _: RvSize, data: RvData) -> Result<(), BusError> {
+    fn repcnts_threshold_write(&mut self, _: RvSize, data: RvData) -> Result<(), BusError> {
         self.health_tester
             .repcnts
-            .set_threshold(RepcntsThresholdsReadVal::from(data));
+            .set_threshold(RepcntsThresholdReadVal::from(data));
         Ok(())
     }
 
-    fn adaptp_hi_thresholds_write(&mut self, _: RvSize, data: RvData) -> Result<(), BusError> {
+    fn adaptp_hi_threshold_write(&mut self, _: RvSize, data: RvData) -> Result<(), BusError> {
         self.health_tester
             .adaptp
-            .set_hi_threshold(AdaptpHiThresholdsReadVal::from(data));
+            .set_hi_threshold(AdaptpHiThresholdReadVal::from(data));
         Ok(())
     }
 
-    fn adaptp_lo_thresholds_write(&mut self, _: RvSize, data: RvData) -> Result<(), BusError> {
+    fn adaptp_lo_threshold_write(&mut self, _: RvSize, data: RvData) -> Result<(), BusError> {
         self.health_tester
             .adaptp
-            .set_lo_threshold(AdaptpLoThresholdsReadVal::from(data));
+            .set_lo_threshold(AdaptpLoThresholdReadVal::from(data));
         Ok(())
     }
 
@@ -341,15 +339,15 @@ impl Csrng {
     fn alert_fail_counts_read(&mut self, _: RvSize) -> Result<RvData, BusError> {
         // Don't have a `AlertFailCountsWriteVal` from caliptra_ureg, so let's pack counts manually.
         // Bit positions from entropy_src register definitions:
-        // - repcnt_fail_count: bits [7:4]
+        // - repcnt_fail_count: bits [3:0]
+        // - repcnts_fail_count: bits [7:4]
         // - adaptp_hi_fail_count: bits [11:8]
         // - adaptp_lo_fail_count: bits [15:12]
-        // - repcnts_fail_count: bits [31:28]
         let repcnt = self.health_tester.repcnt.failures().min(0xf) & 0xf;
         let repcnts = self.health_tester.repcnts.failures().min(0xf) & 0xf;
         let adapt_hi = self.health_tester.adaptp.hi_failures().min(0xf) & 0xf;
         let adapt_lo = self.health_tester.adaptp.lo_failures().min(0xf) & 0xf;
-        let fail_counts = (repcnts << 28) | (adapt_lo << 12) | (adapt_hi << 8) | (repcnt << 4);
+        let fail_counts = (adapt_lo << 12) | (adapt_hi << 8) | (repcnts << 4) | repcnt;
 
         self.alert_fail_counts = ReadOnlyRegister::new(fail_counts);
         Ok(fail_counts)
@@ -375,8 +373,8 @@ impl Csrng {
         // when the state is read, running it through the health testers.
         self.simulate_continuous_health_testing();
 
-        // Extract alert_threshold from the alert_thresholds register (bits [15:0])
-        let alert_threshold = self.alert_thresholds & 0xffff;
+        // Extract alert_threshold from the alert_threshold register (bits [15:0])
+        let alert_threshold = self.alert_threshold & 0xffff;
         let failures = self.health_tester.failures();
 
         let state = if failures >= alert_threshold {
@@ -523,18 +521,17 @@ impl Csrng {
 
         let window_size_bits = self.health_tester.window_size_bits();
         let num_blocks = NUM_TEST_WINDOWS * window_size_bits / BITS_PER_BLOCK;
+        let bits_per_symbol = self.health_tester.bits_per_symbol();
 
         let mut hasher = Sha3_384::new();
 
         for _ in 0..num_blocks {
             // Update the hasher in 64-bit packed entropy blocks.
-            const NUM_NIBBLES: usize = BITS_PER_BLOCK / BITS_PER_NIBBLE;
-
-            let packed_entropy = (0..NUM_NIBBLES).fold(0, |packed, i| {
-                let nibble = self.health_tester.next().expect(
+            let packed_entropy = (0..BITS_PER_BLOCK / bits_per_symbol).fold(0, |packed, i| {
+                let symbol = self.health_tester.next().expect(
                     "itrng iterator should provide at least two health-test windows in FIPS mode",
                 );
-                packed | (u64::from(nibble) << (i * BITS_PER_NIBBLE))
+                packed | (u64::from(symbol) << (i * bits_per_symbol))
             });
             hasher.update(packed_entropy.to_le_bytes());
         }
@@ -544,7 +541,7 @@ impl Csrng {
         digest
             .as_slice()
             .try_into()
-            .expect("SHA3-384 should generate a 384 bit seed from raw entropy nibbles")
+            .expect("SHA3-384 should generate a 384 bit seed from raw entropy symbols")
     }
 }
 
@@ -612,12 +609,62 @@ enum MultiBitBool {
 mod tests {
     use super::*;
     use caliptra_emu_bus::Bus;
+    use caliptra_registers::entropy_src::regs::{AlertFailCountsReadVal, ConfWriteVal};
 
     const OFFSET_CONF: caliptra_emu_types::RvAddr = 0x1024;
     const OFFSET_MODULE_ENABLE: caliptra_emu_types::RvAddr = 0x1020;
 
     fn make_itrng_nibbles() -> Box<dyn Iterator<Item = u8>> {
         Box::new(std::iter::repeat_with(|| 0xAu8))
+    }
+
+    #[test]
+    fn test_entropy_health_register_offsets_and_failure_fields() {
+        let mut csrng = Csrng::new(make_itrng_nibbles());
+        for (offset, value) in [(0x1030, 8), (0x1038, 2), (0x103c, 3)] {
+            csrng.write(RvSize::Word, offset, value).unwrap();
+        }
+        csrng.write(RvSize::Word, OFFSET_CONF, 0x999996).unwrap();
+        csrng
+            .write(
+                RvSize::Word,
+                OFFSET_MODULE_ENABLE,
+                MultiBitBool::True as u32,
+            )
+            .unwrap();
+
+        let failures = AlertFailCountsReadVal::from(csrng.read(RvSize::Word, 0x1098).unwrap());
+        assert_eq!(failures.repcnt_fail_count(), 15);
+        assert_eq!(failures.repcnts_fail_count(), 14);
+        assert_eq!(failures.adaptp_hi_fail_count(), 0);
+        assert_eq!(failures.adaptp_lo_fail_count(), 0);
+        assert_eq!(failures.markov_lo_fail_count(), 0);
+        assert_eq!(csrng.read(RvSize::Word, 0x1094).unwrap(), 74);
+        assert_eq!(csrng.read(RvSize::Word, 0x10d0).unwrap(), 0x1fb);
+    }
+
+    #[test]
+    fn test_single_bit_seed_uses_selected_lane_and_configured_sample_count() {
+        let mut csrng = Csrng::new(Box::new(std::iter::repeat(0b1011).take(128)));
+        let conf = ConfWriteVal::from(0x999999)
+            .fips_enable(MultiBitBool::True as u32)
+            .rng_bit_enable(MultiBitBool::True as u32)
+            .rng_bit_sel(2);
+        csrng
+            .write(RvSize::Word, OFFSET_CONF, u32::from(conf))
+            .unwrap();
+        csrng.write(RvSize::Word, 0x1030, 64).unwrap();
+        csrng
+            .write(
+                RvSize::Word,
+                OFFSET_MODULE_ENABLE,
+                MultiBitBool::True as u32,
+            )
+            .unwrap();
+
+        let mut expected = Sha3_384::digest([0u8; 16]);
+        expected.reverse();
+        assert_eq!(csrng.get_conditioned_seed().as_slice(), expected.as_slice());
     }
 
     #[test]
@@ -630,7 +677,7 @@ mod tests {
 
         // Configure FIPS mode (fips_enable in bits [3:0] = 6 for TRUE)
         // Use the default conf value but with fips_enable set to TRUE
-        let conf_with_fips = 0x909096; // Replace low nibble 9 with 6
+        let conf_with_fips = 0x999996; // Replace low nibble 9 with 6
         csrng
             .write(RvSize::Word, OFFSET_CONF, conf_with_fips)
             .unwrap();

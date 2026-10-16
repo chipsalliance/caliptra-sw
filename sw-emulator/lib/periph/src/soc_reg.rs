@@ -714,10 +714,10 @@ struct SocRegistersImpl {
     #[register_array(offset = 0x110)]
     cptra_wdt_cfg: [u32; 2],
 
-    #[register(offset = 0x0118)]
+    #[register(offset = 0x0180)]
     cptra_i_trng_entropy_config_0: u32,
 
-    #[register(offset = 0x011c)]
+    #[register(offset = 0x0184)]
     cptra_i_trng_entropy_config_1: u32,
 
     #[register_array(offset = 0x0120)]

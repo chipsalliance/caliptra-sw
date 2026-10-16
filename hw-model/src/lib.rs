@@ -26,7 +26,6 @@ use zerocopy::{FromBytes, FromZeros, IntoBytes};
 use caliptra_emu_periph::MailboxRequester;
 use caliptra_registers::mbox;
 use caliptra_registers::mbox::enums::{MboxFsmE, MboxStatusE};
-use caliptra_registers::{CptraItrngEntropyConfig0WriteVal, CptraItrngEntropyConfig1WriteVal};
 
 use rand::{rngs::StdRng, SeedableRng};
 use sha2::Digest;
@@ -360,7 +359,7 @@ impl Default for InitParams<'_> {
                 Box::new(RandomEtrngResponses::new_from_stdrng())
             };
         Self {
-            hw_version: Default::default(),
+            hw_version: CaliptraHwVersion::V2_2,
             fuses: Default::default(),
             rom: Default::default(),
             dccm: Default::default(),
@@ -437,12 +436,17 @@ fn trace_path_or_env(trace_path: Option<PathBuf>) -> Option<PathBuf> {
     std::env::var("CPTRA_TRACE_PATH").ok().map(PathBuf::from)
 }
 
+pub type ItrngEntropyConfig0WriteVal =
+    <caliptra_registers::soc_ifc::meta::CptraItrngEntropyConfig0 as caliptra_ureg::WritableReg>::WriteVal;
+pub type ItrngEntropyConfig1WriteVal =
+    <caliptra_registers::soc_ifc::meta::CptraItrngEntropyConfig1 as caliptra_ureg::WritableReg>::WriteVal;
+
 #[derive(Clone)]
 pub struct BootParams<'a> {
     pub fw_image: Option<&'a [u8]>,
     pub initial_dbg_manuf_service_reg: u32,
-    pub initial_repcnt_thresh_reg: Option<CptraItrngEntropyConfig1WriteVal>,
-    pub initial_adaptp_thresh_reg: Option<CptraItrngEntropyConfig0WriteVal>,
+    pub initial_repcnt_thresh_reg: Option<ItrngEntropyConfig1WriteVal>,
+    pub initial_adaptp_thresh_reg: Option<ItrngEntropyConfig0WriteVal>,
     pub initial_ss_strap_generic_2: Option<u32>,
     pub initial_ss_strap_generic_3: Option<u32>,
     pub valid_axi_user: Vec<u32>,

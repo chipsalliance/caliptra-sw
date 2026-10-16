@@ -2,15 +2,14 @@
 
 use super::BITS_PER_NIBBLE;
 use caliptra_registers::entropy_src::regs::{
-    AdaptpHiThresholdsReadVal, AdaptpLoThresholdsReadVal, RepcntThresholdsReadVal,
-    RepcntsThresholdsReadVal,
+    AdaptpHiThresholdReadVal, AdaptpLoThresholdReadVal, RepcntThresholdReadVal,
+    RepcntsThresholdReadVal,
 };
 
-/// Default health-test window size in bits. Matches the RTL register
-/// reset value (`HEALTH_TEST_WINDOWS.FIPS_WINDOW = 0x200` clock cycles
-/// times 4 bits per cycle = 2048 bits aggregate, 512 bits per lane).
+/// Default health-test window in samples per lane, matching the RTL
+/// `HEALTH_TEST_WINDOWS.FIPS_WINDOW = 0x200` reset value.
 /// The ROM overrides this at boot via the `HEALTH_TEST_WINDOWS` register.
-const DEFAULT_WINDOW_SIZE_BITS: usize = 2048;
+const DEFAULT_WINDOW_SIZE_SAMPLES: usize = 512;
 
 pub struct HealthTester {
     itrng_nibbles: Box<dyn Iterator<Item = u8>>,
@@ -18,8 +17,9 @@ pub struct HealthTester {
     pub repcnts: RepetitionCountSymbolTester,
     pub adaptp: AdaptiveProportionTester,
     startup_nibbles: Vec<u8>,
-    window_size_bits: usize,
+    window_size_samples: usize,
     rng_bit_enable: bool,
+    rng_bit_sel: usize,
 }
 
 impl HealthTester {
@@ -30,27 +30,29 @@ impl HealthTester {
             repcnts: RepetitionCountSymbolTester::new(),
             adaptp: AdaptiveProportionTester::new(),
             startup_nibbles: Vec::new(),
-            window_size_bits: DEFAULT_WINDOW_SIZE_BITS,
+            window_size_samples: DEFAULT_WINDOW_SIZE_SAMPLES,
             rng_bit_enable: false,
+            rng_bit_sel: 0,
         }
     }
 
     /// Returns the current FIPS health-test window size in bits.
     pub fn window_size_bits(&self) -> usize {
-        self.window_size_bits
+        self.window_size_samples * self.bits_per_symbol()
     }
 
-    /// Number of nibbles consumed per health-test window. In normal mode each
-    /// nibble provides one sample on each of the 4 lanes (window in nibbles =
-    /// `window_size_bits / 4`). In single-bit mode only the selected lane is
-    /// sampled and the RTL scales the window by four, so a window spans
-    /// `window_size_bits` nibbles.
-    pub fn nibbles_per_window(&self) -> usize {
+    pub fn bits_per_symbol(&self) -> usize {
         if self.rng_bit_enable {
-            self.window_size_bits
+            1
         } else {
-            self.window_size_bits / BITS_PER_NIBBLE
+            BITS_PER_NIBBLE
         }
+    }
+
+    /// Each nibble supplies one sample per lane, including the selected lane
+    /// in single-bit mode.
+    pub fn nibbles_per_window(&self) -> usize {
+        self.window_size_samples
     }
 
     /// Configure single-bit (single-lane) mode, matching CONF.RNG_BIT_ENABLE /
@@ -58,16 +60,17 @@ impl HealthTester {
     /// RNG lane.
     pub fn set_rng_bit_mode(&mut self, rng_bit_enable: bool, rng_bit_sel: usize) {
         self.rng_bit_enable = rng_bit_enable;
+        self.rng_bit_sel = rng_bit_sel;
         self.repcnt.set_rng_bit_mode(rng_bit_enable, rng_bit_sel);
         self.adaptp.set_rng_bit_mode(rng_bit_enable, rng_bit_sel);
     }
 
-    /// Updates the FIPS health-test window size in bits. Called when the
+    /// Updates the FIPS health-test window size in samples. Called when the
     /// HEALTH_TEST_WINDOWS register is written. The adaptive-proportion
     /// tester's per-window state is kept in sync.
-    pub fn set_window_size_bits(&mut self, bits: usize) {
-        self.window_size_bits = bits;
-        self.adaptp.set_window_size_bits(bits);
+    pub fn set_window_size_samples(&mut self, samples: usize) {
+        self.window_size_samples = samples;
+        self.adaptp.set_window_size_samples(samples);
     }
 
     pub fn test_startup_windows(&mut self) {
@@ -110,9 +113,9 @@ impl Iterator for HealthTester {
     type Item = u8;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if let Some(nibble) = self.startup_nibbles.pop() {
+        let nibble = if let Some(nibble) = self.startup_nibbles.pop() {
             // First yield any startup nibbles we saved while health testing.
-            Some(nibble)
+            nibble
         } else {
             // Then yield directly from the TRNG. Feed nibbles through health checks
             // for continuous testing.
@@ -120,8 +123,13 @@ impl Iterator for HealthTester {
             self.repcnt.feed(nibble);
             self.repcnts.feed(nibble);
             self.adaptp.feed(nibble);
-            Some(nibble)
-        }
+            nibble
+        };
+        Some(if self.rng_bit_enable {
+            (nibble >> self.rng_bit_sel) & 1
+        } else {
+            nibble
+        })
     }
 }
 
@@ -152,8 +160,8 @@ impl RepetitionCountTester {
         }
     }
 
-    pub fn set_threshold(&mut self, threshold: RepcntThresholdsReadVal) {
-        self.threshold = threshold.fips_thresh();
+    pub fn set_threshold(&mut self, threshold: RepcntThresholdReadVal) {
+        self.threshold = threshold.repcnt_threshold();
     }
 
     pub fn set_rng_bit_mode(&mut self, rng_bit_enable: bool, rng_bit_sel: usize) {
@@ -204,8 +212,8 @@ pub struct AdaptiveProportionTester {
     // false as well; conf_write updates this if software chooses true.
     threshold_scope: bool,
     per_lane_ones: [u32; BITS_PER_NIBBLE],
-    num_bits_seen: usize,
-    window_size_bits: usize,
+    num_samples_seen: usize,
+    window_size_samples: usize,
     rng_bit_enable: bool,
     rng_bit_sel: usize,
 }
@@ -219,19 +227,19 @@ impl AdaptiveProportionTester {
             hi_failures: 0,
             threshold_scope: false,
             per_lane_ones: [0; BITS_PER_NIBBLE],
-            num_bits_seen: 0,
-            window_size_bits: DEFAULT_WINDOW_SIZE_BITS,
+            num_samples_seen: 0,
+            window_size_samples: DEFAULT_WINDOW_SIZE_SAMPLES,
             rng_bit_enable: false,
             rng_bit_sel: 0,
         }
     }
 
-    pub fn set_lo_threshold(&mut self, threshold: AdaptpLoThresholdsReadVal) {
-        self.lo_threshold = threshold.fips_thresh();
+    pub fn set_lo_threshold(&mut self, threshold: AdaptpLoThresholdReadVal) {
+        self.lo_threshold = threshold.adaptp_lo_threshold();
     }
 
-    pub fn set_hi_threshold(&mut self, threshold: AdaptpHiThresholdsReadVal) {
-        self.hi_threshold = threshold.fips_thresh();
+    pub fn set_hi_threshold(&mut self, threshold: AdaptpHiThresholdReadVal) {
+        self.hi_threshold = threshold.adaptp_hi_threshold();
     }
 
     pub fn set_threshold_scope(&mut self, threshold_scope: bool) {
@@ -242,15 +250,15 @@ impl AdaptiveProportionTester {
         self.rng_bit_enable = rng_bit_enable;
         self.rng_bit_sel = rng_bit_sel;
         self.per_lane_ones = [0; BITS_PER_NIBBLE];
-        self.num_bits_seen = 0;
+        self.num_samples_seen = 0;
     }
 
-    /// Set the per-window size in bits. Mid-window changes restart the
+    /// Set the per-window size in samples. Mid-window changes restart the
     /// current window from scratch.
-    pub fn set_window_size_bits(&mut self, bits: usize) {
-        self.window_size_bits = bits;
+    pub fn set_window_size_samples(&mut self, samples: usize) {
+        self.window_size_samples = samples;
         self.per_lane_ones = [0; BITS_PER_NIBBLE];
-        self.num_bits_seen = 0;
+        self.num_samples_seen = 0;
     }
 
     pub fn lo_failures(&self) -> u32 {
@@ -270,16 +278,9 @@ impl AdaptiveProportionTester {
         for (i, lane) in self.per_lane_ones.iter_mut().enumerate() {
             *lane += u32::from((nibble >> i) & 1);
         }
-        // In normal mode each clock contributes 4 lane-bits to the aggregate
-        // window. In single-bit mode only the selected lane is sampled, so each
-        // nibble advances the (RTL-scaled, 4x larger) window by a single bit.
-        self.num_bits_seen += if self.rng_bit_enable {
-            1
-        } else {
-            BITS_PER_NIBBLE
-        };
+        self.num_samples_seen += 1;
 
-        if self.num_bits_seen >= self.window_size_bits {
+        if self.num_samples_seen >= self.window_size_samples {
             // adaptp_ht.sv:
             //   normal:      test_cnt_hi = scope ? sum : max ; test_cnt_lo = scope ? sum : min
             //   single-bit:  test_cnt_hi = test_cnt_lo = test_cnt[rng_bit_sel]
@@ -307,7 +308,7 @@ impl AdaptiveProportionTester {
 
             // The test windows are not sliding. Reset for the next window.
             self.per_lane_ones = [0; BITS_PER_NIBBLE];
-            self.num_bits_seen = 0;
+            self.num_samples_seen = 0;
         }
     }
 }
@@ -336,8 +337,8 @@ impl RepetitionCountSymbolTester {
         }
     }
 
-    pub fn set_threshold(&mut self, threshold: RepcntsThresholdsReadVal) {
-        self.threshold = threshold.fips_thresh();
+    pub fn set_threshold(&mut self, threshold: RepcntsThresholdReadVal) {
+        self.threshold = threshold.repcnts_threshold();
     }
 
     pub fn failures(&self) -> u32 {
@@ -369,13 +370,12 @@ mod tests {
     //! Unit tests for the Adaptive Proportion health-check model.
     use super::*;
 
-    const NIBBLES_PER_WINDOW: usize = DEFAULT_WINDOW_SIZE_BITS / BITS_PER_NIBBLE;
+    const NIBBLES_PER_WINDOW: usize = DEFAULT_WINDOW_SIZE_SAMPLES;
 
     fn make_adaptp(hi: u32, lo: u32, threshold_scope: bool) -> AdaptiveProportionTester {
         let mut t = AdaptiveProportionTester::new();
-        // The FIPS_THRESH field occupies the low 16 bits of the register.
-        t.set_hi_threshold(AdaptpHiThresholdsReadVal::from(hi & 0xffff));
-        t.set_lo_threshold(AdaptpLoThresholdsReadVal::from(lo & 0xffff));
+        t.set_hi_threshold(AdaptpHiThresholdReadVal::from(hi & 0xffff));
+        t.set_lo_threshold(AdaptpLoThresholdReadVal::from(lo & 0xffff));
         t.set_threshold_scope(threshold_scope);
         t
     }
@@ -503,41 +503,29 @@ mod tests {
         assert_eq!(t.lo_failures(), 0);
     }
 
-    /// In single-bit mode the RTL scales the window by four and counts one
-    /// sample per nibble, so a window spans `window_size_bits` nibbles (not
-    /// `window_size_bits / 4`). Only the selected lane is scored, against both
-    /// the hi and lo thresholds.
     #[test]
-    fn single_bit_mode_scores_selected_lane_over_scaled_window() {
-        // ROM writes FIPS_WINDOW=1024 -> window_size_bits=4096 aggregate, and in
-        // single-bit mode the (correctly) scaled thresholds are hi=3072, lo=1024.
-        let mut t = make_adaptp(3072, 1024, false);
-        t.set_window_size_bits(4096);
+    fn single_bit_mode_scores_selected_lane_over_configured_window() {
+        let mut t = make_adaptp(768, 256, false);
+        t.set_window_size_samples(1024);
         t.set_rng_bit_mode(true, 2);
 
-        // A balanced selected lane has ~2048 ones over the 4096-sample window.
-        // Feeding only lane 2 (alternating) leaves the other lanes at zero, which
-        // must NOT be scored in single-bit mode.
-        for i in 0..4096 {
+        for i in 0..1023 {
             t.feed(((i & 1) as u8) << 2);
         }
         assert_eq!((t.hi_failures(), t.lo_failures()), (0, 0));
+        t.feed(1 << 2);
+        assert_eq!((t.hi_failures(), t.lo_failures()), (0, 0));
     }
 
-    /// Regression for the threshold-scaling bug: with the unscaled 4-bit-mode
-    /// thresholds (hi=768) a balanced selected lane (2048 ones over the scaled
-    /// 4096-sample window) trips the hi failure. This is exactly the entropy_src
-    /// alert that made `Csrng::new()` fail on FPGA before the ROM scaled the
-    /// adaptive-proportion thresholds for single-bit mode.
     #[test]
-    fn single_bit_mode_balanced_lane_fails_unscaled_thresholds() {
-        let mut t = make_adaptp(768, 256, false);
-        t.set_window_size_bits(4096);
+    fn single_bit_mode_rejects_legacy_scaled_thresholds() {
+        let mut t = make_adaptp(3072, 1024, false);
+        t.set_window_size_samples(1024);
         t.set_rng_bit_mode(true, 2);
-        for i in 0..4096 {
+        for i in 0..1024 {
             t.feed(((i & 1) as u8) << 2);
         }
-        assert_eq!(t.hi_failures(), 1);
+        assert_eq!((t.hi_failures(), t.lo_failures()), (0, 1));
     }
 
     /// repcnt single-bit mode only scores the selected lane: a stuck lane that
@@ -546,11 +534,11 @@ mod tests {
     fn single_bit_repcnt_scores_only_selected_lane() {
         // Selected lane 2 toggles (no repetition); lane 0 is stuck high.
         let mut selected = RepetitionCountTester::new();
-        selected.set_threshold(RepcntThresholdsReadVal::from(4));
+        selected.set_threshold(RepcntThresholdReadVal::from(4));
         selected.set_rng_bit_mode(true, 2);
 
         let mut other = RepetitionCountTester::new();
-        other.set_threshold(RepcntThresholdsReadVal::from(4));
+        other.set_threshold(RepcntThresholdReadVal::from(4));
         other.set_rng_bit_mode(true, 0);
 
         for i in 0..16 {

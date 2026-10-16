@@ -260,9 +260,10 @@ fn main() -> io::Result<()> {
                 .value_parser(value_parser!(u32)),
         )
         .arg(
-            arg!(--"hw-version" <VERSION> "Caliptra hardware version (2.0, 2.1, 2.2)")
+            arg!(--"hw-version" <VERSION> "Caliptra hardware version (2.2)")
                 .required(false)
-                .default_value("2.1"),
+                .value_parser(["2.2"])
+                .default_value("2.2"),
         )
         .get_matches();
 

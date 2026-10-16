@@ -28,7 +28,7 @@ fn test_version_2_0_peripheral_slots() {
 #[test]
 fn test_version_2_1_peripheral_slots() {
     let mut bus = CaliptraRootBus::new(CaliptraRootBusArgs {
-        hw_version: CaliptraHwVersion::V2_1,
+        hw_version: CaliptraHwVersion::V2_2,
         ..Default::default()
     });
 
@@ -42,6 +42,7 @@ fn test_version_2_1_peripheral_slots() {
 }
 
 #[test]
+#[ignore = "Historical 2.0 firmware is outside this 2.2-only development branch"]
 fn test_hw_model_boot_v2_0_runtime_firmware() {
     let mut model = caliptra_hw_model::new(
         InitParams {
@@ -69,7 +70,7 @@ fn test_hw_model_boot_v2_0_runtime_firmware() {
 }
 
 #[test]
-fn test_hw_model_boot_v2_1() {
+fn test_hw_model_boot_v2_2() {
     let mut model = caliptra_hw_model::new(
         InitParams {
             hw_version: CaliptraHwVersion::V2_1,

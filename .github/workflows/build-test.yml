@@ -14,9 +14,9 @@ on:
       hw-revision:
         description: 'Target hardware revision'
         type: choice
-        default: latest
+        default: "2.2"
         options:
-          - "2.1"
+          - "2.2"
           - latest
 
 permissions:
@@ -53,8 +53,7 @@ jobs:
     runs-on: ubuntu-24.04
     strategy:
       matrix:
-        # Always build for all HW-revisions
-        revision: ["latest", "2.1"]
+        revision: ["2.2"]
     env:
       CALIPTRA_HW_REV: ${{ matrix.revision }}
     steps:

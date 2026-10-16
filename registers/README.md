@@ -1,12 +1,12 @@
-The `caliptra-registers` crate re-exports generated hardware register accessors.
-`CALIPTRA_HW_REV=2.1` selects `hw/rev-2_1/registers`; an unset variable or
-`CALIPTRA_HW_REV=latest` selects `hw/latest/registers`.
+This development branch targets Caliptra 2.2 only. The `caliptra-registers` crate
+directly re-exports `hw/latest/registers`; there are no hardware-capability flags
+or legacy protocol selections. `CALIPTRA_HW_REV=2.2`, `latest`, and an unset
+variable select the same target. Requests for older revisions fail the build.
 
-Each hardware revision uses its `caliptra-ss` commit as the source of truth for
-register generation:
+Caliptra-SS is the source of truth for register generation:
 
 ```text
-hw/<revision>/caliptra-ss
+hw/latest/caliptra-ss
 |-- src/                                  Caliptra-SS registers
 `-- third_party/
     |-- caliptra-rtl/                      Caliptra core registers
@@ -20,7 +20,6 @@ Run from the repository root:
 
 ```sh
 registers/update.sh latest
-registers/update.sh rev-2_1
 ```
 
 The script initializes Caliptra-SS if necessary and recursively checks out the
@@ -31,14 +30,26 @@ To verify that committed accessors match the sources without rewriting them:
 
 ```sh
 cargo run --locked -p caliptra_registers_generator -- --check \
-    hw/latest/caliptra-ss/third_party/caliptra-rtl \
-    registers/bin/extra-rdl \
-    hw/latest/caliptra-ss/third_party/i3c-core \
-    hw/latest/caliptra-ss \
-    hw/latest/registers/src
+    hw/latest/caliptra-ss registers/bin/extra-rdl hw/latest/registers/src
 ```
 
-Use `hw/rev-2_1` in place of `hw/latest` to check the 2.1 snapshot.
+Generated headers record the exact SS, RTL, Adams Bridge, and I3C commits.
+Historical snapshots inherited from upstream are not supported build targets
+on this branch and are not regenerated.
+
+Build the development firmware with:
+
+```sh
+cargo xtask --rev 2.2 build all
+```
+
+The pinned SS snapshot is `743d5f7eaa9a946f405b9087c7ffd2fbb38e1543`,
+which selects RTL `f9bc5ab97b885b5e31ccb062eca16634a8e61b5a`. This is
+2.2 development hardware, not a finalized or qualified 2.2 release.
+
+Firmware retains `SS_STRAP_GENERIC[2]` for entropy window, lane selection, and
+bypass settings. The generated `ENTROPY_CONFIG_2` accessors are not used for
+configuration on this branch.
 
 ## Updating latest hardware
 

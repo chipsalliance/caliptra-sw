@@ -633,7 +633,10 @@ fn read_entropy_configuration(
     // Default alert threshold value
     const DEFAULT_ALERT_THRESHOLD: u32 = 2;
 
-    let alert_threshold = soc_ifc.cptra_i_trng_entropy_config_1().read().rsvd();
+    let alert_threshold = soc_ifc
+        .cptra_i_trng_entropy_config_1()
+        .read()
+        .alert_threshold();
 
     let alert_threshold = if alert_threshold == 0 {
         DEFAULT_ALERT_THRESHOLD
@@ -641,12 +644,8 @@ fn read_entropy_configuration(
         alert_threshold
     };
 
-    // Configure health test windows from SS_STRAP_GENERIC[2][15:0]
-    // This is the window size for all health tests, in clock cycles.
-    // Each clock samples one bit on each of the 4 RNG lanes, so the
-    // per-lane window in bits is exactly this value and the aggregate
-    // window is `4 * health_test_window` bits. This value is used when
-    // entropy is being tested in FIPS mode.
+    // Configure the FIPS health-test window in samples per RNG lane from
+    // SS_STRAP_GENERIC[2][15:0], in both single- and multi-channel modes.
     //
     // Default: 1024 clock cycles = 1024 bits per lane = 4096 bits aggregate.
     const DEFAULT_HEALTH_TEST_WINDOW: u32 = 1024;
@@ -655,8 +654,7 @@ fn read_entropy_configuration(
 
     let strap_health_test_window = ss_strap_generic_2 & SS_STRAP_GENERIC_2_HEALTH_TEST_WINDOW_MASK;
 
-    let health_test_window_is_default = strap_health_test_window == 0;
-    let health_test_window = if health_test_window_is_default {
+    let health_test_window = if strap_health_test_window == 0 {
         DEFAULT_HEALTH_TEST_WINDOW
     } else {
         strap_health_test_window
@@ -702,23 +700,10 @@ fn read_entropy_configuration(
     // Per NIST SP 800-90B Section 4.4.2, these correspond to roughly
     // 0.6 min-entropy (Table 2).
     //
-    // In normal mode each clock samples one bit on each of the 4 RNG lanes, so
-    // the per-lane window in bits is exactly `health_test_window` (the FIPS_WINDOW
-    // value written to the HEALTH_TEST_WINDOWS register). In single-bit mode
-    // entropy_src samples only the selected lane and internally multiplies the
-    // window by four (entropy_src_core.sv: health_test_window_scaled), so the
-    // adaptive-proportion counter accumulates over `health_test_window * 4`
-    // samples. We only grow the window used to derive the default thresholds when
-    // we picked the default window; if the SoC supplied its own window we assume
-    // it already accounts for single-bit mode and use it as-is.
+    // FIPS_WINDOW is measured in samples in both single- and multi-channel modes.
     // https://opentitan.org/earlgrey_1.0.0/book/hw/ip/entropy_src/index.html#description
-    let adaptp_window_bits = if rng_bit_enable && health_test_window_is_default {
-        health_test_window * 4
-    } else {
-        health_test_window
-    };
-    let adaptp_default_hi = 3 * (adaptp_window_bits / 4);
-    let adaptp_default_lo = adaptp_window_bits / 4;
+    let adaptp_default_hi = 3 * (health_test_window / 4);
+    let adaptp_default_lo = health_test_window / 4;
 
     let config0 = soc_ifc.cptra_i_trng_entropy_config_0().read();
     let adaptp_hi_threshold = config0.high_threshold();
@@ -778,12 +763,12 @@ fn set_health_check_thresholds(
     e.health_test_windows()
         .write(|w| w.fips_window(entropy_cfg.health_test_window));
 
-    e.repcnt_thresholds()
-        .write(|w| w.fips_thresh(entropy_cfg.repcnt_threshold));
+    e.repcnt_threshold()
+        .write(|w| w.repcnt_threshold(entropy_cfg.repcnt_threshold));
 
-    e.adaptp_hi_thresholds()
-        .write(|w| w.fips_thresh(entropy_cfg.adaptp_hi_threshold));
+    e.adaptp_hi_threshold()
+        .write(|w| w.adaptp_hi_threshold(entropy_cfg.adaptp_hi_threshold));
 
-    e.adaptp_lo_thresholds()
-        .write(|w| w.fips_thresh(entropy_cfg.adaptp_lo_threshold));
+    e.adaptp_lo_threshold()
+        .write(|w| w.adaptp_lo_threshold(entropy_cfg.adaptp_lo_threshold));
 }

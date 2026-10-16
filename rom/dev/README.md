@@ -103,7 +103,7 @@ The ROM configures the entropy source (CSRNG) during initialization using the fo
 
 | Register                         | Field/Bits    | Description                                             |
 | :------------------------------- | :------------ | :------------------------------------------------------ |
-| SS_STRAP_GENERIC[2]              | [15:0]  | Health test window size for FIPS mode (default: 1024). This is the window size for all health tests when entropy is tested in FIPS mode. In single-bit mode entropy_src internally tests four times this many samples on the selected lane. |
+| SS_STRAP_GENERIC[2]              | [15:0]  | Health test window size for FIPS mode (default: 1024 samples per lane). The same sample count applies in single-bit and multi-channel modes. |
 | SS_STRAP_GENERIC[2]              | [16]    | Entropy source single-bit mode. When set to 1, ROM enables `rng_bit_enable` and clears `threshold_scope`. |
 | SS_STRAP_GENERIC[2]              | [18:17] | Entropy source single-bit mode `rng_bit_sel`. Selects which RNG bit stream to process when single-bit mode is enabled. |
 | SS_STRAP_GENERIC[2]              | [31]    | Entropy bypass mode. When set to 1, enables bypass mode (`es_type`) to allow entropy characterization directly without passing through conditioning. |
@@ -114,7 +114,7 @@ The ROM configures the entropy source (CSRNG) during initialization using the fo
 
 **Notes:**
 - If any threshold value is set to 0, the ROM uses the default value specified above.
-- The Adaptive Proportion default thresholds are derived from the FIPS window (75% high, 25% low). In single-bit mode entropy_src scales the health-test window by four, so when the default window is used the ROM scales these defaults to match (high: 3072, low: 1024). An explicit threshold or window supplied by the SoC is used as-is.
+- The Adaptive Proportion default thresholds are derived from the FIPS sample window (75% high, 25% low) in both single-bit and multi-channel modes (high: 768, low: 256 for the default window). An explicit threshold or window supplied by the SoC is used as-is.
 - The thresholds, health-test window, and single-bit-mode values are stored in persistent storage after first read to prevent malicious modification (reloaded on cold reset). Conditioning bypass is read directly from the locked `SS_STRAP_GENERIC[2][31]` field.
 - In debug mode (`debug_locked == false`), entropy source configuration registers remain unlocked for characterization.
 - In production mode, ROM locks the entropy source configuration after programming to prevent modification.
