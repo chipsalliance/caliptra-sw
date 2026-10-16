@@ -2163,6 +2163,11 @@ impl CaliptraError {
             "FMC Error: Regenerate FMC MLDSA key pair failed"
         ),
         (
+            FMC_HANDOFF_INVALID_FHT,
+            0x000F0001B,
+            "FMC Error: Invalid firmware handoff table"
+        ),
+        (
             DRIVER_TRNG_EXT_TIMEOUT,
             0x00100001,
             "TRNG_EXT Error: Timeout"
