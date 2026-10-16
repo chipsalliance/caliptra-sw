@@ -11,12 +11,12 @@ use caliptra_drivers_test_bin::{
 };
 use caliptra_hw_model::{
     BootParams, CodeRange, DefaultHwModel, DeviceLifecycle, Fuses, HwModel, ImageInfo, InitParams,
-    ModelError, SecurityState, StackInfo, StackRange, TrngMode,
+    ItrngEntropyConfig0WriteVal, ItrngEntropyConfig1WriteVal, ModelError, SecurityState, StackInfo,
+    StackRange, TrngMode,
 };
 use caliptra_hw_model_types::EtrngResponse;
 use caliptra_registers::mbox::enums::MboxStatusE;
 use caliptra_registers::soc_ifc::meta::{CptraItrngEntropyConfig0, CptraItrngEntropyConfig1};
-use caliptra_registers::{CptraItrngEntropyConfig0WriteVal, CptraItrngEntropyConfig1WriteVal};
 use caliptra_test::{
     crypto::derive_ecdsa_keypair,
     derive::{DoeInput, DoeOutput},
@@ -924,7 +924,7 @@ fn test_csrng_repetition_count() {
     fn test_repcnt_finite_repeats(
         test_fwid: &FwId<'static>,
         repeat: usize,
-        soc_repcnt_threshold: Option<CptraItrngEntropyConfig1WriteVal>,
+        soc_repcnt_threshold: Option<ItrngEntropyConfig1WriteVal>,
     ) {
         let rom = caliptra_builder::build_firmware_rom(test_fwid).unwrap();
 
@@ -990,7 +990,7 @@ fn test_csrng_repetition_count() {
         // SoC registers.
         const THRESHOLD: usize = 20;
         let soc_repcnt_threshold = Some(
-            CptraItrngEntropyConfig1WriteVal::from(CptraItrngEntropyConfig1::RESET_VAL)
+            ItrngEntropyConfig1WriteVal::from(CptraItrngEntropyConfig1::RESET_VAL)
                 .repetition_count(THRESHOLD as u32),
         );
         println!("test_repcnt_finite_repeats 1");
@@ -1075,10 +1075,9 @@ fn test_csrng_adaptive_proportion() {
 
         let rom = caliptra_builder::build_firmware_rom(test_fwid).unwrap();
         let itrng_nibbles = Box::new(window.iter().chain(window).copied());
-        let threshold_reg =
-            CptraItrngEntropyConfig0WriteVal::from(CptraItrngEntropyConfig0::RESET_VAL)
-                .high_threshold(HI_THRESHOLD)
-                .low_threshold(LO_THRESHOLD);
+        let threshold_reg = ItrngEntropyConfig0WriteVal::from(CptraItrngEntropyConfig0::RESET_VAL)
+            .high_threshold(HI_THRESHOLD)
+            .low_threshold(LO_THRESHOLD);
 
         let mut model = caliptra_hw_model::new(
             InitParams {
