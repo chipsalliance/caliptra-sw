@@ -69,17 +69,15 @@ type CptraModel struct {
 var CaliptraCModel *C.struct_caliptra_model
 
 //export caliptra_write_u32
-func caliptra_write_u32(address C.uint32_t, data C.uint32_t) C.int {
-	result := C.caliptra_model_apb_write_u32(CaliptraCModel, address, data)
+func caliptra_write_u32(address C.uint32_t, data C.uint32_t) {
+	C.caliptra_model_apb_write_u32(CaliptraCModel, address, data)
 
 	C.caliptra_model_step(CaliptraCModel)
-
-	return result
 }
 
 //export caliptra_read_u32
-func caliptra_read_u32(address C.uint32_t, data *C.uint32_t) C.int {
-	return C.caliptra_model_apb_read_u32(CaliptraCModel, address, data)
+func caliptra_read_u32(address C.uint32_t, data *C.uint32_t) {
+	C.caliptra_model_apb_read_u32(CaliptraCModel, address, data)
 }
 
 //export caliptra_wait
