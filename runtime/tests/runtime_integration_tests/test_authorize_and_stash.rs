@@ -1,8 +1,8 @@
 // Licensed under the Apache-2.0 license
 
 use crate::common::{
-    calculate_cptra_config_init_vals_hash, default_rt_test_soc_manifest_measurements, run_rt_test,
-    soc_manifest_measurements, RuntimeTestArgs,
+    assert_error, calculate_cptra_config_init_vals_hash, default_rt_test_soc_manifest_measurements,
+    run_rt_test, soc_manifest_measurements, RuntimeTestArgs,
 };
 use crate::test_set_auth_manifest::{
     create_auth_manifest, create_auth_manifest_with_metadata, AuthManifestBuilderCfg,
@@ -22,6 +22,7 @@ use caliptra_common::mailbox_api::{
     AuthManifestSource, AuthorizeAndStashReq, AuthorizeAndStashResp, CommandId, GetTaggedTciReq,
     GetTaggedTciResp, ImageHashSource, MailboxReq, MailboxReqHeader, SetAuthManifestReq, TagTciReq,
 };
+use caliptra_drivers::CaliptraError;
 use caliptra_hw_model::{DefaultHwModel, HwModel, ModelError};
 use caliptra_image_types::FwVerificationPqcKeyType;
 use caliptra_runtime::{
@@ -1166,7 +1167,7 @@ pub fn write_mcu_mbox_sram(model: &mut DefaultHwModel, data: &[u8]) {
         for (count, chunk) in data.chunks(4).enumerate() {
             mcu_mbox_sram_ptr
                 .offset(count as isize)
-                .write_volatile(u32::from_be_bytes(chunk.try_into().unwrap()));
+                .write_volatile(u32::from_le_bytes(chunk.try_into().unwrap()));
         }
     };
 }
@@ -1221,14 +1222,18 @@ fn tag_and_get_default_tci(model: &mut DefaultHwModel) -> GetTaggedTciResp {
     GetTaggedTciResp::read_from_bytes(resp.as_slice()).unwrap()
 }
 
-#[cfg_attr(feature = "fpga_realtime", ignore)]
-#[test]
-fn test_authorize_from_load_address() {
+fn authorize_from_load_address(single_dword_dma: bool) {
     let mut flags = ImageMetadataFlags(0);
     flags.set_ignore_auth_check(false);
     flags.set_image_source(ImageHashSource::LoadAddress as u32);
+    flags.set_dma_single_dword_read(single_dword_dma);
 
-    let load_memory_contents = [0x55u8; 512];
+    let mut load_memory_contents = [0u8; 512];
+    for (index, byte) in load_memory_contents.iter_mut().enumerate() {
+        *byte = (index as u8)
+            .wrapping_mul(31)
+            .wrapping_add((index >> 8) as u8);
+    }
 
     let mut hasher = Sha384::new();
     hasher.update(load_memory_contents);
@@ -1287,6 +1292,80 @@ fn test_authorize_from_load_address() {
 
     let tagged_tci = tag_and_get_default_tci(&mut model);
     assert_eq!(tagged_tci.tci_current, fw_digest);
+}
+
+#[cfg_attr(feature = "fpga_realtime", ignore)]
+#[test]
+fn test_authorize_from_load_address() {
+    authorize_from_load_address(false);
+}
+
+#[cfg_attr(feature = "fpga_realtime", ignore)]
+#[test]
+fn test_authorize_from_load_address_single_dword_dma() {
+    authorize_from_load_address(true);
+}
+
+#[cfg_attr(feature = "fpga_realtime", ignore)]
+#[test]
+fn test_authorize_single_dword_rejects_unaligned_address_and_size() {
+    const UNALIGNED_ADDRESS_FW_ID: [u8; 4] = 3u32.to_le_bytes();
+    const UNALIGNED_SIZE_FW_ID: [u8; 4] = 4u32.to_le_bytes();
+
+    let mut flags = ImageMetadataFlags(0);
+    flags.set_ignore_auth_check(false);
+    flags.set_image_source(ImageHashSource::LoadAddress as u32);
+    flags.set_dma_single_dword_read(true);
+
+    let unaligned_address_metadata = AuthManifestImageMetadata {
+        fw_id: u32::from_le_bytes(UNALIGNED_ADDRESS_FW_ID),
+        flags: flags.0,
+        image_load_address: Addr64 {
+            lo: TEST_SRAM_BASE.lo + 1,
+            hi: TEST_SRAM_BASE.hi,
+        },
+        ..Default::default()
+    };
+    let unaligned_size_metadata = AuthManifestImageMetadata {
+        fw_id: u32::from_le_bytes(UNALIGNED_SIZE_FW_ID),
+        flags: flags.0,
+        image_load_address: TEST_SRAM_BASE,
+        ..Default::default()
+    };
+    let mcu_image = [0xAA; 256];
+    let auth_manifest = create_auth_manifest_with_metadata(
+        [
+            get_mcu_image_metadata(&mcu_image),
+            unaligned_address_metadata,
+            unaligned_size_metadata,
+        ]
+        .to_vec(),
+    );
+    let test_sram = [0u8; 512];
+    let mut model = set_auth_manifest_with_test_sram(Some(auth_manifest), &test_sram, &mcu_image);
+
+    for (fw_id, image_size) in [(UNALIGNED_ADDRESS_FW_ID, 512), (UNALIGNED_SIZE_FW_ID, 510)] {
+        let mut cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
+            hdr: MailboxReqHeader { chksum: 0 },
+            fw_id,
+            source: ImageHashSource::LoadAddress as u32,
+            image_size,
+            ..Default::default()
+        });
+        cmd.populate_chksum().unwrap();
+
+        let err = model
+            .mailbox_execute(
+                u32::from(CommandId::AUTHORIZE_AND_STASH),
+                cmd.as_bytes().unwrap(),
+            )
+            .unwrap_err();
+        assert_error(
+            &mut model,
+            CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS,
+            err,
+        );
+    }
 }
 
 // Exercises an image larger than the DMA engine's 1 MiB per-transfer limit
