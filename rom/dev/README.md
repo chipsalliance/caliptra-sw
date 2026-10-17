@@ -165,8 +165,9 @@ ROM copies the manifest into protected internal memory before verification.
 Public-key hashes, header signatures, and the table-of-contents digest are
 verified against that same snapshot, which is also used for image validation and
 loading. Changes to the manifest in external staging memory after capture do not
-change the authenticated metadata. Payloads are separately hashed against the
-authenticated TOC digests, including after loading into ICCM.
+change the authenticated metadata. Payloads are separately hashed in staging
+memory against the authenticated TOC digests before copying into ICCM. The staging
+buffer must remain protected from modification through completion of the copy.
 
 #### Preamble
 
@@ -1013,6 +1014,79 @@ During update-reset, the key ladder initialized at cold boot is lengthened if ne
     Loop (`old_min_svn` - `new_min_svn`) times:
 
         hmac512_kdf(KvSlot2, label: b"si_extend", context: None, KvSlot2)
+
+### 2.2 ICCM loading integrity and boot-region handoff
+
+In both modes, ROM authenticates the captured manifest and hashes the staged FMC
+and Runtime payloads against its authenticated component digests. It retains SVN,
+source/load-range, alignment, entry-point, and update-FMC consistency checks.
+Image-bundle lengths and component source offsets/sizes must be multiples of
+four bytes. Component alignment is checked during authenticated TOC validation,
+before either payload is hashed, including FMC on update reset. Invalid
+component alignment reports `IMAGE_VERIFIER_ERR_IMAGE_SOURCE_UNALIGNED`; invalid
+ROM firmware-load lengths report `FW_PROC_INVALID_IMAGE_SIZE`.
+Subsystem update staging addresses are checked for word alignment before
+manifest DMA. Recovery downloads advertise lengths in DWORDs. No image size is
+rounded up for ICCM copying.
+ROM does not read or hash the loaded ICCM contents. The subsystem boot-flow
+monitor observes ICCM bank reads, so data readback from ROM could prematurely
+trigger a firmware transition or a fatal boot-flow error.
+
+Passive mode uses Caliptra mailbox SRAM for cold boot and update reset.
+Subsystem cold boot uses MCU SRAM; subsystem update reset uses the AXI staging
+address supplied by the external-mailbox command. The integration must protect
+the actual staging buffer from modification throughout authentication and
+copying. Without destination readback, ROM does not independently detect
+corruption introduced during the copy or in ICCM.
+
+Startup retains the ICCM zeroing pass for ECC initialization. The SHA accelerator
+lock is held out of reset; the pinned RTL ignores ICCM measurement triggers while
+that lock is already held. Startup stores therefore do not arm the measurement
+or interfere with KATs.
+
+All software accelerator operations are released before the first ICCM store.
+Cold boot copies FMC followed by Runtime; update reset copies Runtime only,
+retaining FMC. ROM then sets `INTERNAL_ICCM_LOCK` before completing any pending
+firmware-load transaction. Subsystem hardware hashes the ICCM write-data stream
+and finalizes PCR4/PCR5 autonomously on the write lock. ROM does not compute an
+expected PCR, compare PCR values, or wait for measurement completion.
+PCR completion is not a condition for FMC handoff.
+
+After FMC Alias/DICE derivation, the common handoff programs the FMC and Runtime
+start/end ranges as ICCM-relative offsets. Each shadow register receives two
+identical writes followed by readback; `INTERNAL_ICCM_REGION_LOCK` is then set
+before the first FMC fetch. Entry points must lie within their corresponding
+authenticated component ranges. The region lock and the ICCM write lock have
+different purposes and timing.
+
+The pinned RTL includes the region-lock and SHA-lock fixes from RTL commit
+`8b7e35a6`: hitless reset clears the region lock and committed flags so ROM must
+recommit all four bounds. Warm reset also re-arms the region configuration.
+No RTL source is modified by this software integration.
+The emulator finalizes ICCM measurement synchronously; its tests validate the
+protocol, digest byte ordering, and reset semantics, not cycle-accurate SHA
+accelerator timing.
+
+Passive mode supports production/debug-locked operation with the same
+staged-only authentication and copy-then-lock ordering. FMC and the ROM-to-FMC
+handoff are unchanged; ROM owns verification and the firmware-load response.
+
+The passive-mode integration contract disables the boot-flow monitor as well as
+automatic ICCM-write measurement. The emulator models that required behavior.
+The currently pinned RTL still enables passive-mode monitoring when debug is
+locked; this is an RTL bug to be fixed by the hardware team. Deployment of the
+passive flow requires that hardware fix. The ROM does not unlock debug or disable
+hardware protections through software.
+
+In subsystem mode, PCR4 is the hardware ICCM Current measurement; PCR5 is Journey. Cold reset clears
+both. Update reset clears PCR4 and extends the retained PCR5 chain.
+Warm reset retains the stored PCR values but resets the measurement engine;
+ROM does not reload firmware, so re-locking ICCM extends each retained PCR with
+`SHA384(empty)`: `PCRn_new = SHA384(PCRn_old || SHA384(empty))`, for n = 4 or 5.
+Runtime rejects software extension of these reserved PCRs. The hardware digest
+covers write data and order, not
+destination addresses, so range validation and correct destination calculation
+remain essential.
 
 ### Alias FMC DICE layer & PCR extension
 

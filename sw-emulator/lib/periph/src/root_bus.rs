@@ -461,22 +461,32 @@ impl CaliptraRootBus {
         let clock = &args.clock.clone();
         let pic = &args.pic.clone();
         let mut key_vault = KeyVault::new();
+        let integrity = crate::boot_integrity::BootIntegrity::new(
+            args.subsystem_mode,
+            args.security_state.debug_locked(),
+            false,
+            args.ocp_lock_en,
+        );
+        key_vault.attach_boot_integrity(integrity.clone());
         let mailbox_ram = MailboxRam::new(args.subsystem_mode);
         let mailbox = MailboxInternal::new(clock, mailbox_ram.clone());
         let rom = Rom::new(std::mem::take(&mut args.rom));
         let prod_dbg_unlock_keypairs = std::mem::take(&mut args.prod_dbg_unlock_keypairs);
-        let iccm = Iccm::new(clock);
+        let mut iccm = Iccm::new(clock);
+        iccm.attach_boot_integrity(integrity.clone(), key_vault.clone());
         let itrng_nibbles = args.itrng_nibbles.take();
         let test_sram = std::mem::take(&mut args.test_sram);
         let use_mcu_recovery_interface = args.use_mcu_recovery_interface;
         let mci = Mci::new(prod_dbg_unlock_keypairs);
         let soc_reg = SocRegistersInternal::new(mailbox.clone(), iccm.clone(), mci.clone(), args);
+        soc_reg.attach_boot_integrity(integrity.clone(), key_vault.clone());
         if !soc_reg.is_debug_locked() {
             // When debug is possible, the key-vault is initialized with a debug value...
             // This is necessary to match the behavior of the RTL.
             key_vault.clear_keys_with_debug_values(false);
         }
-        let sha512_acc = Sha512Accelerator::new(clock, mailbox_ram.clone());
+        let mut sha512_acc = Sha512Accelerator::new(clock, mailbox_ram.clone());
+        sha512_acc.attach_boot_integrity(integrity);
 
         let aes_key = Rc::new(RefCell::new(None));
         let aes_destination = Rc::new(RefCell::new(AesKeyReleaseOp::default()));

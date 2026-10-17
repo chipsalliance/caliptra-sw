@@ -15,6 +15,7 @@ mod test_ecdsa_verify;
 mod test_fake_rom;
 mod test_fips_hooks;
 mod test_fmcalias_derivation;
+mod test_iccm_integrity;
 mod test_idevid_derivation;
 mod test_image_validation;
 mod test_ldev_cert_cmd;

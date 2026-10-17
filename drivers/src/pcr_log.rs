@@ -17,6 +17,8 @@ use zeroize::Zeroize;
 
 pub const PCR_ID_FMC_CURRENT: PcrId = PcrId::PcrId0;
 pub const PCR_ID_FMC_JOURNEY: PcrId = PcrId::PcrId1;
+pub const PCR_ID_ICCM_CURRENT: PcrId = PcrId::PcrId4;
+pub const PCR_ID_ICCM_JOURNEY: PcrId = PcrId::PcrId5;
 pub const PCR_ID_STASH_MEASUREMENT: PcrId = PcrId::PcrId31;
 
 // PcrLogEntryId is used to identify the PCR entry and

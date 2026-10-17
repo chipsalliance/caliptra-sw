@@ -1085,6 +1085,15 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_FMC_RUNTIME_LOAD_ADDR_OVERLAP)?;
         }
 
+        if !img_bundle_sz.is_multiple_of(4) {
+            Err(CaliptraError::IMAGE_VERIFIER_ERR_IMAGE_SOURCE_UNALIGNED)?;
+        }
+        for entry in [&manifest.fmc, &manifest.runtime] {
+            if !entry.offset.is_multiple_of(4) || !entry.size.is_multiple_of(4) {
+                Err(CaliptraError::IMAGE_VERIFIER_ERR_IMAGE_SOURCE_UNALIGNED)?;
+            }
+        }
+
         let info = ImageInfo {
             fmc: &manifest.fmc,
             runtime: &manifest.runtime,
@@ -2401,6 +2410,63 @@ mod tests {
         );
 
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_toc_word_alignment() {
+        let manifest_size = IMAGE_MANIFEST_BYTE_SIZE as u32;
+        let manifest = ImageManifest {
+            size: manifest_size,
+            fmc: ImageTocEntry {
+                offset: manifest_size,
+                size: 128,
+                load_addr: ICCM_ORG,
+                ..Default::default()
+            },
+            runtime: ImageTocEntry {
+                offset: manifest_size + 128,
+                size: 128,
+                load_addr: ICCM_ORG + 256,
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let bundle_size = manifest_size + 256;
+        let toc_info = TocInfo {
+            len: MAX_TOC_ENTRY_COUNT,
+            digest: &ImageDigest384::default(),
+        };
+        let mut verifier = ImageVerifier::new(TestEnv::default());
+        let error = CaliptraError::IMAGE_VERIFIER_ERR_IMAGE_SOURCE_UNALIGNED;
+
+        for remainder in 1..4 {
+            for runtime in [false, true] {
+                let mut unaligned = manifest;
+                if runtime {
+                    unaligned.runtime.size -= remainder;
+                } else {
+                    unaligned.fmc.size -= remainder;
+                    unaligned.runtime.offset -= remainder;
+                }
+                assert_eq!(
+                    verifier
+                        .verify_toc(&unaligned, &toc_info, bundle_size)
+                        .err(),
+                    Some(error)
+                );
+            }
+            assert_eq!(
+                verifier
+                    .verify_toc(&manifest, &toc_info, bundle_size + remainder)
+                    .err(),
+                Some(error)
+            );
+        }
+        for padding in [0, 4, 16] {
+            assert!(verifier
+                .verify_toc(&manifest, &toc_info, bundle_size + padding)
+                .is_ok());
+        }
     }
 
     #[test]

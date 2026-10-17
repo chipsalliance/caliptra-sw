@@ -224,9 +224,8 @@ impl FirmwareProcessor {
         )?;
         report_boot_status(FwProcessorExtendPcrComplete.into());
 
-        // Load the image, then verify the loaded ICCM contents against the manifest in DCCM.
         Self::load_image(manifest, txn.as_deref_mut(), &mut env.soc_ifc, &mut env.dma)?;
-        crate::flow::loaded_image::verify_fmc_and_runtime(manifest, &mut env.sha2_512_384)?;
+        env.soc_ifc.set_iccm_lock(true);
 
         // Complete the mailbox transaction indicating success.
         if let Some(ref mut txn) = txn {
@@ -322,7 +321,10 @@ impl FirmwareProcessor {
                     // failure) or by a manual complete call upon success.
                     let txn = ManuallyDrop::new(txn.start_txn());
                     let image_size_bytes = txn.dlen();
-                    if image_size_bytes == 0 || image_size_bytes > IMAGE_BYTE_SIZE as u32 {
+                    if image_size_bytes == 0
+                        || image_size_bytes > IMAGE_BYTE_SIZE as u32
+                        || !image_size_bytes.is_multiple_of(4)
+                    {
                         cprintln!("Invalid Image of size {} bytes", image_size_bytes);
                         return Err(CaliptraError::FW_PROC_INVALID_IMAGE_SIZE);
                     }
@@ -961,7 +963,7 @@ impl FirmwareProcessor {
         );
 
         // Load FMC from MCU SRAM
-        let fmc_size_words = manifest.fmc.size.div_ceil(4) as usize;
+        let fmc_size_words = manifest.fmc.size as usize / 4;
         let fmc_words = unsafe {
             core::slice::from_raw_parts_mut(manifest.fmc.load_addr as *mut u32, fmc_size_words)
         };
@@ -975,7 +977,7 @@ impl FirmwareProcessor {
         );
 
         // Load Runtime from MCU SRAM
-        let runtime_size_words = manifest.runtime.size.div_ceil(4) as usize;
+        let runtime_size_words = manifest.runtime.size as usize / 4;
         let runtime_words = unsafe {
             core::slice::from_raw_parts_mut(
                 manifest.runtime.load_addr as *mut u32,

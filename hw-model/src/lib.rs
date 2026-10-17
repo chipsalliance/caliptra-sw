@@ -1333,6 +1333,16 @@ pub trait HwModel: SocManager {
         unimplemented!("direct DCCM reads are not supported on this model")
     }
 
+    /// Snapshot ICCM without performing a CPU read or advancing the model.
+    fn iccm_read(&self, _offset: u32, _len: usize) -> Vec<u8> {
+        unimplemented!("direct ICCM reads are not supported on this model")
+    }
+
+    /// Inject an ICCM memory fault, bypassing the CPU bus and write lock.
+    fn iccm_write(&mut self, _offset: u32, _data: &[u8]) {
+        unimplemented!("direct ICCM writes are not supported on this model")
+    }
+
     fn set_axi_user(&mut self, axi_user: u32);
 
     /// Executes a typed request and (if success), returns the typed response.
@@ -1833,6 +1843,11 @@ pub trait HwModel: SocManager {
     /// Get MCI BusMmio
     fn mci(&mut self) -> caliptra_registers::mci::RegisterBlock<Self::TMmio<'_>> {
         panic!("mci unimplemented");
+    }
+
+    /// Read a PCR through the model's debug interface, without executing firmware.
+    fn read_pcr(&mut self, _index: u8) -> [u8; 48] {
+        panic!("PCR debug reads are unsupported by this hardware model");
     }
 }
 

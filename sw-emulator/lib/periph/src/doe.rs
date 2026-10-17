@@ -133,6 +133,10 @@ impl Doe {
         if size != RvSize::Word {
             Err(BusError::StoreAccessFault)?
         }
+        if self.soc_reg.entered_firmware() {
+            self.control.reg.set(0);
+            return Ok(());
+        }
 
         // Set the control register
         self.control.reg.set(val);
@@ -268,6 +272,72 @@ mod tests {
             res |= (arr[idx + i] as RvData) << (i * 8);
         }
         res
+    }
+
+    #[test]
+    fn test_boot_phase_blocks_doe_until_reset() {
+        let clock = Rc::new(Clock::new());
+        let key_vault = KeyVault::new();
+        let state = crate::boot_integrity::BootIntegrity::new(true, true, false, false);
+        let soc_reg = SocRegistersInternal::new(
+            MailboxInternal::new(&clock, MailboxRam::default()),
+            Iccm::new(&clock),
+            Mci::new(vec![]),
+            CaliptraRootBusArgs {
+                clock: clock.clone(),
+                ..Default::default()
+            },
+        );
+        soc_reg.attach_boot_integrity(state.clone(), key_vault.clone());
+        for (index, value) in [0, 0xfff, 0x9000, 0x9fff].into_iter().enumerate() {
+            for _ in 0..2 {
+                state
+                    .borrow_mut()
+                    .write_region(RvSize::Word, 0x650 + index as u32 * 4, value, false)
+                    .unwrap();
+            }
+        }
+        state
+            .borrow_mut()
+            .write_region(RvSize::Word, 0x660, 1, false)
+            .unwrap();
+        assert_eq!(
+            state.borrow_mut().observe_read(0),
+            Some(crate::boot_integrity::BootTransition::Fmc)
+        );
+        let mut doe = Doe::new(&clock, key_vault.clone(), soc_reg);
+        for command in [
+            Control::CMD::DEOBFUSCATE_UDS.value,
+            Control::CMD::DEOBFUSCATE_FE.value,
+            Control::CMD::CLEAR_SECRETS.value,
+            Control::CMD_EXT::DOE_HEK.value,
+        ] {
+            doe.write(
+                RvSize::Word,
+                OFFSET_CONTROL,
+                command | Control::DEST.val(2).value,
+            )
+            .unwrap();
+            clock.increment_and_process_timer_actions(DOE_OP_TICKS, &mut doe);
+            assert_eq!(doe.read(RvSize::Word, OFFSET_CONTROL), Ok(0));
+            assert_eq!(
+                doe.read(RvSize::Word, OFFSET_STATUS),
+                Ok(Status::READY::SET.value)
+            );
+            assert_eq!(
+                key_vault.read_key(2, KeyUsage(1)),
+                Err(BusError::LoadAccessFault)
+            );
+        }
+        state.borrow_mut().reset(false);
+        doe.write(
+            RvSize::Word,
+            OFFSET_CONTROL,
+            (Control::CMD::DEOBFUSCATE_UDS + Control::DEST.val(2)).value,
+        )
+        .unwrap();
+        clock.increment_and_process_timer_actions(DOE_OP_TICKS, &mut doe);
+        assert!(key_vault.read_key(2, KeyUsage(1)).is_ok());
     }
 
     #[test]

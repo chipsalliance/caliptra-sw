@@ -1063,6 +1063,9 @@ is needed because the signature was computed over these exact bytes.
 Extends a Caliptra hardware PCR. This command is restricted to the PL0 PAUSER.
 PCR0 through PCR3 are reserved and cannot be extended with this command. PCR31
 is available to PL0 for MCU-managed SoC firmware measurements.
+PCR4 and PCR5 are also reserved for the hardware ICCM
+Current and Journey measurements. Requests targeting either return
+`RUNTIME_PCR_RESERVED`; quote operations still include their values.
 
 Command Code: `0x5043_5245` ("PCRE")
 

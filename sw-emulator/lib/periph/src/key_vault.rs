@@ -12,6 +12,7 @@ Abstract:
 
 --*/
 
+use crate::boot_integrity::{BootTransition, SharedBootIntegrity};
 use bitfield::bitfield;
 use caliptra_emu_bus::{Bus, BusError, ReadWriteMemory, ReadWriteRegisterArray};
 use caliptra_emu_derive::Bus;
@@ -155,6 +156,67 @@ impl KeyVault {
     pub fn new() -> Self {
         Self {
             regs: Rc::new(RefCell::new(KeyVaultRegs::new())),
+        }
+    }
+
+    pub(crate) fn attach_boot_integrity(&mut self, state: SharedBootIntegrity) {
+        self.regs.borrow_mut().boot_integrity = Some(state);
+    }
+
+    pub(crate) fn write_hardware_pcr(
+        &mut self,
+        pcr_id: u32,
+        pcr: &[u8; constants::PCR_SIZE_BYTES],
+    ) -> Result<(), BusError> {
+        self.regs.borrow_mut().write_pcr_unchecked(pcr_id, pcr)
+    }
+
+    pub(crate) fn boot_transition(&mut self, transition: BootTransition) {
+        let mut regs = self.regs.borrow_mut();
+        let Some(state) = regs.boot_integrity.clone() else {
+            return;
+        };
+        let mut state = state.borrow_mut();
+        let valid = match transition {
+            BootTransition::Fmc => {
+                [(0, 0x20), (1, 0x20), (2, 1), (6, 0x15), (7, 8), (8, 4)]
+                    .into_iter()
+                    .all(|(id, usage)| regs.key_control[id].read(KV_CONTROL::USAGE) == usage)
+                    && regs.write_counts[6] == 4
+                    && regs.write_counts[7] == 2
+                    && regs.write_counts[8] == 2
+            }
+            BootTransition::Runtime => [(4, 0x15), (5, 8), (9, 4)]
+                .into_iter()
+                .all(|(id, usage)| regs.key_control[id].read(KV_CONTROL::USAGE) == usage),
+            BootTransition::Error => false,
+        };
+        if !valid {
+            state.fail();
+            regs.keys.data_mut().fill(0);
+            regs.write_counts.fill(0);
+            for control in regs.key_control.iter_mut() {
+                control.set(0);
+            }
+            return;
+        }
+        for id in 0..KeyVault::KEY_COUNT as usize {
+            let rom_key = [0, 1, 2, 6, 7, 8].contains(&id);
+            let rt_key = [4, 5, 9].contains(&id);
+            let optional_key =
+                (state.stable_owner && id == 15) || (state.ocp_lock && [16, 22].contains(&id));
+            if rom_key || (transition == BootTransition::Runtime && rt_key) {
+                regs.key_control[id].modify(KV_CONTROL::WRITE_LOCK::SET);
+            }
+            if transition == BootTransition::Runtime && [6, 7, 8].contains(&id) {
+                regs.key_control[id].modify(KV_CONTROL::USE_LOCK::SET);
+            }
+            if !(rom_key || optional_key || (transition == BootTransition::Runtime && rt_key)) {
+                let start = id * KeyVault::KEY_SIZE;
+                regs.keys.data_mut()[start..start + KeyVault::KEY_SIZE].fill(0);
+                regs.key_control[id]
+                    .modify(KV_CONTROL::USAGE.val(0) + KV_CONTROL::LAST_DWORD.val(0));
+            }
         }
     }
 
@@ -322,6 +384,8 @@ use crate::helpers::{bytes_from_words_le, words_from_bytes_le};
 #[warm_reset_fn(warm_reset)]
 #[update_reset_fn(update_reset)]
 pub struct KeyVaultRegs {
+    boot_integrity: Option<SharedBootIntegrity>,
+    write_counts: [u8; KeyVault::KEY_COUNT as usize],
     /// Key Control Registers
     #[register_array(offset = 0x0000_0000, write_fn = write_key_ctrl)]
     key_control:
@@ -335,7 +399,7 @@ pub struct KeyVaultRegs {
     pcr_control: ReadWriteRegisterArray<u32, { PCR_COUNT as usize }, PV_CONTROL::Register>,
 
     /// PCR Registers
-    #[register_array(offset = 0x0000_2600)]
+    #[register_array(offset = 0x0000_2600, write_fn = write_pcr_entry)]
     pcrs: [u32; PCR_REG_SIZE_WORDS],
 
     /// Sticky Data Vault Control Registers
@@ -394,6 +458,8 @@ impl KeyVaultRegs {
     /// Create a new instance of KeyVault registers
     pub fn new() -> Self {
         Self {
+            boot_integrity: None,
+            write_counts: [0; KeyVault::KEY_COUNT as usize],
             pcr_control: ReadWriteRegisterArray::new(PCR_CONTROL_REG_RESET_VAL),
             pcrs: [0; PCR_REG_SIZE_WORDS],
             key_control: ReadWriteRegisterArray::new(KEY_CONTROL_REG_RESET_VAL),
@@ -460,6 +526,14 @@ impl KeyVaultRegs {
             let pcr_start = index * constants::PCR_SIZE_WORDS;
             self.pcrs[pcr_start..(pcr_start + PCR_SIZE_WORDS)].fill(0);
         }
+        Ok(())
+    }
+
+    fn write_pcr_entry(&mut self, _size: RvSize, index: usize, val: u32) -> Result<(), BusError> {
+        if [4, 5].contains(&(index / PCR_SIZE_WORDS)) {
+            return Err(BusError::StoreAccessFault);
+        }
+        self.pcrs[index] = val;
         Ok(())
     }
 
@@ -553,6 +627,8 @@ impl KeyVaultRegs {
 
         // Update the last dword in the key
         key_ctrl_reg.modify(KV_CONTROL::LAST_DWORD.val(key_wordlen as u32 - 1));
+        self.write_counts[key_id as usize] =
+            self.write_counts[key_id as usize].saturating_add(1).min(7);
 
         Ok(())
     }
@@ -560,6 +636,7 @@ impl KeyVaultRegs {
     pub fn clear_with_debug_values(&mut self, sel_debug_value: bool) {
         let fill_byte = if sel_debug_value { 0x55 } else { 0xaa };
         self.keys.data_mut().fill(fill_byte);
+        self.write_counts.fill(0);
     }
 
     pub fn read_pcr(&self, pcr_id: u32) -> [u8; constants::PCR_SIZE_BYTES] {
@@ -570,6 +647,22 @@ impl KeyVaultRegs {
     }
 
     pub fn write_pcr(
+        &mut self,
+        pcr_id: u32,
+        pcr: &[u8; constants::PCR_SIZE_BYTES],
+    ) -> Result<(), BusError> {
+        if [4, 5].contains(&pcr_id)
+            && self
+                .boot_integrity
+                .as_ref()
+                .is_some_and(|state| state.borrow().measurement_enabled())
+        {
+            return Err(BusError::StoreAccessFault);
+        }
+        self.write_pcr_unchecked(pcr_id, pcr)
+    }
+
+    fn write_pcr_unchecked(
         &mut self,
         pcr_id: u32,
         pcr: &[u8; constants::PCR_SIZE_BYTES],
@@ -709,8 +802,211 @@ impl KeyVaultRegs {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::boot_integrity::BootIntegrity;
 
     const OFFSET_KEYS: RvAddr = 0x600;
+
+    fn boot_vault(stable_owner: bool, ocp_lock: bool) -> (KeyVault, SharedBootIntegrity) {
+        let state = BootIntegrity::new(true, true, stable_owner, ocp_lock);
+        let mut vault = KeyVault::new();
+        vault.attach_boot_integrity(state.clone());
+        (vault, state)
+    }
+
+    fn populate_boot_keys(vault: &mut KeyVault, counts: [usize; 3]) {
+        for id in 0..KeyVault::KEY_COUNT {
+            let (usage, count) = match id {
+                0 | 1 => (0x20, 1),
+                6 => (0x15, counts[0]),
+                7 => (8, counts[1]),
+                8 => (4, counts[2]),
+                _ => (1, 1),
+            };
+            for _ in 0..count {
+                vault.write_key(id, &[id as u8 + 1; 48], usage).unwrap();
+            }
+        }
+    }
+
+    fn assert_boot_slot_cleared(vault: &KeyVault, id: usize) {
+        let regs = vault.regs.borrow();
+        let start = id * KeyVault::KEY_SIZE;
+        assert_eq!(
+            &regs.keys.data()[start..start + KeyVault::KEY_SIZE],
+            &[0; 64]
+        );
+        assert_eq!(regs.key_control[id].read(KV_CONTROL::USAGE), 0);
+        assert_eq!(regs.key_control[id].read(KV_CONTROL::LAST_DWORD), 0);
+    }
+
+    #[test]
+    fn test_boot_transitions_lock_and_clear_keys() {
+        for (stable_owner, ocp_lock) in [(false, false), (true, false), (false, true)] {
+            let (mut vault, state) = boot_vault(stable_owner, ocp_lock);
+            populate_boot_keys(&mut vault, [4, 2, 2]);
+            vault.boot_transition(BootTransition::Fmc);
+            assert_eq!(state.borrow().fatal_error, 0);
+            for id in 0..KeyVault::KEY_COUNT as usize {
+                let rom_key = [0, 1, 2, 6, 7, 8].contains(&id);
+                let optional_key =
+                    (stable_owner && id == 15) || (ocp_lock && [16, 22].contains(&id));
+                assert_eq!(
+                    vault.regs.borrow().key_control[id].read(KV_CONTROL::WRITE_LOCK),
+                    u32::from(rom_key)
+                );
+                if !rom_key && !optional_key {
+                    assert_boot_slot_cleared(&vault, id);
+                }
+            }
+            assert_eq!(vault.read_key(6, KeyUsage(1)).unwrap()[..48], [7; 48]);
+            assert_eq!(
+                vault.write_key(6, &[0; 48], 0x15),
+                Err(BusError::StoreAccessFault)
+            );
+
+            for (id, usage) in [(4, 0x15), (5, 8), (9, 4)] {
+                vault.write_key(id, &[id as u8 + 1; 48], usage).unwrap();
+            }
+            vault.boot_transition(BootTransition::Runtime);
+            assert_eq!(state.borrow().fatal_error, 0);
+            for id in [4, 5, 9] {
+                assert_eq!(
+                    vault.regs.borrow().key_control[id].read(KV_CONTROL::WRITE_LOCK),
+                    1
+                );
+            }
+            for id in [6, 7, 8] {
+                assert_eq!(
+                    vault.regs.borrow().key_control[id].read(KV_CONTROL::USE_LOCK),
+                    1
+                );
+                assert_eq!(
+                    vault.read_key(id as u32, KeyUsage(0xff)),
+                    Err(BusError::LoadAccessFault)
+                );
+            }
+            for id in [15, 16, 22, 23] {
+                let preserved = (stable_owner && id == 15) || (ocp_lock && [16, 22].contains(&id));
+                if preserved {
+                    assert_eq!(
+                        vault.read_key(id as u32, KeyUsage(1)).unwrap()[..48],
+                        [id as u8 + 1; 48]
+                    );
+                } else {
+                    assert_boot_slot_cleared(&vault, id);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_boot_monitor_rejects_truncated_and_replayed_dice() {
+        for counts in [
+            [3, 2, 2],
+            [5, 2, 2],
+            [4, 1, 2],
+            [4, 3, 2],
+            [4, 2, 1],
+            [4, 2, 3],
+            [10, 2, 2],
+        ] {
+            let (mut vault, state) = boot_vault(false, false);
+            populate_boot_keys(&mut vault, counts);
+            assert!(vault
+                .regs
+                .borrow()
+                .write_counts
+                .iter()
+                .all(|count| *count <= 7));
+            vault.boot_transition(BootTransition::Fmc);
+            assert_eq!(state.borrow().fatal_error, 1 << 4);
+            assert_eq!(
+                vault.regs.borrow().write_counts,
+                [0; KeyVault::KEY_COUNT as usize]
+            );
+            for id in 0..KeyVault::KEY_COUNT as usize {
+                assert_boot_slot_cleared(&vault, id);
+            }
+        }
+    }
+
+    #[test]
+    fn test_boot_monitor_rejects_invalid_key_usage() {
+        for transition in [
+            BootTransition::Fmc,
+            BootTransition::Runtime,
+            BootTransition::Error,
+        ] {
+            let (mut vault, state) = boot_vault(true, false);
+            populate_boot_keys(&mut vault, [4, 2, 2]);
+            if transition == BootTransition::Fmc {
+                vault.write_key(2, &[0; 48], 2).unwrap();
+            } else if transition == BootTransition::Runtime {
+                vault.boot_transition(BootTransition::Fmc);
+            }
+            vault.boot_transition(transition);
+            assert_eq!(state.borrow().fatal_error, 1 << 4);
+            for id in 0..KeyVault::KEY_COUNT as usize {
+                assert_boot_slot_cleared(&vault, id);
+            }
+        }
+    }
+
+    #[test]
+    fn test_boot_write_counters_persist_until_flush() {
+        let (mut vault, _) = boot_vault(false, false);
+        populate_boot_keys(&mut vault, [4, 2, 2]);
+        vault.boot_transition(BootTransition::Fmc);
+        vault.warm_reset();
+        vault.update_reset();
+        assert_eq!(&vault.regs.borrow().write_counts[6..9], &[4, 2, 2]);
+        vault
+            .write(RvSize::Word, 6 * 4, KV_CONTROL::CLEAR::SET.value)
+            .unwrap();
+        assert_eq!(vault.regs.borrow().write_counts[6], 4);
+        vault.clear_keys_with_debug_values(false);
+        assert_eq!(
+            vault.regs.borrow().write_counts,
+            [0; KeyVault::KEY_COUNT as usize]
+        );
+    }
+
+    #[test]
+    fn test_iccm_pcr_write_protection_by_mode() {
+        for subsystem in [false, true] {
+            let mut vault = KeyVault::new();
+            vault.attach_boot_integrity(BootIntegrity::new(subsystem, true, false, false));
+            for id in [4, 5] {
+                vault.write_hardware_pcr(id, &[0x5a; 48]).unwrap();
+                let blocked = subsystem;
+                assert_eq!(
+                    vault.write_pcr(id, &[0xa5; 48]),
+                    if blocked {
+                        Err(BusError::StoreAccessFault)
+                    } else {
+                        Ok(())
+                    }
+                );
+                let expected = if blocked { [0x5a; 48] } else { [0xa5; 48] };
+                assert_eq!(vault.read_pcr(id), expected);
+                for word in 0..PCR_SIZE_WORDS as u32 {
+                    let result = vault.write(RvSize::Word, PCR_REG_OFFSET + id * 48 + word * 4, 0);
+                    assert_eq!(result, Err(BusError::StoreAccessFault));
+                }
+                assert_eq!(vault.read_pcr(id), expected);
+                vault
+                    .write(
+                        RvSize::Word,
+                        PCR_CONTROL_REG_OFFSET + id * 4,
+                        PV_CONTROL::CLEAR::SET.value,
+                    )
+                    .unwrap();
+                assert_eq!(vault.read_pcr(id), [0; 48]);
+            }
+            assert_eq!(vault.write_pcr(6, &[0xa5; 48]), Ok(()));
+            assert_eq!(vault.read_pcr(6), [0xa5; 48]);
+        }
+    }
 
     #[test]
     fn test_key_ctrl_reset_state() {

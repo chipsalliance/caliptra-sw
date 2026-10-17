@@ -51,10 +51,19 @@ For Caliptra ROM, this is especially something we need to worry about for ROM im
 
 ## Mitigation
 
-Mitigation will consist of either block the potential attacker (sending in image for authentication) from modifing the Caliptra-fw image prior to Caliptra ROM is to authenticate it, or have Caliptra ROM to load Caliptra-FW image into internal CCM prior to authentication.
+ROM authenticates a manifest snapshot in DCCM and hashes the staged payloads
+before copying them into ICCM. The integration must prevent modification of
+the staging buffer from authentication through completion of the copy.
 
-- Disable external entity ability to modify Caliptra mailbox content post mailbox command that triggers Caliptra ROM to act on mailbox data.
-- Have Caliptra ROM move mailbox content into CCM prior to authentication
+- Passive mode uses protected Caliptra mailbox SRAM.
+- Subsystem cold boot uses protected MCU SRAM; update reset requires the same
+  protection for the actual AXI staging buffer supplied by the external-mailbox
+  command.
+
+ROM sets the ICCM write lock after copying. It does not hash loaded ICCM,
+compare hardware PCRs, or wait for their completion. Integrity of the transfer
+and destination storage is therefore a hardware responsibility, not an
+independent ROM readback check.
 
 # Physical Attacks (Glitching / Fault Injection)
 ## Attack Description

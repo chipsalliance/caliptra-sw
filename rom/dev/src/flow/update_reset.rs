@@ -115,8 +115,14 @@ impl UpdateResetFlow {
                 return Err(CaliptraError::ROM_UPDATE_RESET_FLOW_INVALID_FIRMWARE_COMMAND);
             }
 
+            if !img_bundle_sz.is_multiple_of(4) {
+                return Err(CaliptraError::FW_PROC_INVALID_IMAGE_SIZE);
+            }
             if let Some(addr) = staging_addr {
                 AxiAddr::from(addr).checked_offset(0, img_bundle_sz as u64)?;
+                if !addr.is_multiple_of(4) {
+                    return Err(CaliptraError::IMAGE_VERIFIER_ERR_IMAGE_SOURCE_UNALIGNED);
+                }
             }
 
             let mci_base = env.soc_ifc.mci_base_addr();
@@ -161,9 +167,8 @@ impl UpdateResetFlow {
             });
             let info = okref(&info)?;
             if let Some(addr) = staging_addr {
-                // Check the word-rounded DMA span before changing persistent boot state.
-                let copy_size = u64::from(manifest.runtime.size).div_ceil(4) * 4;
-                AxiAddr::from(addr).checked_offset(manifest.runtime.offset as u64, copy_size)?;
+                AxiAddr::from(addr)
+                    .checked_offset(manifest.runtime.offset as u64, manifest.runtime.size as u64)?;
             }
             report_boot_status(UpdateResetImageVerificationComplete.into());
 
@@ -192,14 +197,7 @@ impl UpdateResetFlow {
                 &mut env.dma,
                 staging_addr,
             )?;
-            if let Err(err) =
-                crate::flow::loaded_image::verify_runtime(&manifest, &mut env.sha2_512_384)
-            {
-                // ICCM no longer contains the previously authenticated runtime, so this
-                // failure cannot use the non-fatal update fallback in `rom_entry`.
-                handle_fatal_error(err.into());
-            }
-            // Complete only after the loaded ICCM contents have been verified.
+            env.soc_ifc.set_iccm_lock(true);
             recv_txn.complete(true)?;
             Ok(())
         };
@@ -357,7 +355,7 @@ impl UpdateResetFlow {
             let addr = (manifest.runtime.load_addr) as *mut u8;
             core::slice::from_raw_parts_mut(addr, manifest.runtime.size as usize)
         };
-        let runtime_size_words = runtime_dest.len().div_ceil(4);
+        let runtime_size_words = runtime_dest.len() / 4;
         let runtime_words = unsafe {
             core::slice::from_raw_parts_mut(
                 runtime_dest.as_mut_ptr() as *mut u32,
@@ -420,7 +418,7 @@ impl UpdateResetFlow {
         let manifest_buf = manifest.as_mut_bytes();
 
         // Read manifest from staging area using DMA directly into manifest buffer
-        let manifest_size_words = manifest_buf.len().div_ceil(4); // Round up to word boundary
+        let manifest_size_words = manifest_buf.len() / 4;
         let manifest_words = unsafe {
             core::slice::from_raw_parts_mut(
                 manifest_buf.as_mut_ptr() as *mut u32,

@@ -18,6 +18,7 @@ mod abr;
 mod aes;
 mod aes_clp;
 mod asym_ecc384;
+mod boot_integrity;
 mod csrng;
 pub mod dma;
 mod doe;

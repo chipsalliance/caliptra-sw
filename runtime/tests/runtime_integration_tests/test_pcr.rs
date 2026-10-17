@@ -198,22 +198,22 @@ pub fn get_model_pcrs(model: &mut DefaultHwModel) -> [[u8; 48]; 32] {
 fn test_extend_pcr_cmd_multiple_extensions() {
     // 0. Get fresh pcr state and verify
     let mut model = run_rt_test(RuntimeTestArgs::default());
-    assert_eq!(get_model_pcrs(&mut model)[4], [0u8; 48]);
+    assert_eq!(get_model_pcrs(&mut model)[6], [0u8; 48]);
 
     // 1.0 Testing for extension_data [0,...,0]
     let extension_data = [0u8; 48];
 
-    let cmd = generate_mailbox_extend_pcr_req(4, extension_data);
+    let cmd = generate_mailbox_extend_pcr_req(6, extension_data);
     let res = model.mailbox_execute(u32::from(CommandId::EXTEND_PCR), cmd.as_bytes().unwrap());
     assert!(res.is_ok());
 
     // 1.1 Checking for PCR values using PCR_QUOTE
     let pcrs = get_model_pcrs(&mut model);
     let pcr = extend_pcr(&[0; 48], &extension_data);
-    assert_eq!(pcrs[4], pcr);
+    assert_eq!(pcrs[6], pcr);
 
-    // 1.2 Extending PCR[4] with another [0,..,0] payload
-    let cmd = generate_mailbox_extend_pcr_req(4, extension_data);
+    // 1.2 Extending PCR[6] with another [0,..,0] payload
+    let cmd = generate_mailbox_extend_pcr_req(6, extension_data);
     let res = model.mailbox_execute(u32::from(CommandId::EXTEND_PCR), cmd.as_bytes().unwrap());
 
     assert!(res.is_ok());
@@ -221,7 +221,7 @@ fn test_extend_pcr_cmd_multiple_extensions() {
     // 1.3 Checking for PCR values using PCR_QUOTE
     let pcr = extend_pcr(&pcr, &extension_data);
     let pcrs = get_model_pcrs(&mut model);
-    assert_eq!(pcrs[4], pcr);
+    assert_eq!(pcrs[6], pcr);
 
     // 2.0 Testing for extension data with high entropy
     let extension_data: [u8; 48] = [
@@ -230,14 +230,14 @@ fn test_extend_pcr_cmd_multiple_extensions() {
         81, 144, 232, 190, 103, 213, 7, 199, 148,
     ];
 
-    let cmd = generate_mailbox_extend_pcr_req(4, extension_data);
+    let cmd = generate_mailbox_extend_pcr_req(6, extension_data);
     let res = model.mailbox_execute(u32::from(CommandId::EXTEND_PCR), cmd.as_bytes().unwrap());
     assert!(res.is_ok());
 
     // 2.1 Checking for PCR values using PCR_QUOTE
     let pcr = extend_pcr(&pcr, &extension_data);
     let pcrs = get_model_pcrs(&mut model);
-    assert_eq!(pcrs[4], pcr);
+    assert_eq!(pcrs[6], pcr);
 }
 
 #[test]
@@ -262,7 +262,14 @@ fn test_extend_pcr_cmd_reserved_range() {
     let extension_data: [u8; 48] = [0u8; 48];
 
     // 4. Ensure reserved PCR range
-    let reserved_pcrs = [PcrId::PcrId0, PcrId::PcrId1, PcrId::PcrId2, PcrId::PcrId3];
+    let reserved_pcrs = [
+        PcrId::PcrId0,
+        PcrId::PcrId1,
+        PcrId::PcrId2,
+        PcrId::PcrId3,
+        PcrId::PcrId4,
+        PcrId::PcrId5,
+    ];
     for test_pcr_index_reserved in reserved_pcrs {
         let cmd = generate_mailbox_extend_pcr_req(test_pcr_index_reserved.into(), extension_data);
 

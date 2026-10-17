@@ -26,7 +26,7 @@ use caliptra_image_types::{FwVerificationPqcKeyType, ImageBundle, ImageSignData}
 use zerocopy::{FromBytes, IntoBytes};
 
 /// Re-sign the header after modifying the TOC entries, then return the image bytes.
-fn rebuild_image_after_toc_change(image_bundle: &mut ImageBundle) -> Vec<u8> {
+pub(super) fn rebuild_image_after_toc_change(image_bundle: &mut ImageBundle) -> Vec<u8> {
     let gen = ImageGenerator::new(Crypto::default());
 
     image_bundle.manifest.header.toc_digest = gen
@@ -568,9 +568,16 @@ fn test_update_reset_boot_status() {
     }
 }
 
-#[cfg_attr(any(feature = "fpga_realtime", feature = "fpga_subsystem"), ignore)]
+#[cfg_attr(
+    any(
+        feature = "fpga_realtime",
+        feature = "fpga_subsystem",
+        feature = "verilator"
+    ),
+    ignore
+)]
 #[test]
-fn test_update_reset_post_load_digest_mismatch_is_fatal() {
+fn test_update_reset_no_post_copy_digest_or_pcr_comparison() {
     let pqc_key_type = helpers::PQC_KEY_TYPE[0];
     let image_options = ImageOptions {
         pqc_key_type,
@@ -581,13 +588,17 @@ fn test_update_reset_post_load_digest_mismatch_is_fatal() {
         ..Default::default()
     };
     let rom = caliptra_builder::build_firmware_rom(crate::helpers::rom_from_env()).unwrap();
-    let image_bundle = caliptra_builder::build_and_sign_image(
+    let mut image_bundle = caliptra_builder::build_and_sign_image(
         &TEST_FMC_INTERACTIVE,
         &APP_WITH_UART_FPGA,
         image_options,
     )
     .unwrap();
-    let image_bytes = image_bundle.to_bytes().unwrap();
+    image_bundle.runtime.extend_from_slice(&[0xa5; 64]);
+    image_bundle.manifest.runtime.size += 64;
+    image_bundle.manifest.runtime.digest =
+        caliptra_test::bytes_to_be_words_48(&openssl::sha::sha384(&image_bundle.runtime));
+    let image_bytes = rebuild_image_after_toc_change(&mut image_bundle);
     let mut hw = caliptra_hw_model::new(
         InitParams {
             fuses,
@@ -616,6 +627,7 @@ fn test_update_reset_post_load_digest_mismatch_is_fatal() {
     hw.step_until_boot_status(UpdateResetExtendKeyLadderComplete.into(), false);
     hw.step_until_boot_status(UpdateResetExtendPcrComplete.into(), false);
 
+    // Bypass staging protection to prove ROM does not recheck ICCM or compare PCRs.
     let runtime_offset =
         image_bundle.manifest.as_bytes().len() + image_bundle.manifest.fmc.size as usize;
     let tamper_offset = runtime_offset + image_bundle.manifest.runtime.size as usize - 4;
@@ -626,20 +638,21 @@ fn test_update_reset_post_load_digest_mismatch_is_fatal() {
     hw.write_payload_to_ss_staging_area(&tampered_word, tamper_offset)
         .unwrap();
 
-    let expected_error = u32::from(CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_DIGEST_MISMATCH);
-    hw.step_until(|model| {
-        model.soc_ifc().cptra_fw_error_fatal().read() == expected_error
-            && model.soc_ifc().cptra_fw_error_non_fatal().read() == expected_error
-    });
-    assert_eq!(hw.soc_ifc().cptra_fw_error_fatal().read(), expected_error);
+    assert_eq!(hw.finish_mailbox_execute(), Ok(None));
+    hw.step_until_boot_status(UpdateResetComplete.into(), true);
+    assert_eq!(hw.soc_ifc().cptra_fw_error_fatal().read(), 0);
+    assert_eq!(hw.soc_ifc().cptra_fw_error_non_fatal().read(), 0);
     assert_eq!(
-        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
-        expected_error
+        hw.iccm_read(
+            image_bundle.manifest.runtime.load_addr - caliptra_common::memory_layout::ICCM_ORG
+                + image_bundle.manifest.runtime.size
+                - 4,
+            4,
+        ),
+        tampered_word
     );
-    assert_eq!(
-        hw.soc_ifc().cptra_boot_status().read(),
-        u32::from(UpdateResetExtendPcrComplete)
-    );
+    hw.mailbox_execute(0x1000_000C, &[]).unwrap();
+    hw.step_until_exit_success().unwrap();
 }
 
 #[test]

@@ -19,7 +19,7 @@ use caliptra_common::{
     lock_datavault_region,
     pcr::{PCR_ID_FMC_CURRENT, PCR_ID_FMC_JOURNEY, PCR_ID_STASH_MEASUREMENT},
 };
-use caliptra_drivers::{ColdResetEntries, ResetReason, WarmResetEntries};
+use caliptra_drivers::{CaliptraResult, ColdResetEntries, ResetReason, WarmResetEntries};
 use core::mem::size_of;
 
 /// Lock registers
@@ -29,7 +29,7 @@ use core::mem::size_of;
 /// * `env` - ROM Environment
 /// * `reset_reason` - Reset reason
 #[cfg_attr(feature = "cfi", cfi_mod_fn)]
-pub fn lock_registers(env: &mut RomEnv, reset_reason: ResetReason) {
+pub fn lock_registers(env: &mut RomEnv, reset_reason: ResetReason) -> CaliptraResult<()> {
     cprintln!("[state] Locking Datavault");
     if reset_reason == ResetReason::ColdReset {
         lock_cold_reset_reg(env);
@@ -44,6 +44,14 @@ pub fn lock_registers(env: &mut RomEnv, reset_reason: ResetReason) {
     env.pcr_bank.set_pcr_lock(PCR_ID_STASH_MEASUREMENT);
 
     env.soc_ifc.set_iccm_lock(true);
+    let manifest = &env.persistent_data.get().rom.manifest1;
+    env.soc_ifc.configure_iccm_regions(
+        manifest.fmc.load_addr,
+        manifest.fmc.size,
+        manifest.runtime.load_addr,
+        manifest.runtime.size,
+    )?;
+    Ok(())
 }
 
 /// Lock registers on a cold reset

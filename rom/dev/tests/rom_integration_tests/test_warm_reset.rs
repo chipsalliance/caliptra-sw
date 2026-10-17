@@ -66,6 +66,7 @@ fn test_warm_reset_success() {
                 ..Default::default()
             },
             rom: &rom,
+            subsystem_mode: true,
             security_state,
             ss_init_params: SubsystemInitParams {
                 enable_mcu_uart_log: cfg!(feature = "fpga_subsystem"),
@@ -239,7 +240,7 @@ fn test_warm_reset_during_update_reset() {
     }
 }
 
-const HW_REV_ID: u32 = 0x112;
+const HW_REV_ID: u32 = 0x0022;
 
 fn test_version(
     hw: &mut DefaultHwModel,

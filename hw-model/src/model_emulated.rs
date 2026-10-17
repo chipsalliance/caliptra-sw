@@ -385,6 +385,21 @@ impl HwModel for ModelEmulated {
         EmulatedApbBus { model: self }
     }
 
+    fn read_pcr(&mut self, index: u8) -> [u8; 48] {
+        assert!(index < 32, "PCR index out of range");
+        let mut digest = self
+            .cpu
+            .bus
+            .inner_mut()
+            .bus
+            .key_vault
+            .read_pcr(u32::from(index));
+        for word in digest.chunks_exact_mut(4) {
+            word.reverse();
+        }
+        digest
+    }
+
     fn mci(&mut self) -> caliptra_registers::mci::RegisterBlock<Self::TMmio<'_>> {
         if !self.subsystem_mode() {
             panic!("Tried to use the MCI interface in Core only mode")
@@ -507,6 +522,24 @@ impl HwModel for ModelEmulated {
     fn dccm_read(&self, offset: u32, len: usize) -> Vec<u8> {
         let offset = offset as usize;
         self.cpu.bus.inner().bus.dccm.data()[offset..offset + len].to_vec()
+    }
+
+    fn iccm_read(&self, offset: u32, len: usize) -> Vec<u8> {
+        let offset = offset as usize;
+        self.cpu.bus.inner().bus.iccm.ram().borrow().data()[offset..offset + len].to_vec()
+    }
+
+    fn iccm_write(&mut self, offset: u32, data: &[u8]) {
+        let offset = offset as usize;
+        self.cpu
+            .bus
+            .inner_mut()
+            .bus
+            .iccm
+            .ram()
+            .borrow_mut()
+            .data_mut()[offset..offset + data.len()]
+            .copy_from_slice(data);
     }
 
     fn ecc_error_injection(&mut self, mode: ErrorInjectionMode) {
