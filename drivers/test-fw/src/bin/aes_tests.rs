@@ -5,9 +5,10 @@
 
 use caliptra_cfi_lib::CfiCounter;
 use caliptra_drivers::{
-    Aes, AesKey, Array4x12, Ecc384, Ecc384PrivKeyOut, Ecc384Scalar, Ecc384Seed, KeyId, KeyReadArgs,
-    KeyUsage, KeyWriteArgs, PersistentDataAccessor, Trng,
+    Aes, AesGcmIv, AesKey, Array4x12, Ecc384, Ecc384PrivKeyOut, Ecc384Scalar, Ecc384Seed, KeyId,
+    KeyReadArgs, KeyUsage, KeyWriteArgs, LEArray4x3, LEArray4x8, PersistentDataAccessor, Trng,
 };
+use caliptra_drivers_test_bin::TestRegisters;
 use caliptra_registers::aes::AesReg;
 use caliptra_registers::aes_clp::AesClpReg;
 use caliptra_registers::csrng::CsrngReg;
@@ -150,7 +151,96 @@ fn test_cmac_kv() {
     assert_eq!(mac1, mac2, "AES CMAC mismatch");
 }
 
+fn test_gcm_context_approval_continuation() {
+    CfiCounter::reset(&mut || Ok((0xdeadbeef, 0xdeadbeef, 0xdeadbeef, 0xdeadbeef)));
+    let mut regs = TestRegisters::default();
+    let key = LEArray4x8::default();
+    let iv = LEArray4x3::default();
+    let plaintext = [0xab; 37];
+
+    for aad in [&[][..], &b"aad"[..]] {
+        let mut ciphertext = [0; 37];
+        let (_, expected_tag) = regs
+            .aes
+            .aes_256_gcm_encrypt(
+                &mut regs.trng,
+                AesGcmIv::Array(&iv),
+                AesKey::Array(&key),
+                aad,
+                &plaintext,
+                &mut ciphertext,
+                16,
+            )
+            .unwrap();
+        let tag_bytes: [u8; 16] = expected_tag.into();
+
+        for approved in [false, true] {
+            let mut context = regs
+                .aes
+                .aes_256_gcm_init(&mut regs.trng, &key, AesGcmIv::Array(&iv), aad)
+                .unwrap();
+            assert!(!context.fips_approved());
+            context.set_fips_approved(approved);
+            let mut encrypted = [0; 37];
+
+            let (written, context) = regs
+                .aes
+                .aes_256_gcm_encrypt_update(&context, &plaintext[..7], &mut encrypted)
+                .unwrap();
+            assert_eq!(written, 0);
+            assert_eq!(context.fips_approved(), approved);
+            let (written, context) = regs
+                .aes
+                .aes_256_gcm_encrypt_update(&context, &plaintext[7..32], &mut encrypted)
+                .unwrap();
+            assert_eq!(written, 32);
+            assert_eq!(context.fips_approved(), approved);
+            let (written, tag) = regs
+                .aes
+                .aes_256_gcm_encrypt_final(&context, &plaintext[32..], &mut encrypted[32..])
+                .unwrap();
+            assert_eq!(written, 5);
+            assert_eq!(encrypted, ciphertext);
+            assert_eq!(tag, expected_tag);
+
+            let mut context = regs
+                .aes
+                .aes_256_gcm_init(&mut regs.trng, &key, AesGcmIv::Array(&iv), aad)
+                .unwrap();
+            assert!(!context.fips_approved());
+            context.set_fips_approved(approved);
+            let mut decrypted = [0; 37];
+
+            let (written, context) = regs
+                .aes
+                .aes_256_gcm_decrypt_update(&context, &ciphertext[..7], &mut decrypted)
+                .unwrap();
+            assert_eq!(written, 0);
+            assert_eq!(context.fips_approved(), approved);
+            let (written, context) = regs
+                .aes
+                .aes_256_gcm_decrypt_update(&context, &ciphertext[7..32], &mut decrypted)
+                .unwrap();
+            assert_eq!(written, 32);
+            assert_eq!(context.fips_approved(), approved);
+            let (written, tag_matches) = regs
+                .aes
+                .aes_256_gcm_decrypt_final(
+                    &context,
+                    &ciphertext[32..],
+                    &mut decrypted[32..],
+                    &tag_bytes,
+                )
+                .unwrap();
+            assert_eq!(written, 5);
+            assert!(tag_matches);
+            assert_eq!(decrypted, plaintext);
+        }
+    }
+}
+
 test_suite! {
     test_cmac,
     test_cmac_kv,
+    test_gcm_context_approval_continuation,
 }

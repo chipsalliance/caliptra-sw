@@ -1172,6 +1172,15 @@ impl Response for MailboxRespHeader {}
 impl MailboxRespHeader {
     pub const FIPS_STATUS_APPROVED: u32 = 0;
     pub const FIPS_STATUS_NOT_APPROVED_USER_SUPPLIED_DIGEST: u32 = 0x5553_5244; // "USRD"
+    pub const FIPS_STATUS_NOT_APPROVED_USER_SUPPLIED_KEY: u32 = 0x5553_524B; // "USRK"
+
+    pub const fn fips_status_for_key(fips_approved: bool) -> u32 {
+        if fips_approved {
+            Self::FIPS_STATUS_APPROVED
+        } else {
+            Self::FIPS_STATUS_NOT_APPROVED_USER_SUPPLIED_KEY
+        }
+    }
 }
 
 impl Default for MailboxRespHeader {
@@ -6137,6 +6146,26 @@ mod tests {
         assert_eq!(
             AuthManifestSource::from_flags(3 << 1),
             Err(InvalidAuthManifestSource)
+        );
+    }
+
+    #[test]
+    fn test_key_fips_status() {
+        assert_eq!(
+            MailboxRespHeader::FIPS_STATUS_NOT_APPROVED_USER_SUPPLIED_KEY,
+            0x5553_524B
+        );
+        assert_eq!(
+            MailboxRespHeader::fips_status_for_key(false),
+            MailboxRespHeader::FIPS_STATUS_NOT_APPROVED_USER_SUPPLIED_KEY
+        );
+        assert_eq!(
+            MailboxRespHeader::fips_status_for_key(true),
+            MailboxRespHeader::FIPS_STATUS_APPROVED
+        );
+        assert_eq!(
+            MailboxRespHeader::default().fips_status,
+            MailboxRespHeader::FIPS_STATUS_APPROVED
         );
     }
 
