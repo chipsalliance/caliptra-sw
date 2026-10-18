@@ -694,6 +694,10 @@ impl Commands {
 
         let mut context: ShaContext = ShaContext::read_from_bytes(&cmd.context)
             .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+        context
+            .length
+            .checked_add(cmd.input_size)
+            .ok_or(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
         let cm_hash_algorithm = context.hash_algorithm.into();
         let data = &cmd.input[..cmd.input_size as usize];
 
@@ -769,6 +773,10 @@ impl Commands {
 
         let context: ShaContext = ShaContext::read_from_bytes(&cmd.context)
             .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+        context
+            .length
+            .checked_add(cmd.input_size)
+            .ok_or(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
         let cm_hash_algorithm = context.hash_algorithm.into();
         let data = &cmd.input[..cmd.input_size as usize];
 
@@ -1005,12 +1013,20 @@ impl Commands {
         }
         let mut cmd = CmRandomStirReq::default();
         cmd.as_mut_bytes()[..cmd_bytes.len()].copy_from_slice(cmd_bytes);
-        let size = (cmd.input_size as usize).next_multiple_of(MAX_SEED_WORDS * 4);
-        if size > MAX_CMB_DATA_SIZE {
+        let input_size = cmd.input_size as usize;
+        if input_size > MAX_CMB_DATA_SIZE {
             Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
         }
+        let seed_size = MAX_SEED_WORDS * core::mem::size_of::<u32>();
+        let full_seed_size = input_size / seed_size * seed_size;
         let additional_data = <[u32; MAX_CMB_DATA_SIZE / 4]>::ref_from_bytes(&cmd.input).unwrap();
-        drivers.trng.stir(&additional_data[..size / 4])?;
+        drivers.trng.stir(&additional_data[..full_seed_size / 4])?;
+        if full_seed_size < input_size {
+            let mut final_seed = [0u32; MAX_SEED_WORDS];
+            final_seed.as_mut_bytes()[..input_size - full_seed_size]
+                .copy_from_slice(&cmd.input[full_seed_size..input_size]);
+            drivers.trng.stir(&final_seed)?;
+        }
         Ok(0)
     }
 
