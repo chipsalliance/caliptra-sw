@@ -335,6 +335,11 @@ pub mod hw_model_tests {
         bin_name: "test_pcr_extend",
         ..BASE_FWID
     };
+
+    pub const TEST_FMC_INVALID_FHT: FwId = FwId {
+        bin_name: "test_fmc_invalid_fht",
+        ..BASE_FWID
+    };
 }
 
 pub mod driver_tests {
@@ -838,6 +843,7 @@ pub const REGISTERED_FW: &[&FwId] = &[
     &hw_model_tests::TEST_DCCM_DOUBLE_BIT_ECC,
     &hw_model_tests::TEST_UNITIALIZED_READ,
     &hw_model_tests::TEST_PCR_EXTEND,
+    &hw_model_tests::TEST_FMC_INVALID_FHT,
     &driver_tests::DOE,
     &driver_tests::AES,
     &driver_tests::ECC384,

@@ -122,7 +122,7 @@ pub extern "C" fn entry_point() -> ! {
         }
     }
 
-    caliptra_drivers::ExitCtrl::exit(0xff)
+    handle_fatal_error(CaliptraError::FMC_HANDOFF_INVALID_FHT.into())
 }
 
 #[no_mangle]
