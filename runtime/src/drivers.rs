@@ -808,29 +808,22 @@ impl Drivers {
     /// * `NotBefore` - Valid Not Before Time
     /// * `NotAfter`  - Valid Not After Time
     ///
+    #[inline(never)]
     pub fn get_cert_validity_info(manifest: &ImageManifest) -> (NotBefore, NotAfter) {
         // If there is a valid value in the manifest for the not_before and not_after times,
-        // use those. Otherwise use the default values.
-        let mut nb = NotBefore::default();
-        let mut nf = NotAfter::default();
-        let null_time = [0u8; 15];
+        // use those (with owner values taking preference). Otherwise use the default values.
+        let is_valid = |t: &[u8; 15]| t.iter().any(|&b| b != 0);
+        let od = &manifest.header.owner_data;
+        let vd = &manifest.header.vendor_data;
+        let (nb, nf) = if is_valid(&od.owner_not_after) && is_valid(&od.owner_not_before) {
+            (od.owner_not_before, od.owner_not_after)
+        } else if is_valid(&vd.vendor_not_after) && is_valid(&vd.vendor_not_before) {
+            (vd.vendor_not_before, vd.vendor_not_after)
+        } else {
+            (*b"20230101000000Z", *b"99991231235959Z")
+        };
 
-        if manifest.header.vendor_data.vendor_not_after != null_time
-            && manifest.header.vendor_data.vendor_not_before != null_time
-        {
-            nf.value = manifest.header.vendor_data.vendor_not_after;
-            nb.value = manifest.header.vendor_data.vendor_not_before;
-        }
-
-        // Owner values take preference.
-        if manifest.header.owner_data.owner_not_after != null_time
-            && manifest.header.owner_data.owner_not_before != null_time
-        {
-            nf.value = manifest.header.owner_data.owner_not_after;
-            nb.value = manifest.header.owner_data.owner_not_before;
-        }
-
-        (nb, nf)
+        (NotBefore { value: nb }, NotAfter { value: nf })
     }
 
     /// Computes the SHA-384 hash over critical initialization values
