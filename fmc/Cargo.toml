@@ -31,6 +31,7 @@ caliptra-hw-model.workspace = true
 caliptra-test.workspace = true
 caliptra-image-types.workspace = true
 openssl.workspace = true
+caliptra-api.workspace = true
 
 [features]
 default = ["std"]

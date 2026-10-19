@@ -80,3 +80,8 @@ required-features = ["riscv"]
 name = "test_pcr_extend"
 path = "test_pcr_extend.rs"
 required-features = ["riscv"]
+
+[[bin]]
+name = "test_fmc_invalid_fht"
+path = "test_fmc_invalid_fht.rs"
+required-features = ["riscv"]

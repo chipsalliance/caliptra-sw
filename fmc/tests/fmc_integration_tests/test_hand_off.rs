@@ -4,6 +4,83 @@ use caliptra_builder::{firmware, ImageOptions};
 use caliptra_hw_model::{BootParams, Fuses, HwModel, InitParams};
 
 #[test]
+#[cfg(not(any(feature = "verilator", feature = "fpga_realtime")))]
+fn test_invalid_fht_is_fatal() {
+    use caliptra_api::SocManager;
+    use caliptra_drivers::{
+        hand_off::FHT_MARKER,
+        memory_layout::{DCCM_ORG, DCCM_SIZE, PERSISTENT_DATA_ORG},
+        CaliptraError, FirmwareHandoffTable, PersistentData,
+    };
+    use caliptra_hw_model::ModelError;
+    use caliptra_image_types::{ImageManifest, ImageTocEntry};
+    use std::mem::offset_of;
+    use zerocopy::IntoBytes;
+
+    let rom = caliptra_builder::build_firmware_rom(&firmware::hw_model_tests::TEST_FMC_INVALID_FHT)
+        .unwrap();
+    let image = caliptra_builder::build_and_sign_image(
+        &firmware::FMC_WITH_UART,
+        &firmware::runtime_tests::BOOT,
+        ImageOptions::default(),
+    )
+    .unwrap();
+    for marker in [0, FHT_MARKER] {
+        let fht = FirmwareHandoffTable {
+            fht_marker: marker,
+            ..Default::default()
+        };
+        let offset = (PERSISTENT_DATA_ORG - DCCM_ORG) as usize + offset_of!(PersistentData, fht);
+        let mut dccm = vec![0u8; DCCM_SIZE as usize];
+        dccm[offset..offset + fht.as_bytes().len()].copy_from_slice(fht.as_bytes());
+        let entry_offset = (PERSISTENT_DATA_ORG - DCCM_ORG) as usize
+            + offset_of!(PersistentData, manifest1)
+            + offset_of!(ImageManifest, fmc)
+            + offset_of!(ImageTocEntry, entry_point);
+        dccm[entry_offset..entry_offset + 4]
+            .copy_from_slice(&image.manifest.fmc.entry_point.to_le_bytes());
+
+        let mut hw = caliptra_hw_model::new(
+            InitParams {
+                rom: &rom,
+                iccm: &image.fmc,
+                dccm: &dccm,
+                ..Default::default()
+            },
+            BootParams::default(),
+        )
+        .unwrap();
+
+        hw.step_until_boot_status(0xf000_0000, true);
+        assert!(hw.soc_ifc().cptra_wdt_timer1_en().read().timer1_en());
+        assert_eq!(hw.soc_ifc().cptra_fw_error_fatal().read(), 0);
+        assert_eq!(
+            hw.soc_ifc().cptra_fw_error_non_fatal().read(),
+            u32::from(CaliptraError::FMC_HANDOFF_NOT_READY_FOR_RT)
+        );
+        hw.start_mailbox_execute(0x1000_0000, &[]).unwrap();
+        let expected_error = u32::from(CaliptraError::FMC_HANDOFF_INVALID_FHT);
+        hw.step_until_fatal_error(expected_error, 2_000_000);
+        for _ in 0..1_000 {
+            hw.step();
+        }
+        assert!(hw.soc_mbox().status().read().status().cmd_failure());
+        assert_eq!(
+            hw.finish_mailbox_execute(),
+            Err(ModelError::MailboxCmdFailed(expected_error))
+        );
+        assert_eq!(hw.soc_ifc().cptra_fw_error_fatal().read(), expected_error);
+        assert_eq!(
+            hw.soc_ifc().cptra_fw_error_non_fatal().read(),
+            expected_error
+        );
+        assert!(!hw.soc_ifc().cptra_wdt_timer1_en().read().timer1_en());
+        assert!(!hw.soc_ifc().cptra_flow_status().read().ready_for_runtime());
+        assert_eq!(hw.soc_ifc().cptra_boot_status().read(), 0xf000_0000);
+    }
+}
+
+#[test]
 fn test_hand_off() {
     for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
         let fuses = Fuses {

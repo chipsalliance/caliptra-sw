@@ -330,6 +330,14 @@ FMC locks its PCR registers before handing control to RT firmware so that they m
 
 The following list of steps are to be performed by FMC on each boot when ROM jumps to its entry point. Any failures are considered fatal.
 
+If the FHT fails validation, FMC calls the shared fatal-error handler with
+`FMC_HANDOFF_INVALID_FHT`. The handler clears the crypto engines, erases unlocked
+Key Vault slots, locks the SHA accelerator, stops watchdog timer 1, and reports
+the error in both firmware error registers. It then loops, aborting pending
+SoC-to-Caliptra mailbox transactions. FMC does not run its DICE flow or transfer
+control to Runtime. Key Vault cleanup skips slots with a write lock or use lock;
+it does not guarantee erasure of every key.
+
 1. FMC locates the Firmware Handoff Table (FHT) responsible for passing vital configuration and other data from one firmware layer to the next. This is found
    at well-known address CALIPTRA_FHT_ADDR.
 1. FMC sanity checks FHT by verifying that fht.fht_marker == ‘CFHT’ and version is known/supported by FMC.
