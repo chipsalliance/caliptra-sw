@@ -808,16 +808,19 @@ impl Drivers {
     /// * `NotBefore` - Valid Not Before Time
     /// * `NotAfter`  - Valid Not After Time
     ///
-    #[inline(never)]
     pub fn get_cert_validity_info(manifest: &ImageManifest) -> (NotBefore, NotAfter) {
         // If there is a valid value in the manifest for the not_before and not_after times,
         // use those (with owner values taking preference). Otherwise use the default values.
-        let is_valid = |t: &[u8; 15]| t.iter().any(|&b| b != 0);
+        #[inline(never)]
+        fn is_valid_pair(nb: &[u8; 15], nf: &[u8; 15]) -> bool {
+            nb.iter().any(|&b| b != 0) && nf.iter().any(|&b| b != 0)
+        }
+
         let od = &manifest.header.owner_data;
         let vd = &manifest.header.vendor_data;
-        let (nb, nf) = if is_valid(&od.owner_not_after) && is_valid(&od.owner_not_before) {
+        let (nb, nf) = if is_valid_pair(&od.owner_not_before, &od.owner_not_after) {
             (od.owner_not_before, od.owner_not_after)
-        } else if is_valid(&vd.vendor_not_after) && is_valid(&vd.vendor_not_before) {
+        } else if is_valid_pair(&vd.vendor_not_before, &vd.vendor_not_after) {
             (vd.vendor_not_before, vd.vendor_not_after)
         } else {
             (*b"20230101000000Z", *b"99991231235959Z")

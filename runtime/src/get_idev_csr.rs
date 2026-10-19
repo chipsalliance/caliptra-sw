@@ -18,9 +18,14 @@ impl GetIdevCsrCmd {
     }
 }
 
-#[cfg_attr(feature = "cfi", cfi_mod_fn)]
 #[inline(never)]
 pub(crate) fn send_csr_resp(drivers: &mut Drivers, is_fmc_alias: bool) -> CaliptraResult<()> {
+    send_csr_resp_inner(drivers, is_fmc_alias)
+}
+
+#[cfg_attr(feature = "cfi", cfi_mod_fn)]
+#[inline(never)]
+fn send_csr_resp_inner(drivers: &mut Drivers, is_fmc_alias: bool) -> CaliptraResult<()> {
     copy_req_hdr_from_mbox(drivers)?;
     let pdata = drivers.persistent_data.get();
     let (csr_len, csr, unprovisioned_err, unsupported_err) = if is_fmc_alias {

@@ -32,21 +32,7 @@ impl SetPqSeedCmd {
         drivers.ensure_pl0()?;
 
         let mut cmd = SetPqSeedReq::new_zeroed();
-        let res = (|| -> CaliptraResult<()> {
-            crate::packet::copy_from_mbox(drivers, cmd.as_mut_bytes())?;
-
-            // Deriving the PQ.DevID CDI and computing the ML-DSA-87 key material
-            // below exceeds the default 20M-cycle command watchdog budget; extend it.
-            drivers.extend_wdt_for_pqc();
-
-            let mut out = Zeroizing::new(Array4x12::default());
-            Self::derive_pq_devid_cdi(drivers, &cmd.seed, &mut out)?;
-
-            drivers
-                .persistent_data
-                .get_mut()
-                .set_pq_devid_cdi((*out).into())
-        })();
+        let res = Self::read_and_store_cdi(drivers, &mut cmd);
 
         // Zeroize the caller-supplied seed before propagating any error.
         cmd.seed.zeroize();
@@ -55,8 +41,8 @@ impl SetPqSeedCmd {
         // Calculate the digest of the PQ.DevID public key and cache it
         // in the persistent data to avoid repeated key generation passes
         // involved in DPE invocation.
-        let (seed, _, Digest::Sha256(Sha256(digest))) = drivers.compute_mldsa_key_material()?
-        else {
+        let key_material = drivers.compute_mldsa_key_material()?;
+        let Digest::Sha256(Sha256(digest)) = key_material.2 else {
             return Err(CaliptraError::RUNTIME_PQ_INVALID_PUBKEY_DIGEST);
         };
         drivers
@@ -68,9 +54,26 @@ impl SetPqSeedCmd {
         // Required once prior to first use of the key pair.
         // Re-derivations from the stored CDI do not require repeating the PCT
         let mut sig_scratch = Mldsa87Signature::default();
-        Mldsa87::pct(&seed, &mut sig_scratch)?;
+        Mldsa87::pct(&key_material.0, &mut sig_scratch)?;
 
         crate::packet::copy_resp_hdr_to_mbox(drivers)
+    }
+
+    #[inline(never)]
+    fn read_and_store_cdi(drivers: &mut Drivers, cmd: &mut SetPqSeedReq) -> CaliptraResult<()> {
+        crate::packet::copy_from_mbox(drivers, cmd.as_mut_bytes())?;
+
+        // Deriving the PQ.DevID CDI and computing the ML-DSA-87 key material
+        // below exceeds the default 20M-cycle command watchdog budget; extend it.
+        drivers.extend_wdt_for_pqc();
+
+        let mut out = Zeroizing::new(Array4x12::default());
+        Self::derive_pq_devid_cdi(drivers, &cmd.seed, &mut out)?;
+
+        drivers
+            .persistent_data
+            .get_mut()
+            .set_pq_devid_cdi((*out).into())
     }
 
     #[cfg_attr(feature = "cfi", cfi_impl_fn)]
