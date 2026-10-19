@@ -1,6 +1,7 @@
 //Licensed under the Apache-2.0 license
 
 #define HWMODEL 1
+#define LIBCALIPTRA_MMIO_API_V2
 
 #include <assert.h>
 #include <stddef.h>
@@ -11,6 +12,7 @@
 #include <unistd.h>
 
 #include "caliptra_model.h"
+#include "caliptra_if.h"
 #include "test.h"
 
 #define CALIPTRA_STATUS_OK 0

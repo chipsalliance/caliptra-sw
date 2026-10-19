@@ -4,6 +4,8 @@
 #include <stdio.h>
 #include <string.h>
 
+#define LIBCALIPTRA_MMIO_API_V2
+
 #include <caliptra_top_reg.h>
 #include "caliptra_enums.h"
 #include "caliptra_if.h"

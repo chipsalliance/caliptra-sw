@@ -7,6 +7,7 @@ package dpe
 #cgo CFLAGS: -I../../libcaliptra/inc -I../../hw-model/c-binding/out -g
 #cgo LDFLAGS: -L../../target/debug -L../../libcaliptra  -lcaliptra -lcaliptra_hw_model_c_binding -ldl -lrt
 #define HWMODEL
+#define LIBCALIPTRA_MMIO_API_V2
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
