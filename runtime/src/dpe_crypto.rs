@@ -79,6 +79,7 @@ pub struct DpeCrypto<'a> {
 /// SIGN_WITH_EXPORTED_ECDSA so this (identical) construction is compiled once. The
 /// engine borrows are taken as individual fields (rather than `&mut Drivers`) so
 /// callers keep disjoint access to the rest of `Drivers`/persistent data.
+#[inline(never)]
 pub(crate) fn new_ec_dpe_crypto<'a>(
     sha384: &'a mut Sha384,
     trng: &'a mut Trng,

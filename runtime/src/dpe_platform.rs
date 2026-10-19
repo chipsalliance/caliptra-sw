@@ -34,8 +34,8 @@ pub struct DpePlatform<'a> {
     cert_chain: &'a [u8],
     not_before: NotBefore,
     not_after: NotAfter,
-    dmtf_device_info: Option<ArrayVec<u8, { MAX_OTHER_NAME_SIZE }>>,
-    ueid: Option<[u8; 17]>,
+    pub(crate) dmtf_device_info: Option<ArrayVec<u8, { MAX_OTHER_NAME_SIZE }>>,
+    pub(crate) ueid: Option<[u8; 17]>,
 }
 
 pub const VENDOR_ID: u32 = u32::from_be_bytes(*b"CTRA");
