@@ -32,25 +32,25 @@ impl SetPqSeedCmd {
         drivers.ensure_pl0()?;
 
         let mut cmd = SetPqSeedReq::new_zeroed();
-        crate::packet::copy_from_mbox(drivers, cmd.as_mut_bytes())
-            .inspect_err(|_| cmd.seed.zeroize())?;
+        let res = (|| -> CaliptraResult<()> {
+            crate::packet::copy_from_mbox(drivers, cmd.as_mut_bytes())?;
 
-        // Deriving the PQ.DevID CDI and computing the ML-DSA-87 key material
-        // below exceeds the default 20M-cycle command watchdog budget; extend it.
-        drivers.extend_wdt_for_pqc();
+            // Deriving the PQ.DevID CDI and computing the ML-DSA-87 key material
+            // below exceeds the default 20M-cycle command watchdog budget; extend it.
+            drivers.extend_wdt_for_pqc();
 
-        let mut out = Zeroizing::new(Array4x12::default());
-        Self::derive_pq_devid_cdi(drivers, &cmd.seed, &mut out)
-            .inspect_err(|_| cmd.seed.zeroize())?;
+            let mut out = Zeroizing::new(Array4x12::default());
+            Self::derive_pq_devid_cdi(drivers, &cmd.seed, &mut out)?;
 
-        drivers
-            .persistent_data
-            .get_mut()
-            .set_pq_devid_cdi((*out).into())
-            .inspect_err(|_| cmd.seed.zeroize())?;
+            drivers
+                .persistent_data
+                .get_mut()
+                .set_pq_devid_cdi((*out).into())
+        })();
 
-        // The request buffer still holds the caller-supplied seed.
+        // Zeroize the caller-supplied seed before propagating any error.
         cmd.seed.zeroize();
+        res?;
 
         // Calculate the digest of the PQ.DevID public key and cache it
         // in the persistent data to avoid repeated key generation passes
