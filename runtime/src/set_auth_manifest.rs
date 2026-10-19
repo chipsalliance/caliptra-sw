@@ -24,7 +24,7 @@ use caliptra_auth_man_types::{
 };
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_cfi_lib::{cfi_assert, cfi_assert_bool, cfi_launder};
-use caliptra_common::mailbox_api::{MailboxRespHeader, SetAuthManifestReq};
+use caliptra_common::mailbox_api::SetAuthManifestReq;
 use caliptra_drivers::{
     Array4x12, Array4xN, CaliptraError, CaliptraResult, Ecc384, Ecc384PubKey, Ecc384Signature,
     HashValue, Lms, RomVerifyConfig, Sha256, Sha384, SocIfc,
@@ -458,7 +458,7 @@ impl SetAuthManifestCmd {
 
         persistent_data.auth_manifest_digest = drivers.sha384.digest(manifest_buf)?.0;
 
-        crate::packet::copy_to_mbox(drivers, MailboxRespHeader::default().as_mut_bytes())
+        crate::packet::copy_resp_hdr_to_mbox(drivers)
     }
 }
 

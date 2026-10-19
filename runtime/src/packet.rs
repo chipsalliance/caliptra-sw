@@ -12,11 +12,13 @@ Abstract:
 
 --*/
 
-use caliptra_common::mailbox_api::{populate_checksum, MailboxReqHeader, MailboxRespHeaderVarSize};
+use caliptra_common::mailbox_api::{
+    populate_checksum, MailboxReqHeader, MailboxRespHeader, MailboxRespHeaderVarSize,
+};
 use caliptra_common::{checksum::response_buffer_checksum, cprintln};
 use caliptra_dpe_response_buffer::ResponseBuffer;
 use caliptra_drivers::{CaliptraError, CaliptraResult};
-use zerocopy::{FromBytes, IntoBytes};
+use zerocopy::{FromBytes, FromZeros, IntoBytes};
 
 use crate::MboxResponseWriter;
 
@@ -64,6 +66,12 @@ pub fn copy_from_mbox(drivers: &mut crate::Drivers, buf: &mut [u8]) -> CaliptraR
     Ok(())
 }
 
+/// Reads a header-only mailbox command request and verifies its checksum.
+#[inline(never)]
+pub fn copy_req_hdr_from_mbox(drivers: &mut crate::Drivers) -> CaliptraResult<()> {
+    copy_from_mbox(drivers, MailboxReqHeader::new_zeroed().as_mut_bytes())
+}
+
 /// Write a fixed-size response `resp` to MBOX SRAM.
 /// Fills `resp[0..4]` with the Caliptra checksum
 /// then calls `mbox.write_response` which sets dlen and copies bytes.
@@ -74,6 +82,12 @@ pub fn copy_to_mbox(drivers: &mut crate::Drivers, resp: &mut [u8]) -> CaliptraRe
     }
     populate_checksum(resp);
     drivers.mbox.write_response(resp)
+}
+
+/// Writes an empty (header-only) mailbox response to MBOX SRAM.
+#[inline(never)]
+pub fn copy_resp_hdr_to_mbox(drivers: &mut crate::Drivers) -> CaliptraResult<()> {
+    copy_to_mbox(drivers, MailboxRespHeader::default().as_mut_bytes())
 }
 
 /// Finalise a variable-length response written via `MboxResponseWriter`, including

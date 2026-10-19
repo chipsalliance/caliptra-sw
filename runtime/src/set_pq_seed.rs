@@ -14,7 +14,7 @@ Abstract:
 
 use crate::Drivers;
 use caliptra_cfi_derive::cfi_impl_fn;
-use caliptra_common::mailbox_api::{MailboxRespHeader, SetPqSeedReq, SET_PQ_SEED_SEED_SIZE};
+use caliptra_common::mailbox_api::{SetPqSeedReq, SET_PQ_SEED_SEED_SIZE};
 use caliptra_drivers::{
     hmac384_kdf, Array4x12, CaliptraError, CaliptraResult, Mldsa87, Mldsa87Signature,
 };
@@ -70,7 +70,7 @@ impl SetPqSeedCmd {
         let mut sig_scratch = Mldsa87Signature::default();
         Mldsa87::pct(&seed, &mut sig_scratch)?;
 
-        crate::packet::copy_to_mbox(drivers, MailboxRespHeader::default().as_mut_bytes())
+        crate::packet::copy_resp_hdr_to_mbox(drivers)
     }
 
     #[cfg_attr(feature = "cfi", cfi_impl_fn)]

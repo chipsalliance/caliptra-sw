@@ -12,7 +12,7 @@ Abstract:
 
 --*/
 
-use crate::packet::{copy_from_mbox, copy_to_mbox};
+use crate::packet::{copy_from_mbox, copy_resp_hdr_to_mbox, copy_to_mbox};
 use crate::Drivers;
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_common::mailbox_api::{
@@ -40,7 +40,7 @@ impl IncrementPcrResetCounterCmd {
             return Err(CaliptraError::RUNTIME_INCREMENT_PCR_RESET_MAX_REACHED);
         }
 
-        copy_to_mbox(drivers, MailboxRespHeader::default().as_mut_bytes())
+        copy_resp_hdr_to_mbox(drivers)
     }
 }
 
@@ -95,7 +95,7 @@ impl ExtendPcrCmd {
             .pcr_bank
             .extend_pcr(pcr_index, &mut drivers.sha384, &cmd.data)?;
 
-        copy_to_mbox(drivers, MailboxRespHeader::default().as_mut_bytes())
+        copy_resp_hdr_to_mbox(drivers)
     }
 }
 

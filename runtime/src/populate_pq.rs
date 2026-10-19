@@ -13,7 +13,7 @@ Abstract:
 --*/
 
 use arrayvec::ArrayVec;
-use caliptra_common::mailbox_api::{MailboxRespHeader, PopulatePqCertReq};
+use caliptra_common::mailbox_api::PopulatePqCertReq;
 use caliptra_error::{CaliptraError, CaliptraResult};
 use zerocopy::{FromZeros, IntoBytes};
 
@@ -38,6 +38,6 @@ impl PopulatePqCertCmd {
             .map_err(|_| CaliptraError::RUNTIME_PQ_CERT_POPULATION_FAILED)?;
         drivers.mldsa_cert_chain = chain;
 
-        crate::packet::copy_to_mbox(drivers, MailboxRespHeader::default().as_mut_bytes())
+        crate::packet::copy_resp_hdr_to_mbox(drivers)
     }
 }
