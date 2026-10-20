@@ -1198,10 +1198,18 @@ impl OcpLockContext {
         tag: &[u8; 16],
         ct: &[u8; AccessKey::<Current>::KEY_LEN],
     ) -> CaliptraResult<AccessKey<Current>> {
-        let mut ctx = self
-            .hpke_context
-            .decap(sha, abr, ecc, hmac, trng, hpke_handle, enc, info)?;
-        AccessKey::<Current>::from_ciphertext(aes, trng, &mut ctx, metadata, tag, ct)
+        self.hpke_context.validate_handle(hpke_handle)?;
+        self.hpke_context
+            .decap(sha, abr, ecc, hmac, trng, hpke_handle, enc, info)
+            .and_then(|mut ctx| {
+                AccessKey::<Current>::from_ciphertext(aes, trng, &mut ctx, metadata, tag, ct)
+            })
+            .map_err(|_| {
+                if let Err(e) = self.hpke_context.rotate(trng, hpke_handle) {
+                    caliptra_common::handle_fatal_error(e.into());
+                }
+                CaliptraError::RUNTIME_OCP_LOCK_HPKE_KEYS_ROTATED_DUE_TO_ERROR
+            })
     }
 
     /// Decapsulate two access keys from the same HPKE context
@@ -1221,26 +1229,34 @@ impl OcpLockContext {
         current: &EncryptedAccessKey<Current>,
         new: &EncryptedAccessKey<New>,
     ) -> CaliptraResult<(AccessKey<Current>, AccessKey<New>)> {
-        let mut ctx = self
-            .hpke_context
-            .decap(sha, abr, ecc, hmac, trng, hpke_handle, enc, info)?;
-        let current = AccessKey::<Current>::from_ciphertext(
-            aes,
-            trng,
-            &mut ctx,
-            metadata,
-            &current.tag,
-            &current.ciphertext,
-        )?;
-        let new = AccessKey::<New>::from_ciphertext(
-            aes,
-            trng,
-            &mut ctx,
-            metadata,
-            &new.tag,
-            &new.ciphertext,
-        )?;
-        Ok((current, new))
+        self.hpke_context.validate_handle(hpke_handle)?;
+        self.hpke_context
+            .decap(sha, abr, ecc, hmac, trng, hpke_handle, enc, info)
+            .and_then(|mut ctx| {
+                let current = AccessKey::<Current>::from_ciphertext(
+                    aes,
+                    trng,
+                    &mut ctx,
+                    metadata,
+                    &current.tag,
+                    &current.ciphertext,
+                )?;
+                let new = AccessKey::<New>::from_ciphertext(
+                    aes,
+                    trng,
+                    &mut ctx,
+                    metadata,
+                    &new.tag,
+                    &new.ciphertext,
+                )?;
+                Ok((current, new))
+            })
+            .map_err(|_| {
+                if let Err(e) = self.hpke_context.rotate(trng, hpke_handle) {
+                    caliptra_common::handle_fatal_error(e.into());
+                }
+                CaliptraError::RUNTIME_OCP_LOCK_HPKE_KEYS_ROTATED_DUE_TO_ERROR
+            })
     }
 
     /// Rewraps an MPK with a new access key
