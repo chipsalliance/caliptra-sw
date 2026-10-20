@@ -11,9 +11,13 @@ use kem::{
 };
 use suites::HpkeCipherSuite;
 use zerocopy::{transmute, FromBytes};
+#[cfg(feature = "cfi")]
+use zeroize::Zeroizing;
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
 use crate::{Abr, Ecc384, Hmac, LEArray4x392, MlKem1024, Sha3, Trng};
+#[cfg(feature = "cfi")]
+use caliptra_cfi_lib::cfi_assert_ne;
 use caliptra_registers::abr::AbrReg;
 
 pub mod aead;
@@ -124,6 +128,51 @@ enum HpkePrivateKey {
     },
 }
 
+impl HpkePrivateKey {
+    fn handle(&self) -> &HpkeHandle {
+        match self {
+            HpkePrivateKey::MlKem { handle, .. }
+            | HpkePrivateKey::P384 { handle, .. }
+            | HpkePrivateKey::Hybrid { handle, .. } => handle,
+        }
+    }
+
+    fn rotate(
+        &mut self,
+        trng: &mut Trng,
+        handle_cursor: &mut HpkeCursor,
+    ) -> CaliptraResult<HpkeHandle> {
+        let new_handle = handle_cursor.generate_handle();
+        match self {
+            HpkePrivateKey::MlKem { handle, context } => {
+                #[cfg(feature = "cfi")]
+                let old_seed = Zeroizing::new(context.ikm);
+                *context = HpkeMlKemContext::generate(trng)?;
+                *handle = new_handle.clone();
+                #[cfg(feature = "cfi")]
+                cfi_assert_ne(&*old_seed, &context.ikm);
+            }
+            HpkePrivateKey::P384 { handle, context } => {
+                #[cfg(feature = "cfi")]
+                let old_seed = Zeroizing::new(context.ikm);
+                *context = HpkeP384Context::generate(trng)?;
+                *handle = new_handle.clone();
+                #[cfg(feature = "cfi")]
+                cfi_assert_ne(&*old_seed, &context.ikm);
+            }
+            HpkePrivateKey::Hybrid { handle, context } => {
+                #[cfg(feature = "cfi")]
+                let old_seed = Zeroizing::new(context.ikm);
+                *context = HpkeHybridContext::generate(trng)?;
+                *handle = new_handle.clone();
+                #[cfg(feature = "cfi")]
+                cfi_assert_ne(&*old_seed, &context.ikm);
+            }
+        }
+        Ok(new_handle)
+    }
+}
+
 // High level struct for https://datatracker.ietf.org/doc/html/draft-ietf-hpke-hpke-02.
 #[derive(ZeroizeOnDrop)]
 pub struct HpkeContext {
@@ -173,36 +222,20 @@ impl HpkeContext {
         trng: &mut Trng,
         hpke_handle: &HpkeHandle,
     ) -> CaliptraResult<HpkeHandle> {
-        for handle in self.priv_keys.iter_mut() {
-            match handle {
-                HpkePrivateKey::MlKem {
-                    ref mut handle,
-                    ref mut context,
-                } if handle == hpke_handle => {
-                    *context = HpkeMlKemContext::generate(trng)?;
-                    *handle = self.handle_cursor.generate_handle();
-                    return Ok(handle.clone());
-                }
-                HpkePrivateKey::P384 {
-                    ref mut handle,
-                    ref mut context,
-                } if handle == hpke_handle => {
-                    *context = HpkeP384Context::generate(trng)?;
-                    *handle = self.handle_cursor.generate_handle();
-                    return Ok(handle.clone());
-                }
-                HpkePrivateKey::Hybrid {
-                    ref mut handle,
-                    ref mut context,
-                } if handle == hpke_handle => {
-                    *context = HpkeHybridContext::generate(trng)?;
-                    *handle = self.handle_cursor.generate_handle();
-                    return Ok(handle.clone());
-                }
-                _ => (),
-            }
+        let key = self
+            .priv_keys
+            .iter_mut()
+            .find(|k| k.handle() == hpke_handle)
+            .ok_or(CaliptraError::RUNTIME_OCP_LOCK_UNKNOWN_HPKE_HANDLE)?;
+        key.rotate(trng, &mut self.handle_cursor)
+    }
+
+    /// Rotates all HPKE keys and assigns new handles.
+    pub fn rotate_all(&mut self, trng: &mut Trng) -> CaliptraResult<()> {
+        for key in self.priv_keys.iter_mut() {
+            key.rotate(trng, &mut self.handle_cursor)?;
         }
-        Err(CaliptraError::RUNTIME_OCP_LOCK_UNKNOWN_HPKE_HANDLE)
+        Ok(())
     }
 
     /// Get HPKE public key
@@ -258,6 +291,15 @@ impl HpkeContext {
             }
         }
         Err(CaliptraError::RUNTIME_OCP_LOCK_UNKNOWN_HPKE_HANDLE)
+    }
+
+    /// Check if `hpke_handle` matches an existing `HpkeHandle`.
+    pub fn validate_handle(&self, hpke_handle: &HpkeHandle) -> CaliptraResult<()> {
+        if self.priv_keys.iter().any(|k| k.handle() == hpke_handle) {
+            Ok(())
+        } else {
+            Err(CaliptraError::RUNTIME_OCP_LOCK_UNKNOWN_HPKE_HANDLE)
+        }
     }
 
     /// Get HPKE Cipher Suite
