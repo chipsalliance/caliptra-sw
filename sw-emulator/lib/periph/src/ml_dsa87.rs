@@ -132,7 +132,7 @@ register_bitfields! [
 
     /// Context Config Register Fields
     CtxConfig [
-        CTX_SIZE OFFSET(0) NUMBITS(7) [],
+        CTX_SIZE OFFSET(0) NUMBITS(8) [],
     ],
 
     /// Strobe Register Fields

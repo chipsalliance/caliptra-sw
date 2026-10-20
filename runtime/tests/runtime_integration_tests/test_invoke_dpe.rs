@@ -8,16 +8,17 @@ use crate::common::{
 };
 use caliptra_api::SocManager;
 use caliptra_common::mailbox_api::{
-    CommandId, FwInfoResp, InvokeDpeReq, MailboxReq, MailboxReqHeader,
+    CommandId, FwInfoResp, InvokeDpeMldsa87Req, InvokeDpeReq, MailboxReq, MailboxReqHeader,
 };
 use caliptra_dpe::{
     commands::{
         CertifyKeyCommand, Command, DeriveContextCmd, DeriveContextFlags, GetCertificateChainCmd,
-        GetProfileCmd, InitCtxCmd, RotateCtxCmd, RotateCtxFlags, SignFlags, SignP384Cmd as SignCmd,
+        GetProfileCmd, InitCtxCmd, RotateCtxCmd, RotateCtxFlags, SignFlags, SignMldsa87RawCmd,
+        SignP384Cmd as SignCmd,
     },
     context::ContextHandle,
     error::DpeErrorCode,
-    response::{Response, SignResp},
+    response::{CertifyKeyResp, Response, SignResp},
     DpeProfile,
 };
 use caliptra_drivers::CaliptraError;
@@ -110,6 +111,112 @@ fn test_invoke_dpe_size_too_big() {
         cmd.populate_chksum(),
         Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE)
     );
+}
+
+#[test]
+fn test_invoke_dpe_mldsa87_size_too_big() {
+    let mut cmd = MailboxReq::InvokeDpeMldsa87Command(InvokeDpeMldsa87Req {
+        data_size: InvokeDpeMldsa87Req::DATA_MAX_SIZE as u32 + 1,
+        ..Default::default()
+    });
+    assert_eq!(
+        cmd.populate_chksum(),
+        Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE)
+    );
+}
+
+#[test]
+fn test_invoke_dpe_mldsa87_raw_sign() {
+    let mut model = run_rt_test(RuntimeTestArgs::default());
+
+    model.step_until_ready_for_runtime();
+
+    let message = [0x5au8; 148];
+    let mut raw_data = [0u8; 1024];
+    raw_data[..message.len()].copy_from_slice(&message);
+    let sign_cmd = SignMldsa87RawCmd {
+        handle: ContextHandle::default(),
+        label: TEST_LABEL,
+        flags: SignFlags::IS_RAW,
+        size: message.len() as u32,
+        raw_data,
+    };
+    let mut cmd = Command::from(&sign_cmd);
+    let resp = execute_dpe_cmd_raw(&mut model, CaliptraDpeProfile::Mldsa87, &mut cmd).unwrap();
+    let resp_data = &resp.data[..resp.data_size as usize];
+
+    check_dpe_status(resp_data, DpeErrorCode::NoError);
+    assert!(matches!(
+        Response::try_read_from_bytes(&cmd, resp_data).unwrap(),
+        Response::Sign(SignResp::Mldsa87(_))
+    ));
+}
+
+#[test]
+fn test_invoke_dpe_mldsa87_raw_sign_with_context() {
+    let mut model = run_rt_test(RuntimeTestArgs::default());
+
+    model.step_until_ready_for_runtime();
+
+    let certify_key_resp = certify_key(
+        &mut model,
+        &mut CertifyKeyCommandNoRef::new(CreateCertifyKeyCmdArgs {
+            profile: CaliptraDpeProfile::Mldsa87,
+            label: TEST_LABEL,
+            format: CertifyKeyCommand::FORMAT_X509,
+            ..Default::default()
+        }),
+    )
+    .unwrap();
+    let CertifyKeyResp::Mldsa87(certify_key_resp) = certify_key_resp else {
+        panic!("Wrong response type!");
+    };
+
+    use ml_dsa::{EncodedSignature, EncodedVerifyingKey, MlDsa87, VerifyingKey};
+
+    let encoded_key =
+        EncodedVerifyingKey::<MlDsa87>::try_from(certify_key_resp.header.pubkey.as_slice())
+            .unwrap();
+    let verifying_key = VerifyingKey::<MlDsa87>::decode(&encoded_key);
+
+    let message = [0x5au8; 148];
+    let max_context = [0xa5; 255];
+    for context in [
+        b"responder-challenge_auth signing".as_slice(),
+        max_context.as_slice(),
+        &[],
+    ] {
+        let mut raw_data = [0u8; 1024];
+        raw_data[0] = context.len() as u8;
+        raw_data[1..1 + context.len()].copy_from_slice(context);
+        raw_data[1 + context.len()..1 + context.len() + message.len()].copy_from_slice(&message);
+        let sign_cmd = SignMldsa87RawCmd {
+            handle: ContextHandle::default(),
+            label: TEST_LABEL,
+            flags: SignFlags::IS_RAW | SignFlags::HAS_CONTEXT,
+            size: (1 + context.len() + message.len()) as u32,
+            raw_data,
+        };
+        let mut cmd = Command::from(&sign_cmd);
+        let resp = execute_dpe_cmd_raw(&mut model, CaliptraDpeProfile::Mldsa87, &mut cmd).unwrap();
+        let resp_data = &resp.data[..resp.data_size as usize];
+
+        check_dpe_status(resp_data, DpeErrorCode::NoError);
+        let Response::Sign(SignResp::Mldsa87(sign_resp)) =
+            Response::try_read_from_bytes(&cmd, resp_data).unwrap()
+        else {
+            panic!("Wrong response type!");
+        };
+
+        let encoded_sig = EncodedSignature::<MlDsa87>::try_from(sign_resp.sig.as_slice()).unwrap();
+        let signature = ml_dsa::Signature::decode(&encoded_sig).unwrap();
+        assert!(
+            verifying_key.verify_with_context(&message, context, &signature),
+            "Signature verification failed for {}-byte context",
+            context.len()
+        );
+        assert!(!verifying_key.verify_with_context(&message, b"wrong context", &signature));
+    }
 }
 
 #[test]

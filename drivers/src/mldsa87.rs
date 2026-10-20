@@ -58,6 +58,8 @@ type Mldsa87VerifyRes = LEArray4x16;
 pub const MLDSA87_VERIFY_RES_WORD_LEN: usize = 16;
 #[cfg(feature = "runtime")]
 pub const MLDSA87_PUB_KEY_BYTE_SIZE: usize = 2592;
+#[cfg(feature = "runtime")]
+pub const MLDSA87_CONTEXT_MAX_SIZE: usize = 255;
 
 /// MLDSA-87 Seed
 #[derive(Debug, Copy, Clone)]
@@ -443,6 +445,34 @@ impl Mldsa87 {
     }
 
     #[cfg(feature = "runtime")]
+    fn program_context(
+        mldsa: RegisterBlock<caliptra_ureg::RealMmioMut>,
+        context: &[u8],
+    ) -> CaliptraResult<()> {
+        if context.len() > MLDSA87_CONTEXT_MAX_SIZE {
+            return Err(CaliptraError::DRIVER_MLDSA87_HW_ERROR);
+        }
+
+        for (i, chunk) in context.chunks(size_of::<u32>()).enumerate() {
+            let mut bytes = [0u8; size_of::<u32>()];
+            bytes
+                .get_mut(..chunk.len())
+                .ok_or(CaliptraError::DRIVER_MLDSA87_HW_ERROR)?
+                .copy_from_slice(chunk);
+            mldsa
+                .ctx()
+                .get(i)
+                .ok_or(CaliptraError::DRIVER_MLDSA87_HW_ERROR)?
+                .write(|_| u32::from_le_bytes(bytes));
+        }
+        mldsa
+            .ctx_config()
+            .write(|w| w.ctx_size(context.len() as u32));
+
+        Ok(())
+    }
+
+    #[cfg(feature = "runtime")]
     fn program_var_msg_stream<F>(
         mldsa: RegisterBlock<caliptra_ureg::RealMmioMut>,
         stream_msg: &mut F,
@@ -608,6 +638,22 @@ impl Mldsa87 {
         pub_key: &Mldsa87PubKey,
         sign_rnd: &Mldsa87SignRnd,
         trng: &mut Trng,
+        stream_msg: F,
+    ) -> CaliptraResult<Mldsa87Signature>
+    where
+        F: FnMut(&mut dyn FnMut(&[u8]) -> CaliptraResult<()>) -> CaliptraResult<()>,
+    {
+        self.sign_var_stream_with_context(seed, pub_key, &[], sign_rnd, trng, stream_msg)
+    }
+
+    #[cfg(feature = "runtime")]
+    pub fn sign_var_stream_with_context<F>(
+        &mut self,
+        seed: Mldsa87Seed,
+        pub_key: &Mldsa87PubKey,
+        context: &[u8],
+        sign_rnd: &Mldsa87SignRnd,
+        trng: &mut Trng,
         mut stream_msg: F,
     ) -> CaliptraResult<Mldsa87Signature>
     where
@@ -618,6 +664,7 @@ impl Mldsa87 {
 
         // Wait for hardware ready
         Mldsa87::wait(mldsa, || mldsa.status().read().ready())?;
+        Mldsa87::program_context(mldsa, context)?;
 
         // Sign RND.
         sign_rnd.write_to_reg(mldsa.sign_rnd());
@@ -659,7 +706,8 @@ impl Mldsa87 {
         // Clear the hardware.
         mldsa.ctrl().write(|w| w.zeroize(true));
 
-        let result = self.verify_var_stream(pub_key, &signature, stream_msg)?;
+        let result =
+            self.verify_var_stream_with_context(pub_key, &signature, context, stream_msg)?;
         if result == Mldsa87Result::Success {
             cfi_assert_eq(cfi_launder(result), Mldsa87Result::Success);
             Ok(signature)
@@ -950,13 +998,31 @@ impl Mldsa87 {
         &mut self,
         pub_key: &Mldsa87PubKey,
         signature: &Mldsa87Signature,
+        stream_msg: F,
+    ) -> CaliptraResult<Mldsa87Result>
+    where
+        F: FnMut(&mut dyn FnMut(&[u8]) -> CaliptraResult<()>) -> CaliptraResult<()>,
+    {
+        self.verify_var_stream_with_context(pub_key, signature, &[], stream_msg)
+    }
+
+    #[cfg(feature = "runtime")]
+    pub fn verify_var_stream_with_context<F>(
+        &mut self,
+        pub_key: &Mldsa87PubKey,
+        signature: &Mldsa87Signature,
+        context: &[u8],
         mut stream_msg: F,
     ) -> CaliptraResult<Mldsa87Result>
     where
         F: FnMut(&mut dyn FnMut(&[u8]) -> CaliptraResult<()>) -> CaliptraResult<()>,
     {
+        if context.len() > MLDSA87_CONTEXT_MAX_SIZE {
+            return Err(CaliptraError::DRIVER_MLDSA87_HW_ERROR);
+        }
         let truncated_signature = self.verify_common_setup(pub_key, signature)?;
         let mldsa = self.mldsa87.regs_mut();
+        Mldsa87::program_context(mldsa, context)?;
 
         // Program the command register for signature verification with streaming
         mldsa

@@ -417,7 +417,7 @@ pub fn execute_dpe_cmd(
     dpe_cmd: &mut Command,
     expected_result: DpeResult,
 ) -> Option<Response> {
-    let mut cmd_data: [u8; 512] = [0u8; InvokeDpeReq::DATA_MAX_SIZE];
+    let mut cmd_data = [0u8; InvokeDpeReq::DATA_MAX_SIZE];
     let cmd_hdr = CommandHdr::new(DpeProfile::P384Sha384, dpe_cmd.id());
     let cmd_hdr_buf = cmd_hdr.as_bytes();
     cmd_data[..cmd_hdr_buf.len()].copy_from_slice(cmd_hdr_buf);
@@ -505,7 +505,7 @@ pub fn execute_dpe_cmd_raw(
     dpe_cmd: &mut Command,
 ) -> Result<DpeRawResp, ModelError> {
     // Fill the request buffer with the correct info
-    let mut cmd_data: [u8; 512] = [0u8; InvokeDpeReq::DATA_MAX_SIZE];
+    let mut cmd_data = [0u8; InvokeDpeMldsa87Req::DATA_MAX_SIZE];
     let cmd_hdr = CommandHdr::new(profile.into(), dpe_cmd.id());
     let cmd_hdr_buf = cmd_hdr.as_bytes();
     cmd_data[..cmd_hdr_buf.len()].copy_from_slice(cmd_hdr_buf);
@@ -517,9 +517,11 @@ pub fn execute_dpe_cmd_raw(
     // Get the profile specific mailbox command
     let resp = match profile {
         CaliptraDpeProfile::Ecc384 => {
+            let mut data = [0u8; InvokeDpeReq::DATA_MAX_SIZE];
+            data[..data_size as usize].copy_from_slice(&cmd_data[..data_size as usize]);
             let mut mbox_cmd = MailboxReq::InvokeDpeEcc384Command(InvokeDpeReq {
                 hdr: MailboxReqHeader { chksum: 0 },
-                data: cmd_data,
+                data,
                 data_size,
             });
             mbox_cmd.populate_chksum().unwrap();
