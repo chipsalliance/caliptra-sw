@@ -40,7 +40,7 @@ impl IncrementPcrResetCounterCmd {
             return Err(CaliptraError::RUNTIME_INCREMENT_PCR_RESET_MAX_REACHED);
         }
 
-        copy_resp_hdr_to_mbox(drivers)
+        copy_resp_hdr_to_mbox::<IncrementPcrResetCounterReq>(drivers)
     }
 }
 
@@ -95,7 +95,7 @@ impl ExtendPcrCmd {
             .pcr_bank
             .extend_pcr(pcr_index, &mut drivers.sha384, &cmd.data)?;
 
-        copy_resp_hdr_to_mbox(drivers)
+        copy_resp_hdr_to_mbox::<ExtendPcrReq>(drivers)
     }
 }
 

@@ -13,7 +13,8 @@ Abstract:
 --*/
 
 use caliptra_common::mailbox_api::{
-    populate_checksum, MailboxReqHeader, MailboxRespHeader, MailboxRespHeaderVarSize,
+    populate_checksum, HeaderOnlyRequest, HeaderOnlyResponse, MailboxReqHeader, MailboxRespHeader,
+    MailboxRespHeaderVarSize,
 };
 use caliptra_common::{checksum::response_buffer_checksum, cprintln};
 use caliptra_dpe_response_buffer::ResponseBuffer;
@@ -67,8 +68,15 @@ pub fn copy_from_mbox(drivers: &mut crate::Drivers, buf: &mut [u8]) -> CaliptraR
 }
 
 /// Reads a header-only mailbox command request and verifies its checksum.
+#[inline(always)]
+pub fn copy_req_hdr_from_mbox<R: HeaderOnlyRequest>(
+    drivers: &mut crate::Drivers,
+) -> CaliptraResult<()> {
+    copy_req_hdr_from_mbox_inner(drivers)
+}
+
 #[inline(never)]
-pub fn copy_req_hdr_from_mbox(drivers: &mut crate::Drivers) -> CaliptraResult<()> {
+fn copy_req_hdr_from_mbox_inner(drivers: &mut crate::Drivers) -> CaliptraResult<()> {
     copy_from_mbox(drivers, MailboxReqHeader::new_zeroed().as_mut_bytes())
 }
 
@@ -85,8 +93,15 @@ pub fn copy_to_mbox(drivers: &mut crate::Drivers, resp: &mut [u8]) -> CaliptraRe
 }
 
 /// Writes an empty (header-only) mailbox response to MBOX SRAM.
+#[inline(always)]
+pub fn copy_resp_hdr_to_mbox<R: HeaderOnlyResponse>(
+    drivers: &mut crate::Drivers,
+) -> CaliptraResult<()> {
+    copy_resp_hdr_to_mbox_inner(drivers)
+}
+
 #[inline(never)]
-pub fn copy_resp_hdr_to_mbox(drivers: &mut crate::Drivers) -> CaliptraResult<()> {
+fn copy_resp_hdr_to_mbox_inner(drivers: &mut crate::Drivers) -> CaliptraResult<()> {
     copy_to_mbox(drivers, MailboxRespHeader::default().as_mut_bytes())
 }
 

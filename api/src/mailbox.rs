@@ -123,6 +123,33 @@ where
     }
 }
 
+/// Marker trait for mailbox request types that consist solely of a [`MailboxReqHeader`].
+pub trait HeaderOnlyRequest: IntoBytes + FromBytes + Immutable + KnownLayout {}
+
+/// Marker trait for mailbox response types (or [`Request`] types whose
+/// [`Request::Resp`] is header-only) that consist solely of a [`MailboxRespHeader`].
+pub trait HeaderOnlyResponse {}
+
+impl<T: Request> HeaderOnlyResponse for T where T::Resp: HeaderOnlyResponse {}
+
+macro_rules! impl_header_only_req {
+    ($($ty:ty),* $(,)?) => {
+        $(
+            impl HeaderOnlyRequest for $ty {}
+            const _: () = assert!(size_of::<$ty>() == size_of::<MailboxReqHeader>());
+        )*
+    };
+}
+
+macro_rules! impl_header_only_resp {
+    ($($ty:ty),* $(,)?) => {
+        $(
+            impl HeaderOnlyResponse for $ty {}
+            const _: () = assert!(size_of::<$ty>() == size_of::<MailboxRespHeader>());
+        )*
+    };
+}
+
 #[repr(C)]
 #[derive(Debug, IntoBytes, Default, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
 pub struct MailboxRespHeaderVarSize {
@@ -1091,6 +1118,10 @@ impl Default for AddSubjectAltNameReq {
         }
     }
 }
+impl Request for AddSubjectAltNameReq {
+    const ID: CommandId = CommandId::ADD_SUBJECT_ALT_NAME;
+    type Resp = MailboxRespHeader;
+}
 
 // POPULATE_IDEV_CERT
 // No command-specific output args
@@ -1128,6 +1159,10 @@ impl Default for PopulateIdevCertReq {
             cert: [0u8; PopulateIdevCertReq::MAX_CERT_SIZE],
         }
     }
+}
+impl Request for PopulateIdevCertReq {
+    const ID: CommandId = CommandId::POPULATE_IDEV_CERT;
+    type Resp = MailboxRespHeader;
 }
 
 // POPULATE_PQ_CERT
@@ -1167,6 +1202,10 @@ impl Default for PopulatePqCertReq {
         }
     }
 }
+impl Request for PopulatePqCertReq {
+    const ID: CommandId = CommandId::POPULATE_PQ_CERT;
+    type Resp = MailboxRespHeader;
+}
 
 // DPE_TAG_TCI
 // No command-specific output args
@@ -1176,6 +1215,10 @@ pub struct TagTciReq {
     pub hdr: MailboxReqHeader,
     pub handle: [u8; 16],
     pub tag: u32,
+}
+impl Request for TagTciReq {
+    const ID: CommandId = CommandId::DPE_TAG_TCI;
+    type Resp = MailboxRespHeader;
 }
 
 // DPE_GET_TAGGED_TCI
@@ -1499,6 +1542,10 @@ impl Default for SetAuthManifestReq {
             manifest: [0u8; SetAuthManifestReq::MAX_MAN_SIZE],
         }
     }
+}
+impl Request for SetAuthManifestReq {
+    const ID: CommandId = CommandId::SET_AUTH_MANIFEST;
+    type Resp = MailboxRespHeader;
 }
 
 // GET_IDEVID_CSR
@@ -1879,6 +1926,19 @@ impl Default for GetPcrLogResp {
         }
     }
 }
+
+impl_header_only_req!(
+    MailboxReqHeader,
+    GetLdevCertReq,
+    GetRtAliasCertReq,
+    GetFmcAliasCertReq,
+    GetPqCsrReq,
+    GetPqInfoReq,
+    GetIdevCsrReq,
+    GetFmcAliasCsrReq,
+);
+
+impl_header_only_resp!(MailboxRespHeader, RevokeExportedCdiHandleResp);
 
 /// Retrieves dlen bytes  from the mailbox.
 pub fn mbox_read_response(

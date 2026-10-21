@@ -38,6 +38,6 @@ impl PopulatePqCertCmd {
             .map_err(|_| CaliptraError::RUNTIME_PQ_CERT_POPULATION_FAILED)?;
         drivers.mldsa_cert_chain = chain;
 
-        crate::packet::copy_resp_hdr_to_mbox(drivers)
+        crate::packet::copy_resp_hdr_to_mbox::<PopulatePqCertReq>(drivers)
     }
 }

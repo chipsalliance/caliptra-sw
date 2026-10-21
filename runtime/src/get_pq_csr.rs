@@ -24,7 +24,7 @@ use crate::get_attested_pq_csr::GetAttestedPqCsrCmd;
 use crate::packet::{copy_req_hdr_from_mbox, copy_to_mbox};
 use crate::Drivers;
 use caliptra_cfi_derive::cfi_impl_fn;
-use caliptra_common::mailbox_api::GetPqCsrResp;
+use caliptra_common::mailbox_api::{GetPqCsrReq, GetPqCsrResp};
 use caliptra_drivers::{CaliptraError, CaliptraResult, Mldsa87, Mldsa87Signature};
 use caliptra_x509::{MlDsa87CsrBuilder, PqDevIdCsrTbsMlDsa87, PqDevIdCsrTbsMlDsa87Params};
 use zerocopy::{FromZeros, IntoBytes};
@@ -44,7 +44,7 @@ impl GetPqCsrCmd {
     #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn execute(drivers: &mut Drivers) -> CaliptraResult<()> {
-        copy_req_hdr_from_mbox(drivers)?;
+        copy_req_hdr_from_mbox::<GetPqCsrReq>(drivers)?;
         Self::generate_and_emit(drivers, PqCsrOutput::Csr)
     }
 

@@ -458,7 +458,7 @@ impl SetAuthManifestCmd {
 
         persistent_data.auth_manifest_digest = drivers.sha384.digest(manifest_buf)?.0;
 
-        crate::packet::copy_resp_hdr_to_mbox(drivers)
+        crate::packet::copy_resp_hdr_to_mbox::<SetAuthManifestReq>(drivers)
     }
 }
 

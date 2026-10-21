@@ -55,7 +55,7 @@ impl EcdsaVerifyCmd {
             return Err(CaliptraError::RUNTIME_ECDSA_VERIFY_FAILED);
         }
 
-        copy_resp_hdr_to_mbox(drivers)
+        copy_resp_hdr_to_mbox::<EcdsaVerifyReq>(drivers)
     }
 }
 
@@ -130,7 +130,7 @@ impl LmsVerifyCmd {
             return Err(CaliptraError::RUNTIME_LMS_VERIFY_FAILED);
         }
 
-        copy_resp_hdr_to_mbox(drivers)
+        copy_resp_hdr_to_mbox::<LmsVerifyReq>(drivers)
     }
 }
 
@@ -167,6 +167,6 @@ impl Mldsa87VerifyCmd {
             return Err(CaliptraError::RUNTIME_MLDSA87_VERIFY_FAILED);
         }
 
-        copy_resp_hdr_to_mbox(drivers)
+        copy_resp_hdr_to_mbox::<Mldsa87VerifyReq>(drivers)
     }
 }

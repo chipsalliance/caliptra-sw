@@ -43,6 +43,6 @@ impl PopulateIDevIdCertCmd {
             .map_err(|_| CaliptraError::RUNTIME_IDEV_CERT_POPULATION_FAILED)?;
         drivers.cert_chain = tmp_chain;
 
-        crate::packet::copy_resp_hdr_to_mbox(drivers)
+        crate::packet::copy_resp_hdr_to_mbox::<PopulateIdevCertReq>(drivers)
     }
 }

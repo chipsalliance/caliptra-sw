@@ -56,7 +56,7 @@ impl SetPqSeedCmd {
         let mut sig_scratch = Mldsa87Signature::default();
         Mldsa87::pct(&key_material.0, &mut sig_scratch)?;
 
-        crate::packet::copy_resp_hdr_to_mbox(drivers)
+        crate::packet::copy_resp_hdr_to_mbox::<SetPqSeedReq>(drivers)
     }
 
     #[inline(never)]

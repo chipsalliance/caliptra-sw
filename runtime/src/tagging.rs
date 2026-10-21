@@ -58,7 +58,7 @@ impl TagTciCmd {
         context_has_tag[idx] = U8Bool::new(true);
         context_tags[idx] = cmd.tag;
 
-        copy_resp_hdr_to_mbox(drivers)
+        copy_resp_hdr_to_mbox::<TagTciReq>(drivers)
     }
 }
 

@@ -13,6 +13,7 @@ Abstract:
 --*/
 use caliptra_cfi_derive::{cfi_impl_fn, cfi_mod_fn};
 use caliptra_common::cprintln;
+use caliptra_common::mailbox_api::MailboxRespHeader;
 use caliptra_drivers::CaliptraError;
 use caliptra_drivers::CaliptraResult;
 use caliptra_drivers::Ecc384;
@@ -214,6 +215,6 @@ impl FipsShutdownCmd {
         FipsModule::zeroize(env);
         env.is_shutdown = true;
 
-        crate::packet::copy_resp_hdr_to_mbox(env)
+        crate::packet::copy_resp_hdr_to_mbox::<MailboxRespHeader>(env)
     }
 }

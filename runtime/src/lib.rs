@@ -99,7 +99,7 @@ pub use stash_measurement::StashMeasurementCmd;
 pub use verify::Mldsa87VerifyCmd;
 pub use verify::{EcdsaVerifyCmd, LmsVerifyCmd};
 pub mod packet;
-use caliptra_common::mailbox_api::CommandId;
+use caliptra_common::mailbox_api::{CommandId, MailboxReqHeader, MailboxRespHeader};
 use packet::{copy_req_hdr_from_mbox, copy_resp_hdr_to_mbox, copy_to_mbox};
 use zerocopy::IntoBytes;
 pub mod tagging;
@@ -211,7 +211,7 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         CommandId::GET_IDEV_CERT => IDevIdCertCmd::execute(drivers),
         CommandId::GET_PQ_CERT => PqCertCmd::execute(drivers),
         CommandId::GET_IDEV_INFO => {
-            copy_req_hdr_from_mbox(drivers)?;
+            copy_req_hdr_from_mbox::<MailboxReqHeader>(drivers)?;
             IDevIdInfoCmd::execute(drivers)
         }
         CommandId::GET_LDEV_CERT => GetLdevCertCmd::execute(drivers),
@@ -222,13 +222,13 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         CommandId::EXTEND_PCR => ExtendPcrCmd::execute(drivers),
         CommandId::STASH_MEASUREMENT => StashMeasurementCmd::execute(drivers),
         CommandId::DISABLE_ATTESTATION => {
-            copy_req_hdr_from_mbox(drivers)?;
+            copy_req_hdr_from_mbox::<MailboxReqHeader>(drivers)?;
             drivers.ensure_pl0()?;
             DisableAttestationCmd::execute(drivers)?;
-            copy_resp_hdr_to_mbox(drivers)
+            copy_resp_hdr_to_mbox::<MailboxRespHeader>(drivers)
         }
         CommandId::FW_INFO => {
-            copy_req_hdr_from_mbox(drivers)?;
+            copy_req_hdr_from_mbox::<MailboxReqHeader>(drivers)?;
             FwInfoCmd::execute(drivers)
         }
         CommandId::DPE_TAG_TCI => TagTciCmd::execute(drivers),
@@ -242,39 +242,39 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         CommandId::INCREMENT_PCR_RESET_COUNTER => IncrementPcrResetCounterCmd::execute(drivers),
         CommandId::QUOTE_PCRS => GetPcrQuoteCmd::execute(drivers),
         CommandId::VERSION => {
-            copy_req_hdr_from_mbox(drivers)?;
+            copy_req_hdr_from_mbox::<MailboxReqHeader>(drivers)?;
             let mut resp = FipsVersionCmd::execute(&drivers.soc_ifc)?;
             copy_to_mbox(drivers, resp.as_mut_bytes())
         }
         CommandId::CAPABILITIES => {
-            copy_req_hdr_from_mbox(drivers)?;
+            copy_req_hdr_from_mbox::<MailboxReqHeader>(drivers)?;
             CapabilitiesCmd::execute(drivers)
         }
         #[cfg(feature = "fips_self_test")]
         CommandId::SELF_TEST_START => {
-            copy_req_hdr_from_mbox(drivers)?;
+            copy_req_hdr_from_mbox::<MailboxReqHeader>(drivers)?;
             match drivers.self_test_status {
                 SelfTestStatus::Idle => {
                     drivers.self_test_status =
                         SelfTestStatus::InProgress(fips_self_test_cmd::execute);
-                    copy_resp_hdr_to_mbox(drivers)
+                    copy_resp_hdr_to_mbox::<MailboxRespHeader>(drivers)
                 }
                 _ => Err(CaliptraError::RUNTIME_SELF_TEST_IN_PROGRESS),
             }
         }
         #[cfg(feature = "fips_self_test")]
         CommandId::SELF_TEST_GET_RESULTS => {
-            copy_req_hdr_from_mbox(drivers)?;
+            copy_req_hdr_from_mbox::<MailboxReqHeader>(drivers)?;
             match drivers.self_test_status {
                 SelfTestStatus::Done => {
                     drivers.self_test_status = SelfTestStatus::Idle;
-                    copy_resp_hdr_to_mbox(drivers)
+                    copy_resp_hdr_to_mbox::<MailboxRespHeader>(drivers)
                 }
                 _ => Err(CaliptraError::RUNTIME_SELF_TEST_NOT_STARTED),
             }
         }
         CommandId::SHUTDOWN => {
-            copy_req_hdr_from_mbox(drivers)?;
+            copy_req_hdr_from_mbox::<MailboxReqHeader>(drivers)?;
             FipsShutdownCmd::execute(drivers)
         }
         CommandId::SET_AUTH_MANIFEST => SetAuthManifestCmd::execute(drivers),
@@ -288,7 +288,7 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
         CommandId::GET_IDEV_CSR => GetIdevCsrCmd::execute(drivers),
         CommandId::GET_FMC_ALIAS_CSR => GetFmcAliasCsrCmd::execute(drivers),
         CommandId::GET_PCR_LOG => {
-            copy_req_hdr_from_mbox(drivers)?;
+            copy_req_hdr_from_mbox::<MailboxReqHeader>(drivers)?;
             GetPcrLogCmd::execute(drivers)
         }
         CommandId::SIGN_WITH_EXPORTED_ECDSA => SignWithExportedEcdsaCmd::execute(drivers),
@@ -327,10 +327,24 @@ pub fn handle_mailbox_commands(drivers: &mut Drivers) -> CaliptraResult<()> {
         let reset_reason = drivers.soc_ifc.reset_reason();
         if reset_reason == ResetReason::WarmReset {
             cfi_assert_eq(drivers.soc_ifc.reset_reason(), ResetReason::WarmReset);
-            drivers.disable_attestation_and_report_error(
-                CaliptraError::RUNTIME_CMD_BUSY_DURING_WARM_RESET,
-            )?;
-            cprintln!("Disabled attest - cmd busy + warm rst");
+            let result = DisableAttestationCmd::execute(drivers);
+            if cfi_launder(result.is_ok()) {
+                cfi_assert!(result.is_ok());
+            } else {
+                cfi_assert!(result.is_err());
+            }
+            match result {
+                Ok(_) => {
+                    cprintln!("Disabled attest - cmd busy + warm rst");
+                    caliptra_drivers::report_fw_error_non_fatal(
+                        CaliptraError::RUNTIME_CMD_BUSY_DURING_WARM_RESET.into(),
+                    );
+                }
+                Err(e) => {
+                    drivers.soc_ifc.set_fw_extended_error(e.into());
+                    return Err(CaliptraError::RUNTIME_GLOBAL_EXCEPTION);
+                }
+            }
         }
     } else {
         cfi_assert!(!command_was_running);

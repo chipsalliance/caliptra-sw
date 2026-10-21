@@ -7,7 +7,7 @@ use caliptra_cfi_derive::cfi_impl_fn;
 #[cfg(feature = "cfi")]
 use caliptra_cfi_lib::{cfi_assert, cfi_assert_bool};
 
-use caliptra_common::mailbox_api::RevokeExportedCdiHandleReq;
+use caliptra_common::mailbox_api::{RevokeExportedCdiHandleReq, RevokeExportedCdiHandleResp};
 use caliptra_drivers::ExportedCdiEntry;
 use caliptra_error::{CaliptraError, CaliptraResult};
 
@@ -47,7 +47,9 @@ impl RevokeExportedCdiHandleCmd {
                     *active = U8Bool::new(false);
                     slot.zeroize();
 
-                    return crate::packet::copy_resp_hdr_to_mbox(drivers);
+                    return crate::packet::copy_resp_hdr_to_mbox::<RevokeExportedCdiHandleResp>(
+                        drivers,
+                    );
                 }
                 _ => (),
             }
@@ -65,7 +67,9 @@ impl RevokeExportedCdiHandleCmd {
                 slot.active = U8Bool::new(false);
                 slot.zeroize();
 
-                return crate::packet::copy_resp_hdr_to_mbox(drivers);
+                return crate::packet::copy_resp_hdr_to_mbox::<RevokeExportedCdiHandleResp>(
+                    drivers,
+                );
             }
         }
 

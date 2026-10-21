@@ -1,12 +1,45 @@
 // Licensed under the Apache-2.0 license
 
-use crate::get_idev_csr::send_csr_resp;
+use crate::packet::{copy_req_hdr_from_mbox, copy_to_mbox};
 use crate::Drivers;
-use caliptra_error::CaliptraResult;
+
+use caliptra_cfi_derive::cfi_impl_fn;
+
+use caliptra_common::mailbox_api::{GetFmcAliasCsrReq, GetFmcAliasCsrResp};
+use caliptra_drivers::FmcAliasCsr;
+use caliptra_error::{CaliptraError, CaliptraResult};
+
+use zerocopy::{FromZeros, IntoBytes};
 
 pub struct GetFmcAliasCsrCmd;
 impl GetFmcAliasCsrCmd {
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
+    #[inline(never)]
     pub(crate) fn execute(drivers: &mut Drivers) -> CaliptraResult<()> {
-        send_csr_resp(drivers, true)
+        copy_req_hdr_from_mbox::<GetFmcAliasCsrReq>(drivers)?;
+        let csr_persistent_mem = &drivers.persistent_data.get().fmc_alias_csr;
+
+        match csr_persistent_mem.get_csr_len() {
+            FmcAliasCsr::UNPROVISIONED_CSR => Err(CaliptraError::RUNTIME_GET_FMC_CSR_UNPROVISIONED),
+            0 => Err(CaliptraError::RUNTIME_GET_FMC_CSR_UNSUPPORTED_FMC),
+            len => {
+                let csr = csr_persistent_mem
+                    .get()
+                    .ok_or(CaliptraError::RUNTIME_GET_FMC_CSR_UNPROVISIONED)?;
+
+                // NOTE: This code will not panic.
+                //
+                // csr is guranteed to be the same size as `len`, and therefore
+                // `resp.data_size` by the `FmcAliasCsr::get` API.
+                //
+                // A valid `FmcAliasCsr` cannot be larger than `MAX_FMC_ALIAS_CSR_SIZE`, which is the max
+                // size of the buffer in `GetIdevCsrResp`
+                let mut resp = GetFmcAliasCsrResp::new_zeroed();
+                resp.data_size = len;
+                resp.data[..len as usize].copy_from_slice(csr);
+
+                copy_to_mbox(drivers, resp.as_mut_bytes())
+            }
+        }
     }
 }
