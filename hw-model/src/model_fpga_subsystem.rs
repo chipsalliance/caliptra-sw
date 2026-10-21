@@ -1,6 +1,5 @@
 // Licensed under the Apache-2.0 license
 
-#![allow(clippy::mut_from_ref)]
 #![allow(dead_code)]
 
 use crate::api_types::{DeviceLifecycle, Fuses};
@@ -29,7 +28,7 @@ use caliptra_image_types::FwVerificationPqcKeyType;
 use sensitive_mmio::{SensitiveMmio, SensitiveMmioArgs};
 use std::marker::PhantomData;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{mpsc, Arc, Mutex};
+use std::sync::{mpsc, Arc, Mutex, RwLock, RwLockReadGuard, RwLockWriteGuard, TryLockError};
 use std::thread;
 use std::time::{Duration, Instant};
 use tock_registers::interfaces::{ReadWriteable, Readable, Writeable};
@@ -186,14 +185,31 @@ const I3C_WRITE_FIFO_SIZE: u16 = 128;
 
 pub struct Wrapper {
     pub ptr: *mut u32,
+    axi_lock: RwLock<()>,
 }
 
 impl Wrapper {
-    pub fn regs(&self) -> &mut WrapperRegs {
-        unsafe { &mut *(self.ptr as *mut WrapperRegs) }
+    pub fn new(ptr: *mut u32) -> Self {
+        Self {
+            ptr,
+            axi_lock: RwLock::new(()),
+        }
     }
-    pub fn fifo_regs(&self) -> &mut FifoRegs {
-        unsafe { &mut *(self.ptr.offset(0x1000 / 4) as *mut FifoRegs) }
+    pub fn regs(&self) -> &WrapperRegs {
+        unsafe { &*(self.ptr as *const WrapperRegs) }
+    }
+    pub fn fifo_regs(&self) -> &FifoRegs {
+        unsafe { &*(self.ptr.offset(0x1000 / 4) as *const FifoRegs) }
+    }
+    pub fn pause_realtime(&self) -> RwLockWriteGuard<'_, ()> {
+        self.axi_lock.write().expect("FPGA realtime lock poisoned")
+    }
+    pub fn try_lock_realtime(&self) -> Option<RwLockReadGuard<'_, ()>> {
+        match self.axi_lock.try_read() {
+            Ok(guard) => Some(guard),
+            Err(TryLockError::WouldBlock) => None,
+            Err(TryLockError::Poisoned(_)) => panic!("FPGA realtime lock poisoned"),
+        }
     }
 }
 unsafe impl Send for Wrapper {}
@@ -417,9 +433,6 @@ pub struct ModelFpgaSubsystem {
 
     pub realtime_thread: Option<thread::JoinHandle<()>>,
     pub realtime_thread_exit_flag: Arc<AtomicBool>,
-    /// Set while a cold reset is in progress so the realtime thread does not
-    /// touch the AXI bus and crash the FPGA driver. Adapted from #3413.
-    pub realtime_thread_paused: Arc<AtomicBool>,
 
     pub fuses: Fuses,
     pub otp_init: Vec<u8>,
@@ -833,52 +846,50 @@ impl ModelFpgaSubsystem {
     fn realtime_thread_itrng_fn(
         wrapper: Arc<Wrapper>,
         running: Arc<AtomicBool>,
-        paused: Arc<AtomicBool>,
         mut itrng_nibbles: Box<dyn Iterator<Item = u8> + Send>,
     ) {
-        // Reset ITRNG FIFO to clear out old data
-
-        wrapper
-            .fifo_regs()
-            .itrng_fifo_status
-            .write(ItrngFifoStatus::Reset::SET);
-        wrapper
-            .fifo_regs()
-            .itrng_fifo_status
-            .write(ItrngFifoStatus::Reset::CLEAR);
+        if let Some(_guard) = wrapper.try_lock_realtime() {
+            wrapper
+                .fifo_regs()
+                .itrng_fifo_status
+                .write(ItrngFifoStatus::Reset::SET);
+            wrapper
+                .fifo_regs()
+                .itrng_fifo_status
+                .write(ItrngFifoStatus::Reset::CLEAR);
+        }
 
         // Small delay to allow reset to complete
         thread::sleep(Duration::from_millis(1));
 
-        while running.load(Ordering::Relaxed) {
-            if paused.load(Ordering::Relaxed) {
-                // Cold reset is in progress; do not touch the AXI bus.
+        while running.load(Ordering::Acquire) {
+            if let Some(_guard) = wrapper.try_lock_realtime() {
+                // Once TRNG data is requested the FIFO will continuously empty.
+                for _ in 0..FPGA_ITRNG_FIFO_SIZE {
+                    if !wrapper
+                        .fifo_regs()
+                        .itrng_fifo_status
+                        .is_set(ItrngFifoStatus::Full)
+                    {
+                        let mut itrng_dw = 0;
+                        for i in 0..8 {
+                            match itrng_nibbles.next() {
+                                Some(nibble) => itrng_dw += u32::from(nibble) << (4 * i),
+                                None => return,
+                            }
+                        }
+                        wrapper.fifo_regs().itrng_fifo_data.set(itrng_dw);
+                    } else {
+                        break;
+                    }
+                }
+            } else {
                 thread::sleep(Duration::from_millis(1));
                 continue;
             }
-            // Once TRNG data is requested the FIFO will continously empty. Load at max one FIFO load at a time.
-            // FPGA ITRNG FIFO is 1024 DW deep.
-            for _ in 0..FPGA_ITRNG_FIFO_SIZE {
-                if !wrapper
-                    .fifo_regs()
-                    .itrng_fifo_status
-                    .is_set(ItrngFifoStatus::Full)
-                {
-                    let mut itrng_dw = 0;
-                    for i in 0..8 {
-                        match itrng_nibbles.next() {
-                            Some(nibble) => itrng_dw += u32::from(nibble) << (4 * i),
-                            None => return,
-                        }
-                    }
-                    wrapper.fifo_regs().itrng_fifo_data.set(itrng_dw);
-                } else {
-                    break;
-                }
-            }
             // 1 second * (20 MHz / (2^13 throttling counter)) / 8 nibbles per DW: 305 DW of data consumed in 1 second.
             let end_time = Instant::now() + Duration::from_millis(1000);
-            while running.load(Ordering::Relaxed) && Instant::now() < end_time {
+            while running.load(Ordering::Acquire) && Instant::now() < end_time {
                 thread::sleep(Duration::from_millis(1));
             }
         }
@@ -1769,11 +1780,11 @@ impl HwModel for ModelFpgaSubsystem {
         let dev1 = UioDevice::blocking_new(1)?;
         let devs = [dev0, dev1];
 
-        let wrapper = Arc::new(Wrapper {
-            ptr: devs[FPGA_WRAPPER_MAPPING.0]
+        let wrapper = Arc::new(Wrapper::new(
+            devs[FPGA_WRAPPER_MAPPING.0]
                 .map_mapping(FPGA_WRAPPER_MAPPING.1)
                 .map_err(fmt_uio_error)? as *mut u32,
-        });
+        ));
         let caliptra_rom_backdoor = devs[CALIPTRA_ROM_MAPPING.0]
             .map_mapping(CALIPTRA_ROM_MAPPING.1)
             .map_err(fmt_uio_error)? as *mut u8;
@@ -1810,8 +1821,6 @@ impl HwModel for ModelFpgaSubsystem {
 
         let realtime_thread_exit_flag = Arc::new(AtomicBool::new(true));
         let realtime_thread_exit_flag2 = realtime_thread_exit_flag.clone();
-        let realtime_thread_paused = Arc::new(AtomicBool::new(false));
-        let realtime_thread_paused2 = realtime_thread_paused.clone();
         let realtime_wrapper = wrapper.clone();
 
         let xi3c_config = xi3c::Config {
@@ -1866,7 +1875,6 @@ impl HwModel for ModelFpgaSubsystem {
             fuses: params.fuses,
             realtime_thread: None,
             realtime_thread_exit_flag,
-            realtime_thread_paused,
 
             output,
             recovery_started: false,
@@ -1920,17 +1928,6 @@ impl HwModel for ModelFpgaSubsystem {
 
         println!("AXI reset");
         m.axi_reset();
-
-        // Wait until after AXI reset to start the thread so we can guarantee the wrapper is not
-        // used while reset is happening. Doing so could cause the AXI bus to hang.
-        m.realtime_thread = Some(std::thread::spawn(move || {
-            Self::realtime_thread_itrng_fn(
-                realtime_wrapper,
-                realtime_thread_exit_flag2,
-                realtime_thread_paused2,
-                params.itrng_nibbles,
-            )
-        }));
 
         // Set generic input wires.
         let input_wires = [(!params.uds_granularity_64 as u32) << 31, 0];
@@ -2027,6 +2024,13 @@ impl HwModel for ModelFpgaSubsystem {
 
         println!("Taking subsystem out of reset");
         m.set_subsystem_reset(false);
+        m.realtime_thread = Some(std::thread::spawn(move || {
+            Self::realtime_thread_itrng_fn(
+                realtime_wrapper,
+                realtime_thread_exit_flag2,
+                params.itrng_nibbles,
+            )
+        }));
         Ok(m)
     }
 
@@ -2250,10 +2254,13 @@ impl HwModel for ModelFpgaSubsystem {
     }
 
     fn warm_reset(&mut self) {
-        // Toggle reset pin
-        self.set_cptra_ss_rst_b(false);
-        std::thread::sleep(std::time::Duration::from_micros(1));
-        self.set_cptra_ss_rst_b(true);
+        {
+            let wrapper = self.wrapper.clone();
+            let _pause = wrapper.pause_realtime();
+            self.set_cptra_ss_rst_b(false);
+            std::thread::sleep(std::time::Duration::from_micros(1));
+            self.set_cptra_ss_rst_b(true);
+        }
 
         self.step_until(|hw| {
             hw.mci_boot_milestones()
@@ -2329,9 +2336,8 @@ impl HwModel for ModelFpgaSubsystem {
         std::thread::sleep(std::time::Duration::from_millis(10));
 
         // Pause the TRNG thread so it doesn't access the AXI bus during reset
-        self.realtime_thread_paused
-            .store(true, std::sync::atomic::Ordering::Relaxed);
-        std::thread::sleep(std::time::Duration::from_millis(2));
+        let wrapper = self.wrapper.clone();
+        let _pause = wrapper.pause_realtime();
 
         // Full AXI reset to clear all subsystem state including MCU
         println!("AXI reset");
@@ -2339,10 +2345,6 @@ impl HwModel for ModelFpgaSubsystem {
 
         // Re-program all hardware registers cleared by AXI reset
         self.setup_hardware_registers();
-
-        // Resume the TRNG thread
-        self.realtime_thread_paused
-            .store(false, std::sync::atomic::Ordering::Relaxed);
     }
 
     fn fuses(&self) -> &Fuses {
@@ -2429,8 +2431,10 @@ impl SocManager for ModelFpgaSubsystem {
 impl Drop for ModelFpgaSubsystem {
     fn drop(&mut self) {
         self.realtime_thread_exit_flag
-            .store(false, Ordering::Relaxed);
-        self.realtime_thread.take().unwrap().join().unwrap();
+            .store(false, Ordering::Release);
+        if let Some(thread) = self.realtime_thread.take() {
+            thread.join().expect("FPGA realtime thread panicked");
+        }
         self.i3c_controller()
             .unwrap()
             .controller
@@ -2588,5 +2592,39 @@ mod sensitive_mmio {
         pub i3c_controller: XI3CWrapper,
         pub otp_mmio: *mut u32,
         pub lc_mmio: *mut u32,
+    }
+}
+
+#[cfg(test)]
+mod realtime_lock_tests {
+    use super::*;
+
+    #[test]
+    fn realtime_lock_excludes_reset_and_background_access() {
+        let wrapper = Wrapper::new(core::ptr::null_mut());
+        let read = wrapper.try_lock_realtime().unwrap();
+        assert!(matches!(
+            wrapper.axi_lock.try_write(),
+            Err(TryLockError::WouldBlock)
+        ));
+        drop(read);
+        let pause = wrapper.pause_realtime();
+        assert!(wrapper.try_lock_realtime().is_none());
+        drop(pause);
+        assert!(wrapper.try_lock_realtime().is_some());
+    }
+
+    #[test]
+    #[should_panic(expected = "FPGA realtime lock poisoned")]
+    fn realtime_lock_reports_poisoning() {
+        let wrapper = Arc::new(Wrapper::new(core::ptr::null_mut()));
+        let writer = wrapper.clone();
+        assert!(thread::spawn(move || {
+            let _pause = writer.pause_realtime();
+            panic!("poison test");
+        })
+        .join()
+        .is_err());
+        let _ = wrapper.try_lock_realtime();
     }
 }
