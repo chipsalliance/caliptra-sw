@@ -1113,10 +1113,6 @@ impl<'a> DmaRecovery<'a> {
         // this because the cipher maintains counter and GHASH state across
         // blocks — breaking it into per-dword transfers with flush() in
         // between would reset the pipeline.
-        //
-        // The per-dword workaround below is only needed because the FPGA
-        // cannot do fixed-address burst transfers (e.g. I3C recovery FIFO).
-        // Normal AXI-to-AXI (non-fixed) burst transfers work fine on FPGA.
         if read_transaction.aes_mode || read_transaction.aes_gcm {
             self.dma.flush();
             self.dma.setup_dma_read(read_transaction);
@@ -1124,34 +1120,44 @@ impl<'a> DmaRecovery<'a> {
             return Ok(());
         }
 
-        // Flush DMA before doing anything
+        // On the Xilinx FPGA, multi-dword AXI bursts (AxBURST = FIXED) to or
+        // from a fixed AXI address lock up the AXI interconnect unless
+        // throttled by the AES engine. Dispatch each (fixed_addr, target)
+        // combination to use hardware bursts for incrementing AXI endpoints
+        // and single-beat 4-byte transfers for fixed AXI endpoints.
         self.dma.flush();
-
-        for i in (0..read_transaction.length).step_by(4) {
-            // if this is an I3C transfer, wait for payload available
-            if matches!(
-                read_transaction.block_mode,
-                BlockMode::RecoveryIndirectFifoData
-            ) {
-                while !self.dma.payload_available() {}
+        match (read_transaction.fixed_addr, &read_transaction.target) {
+            (false, &DmaReadTarget::AxiWr(dst_addr, false)) => {
+                self.exec_dma_read_burst(&read_transaction, dst_addr);
             }
-
-            // translate to single dword transfer
-            match read_transaction.target {
-                DmaReadTarget::AxiWr(addr, fixed) => {
-                    let word = self.dma.read_dword(
-                        read_transaction.read_addr
-                            + if read_transaction.fixed_addr { 0 } else { i },
-                    );
-                    self.dma.write_dword(addr + if fixed { 0 } else { i }, word);
+            (false, &DmaReadTarget::AxiWr(dst_addr, true)) => {
+                self.exec_dma_read_to_fixed_axi(&read_transaction, dst_addr);
+            }
+            (true, &DmaReadTarget::AxiWr(dst_addr, false)) => {
+                self.exec_dma_read_from_fixed_axi(&read_transaction, dst_addr);
+            }
+            (true, &DmaReadTarget::Mbox(mbox_offset)) => {
+                self.exec_dma_read_from_fixed_to_mbox(&read_transaction, mbox_offset);
+            }
+            (true, &DmaReadTarget::AxiWr(dst_addr, true)) => {
+                for _ in (0..read_transaction.length).step_by(4) {
+                    if matches!(
+                        read_transaction.block_mode,
+                        BlockMode::RecoveryIndirectFifoData
+                    ) {
+                        while !self.dma.payload_available() {}
+                    }
+                    let word = self.dma.read_dword(read_transaction.read_addr);
+                    self.dma.write_dword(dst_addr, word);
                 }
-                DmaReadTarget::Mbox(offset) => {
+            }
+            (false, &DmaReadTarget::Mbox(mbox_offset)) => {
+                for i in (0..read_transaction.length).step_by(4) {
                     let rd_tx = DmaReadTransaction {
-                        read_addr: read_transaction.read_addr
-                            + if read_transaction.fixed_addr { 0 } else { i },
+                        read_addr: read_transaction.read_addr + i,
                         fixed_addr: false,
                         length: 4,
-                        target: DmaReadTarget::Mbox(offset + i),
+                        target: DmaReadTarget::Mbox(mbox_offset + i),
                         aes_mode: false,
                         aes_gcm: false,
                         block_mode: read_transaction.block_mode,
@@ -1160,10 +1166,178 @@ impl<'a> DmaRecovery<'a> {
                     self.dma.setup_dma_read(rd_tx);
                     self.dma.wait_for_dma_complete();
                 }
-                _ => Err(CaliptraError::DRIVER_DMA_SHA_ACCELERATOR_NOT_LOCKED)?, // should be unreachable
-            };
+            }
+            (_, &DmaReadTarget::AhbFifo) => {
+                return Err(CaliptraError::DRIVER_DMA_SHA_ACCELERATOR_NOT_LOCKED);
+            }
         }
         Ok(())
+    }
+
+    #[cfg(any(feature = "fpga_realtime", feature = "fpga_subsystem"))]
+    fn wait_dma_idle(dma: &RegisterBlock<RealMmioMut>) {
+        loop {
+            let status = dma.status0().read();
+            if status.error() {
+                let error_type = dma.intr_block_rf().error_internal_intr_r().read();
+                cprintln!("DMA error! ({:?})", u32::from(error_type));
+            }
+            if !status.busy() {
+                break;
+            }
+        }
+    }
+
+    /// FPGA hardware burst path for DMA reads where both source and destination
+    /// use incrementing AXI addresses (`!fixed_addr` and `AxiWr(_, false)`).
+    ///
+    /// Splits transfers larger than [`Self::DMA_MAX_XFER_SIZE`] (1 MiB) into
+    /// chunks so callers such as `activate_firmware` are not limited by the
+    /// hardware `byte_count` maximum.
+    #[cfg(any(feature = "fpga_realtime", feature = "fpga_subsystem"))]
+    fn exec_dma_read_burst(&self, read_transaction: &DmaReadTransaction, dst_addr: AxiAddr) {
+        for offset in (0..read_transaction.length).step_by(Self::DMA_MAX_XFER_SIZE as usize) {
+            let chunk = (read_transaction.length - offset).min(Self::DMA_MAX_XFER_SIZE);
+            let tx = DmaReadTransaction {
+                read_addr: read_transaction.read_addr + offset,
+                fixed_addr: false,
+                length: chunk,
+                target: DmaReadTarget::AxiWr(dst_addr + offset, false),
+                aes_mode: false,
+                aes_gcm: false,
+                block_mode: read_transaction.block_mode,
+            };
+            self.dma.flush();
+            self.dma.setup_dma_read(tx);
+            self.dma.wait_for_dma_complete();
+        }
+    }
+
+    /// FPGA workaround for DMA reads from a non-fixed AXI source (e.g. MCU SRAM)
+    /// to a fixed AXI destination (e.g. SHA accelerator `datain`).
+    ///
+    /// Burst-reads up to 64 dwords at a time from the incrementing source address
+    /// into a stack buffer, then pushes each dword as a single-beat 4-byte DMA
+    /// write to `dst_addr` with the DMA address/size registers pre-programmed.
+    #[cfg(any(feature = "fpga_realtime", feature = "fpga_subsystem"))]
+    fn exec_dma_read_to_fixed_axi(&self, read_transaction: &DmaReadTransaction, dst_addr: AxiAddr) {
+        let total_dwords = (read_transaction.length as usize).div_ceil(4);
+        let mut dword_offset = 0usize;
+        let mut buf = [0u32; 64];
+        while dword_offset < total_dwords {
+            let max_batch = (total_dwords - dword_offset).min(buf.len());
+            let byte_offset = (dword_offset * 4) as u32;
+            self.dma.read_buffer(
+                read_transaction.read_addr + byte_offset,
+                &mut buf[..max_batch],
+            );
+            self.dma.with_dma(|dma| {
+                dma.dst_addr_l().write(|_| dst_addr.lo);
+                dma.dst_addr_h().write(|_| dst_addr.hi);
+                dma.src_addr_l().write(|_| 0);
+                dma.src_addr_h().write(|_| 0);
+                dma.byte_count().write(|_| 4);
+                // Block size is always 0 for DMA writes (WrRouteE::AhbFifo).
+                dma.block_size().write(|f| f.size(0));
+                for word in &buf[..max_batch] {
+                    dma.ctrl().write(|c| {
+                        c.wr_route(|_| WrRouteE::AhbFifo)
+                            .rd_route(|_| RdRouteE::Disable)
+                            .go(true)
+                    });
+                    dma.write_data().write(|_| *word);
+                    Self::wait_dma_idle(&dma);
+                }
+            });
+            dword_offset += max_batch;
+        }
+    }
+
+    /// FPGA workaround for DMA reads from a fixed AXI source (e.g. I3C
+    /// `INDIRECT_FIFO_DATA`) to a non-fixed AXI destination (e.g. MCU SRAM).
+    ///
+    /// Reads up to 64 dwords from the fixed source address using single-beat
+    /// 4-byte DMA reads with pre-programmed address/size registers, then
+    /// burst-writes the batch to `dst_addr + byte_offset`.
+    #[cfg(any(feature = "fpga_realtime", feature = "fpga_subsystem"))]
+    fn exec_dma_read_from_fixed_axi(
+        &self,
+        read_transaction: &DmaReadTransaction,
+        dst_addr: AxiAddr,
+    ) {
+        let total_dwords = (read_transaction.length as usize).div_ceil(4);
+        let mut dword_offset = 0usize;
+        let mut buf = [0u32; 64];
+        let wait_payload = matches!(
+            read_transaction.block_mode,
+            BlockMode::RecoveryIndirectFifoData
+        );
+        let block_size = read_transaction.block_size();
+        while dword_offset < total_dwords {
+            let max_batch = (total_dwords - dword_offset).min(buf.len());
+            let byte_offset = (dword_offset * 4) as u32;
+            self.dma.with_dma(|dma| {
+                dma.src_addr_l().write(|_| read_transaction.read_addr.lo);
+                dma.src_addr_h().write(|_| read_transaction.read_addr.hi);
+                dma.dst_addr_l().write(|_| 0);
+                dma.dst_addr_h().write(|_| 0);
+                dma.byte_count().write(|_| 4);
+                dma.block_size().write(|f| f.size(block_size));
+                for item in &mut buf[..max_batch] {
+                    if wait_payload {
+                        while !dma.status0().read().payload_available() {}
+                    }
+                    dma.ctrl().write(|c| {
+                        c.rd_route(|_| RdRouteE::AhbFifo)
+                            .wr_route(|_| WrRouteE::Disable)
+                            .go(true)
+                    });
+                    while dma.status0().read().fifo_depth() == 0 {}
+                    *item = dma.read_data().read();
+                    Self::wait_dma_idle(&dma);
+                }
+            });
+            self.dma
+                .write_buffer(dst_addr + byte_offset, &buf[..max_batch]);
+            dword_offset += max_batch;
+        }
+    }
+
+    /// FPGA workaround for DMA reads from a fixed AXI source (e.g. I3C
+    /// `INDIRECT_FIFO_DATA`) to Caliptra mailbox SRAM (`DmaReadTarget::Mbox`).
+    ///
+    /// Pre-programs the invariant DMA source/size registers once and issues
+    /// single-beat 4-byte DMA reads to `mbox_offset + i`.
+    #[cfg(any(feature = "fpga_realtime", feature = "fpga_subsystem"))]
+    fn exec_dma_read_from_fixed_to_mbox(
+        &self,
+        read_transaction: &DmaReadTransaction,
+        mbox_offset: u32,
+    ) {
+        let wait_payload = matches!(
+            read_transaction.block_mode,
+            BlockMode::RecoveryIndirectFifoData
+        );
+        let block_size = read_transaction.block_size();
+        self.dma.with_dma(|dma| {
+            dma.src_addr_l().write(|_| read_transaction.read_addr.lo);
+            dma.src_addr_h().write(|_| read_transaction.read_addr.hi);
+            dma.dst_addr_h().write(|_| 0);
+            dma.byte_count().write(|_| 4);
+            dma.block_size().write(|f| f.size(block_size));
+            for i in (0..read_transaction.length).step_by(4) {
+                if wait_payload {
+                    while !dma.status0().read().payload_available() {}
+                }
+                dma.dst_addr_l().write(|_| mbox_offset + i);
+                dma.ctrl().write(|c| {
+                    c.rd_route(|_| RdRouteE::Mbox)
+                        .wr_route(|_| WrRouteE::Disable)
+                        .go(true)
+                });
+                Self::wait_dma_idle(&dma);
+            }
+        });
     }
 
     #[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
