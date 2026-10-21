@@ -241,6 +241,10 @@ pub struct CaliptraRootBusArgs<'a> {
     // If true, the recovery interface in the MCU will be used,
     // otherwise, the local recovery interface is used.
     pub use_mcu_recovery_interface: bool,
+
+    pub enable_external_soc_dma: bool,
+
+    pub subsystem_addresses: Option<crate::dma::axi_root_bus::SubsystemAddresses>,
 }
 impl Default for CaliptraRootBusArgs<'_> {
     fn default() -> Self {
@@ -264,6 +268,8 @@ impl Default for CaliptraRootBusArgs<'_> {
             etrng_responses: Box::new(RandomEtrngResponses::new_from_stdrng()),
             test_sram: None,
             use_mcu_recovery_interface: false,
+            enable_external_soc_dma: false,
+            subsystem_addresses: None,
         }
     }
 }
@@ -355,6 +361,8 @@ impl CaliptraRootBus {
         let itrng_nibbles = args.itrng_nibbles.take();
         let test_sram = std::mem::take(&mut args.test_sram);
         let use_mcu_recovery_interface = args.use_mcu_recovery_interface;
+        let enable_external_soc_dma = args.enable_external_soc_dma;
+        let subsystem_addresses = args.subsystem_addresses.unwrap_or_default();
         let mci = Mci::new(prod_dbg_unlock_keypairs);
         let soc_reg = SocRegistersInternal::new(mailbox.clone(), iccm.clone(), mci.clone(), args);
         if !soc_reg.is_debug_locked() {
@@ -371,6 +379,8 @@ impl CaliptraRootBus {
             mci.clone(),
             test_sram,
             use_mcu_recovery_interface,
+            enable_external_soc_dma,
+            subsystem_addresses,
         );
 
         let sha512 = HashSha512::new(clock, key_vault.clone());
