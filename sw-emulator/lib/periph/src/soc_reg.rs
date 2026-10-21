@@ -425,11 +425,7 @@ impl SocRegistersInternal {
 
     /// Get HEK seed
     pub fn doe_hek_seed(&self) -> [u8; INTERNAL_HEK_SEED_SIZE] {
-        if self.is_debug_locked() {
-            bytes_from_words_be(&self.regs.borrow().fuse_hek_seed)
-        } else {
-            [0xff_u8; INTERNAL_HEK_SEED_SIZE]
-        }
+        bytes_from_words_be(&self.regs.borrow().fuse_hek_seed)
     }
 
     /// Clear secrets
@@ -2023,10 +2019,11 @@ mod tests {
             },
         );
         soc.external_regs().regs.borrow_mut().fuse_field_entropy = [0x33333333; 8];
+        soc.external_regs().regs.borrow_mut().fuse_hek_seed = [0xABAB_ABABu32; 8];
         assert_eq!(soc.uds(), [0xff_u8; 64]);
         assert_eq!(soc.field_entropy(), [0xff_u8; 32]);
         assert_eq!(soc.doe_key(), [0xff_u8; 32]);
-        assert_eq!(soc.doe_hek_seed(), [0xff_u8; 32]);
+        assert_eq!(soc.doe_hek_seed(), [0xABu8; 32].as_bytes());
     }
 
     #[test]

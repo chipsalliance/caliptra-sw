@@ -79,7 +79,7 @@ impl DoeInput {
             uds_seed: [0xffff_ffff_u32; 16],
             field_entropy_seed: [0xffff_ffff_u32; 8],
 
-            hek_seed: [0xffff_ffff_u32; 8],
+            hek_seed: caliptra_hw_model_types::DEFAULT_HEK_SEED,
 
             // In debug mode, this defaults to 0xaaaa_aaaa
             keyvault_initial_word_value: 0xaaaa_aaaa,

@@ -590,6 +590,10 @@ impl ModelFpgaSubsystem {
             .num_of_prod_debug_unlock_auth_pk_hashes
             .set(num_prod_dbg);
         self.set_ss_ocp_lock(ocp_lock_en);
+        self.wrapper
+            .regs()
+            .ocp_lock_control_reg
+            .write(EncryptionEngineControl::RDY::READY);
 
         println!("Writing MCU reset vector");
         self.wrapper
@@ -903,14 +907,7 @@ impl ModelFpgaSubsystem {
         type Metadata = [u32; OCP_LOCK_ENCRYPTION_ENGINE_METADATA_SIZE / size_of::<u32>()];
         type Aux = [u32; OCP_LOCK_ENCRYPTION_ENGINE_AUX_SIZE / size_of::<u32>()];
 
-        enum EncryptionEngineState {
-            WaitCommand,
-            WaitClear,
-        }
-
         let mut key_cache: HashMap<Metadata, (Aux, Mek)> = HashMap::new();
-        let mut internal_state: EncryptionEngineState = EncryptionEngineState::WaitCommand;
-        let mut prev_cmd: u32 = 0;
 
         wrapper
             .regs()
@@ -921,85 +918,72 @@ impl ModelFpgaSubsystem {
         thread::sleep(Duration::from_millis(1));
 
         while running.load(Ordering::Relaxed) {
-            // To maintain the ready bit
-            wrapper
-                .regs()
-                .ocp_lock_control_reg
-                .modify(EncryptionEngineControl::RDY::READY);
-
             // If paused, sleep and check again
             if paused.load(Ordering::Relaxed) {
                 thread::sleep(Duration::from_millis(1));
                 continue;
             }
 
-            match internal_state {
-                EncryptionEngineState::WaitCommand => {
-                    let mut cmd = wrapper.regs().ocp_lock_control_reg.extract();
-                    if cmd.is_set(EncryptionEngineControl::EXE) {
-                        match cmd.read_as_enum::<EncryptionEngineControl::CMD::Value>(
-                            EncryptionEngineControl::CMD,
-                        ) {
-                            Some(EncryptionEngineControl::CMD::Value::LOAD_MEK) => {
-                                let metadata: Metadata = wrapper
-                                    .regs()
-                                    .ocp_lock_metadata_reg
-                                    .each_ref()
-                                    .map(|r| r.get());
-                                let aux: Aux = wrapper
-                                    .regs()
-                                    .ocp_lock_auxiliary_data_reg
-                                    .each_ref()
-                                    .map(|r| r.get());
-                                let mek: Mek = wrapper
-                                    .regs()
-                                    .ocp_lock_key_release_reg
-                                    .each_ref()
-                                    .map(|r| r.get());
-                                key_cache.insert(metadata, (aux, mek));
+            let mut cmd = wrapper.regs().ocp_lock_control_reg.extract();
+            if !cmd.is_set(EncryptionEngineControl::RDY) {
+                cmd.modify(EncryptionEngineControl::RDY::READY);
+                wrapper.regs().ocp_lock_control_reg.set(cmd.get());
+            }
 
-                                cmd.modify(EncryptionEngineControl::ERR::NO_ERROR);
-                            }
-                            Some(EncryptionEngineControl::CMD::Value::UNLOAD_MEK) => {
-                                let metadata: Metadata = wrapper
-                                    .regs()
-                                    .ocp_lock_metadata_reg
-                                    .each_ref()
-                                    .map(|r| r.get());
-                                key_cache.remove(&metadata);
-
-                                cmd.modify(EncryptionEngineControl::ERR::NO_ERROR);
-                            }
-                            Some(EncryptionEngineControl::CMD::Value::ZEROIZE) => {
-                                key_cache.clear();
-
-                                cmd.modify(EncryptionEngineControl::ERR::NO_ERROR);
-                            }
-                            _ => {
-                                cmd.modify(EncryptionEngineControl::ERR::INVALID_COMMAND);
-                            }
-                        };
-                        cmd.modify(
-                            EncryptionEngineControl::DONE::DONE
-                                + EncryptionEngineControl::EXE::IDLE
-                                + EncryptionEngineControl::RDY::READY,
-                        );
-
-                        prev_cmd = cmd.get();
-                        wrapper.regs().ocp_lock_control_reg.set(prev_cmd);
-                        internal_state = EncryptionEngineState::WaitClear;
-                    }
-                }
-                EncryptionEngineState::WaitClear => {
-                    let cmd = wrapper.regs().ocp_lock_control_reg.extract();
-                    if cmd.get() != prev_cmd && cmd.is_set(EncryptionEngineControl::DONE) {
-                        wrapper
+            if cmd.is_set(EncryptionEngineControl::EXE)
+                && !cmd.is_set(EncryptionEngineControl::DONE)
+                && cmd.read(EncryptionEngineControl::CMD) != 0
+            {
+                match cmd.read_as_enum::<EncryptionEngineControl::CMD::Value>(
+                    EncryptionEngineControl::CMD,
+                ) {
+                    Some(EncryptionEngineControl::CMD::Value::LOAD_MEK)
+                    | Some(EncryptionEngineControl::CMD::Value::LOAD_KAT_MEK) => {
+                        let metadata: Metadata = wrapper
                             .regs()
-                            .ocp_lock_control_reg
-                            .write(EncryptionEngineControl::RDY::READY);
-                        internal_state = EncryptionEngineState::WaitCommand;
+                            .ocp_lock_metadata_reg
+                            .each_ref()
+                            .map(|r| r.get());
+                        let aux: Aux = wrapper
+                            .regs()
+                            .ocp_lock_auxiliary_data_reg
+                            .each_ref()
+                            .map(|r| r.get());
+                        let mek: Mek = wrapper
+                            .regs()
+                            .ocp_lock_key_release_reg
+                            .each_ref()
+                            .map(|r| r.get());
+                        key_cache.insert(metadata, (aux, mek));
+
+                        cmd.modify(EncryptionEngineControl::ERR::NO_ERROR);
                     }
-                }
+                    Some(EncryptionEngineControl::CMD::Value::UNLOAD_MEK) => {
+                        let metadata: Metadata = wrapper
+                            .regs()
+                            .ocp_lock_metadata_reg
+                            .each_ref()
+                            .map(|r| r.get());
+                        key_cache.remove(&metadata);
+
+                        cmd.modify(EncryptionEngineControl::ERR::NO_ERROR);
+                    }
+                    Some(EncryptionEngineControl::CMD::Value::ZEROIZE) => {
+                        key_cache.clear();
+
+                        cmd.modify(EncryptionEngineControl::ERR::NO_ERROR);
+                    }
+                    _ => {
+                        cmd.modify(EncryptionEngineControl::ERR::INVALID_COMMAND);
+                    }
+                };
+                cmd.modify(
+                    EncryptionEngineControl::DONE::DONE
+                        + EncryptionEngineControl::EXE::IDLE
+                        + EncryptionEngineControl::RDY::READY,
+                );
+
+                wrapper.regs().ocp_lock_control_reg.set(cmd.get());
             }
 
             thread::sleep(Duration::from_millis(1));
@@ -2601,15 +2585,37 @@ impl HwModel for ModelFpgaSubsystem {
         self.bmc_step_counter = 0;
         self.blocks_sent = 0;
 
+        // Pause the TRNG and encryption engine threads so they don't access the AXI bus during reset
+        self.realtime_thread_paused.store(true, Ordering::Relaxed);
+        self.realtime_encryption_engine_paused
+            .store(true, Ordering::Relaxed);
+        std::thread::sleep(Duration::from_millis(2));
+
         // Toggle reset pin
         self.set_cptra_ss_rst_b(false);
         std::thread::sleep(std::time::Duration::from_micros(1));
         self.set_cptra_ss_rst_b(true);
 
-        self.step_until(|hw| {
-            hw.mci_boot_milestones()
-                .contains(McuBootMilestones::CPTRA_FUSES_WRITTEN)
-        });
+        // Resume the TRNG and encryption engine threads
+        self.realtime_thread_paused.store(false, Ordering::Relaxed);
+        self.realtime_encryption_engine_paused
+            .store(false, Ordering::Relaxed);
+
+        // Wait for MCU ROM to complete its initial MCI register reads and warm
+        // boot configuration before polling S_AXI_MCI from the host, avoiding
+        // AXI read collisions on S_AXI_MCI.
+        for _ in 0..20 {
+            std::thread::sleep(Duration::from_millis(1));
+            self.step();
+        }
+
+        while !self
+            .mci_boot_milestones()
+            .contains(McuBootMilestones::CPTRA_FUSES_WRITTEN)
+        {
+            std::thread::sleep(Duration::from_millis(1));
+            self.step();
+        }
     }
 
     fn staging_physical_address(&mut self) -> Result<u64, ModelError> {

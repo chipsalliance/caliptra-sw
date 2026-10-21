@@ -88,6 +88,7 @@ register_bitfields! {
             LOAD_MEK = 1,
             UNLOAD_MEK = 2,
             ZEROIZE = 3,
+            LOAD_KAT_MEK = 4,
         ],
         ERR OFFSET(16) NUMBITS(4) [
             NO_ERROR = 0,
