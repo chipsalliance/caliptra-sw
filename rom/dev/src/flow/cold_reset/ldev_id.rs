@@ -129,7 +129,7 @@ impl LocalDevIdLayer {
     /// * `fe`  - Key slot holding the field entropy
     /// * `cdi` - Key Slot to store the generated CDI
     #[cfg_attr(feature = "cfi", cfi_impl_fn)]
-    fn derive_cdi(env: &mut RomEnv, fe: KeyId, cdi: KeyId) -> CaliptraResult<()> {
+    pub(crate) fn derive_cdi(env: &mut RomEnv, fe: KeyId, cdi: KeyId) -> CaliptraResult<()> {
         Crypto::hmac_mac(
             &mut env.hmac,
             &mut env.trng,
@@ -166,7 +166,7 @@ impl LocalDevIdLayer {
     /// * `idev` - Key slot holding the IDevID CDI
     /// * `stable_idev` - Key Slot to store the generated stable identity root IDevID key
     #[cfg_attr(feature = "cfi", cfi_impl_fn)]
-    fn derive_stable_identity_root_idev(
+    pub(crate) fn derive_stable_identity_root_idev(
         env: &mut RomEnv,
         idev: KeyId,
         stable_idev: KeyId,
@@ -201,7 +201,7 @@ impl LocalDevIdLayer {
     /// * `ldev` - Key slot holding the LDevID CDI
     /// * `stable_ldev` - Key Slot to store the generated stable identity root LDevID key
     #[cfg_attr(feature = "cfi", cfi_impl_fn)]
-    fn derive_stable_identity_root_ldev(
+    pub(crate) fn derive_stable_identity_root_ldev(
         env: &mut RomEnv,
         ldev: KeyId,
         stable_ldev: KeyId,
