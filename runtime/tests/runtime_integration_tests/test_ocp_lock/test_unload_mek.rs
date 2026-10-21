@@ -15,7 +15,7 @@ use super::{
     OcpLockBootParams, TEST_AUX, TEST_METADATA,
 };
 
-#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
+#[cfg(not(feature = "fpga_realtime"))]
 #[test]
 fn test_unload_mek_success() {
     let mut model = boot_ocp_lock_runtime(OcpLockBootParams {
@@ -128,7 +128,7 @@ fn test_unload_mek_success() {
     });
 }
 
-#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
+#[cfg(not(feature = "fpga_realtime"))]
 #[test]
 fn test_unload_mek_without_loading() {
     let mut model = boot_ocp_lock_runtime(OcpLockBootParams {
@@ -197,7 +197,7 @@ fn test_unload_mek_without_loading() {
     }
 }
 
-#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
+#[cfg(not(feature = "fpga_realtime"))]
 #[test]
 fn test_unload_mek_command_timeout() {
     let mut model = boot_ocp_lock_runtime(OcpLockBootParams {
