@@ -5,3 +5,7 @@
 [submodule "hw/rev-2_1/caliptra-ss"]
 	path = hw/rev-2_1/caliptra-ss
 	url = https://github.com/chipsalliance/caliptra-ss.git
+[submodule "hw/rev-2_2/caliptra-ss"]
+	path = hw/rev-2_2/caliptra-ss
+	url = https://github.com/pjhades/caliptra-ss.git
+	branch = stash-measurement
