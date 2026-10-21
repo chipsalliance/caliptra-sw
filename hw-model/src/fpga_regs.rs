@@ -44,6 +44,7 @@ register_bitfields! {
         ReadyForRuntime OFFSET(4) NUMBITS(1) [],
         MailboxDataAvail OFFSET(5) NUMBITS(1) [],
         MailboxFlowDone OFFSET(6) NUMBITS(1) [],
+        CptraSsMcuHaltStatusO OFFSET(7) NUMBITS(1) [],
     ],
     pub FifoStatus [
         Empty OFFSET(0) NUMBITS(1) [],
