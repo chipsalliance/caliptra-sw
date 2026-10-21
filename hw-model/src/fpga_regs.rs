@@ -76,6 +76,28 @@ register_bitfields! {
         RecoveryImageActivatedO OFFSET(3) NUMBITS(1) [],
         UseExtI3cHost OFFSET(31) NUMBITS(1) [],
     ],
+    pub EncryptionEngineControl [
+        EXE OFFSET(0) NUMBITS(1) [
+            IDLE = 0,
+            RUN = 1,
+        ],
+        DONE OFFSET(1) NUMBITS(1) [
+            DONE = 1,
+        ],
+        CMD OFFSET(2) NUMBITS(4) [
+            LOAD_MEK = 1,
+            UNLOAD_MEK = 2,
+            ZEROIZE = 3,
+            LOAD_KAT_MEK = 4,
+        ],
+        ERR OFFSET(16) NUMBITS(4) [
+            NO_ERROR = 0,
+            INVALID_COMMAND = 1,
+        ],
+        RDY OFFSET(31) NUMBITS(1) [
+            READY = 1,
+        ]
+    ],
 }
 
 register_structs! {
@@ -139,6 +161,10 @@ register_structs! {
         (0x15c => pub spare_i3c_control_sts: ReadWrite<u32, SpareI3cControlSts::Register>),
         (0x160 => _reserved1),
         (0x200 => pub ocp_lock_key_release_reg: [ReadWrite<u32>; 16]),
-        (0x240 => @END),
+        (0x240 => pub ocp_lock_metadata_reg: [ReadWrite<u32>; 5]),
+        (0x254 => _reserved2),
+        (0x260 => pub ocp_lock_auxiliary_data_reg: [ReadWrite<u32>; 8]),
+        (0x280 => pub ocp_lock_control_reg: ReadWrite<u32, EncryptionEngineControl::Register>),
+        (0x284 => @END),
     }
 }

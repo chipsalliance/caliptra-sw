@@ -49,7 +49,7 @@ fn validate_success_response(
     });
 }
 
-#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
+#[cfg(not(feature = "fpga_realtime"))]
 #[test]
 fn test_load_kat_mek_command_success() {
     let mut model = boot_ocp_lock_runtime(OcpLockBootParams {
@@ -74,7 +74,7 @@ fn test_load_kat_mek_command_success() {
     validate_success_response(&mut model, response);
 }
 
-#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
+#[cfg(not(feature = "fpga_realtime"))]
 #[test]
 fn test_load_kat_mek_timeout() {
     let mut model = boot_ocp_lock_runtime(OcpLockBootParams {

@@ -6,8 +6,8 @@
 use crate::api_types::{DeviceLifecycle, Fuses};
 use crate::bmc::Bmc;
 use crate::fpga_regs::{
-    Control, FifoData, FifoRegs, FifoStatus, FlashControl, FlashCtrlRegs, FlashOpStatus,
-    ItrngFifoStatus, SpareI3cControlSts, WrapperRegs,
+    Control, EncryptionEngineControl, FifoData, FifoRegs, FifoStatus, FlashControl, FlashCtrlRegs,
+    FlashOpStatus, ItrngFifoStatus, SpareI3cControlSts, WrapperRegs,
 };
 use crate::keys::{DEFAULT_LIFECYCLE_RAW_TOKENS, DEFAULT_MANUF_DEBUG_UNLOCK_RAW_TOKEN};
 use crate::mcu_boot_status::McuBootMilestones;
@@ -23,12 +23,17 @@ use crate::{
 };
 use crate::{OcpLockState, ProvisioningStage, SecurityState};
 use anyhow::Result;
+use caliptra_api::mailbox::{
+    OCP_LOCK_ENCRYPTION_ENGINE_AUX_SIZE, OCP_LOCK_ENCRYPTION_ENGINE_MAX_MEK_SIZE,
+    OCP_LOCK_ENCRYPTION_ENGINE_METADATA_SIZE,
+};
 use caliptra_api::SocManager;
 use caliptra_emu_bus::{Bus, BusError, BusMmio, Device, Event, EventData, RecoveryCommandCode};
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
 use caliptra_hw_model_types::{HexSlice, DEFAULT_FIELD_ENTROPY, DEFAULT_UDS_SEED};
 use caliptra_image_types::FwVerificationPqcKeyType;
 use sensitive_mmio::{SensitiveMmio, SensitiveMmioArgs};
+use std::collections::HashMap;
 use std::io::Write;
 use std::marker::PhantomData;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -440,6 +445,11 @@ pub struct ModelFpgaSubsystem {
     saved_security_state: SecurityState,
     saved_lc_state: Option<LifecycleControllerState>,
     saved_use_strap_secrets: bool,
+
+    // OCP LOCK encryption engine FPGA emulator
+    pub realtime_encryption_engine: Option<thread::JoinHandle<()>>,
+    pub realtime_encryption_engine_exit_flag: Arc<AtomicBool>,
+    pub realtime_encryption_engine_paused: Arc<AtomicBool>,
 }
 
 impl ModelFpgaSubsystem {
@@ -580,6 +590,10 @@ impl ModelFpgaSubsystem {
             .num_of_prod_debug_unlock_auth_pk_hashes
             .set(num_prod_dbg);
         self.set_ss_ocp_lock(ocp_lock_en);
+        self.wrapper
+            .regs()
+            .ocp_lock_control_reg
+            .write(EncryptionEngineControl::RDY::READY);
 
         println!("Writing MCU reset vector");
         self.wrapper
@@ -881,6 +895,98 @@ impl ModelFpgaSubsystem {
             while running.load(Ordering::Relaxed) && Instant::now() < end_time {
                 thread::sleep(Duration::from_millis(1));
             }
+        }
+    }
+
+    fn realtime_encryption_engine_register_handler(
+        wrapper: Arc<Wrapper>,
+        running: Arc<AtomicBool>,
+        paused: Arc<AtomicBool>,
+    ) {
+        type Mek = [u32; OCP_LOCK_ENCRYPTION_ENGINE_MAX_MEK_SIZE / size_of::<u32>()];
+        type Metadata = [u32; OCP_LOCK_ENCRYPTION_ENGINE_METADATA_SIZE / size_of::<u32>()];
+        type Aux = [u32; OCP_LOCK_ENCRYPTION_ENGINE_AUX_SIZE / size_of::<u32>()];
+
+        let mut key_cache: HashMap<Metadata, (Aux, Mek)> = HashMap::new();
+
+        wrapper
+            .regs()
+            .ocp_lock_control_reg
+            .write(EncryptionEngineControl::RDY::READY);
+
+        // Small delay to allow reset to complete
+        thread::sleep(Duration::from_millis(1));
+
+        while running.load(Ordering::Relaxed) {
+            // If paused, sleep and check again
+            if paused.load(Ordering::Relaxed) {
+                thread::sleep(Duration::from_millis(1));
+                continue;
+            }
+
+            let mut cmd = wrapper.regs().ocp_lock_control_reg.extract();
+            if !cmd.is_set(EncryptionEngineControl::RDY) {
+                cmd.modify(EncryptionEngineControl::RDY::READY);
+                wrapper.regs().ocp_lock_control_reg.set(cmd.get());
+            }
+
+            if cmd.is_set(EncryptionEngineControl::EXE)
+                && !cmd.is_set(EncryptionEngineControl::DONE)
+                && cmd.read(EncryptionEngineControl::CMD) != 0
+            {
+                match cmd.read_as_enum::<EncryptionEngineControl::CMD::Value>(
+                    EncryptionEngineControl::CMD,
+                ) {
+                    Some(EncryptionEngineControl::CMD::Value::LOAD_MEK)
+                    | Some(EncryptionEngineControl::CMD::Value::LOAD_KAT_MEK) => {
+                        let metadata: Metadata = wrapper
+                            .regs()
+                            .ocp_lock_metadata_reg
+                            .each_ref()
+                            .map(|r| r.get());
+                        let aux: Aux = wrapper
+                            .regs()
+                            .ocp_lock_auxiliary_data_reg
+                            .each_ref()
+                            .map(|r| r.get());
+                        let mek: Mek = wrapper
+                            .regs()
+                            .ocp_lock_key_release_reg
+                            .each_ref()
+                            .map(|r| r.get());
+                        key_cache.insert(metadata, (aux, mek));
+
+                        cmd.modify(EncryptionEngineControl::ERR::NO_ERROR);
+                    }
+                    Some(EncryptionEngineControl::CMD::Value::UNLOAD_MEK) => {
+                        let metadata: Metadata = wrapper
+                            .regs()
+                            .ocp_lock_metadata_reg
+                            .each_ref()
+                            .map(|r| r.get());
+                        key_cache.remove(&metadata);
+
+                        cmd.modify(EncryptionEngineControl::ERR::NO_ERROR);
+                    }
+                    Some(EncryptionEngineControl::CMD::Value::ZEROIZE) => {
+                        key_cache.clear();
+
+                        cmd.modify(EncryptionEngineControl::ERR::NO_ERROR);
+                    }
+                    _ => {
+                        cmd.modify(EncryptionEngineControl::ERR::INVALID_COMMAND);
+                    }
+                };
+                cmd.modify(
+                    EncryptionEngineControl::DONE::DONE
+                        + EncryptionEngineControl::EXE::IDLE
+                        + EncryptionEngineControl::RDY::READY,
+                );
+
+                wrapper.regs().ocp_lock_control_reg.set(cmd.get());
+            }
+
+            thread::sleep(Duration::from_millis(1));
         }
     }
 
@@ -1897,6 +2003,12 @@ impl HwModel for ModelFpgaSubsystem {
         let realtime_thread_paused2 = realtime_thread_paused.clone();
         let realtime_wrapper = wrapper.clone();
 
+        let realtime_encryption_engine_exit_flag = Arc::new(AtomicBool::new(true));
+        let realtime_encryption_engine_exit_flag2 = realtime_encryption_engine_exit_flag.clone();
+        let realtime_encryption_engine_paused = Arc::new(AtomicBool::new(false));
+        let realtime_encryption_engine_paused2 = realtime_encryption_engine_paused.clone();
+        let realtime_wrapper_for_encryption_engine = wrapper.clone();
+
         let xi3c_config = xi3c::Config {
             device_id: 0,
             base_address: i3c_controller_mmio,
@@ -2002,6 +2114,10 @@ impl HwModel for ModelFpgaSubsystem {
             saved_security_state: params.security_state,
             saved_lc_state: params.ss_init_params.lc_state,
             saved_use_strap_secrets: params.ss_init_params.use_strap_secrets,
+
+            realtime_encryption_engine: None,
+            realtime_encryption_engine_exit_flag,
+            realtime_encryption_engine_paused,
         };
 
         if m.flash_boot && m.use_external_i3c_host {
@@ -2021,6 +2137,14 @@ impl HwModel for ModelFpgaSubsystem {
                 realtime_thread_exit_flag2,
                 realtime_thread_paused2,
                 params.itrng_nibbles,
+            )
+        }));
+
+        m.realtime_encryption_engine = Some(std::thread::spawn(move || {
+            Self::realtime_encryption_engine_register_handler(
+                realtime_wrapper_for_encryption_engine,
+                realtime_encryption_engine_exit_flag2,
+                realtime_encryption_engine_paused2,
             )
         }));
 
@@ -2461,15 +2585,37 @@ impl HwModel for ModelFpgaSubsystem {
         self.bmc_step_counter = 0;
         self.blocks_sent = 0;
 
+        // Pause the TRNG and encryption engine threads so they don't access the AXI bus during reset
+        self.realtime_thread_paused.store(true, Ordering::Relaxed);
+        self.realtime_encryption_engine_paused
+            .store(true, Ordering::Relaxed);
+        std::thread::sleep(Duration::from_millis(2));
+
         // Toggle reset pin
         self.set_cptra_ss_rst_b(false);
         std::thread::sleep(std::time::Duration::from_micros(1));
         self.set_cptra_ss_rst_b(true);
 
-        self.step_until(|hw| {
-            hw.mci_boot_milestones()
-                .contains(McuBootMilestones::CPTRA_FUSES_WRITTEN)
-        });
+        // Resume the TRNG and encryption engine threads
+        self.realtime_thread_paused.store(false, Ordering::Relaxed);
+        self.realtime_encryption_engine_paused
+            .store(false, Ordering::Relaxed);
+
+        // Wait for MCU ROM to complete its initial MCI register reads and warm
+        // boot configuration before polling S_AXI_MCI from the host, avoiding
+        // AXI read collisions on S_AXI_MCI.
+        for _ in 0..20 {
+            std::thread::sleep(Duration::from_millis(1));
+            self.step();
+        }
+
+        while !self
+            .mci_boot_milestones()
+            .contains(McuBootMilestones::CPTRA_FUSES_WRITTEN)
+        {
+            std::thread::sleep(Duration::from_millis(1));
+            self.step();
+        }
     }
 
     fn staging_physical_address(&mut self) -> Result<u64, ModelError> {
@@ -2616,6 +2762,8 @@ impl HwModel for ModelFpgaSubsystem {
 
         // Pause the TRNG thread so it doesn't access the AXI bus during reset
         self.realtime_thread_paused.store(true, Ordering::Relaxed);
+        self.realtime_encryption_engine_paused
+            .store(true, Ordering::Relaxed);
         std::thread::sleep(Duration::from_millis(2));
 
         // Full AXI reset to clear all subsystem state including MCU
@@ -2627,6 +2775,8 @@ impl HwModel for ModelFpgaSubsystem {
 
         // Resume the TRNG thread
         self.realtime_thread_paused.store(false, Ordering::Relaxed);
+        self.realtime_encryption_engine_paused
+            .store(false, Ordering::Relaxed);
     }
 
     fn fuses(&self) -> &Fuses {
@@ -2737,6 +2887,13 @@ impl Drop for ModelFpgaSubsystem {
             .lock()
             .unwrap()
             .off();
+        self.realtime_encryption_engine_exit_flag
+            .store(false, Ordering::Relaxed);
+        self.realtime_encryption_engine
+            .take()
+            .unwrap()
+            .join()
+            .unwrap();
 
         self.set_subsystem_reset(true);
 
