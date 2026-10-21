@@ -25,7 +25,9 @@ use caliptra_common::{
     mailbox_api::{InvokeDpeReq, InvokeDpeResp},
 };
 use caliptra_dpe::{
-    commands::{CertifyKeyCommand, Command, CommandExecution, InitCtxCmd},
+    commands::{
+        CertifyKeyCommand, Command, CommandExecution, CommandHdr, InitCtxCmd, SignMldsa87RawCmd,
+    },
     context::ContextState,
     error::DpeErrorCode,
     response::ResponseHdr,
@@ -358,6 +360,9 @@ struct InvokeDpeMldsa87Header {
 const _: () = assert!(
     size_of::<InvokeDpeMldsa87Header>()
         == size_of::<InvokeDpeMldsa87Req>() - InvokeDpeMldsa87Req::DATA_MAX_SIZE
+);
+const _: () = assert!(
+    InvokeDpeMldsa87Req::DATA_MAX_SIZE == size_of::<CommandHdr>() + size_of::<SignMldsa87RawCmd>()
 );
 
 #[repr(C)]

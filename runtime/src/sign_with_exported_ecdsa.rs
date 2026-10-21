@@ -14,8 +14,8 @@ use caliptra_error::{CaliptraError, CaliptraResult};
 
 use caliptra_dpe::MAX_EXPORTED_CDI_SIZE;
 use caliptra_dpe_crypto::ecdsa::curve_384::{EcdsaPub384, EcdsaSignature384};
-use caliptra_dpe_crypto::ecdsa::{EcdsaPubKey, EcdsaSignature};
-use caliptra_dpe_crypto::{Crypto, Digest, PubKey, SignData, Signature};
+use caliptra_dpe_crypto::ecdsa::{EcdsaAlgorithm, EcdsaPubKey, EcdsaSignature};
+use caliptra_dpe_crypto::{Crypto, Digest, PubKey, SignData, Signature, SignatureAlgorithm};
 use zerocopy::FromBytes;
 
 pub struct SignWithExportedEcdsaCmd;
@@ -41,11 +41,13 @@ impl SignWithExportedEcdsaCmd {
         let signer = key_pair
             .map_err(|_| CaliptraError::RUNTIME_SIGN_WITH_EXPORTED_ECDSA_KEY_DERIVIATION_FAILED)?;
 
-        let pub_key = signer
-            .public_key()
+        let mut pub_key = PubKey::Ecdsa(EcdsaPubKey::Ecdsa384(EcdsaPub384::default()));
+        signer
+            .public_key(&mut pub_key)
             .map_err(|_| CaliptraError::RUNTIME_SIGN_WITH_EXPORTED_ECDSA_KEY_DERIVIATION_FAILED)?;
-        let sig = signer
-            .sign(data)
+        let mut sig = Signature::zeroed(SignatureAlgorithm::Ecdsa(EcdsaAlgorithm::Bit384));
+        signer
+            .sign(data, &mut sig)
             .map_err(|_| CaliptraError::RUNTIME_SIGN_WITH_EXPORTED_ECDSA_SIGNATURE_FAILED)?;
 
         Ok((sig, pub_key))

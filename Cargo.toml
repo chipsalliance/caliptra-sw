@@ -168,10 +168,10 @@ ctr = "0.9.2"
 der = { version = "0.7.10", features = ["derive", "alloc"] }
 # DPE dependencies; keep git revs in sync alongside test/dpe_verification/go.mod.
 # caliptra-2.0 keeps arbitrary_max_handles with ARBITRARY_MAX_HANDLES=32 to preserve the ROM-visible DPE state layout.
-caliptra-dpe = { git = "https://github.com/chipsalliance/caliptra-dpe", rev = "cf3224c41b64789aa556e4f0c78e7395c6528a43", default-features = false, features = ["hybrid", "arbitrary_max_handles"] }
-caliptra-dpe-crypto = { git = "https://github.com/chipsalliance/caliptra-dpe", rev = "cf3224c41b64789aa556e4f0c78e7395c6528a43", default-features = false }
-caliptra-dpe-platform = { git = "https://github.com/chipsalliance/caliptra-dpe", rev = "cf3224c41b64789aa556e4f0c78e7395c6528a43", default-features = false }
-caliptra-dpe-response-buffer = { git = "https://github.com/chipsalliance/caliptra-dpe", rev = "cf3224c41b64789aa556e4f0c78e7395c6528a43" }
+caliptra-dpe = { git = "https://github.com/chipsalliance/caliptra-dpe", rev = "f68eb32d24e7ad8764f65c4b84d743a3f6eab310", default-features = false, features = ["hybrid", "arbitrary_max_handles"] }
+caliptra-dpe-crypto = { git = "https://github.com/chipsalliance/caliptra-dpe", rev = "f68eb32d24e7ad8764f65c4b84d743a3f6eab310", default-features = false }
+caliptra-dpe-platform = { git = "https://github.com/chipsalliance/caliptra-dpe", rev = "f68eb32d24e7ad8764f65c4b84d743a3f6eab310", default-features = false }
+caliptra-dpe-response-buffer = { git = "https://github.com/chipsalliance/caliptra-dpe", rev = "f68eb32d24e7ad8764f65c4b84d743a3f6eab310" }
 elf = "0.7.2"
 fips204 = "0.4.6"
 fslock = "0.2.1"

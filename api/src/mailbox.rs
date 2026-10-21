@@ -1531,6 +1531,9 @@ impl Default for InvokeDpeResp {
 }
 
 // INVOKE_DPE_MLDSA87
+const DPE_COMMAND_HEADER_SIZE: usize = 12;
+const DPE_MLDSA87_RAW_SIGN_COMMAND_SIZE: usize = 1096;
+
 #[repr(C)]
 #[derive(Debug, Default, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
 pub struct InvokeDpeMldsa87Flags(u32);
@@ -1566,7 +1569,7 @@ pub struct InvokeDpeMldsa87Req {
 }
 
 impl InvokeDpeMldsa87Req {
-    pub const DATA_MAX_SIZE: usize = InvokeDpeReq::DATA_MAX_SIZE;
+    pub const DATA_MAX_SIZE: usize = DPE_COMMAND_HEADER_SIZE + DPE_MLDSA87_RAW_SIGN_COMMAND_SIZE;
 
     pub fn as_bytes_partial(&self) -> CaliptraResult<&[u8]> {
         if self.data_size as usize > Self::DATA_MAX_SIZE {
