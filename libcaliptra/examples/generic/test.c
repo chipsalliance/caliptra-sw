@@ -1,4 +1,7 @@
 // Licensed under the Apache-2.0 license
+
+#define LIBCALIPTRA_MMIO_API_V2
+
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>

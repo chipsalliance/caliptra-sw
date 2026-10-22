@@ -7,6 +7,7 @@ package dpe
 #cgo CFLAGS: -I../../libcaliptra/inc -I../../hw-model/c-binding/out -g
 #cgo LDFLAGS: -L../../target/debug -L../../libcaliptra  -lcaliptra -lcaliptra_hw_model_c_binding -ldl -lrt
 #define HWMODEL
+#define LIBCALIPTRA_MMIO_API_V2
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -69,17 +70,15 @@ type CptraModel struct {
 var CaliptraCModel *C.struct_caliptra_model
 
 //export caliptra_write_u32
-func caliptra_write_u32(address C.uint32_t, data C.uint32_t) C.int {
-	result := C.caliptra_model_apb_write_u32(CaliptraCModel, address, data)
+func caliptra_write_u32(address C.uint32_t, data C.uint32_t) {
+	C.caliptra_model_apb_write_u32(CaliptraCModel, address, data)
 
 	C.caliptra_model_step(CaliptraCModel)
-
-	return result
 }
 
 //export caliptra_read_u32
-func caliptra_read_u32(address C.uint32_t, data *C.uint32_t) C.int {
-	return C.caliptra_model_apb_read_u32(CaliptraCModel, address, data)
+func caliptra_read_u32(address C.uint32_t, data *C.uint32_t) {
+	C.caliptra_model_apb_read_u32(CaliptraCModel, address, data)
 }
 
 //export caliptra_wait
