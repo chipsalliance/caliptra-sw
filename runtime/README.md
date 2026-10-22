@@ -235,6 +235,7 @@ locality, so a caller can generally only reach the contexts it created. The
 | `SET_PQ_SEED`                    | PL0                 | Entire command
 | `GET_PQ_CSR`                     | PL0 or PL1          |
 | `GET_PQ_INFO`                    | PL0 or PL1          |
+| `GET_ATTESTED_PQ_CSR`            | PL0 or PL1          |
 | `POPULATE_PQ_CERT`               | PL0                 | Entire command
 | `GET_PQ_CERT`                    | PL0 or PL1          |
 | `INVOKE_DPE_MLDSA87`             | PL0 or PL1          | Same DPE command restrictions as `INVOKE_DPE_COMMAND`
@@ -1231,6 +1232,44 @@ Privilege Level: PL0 or PL1
 | fips\_status | u32     | Indicates if the command is FIPS approved or an error.
 | data\_size | u32       | Length in bytes of the valid data in the data field, with a maximum of 12800.
 | data       | u8[12800] | DER-encoded ML-DSA-87 `PQ.DevID` certificate signing request.
+
+### GET\_ATTESTED\_PQ\_CSR
+
+Returns the `PQ.DevID` ML-DSA-87 CSR as an attested CSR Entity Attestation Token (EAT), per the [OCP Device Identity Provisioning](https://opencomputeproject.github.io/Security/device-identity-provisioning/HEAD/) specification. When `key_id` is 0, it returns the keypair inventory discovery token instead. The token is a CWT-tagged (61) COSE\_Sign1 signed with the `RT Alias` ECC P-384 key (`alg` ESP384, -51). The protected header `kid` is the `RT Alias` certificate subject key identifier. The request and response format matches `GET_ATTESTED_ECC384_CSR` on Caliptra 2.x.
+
+The CSR embedded in the token is byte-identical to the [`GET_PQ_CSR`](#get_pq_csr) output.
+
+The EAT claims are:
+
+| **Claim key** | **Name**                 | **Value**
+| ------------- | ------------------------ | ---------
+| 10            | nonce                    | `nonce` from the request.
+| -70001        | attested CSR             | DER-encoded `PQ.DevID` CSR (`key_id` 1 only).
+| -70002        | key attributes           | `{ 111(OCP KDA OID 1.3.6.1.4.1.42623.1.2): 0 }` (`key_id` 1 only). The derivation-component bitfield is 0: `PQ.DevID` is derived solely from the SoC-provisioned `PQ.DevID.Seed`, so none of the OCP-defined components (UDS, field entropy, fuses, FMC, runtime firmware) apply.
+| -70003        | keypair inventory        | `[[1, <key attributes>]]` (`key_id` 0 only).
+
+Command Code: `0x4150_5143` ("APQC")
+
+Privilege Level: PL0 or PL1
+
+*Table: `GET_ATTESTED_PQ_CSR` input arguments*
+
+| **Name** | **Type** | **Description**
+| -------- | -------- | ---------------
+| chksum   | u32      | Checksum over other input arguments, computed by the caller. Little endian.
+| key\_id  | u32      | **0x0000\_0000:** Keypair inventory discovery <br> **0x0000\_0001:** `PQ.DevID`
+| nonce    | u8[32]   | Nonce to include in the EAT.
+
+*Table: `GET_ATTESTED_PQ_CSR` output arguments*
+
+| **Name**     | **Type**  | **Description**
+| --------     | --------- | ---------------
+| chksum       | u32       | Checksum over other output arguments, computed by Caliptra. Little endian.
+| fips\_status | u32       | Indicates if the command is FIPS approved or an error.
+| data\_size   | u32       | Length in bytes of the valid data in the data field, with a maximum of 12800.
+| data         | u8[12800] | CWT-tagged COSE\_Sign1 EAT.
+
+`key_id` 1 requires `SET_PQ_SEED` to have been performed; otherwise the command fails with `RUNTIME_PQC_NOT_INITIALIZED`. Re-deriving the `PQ.DevID` key and signing the CSR can exceed the default mailbox command watchdog budget, so Runtime Firmware extends the watchdog for this request. Any other `key_id` fails with `RUNTIME_MAILBOX_INVALID_PARAMS`.
 
 ### GET\_PQ\_INFO
 

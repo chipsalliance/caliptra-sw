@@ -807,6 +807,26 @@ pub fn run_pqc_command_suite(
         model.gen_flamegraph("GET_PQ_CSR").unwrap();
     }
 
+    // GET_ATTESTED_PQ_CSR — GET_PQ_CSR path plus EAT wrapping and RT Alias ES384 signing.
+    {
+        use caliptra_common::mailbox_api::GetAttestedPqCsrReq;
+        model.reset_stack_sampler();
+        results.push((
+            "GET_ATTESTED_PQ_CSR",
+            measure_req(
+                sampler,
+                model,
+                CommandId::GET_ATTESTED_PQ_CSR,
+                MailboxReq::GetAttestedPqCsr(GetAttestedPqCsrReq {
+                    hdr: MailboxReqHeader { chksum: 0 },
+                    key_id: GetAttestedPqCsrReq::KEY_ID_PQ_DEVID,
+                    nonce: [0xa5; 32],
+                }),
+            ),
+        ));
+        model.gen_flamegraph("GET_ATTESTED_PQ_CSR").unwrap();
+    }
+
     // CERTIFY_KEY_EXTENDED_MLDSA87 — certify the default DPE context under the
     // ML-DSA-87 (PQ.DevID) identity (leaf keygen + alias signing).
     {

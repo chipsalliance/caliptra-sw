@@ -25,7 +25,10 @@ mod rt_alias_cert_ecc_384;
 mod test_util;
 
 pub use cert_bldr::{Ecdsa384CertBuilder, Ecdsa384CsrBuilder, Ecdsa384Signature};
-pub use cert_bldr::{MlDsa87CertBuilder, MlDsa87CsrBuilder};
+pub use cert_bldr::{
+    MlDsa87CertBuilder, MlDsa87CsrBuilder, MAX_CERT_FRAMING_LEN, MAX_MLDSA87_SIG_DER_LEN,
+    MLDSA87_OID_DER_LEN,
+};
 pub use der_helper::{der_encode_len, der_encode_uint, der_uint_len};
 pub use fmc_alias_cert_ecc_384::{FmcAliasCertTbsEcc384, FmcAliasCertTbsEcc384Params};
 pub use fmc_alias_csr_ecc_384::{FmcAliasCsrTbsEcc384, FmcAliasCsrTbsEcc384Params};

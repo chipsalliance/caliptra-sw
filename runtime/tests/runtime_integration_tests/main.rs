@@ -10,6 +10,7 @@ mod test_command_timing;
 mod test_disable;
 mod test_ecdsa;
 mod test_fips;
+mod test_get_attested_pq_csr;
 mod test_get_fmc_alias_csr;
 mod test_get_idev_csr;
 mod test_get_pq_cert;

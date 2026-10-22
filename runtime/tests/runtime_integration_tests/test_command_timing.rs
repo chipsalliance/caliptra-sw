@@ -12,8 +12,8 @@
 //! before their consumers.
 //!
 //! The ML-DSA-87 commands are measured via `run_pqc_command_suite` (`SET_PQ_SEED`, `GET_PQ_CSR`,
-//! `CERTIFY_KEY_EXTENDED_MLDSA87`, `MLDSA87_SIGNATURE_VERIFY`, `GET_PQ_CERT`,
-//! `POPULATE_PQ_CERT`) and every ML-DSA-87 `INVOKE_DPE` subcommand via
+//! `GET_ATTESTED_PQ_CSR`, `CERTIFY_KEY_EXTENDED_MLDSA87`, `MLDSA87_SIGNATURE_VERIFY`,
+//! `GET_PQ_CERT`, `POPULATE_PQ_CERT`) and every ML-DSA-87 `INVOKE_DPE` subcommand via
 //! `measure_mldsa_dpe_subcommands` (InitCtx, DeriveContext, CertifyKey, Sign,
 //! RotateCtx, DestroyCtx, GetProfile, GetCertificateChain,
 //! UpdateContextMeasurement).
