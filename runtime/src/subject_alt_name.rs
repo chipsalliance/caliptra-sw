@@ -13,7 +13,7 @@ Abstract:
 --*/
 
 use arrayvec::ArrayVec;
-use caliptra_common::mailbox_api::{AddSubjectAltNameReq, MailboxRespHeader};
+use caliptra_common::mailbox_api::AddSubjectAltNameReq;
 use caliptra_error::{CaliptraError, CaliptraResult};
 use zerocopy::{FromZeros, IntoBytes};
 
@@ -43,7 +43,7 @@ impl AddSubjectAltNameCmd {
             .map_err(|_| CaliptraError::RUNTIME_STORE_DMTF_DEVICE_INFO_FAILED)?;
         drivers.dmtf_device_info = Some(dmtf_device_info);
 
-        crate::packet::copy_to_mbox(drivers, MailboxRespHeader::default().as_mut_bytes())
+        crate::packet::copy_resp_hdr_to_mbox::<AddSubjectAltNameReq>(drivers)
     }
 
     /// Verifies that `dmtf_device_info` only contains ascii characters and contains exactly 2 ':'

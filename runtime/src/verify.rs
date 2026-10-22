@@ -12,12 +12,10 @@ Abstract:
 
 --*/
 
-use crate::packet::copy_from_mbox;
+use crate::packet::{copy_from_mbox, copy_resp_hdr_to_mbox};
 use crate::Drivers;
 use caliptra_cfi_derive::cfi_impl_fn;
-use caliptra_common::mailbox_api::{
-    EcdsaVerifyReq, LmsVerifyReq, MailboxRespHeader, Mldsa87VerifyReq,
-};
+use caliptra_common::mailbox_api::{EcdsaVerifyReq, LmsVerifyReq, Mldsa87VerifyReq};
 use caliptra_drivers::{
     Array4x12, CaliptraError, CaliptraResult, Ecc384PubKey, Ecc384Result, Ecc384Scalar,
     Ecc384Signature, LmsResult, Mldsa87, Mldsa87PubKey, Mldsa87Result, Mldsa87Signature,
@@ -57,7 +55,7 @@ impl EcdsaVerifyCmd {
             return Err(CaliptraError::RUNTIME_ECDSA_VERIFY_FAILED);
         }
 
-        crate::packet::copy_to_mbox(drivers, MailboxRespHeader::default().as_mut_bytes())
+        copy_resp_hdr_to_mbox::<EcdsaVerifyReq>(drivers)
     }
 }
 
@@ -132,7 +130,7 @@ impl LmsVerifyCmd {
             return Err(CaliptraError::RUNTIME_LMS_VERIFY_FAILED);
         }
 
-        crate::packet::copy_to_mbox(drivers, MailboxRespHeader::default().as_mut_bytes())
+        copy_resp_hdr_to_mbox::<LmsVerifyReq>(drivers)
     }
 }
 
@@ -169,6 +167,6 @@ impl Mldsa87VerifyCmd {
             return Err(CaliptraError::RUNTIME_MLDSA87_VERIFY_FAILED);
         }
 
-        crate::packet::copy_to_mbox(drivers, MailboxRespHeader::default().as_mut_bytes())
+        copy_resp_hdr_to_mbox::<Mldsa87VerifyReq>(drivers)
     }
 }

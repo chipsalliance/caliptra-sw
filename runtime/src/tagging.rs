@@ -12,7 +12,7 @@ Abstract:
 
 --*/
 
-use crate::packet::copy_from_mbox;
+use crate::packet::{copy_from_mbox, copy_resp_hdr_to_mbox};
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_common::mailbox_api::{
     GetTaggedTciReq, GetTaggedTciResp, MailboxRespHeader, TagTciReq,
@@ -58,7 +58,7 @@ impl TagTciCmd {
         context_has_tag[idx] = U8Bool::new(true);
         context_tags[idx] = cmd.tag;
 
-        crate::packet::copy_to_mbox(drivers, MailboxRespHeader::default().as_mut_bytes())
+        copy_resp_hdr_to_mbox::<TagTciReq>(drivers)
     }
 }
 

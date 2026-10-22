@@ -22,7 +22,6 @@ use caliptra_drivers::KeyVault;
 use caliptra_drivers::Sha256;
 use caliptra_drivers::Sha2_512_384Acc;
 use caliptra_drivers::Sha384;
-use zerocopy::IntoBytes;
 use zeroize::Zeroize;
 
 use crate::Drivers;
@@ -216,6 +215,6 @@ impl FipsShutdownCmd {
         FipsModule::zeroize(env);
         env.is_shutdown = true;
 
-        crate::packet::copy_to_mbox(env, MailboxRespHeader::default().as_mut_bytes())
+        crate::packet::copy_resp_hdr_to_mbox::<MailboxRespHeader>(env)
     }
 }

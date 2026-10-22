@@ -13,7 +13,10 @@ Abstract:
 --*/
 
 use caliptra_common::DataStore::{DataVaultNonSticky4, DataVaultSticky4, KeyVaultSlot};
-use caliptra_drivers::{hand_off::DataStore, DataVault, FirmwareHandoffTable, KeyId};
+use caliptra_drivers::{
+    hand_off::{DataStore, HandOffDataHandle},
+    DataVault, FirmwareHandoffTable, KeyId,
+};
 use caliptra_error::{CaliptraError, CaliptraResult};
 
 pub struct RtHandoff<'a> {
@@ -39,6 +42,12 @@ impl RtHandoff<'_> {
         }
     }
 
+    #[inline(never)]
+    fn data_vault_entry4(&self, hdl: HandOffDataHandle, err: CaliptraError) -> CaliptraResult<u32> {
+        let ds: DataStore = hdl.try_into()?;
+        self.read_from_ds(ds).map_err(|_| err)
+    }
+
     fn read_as_kv(&self, ds: DataStore) -> CaliptraResult<KeyId> {
         match ds {
             KeyVaultSlot(key_id) => Ok(key_id),
@@ -48,20 +57,26 @@ impl RtHandoff<'_> {
 
     /// Retrieve runtime SVN.
     pub fn rt_svn(&self) -> CaliptraResult<u32> {
-        self.read_from_ds(self.fht.rt_svn_dv_hdl.try_into()?)
-            .map_err(|_| CaliptraError::RUNTIME_RT_SVN_HANDOFF_FAILED)
+        self.data_vault_entry4(
+            self.fht.rt_svn_dv_hdl,
+            CaliptraError::RUNTIME_RT_SVN_HANDOFF_FAILED,
+        )
     }
 
     /// Retrieve runtime minimum SVN.
     pub fn rt_min_svn(&self) -> CaliptraResult<u32> {
-        self.read_from_ds(self.fht.rt_min_svn_dv_hdl.try_into()?)
-            .map_err(|_| CaliptraError::RUNTIME_RT_MIN_SVN_HANDOFF_FAILED)
+        self.data_vault_entry4(
+            self.fht.rt_min_svn_dv_hdl,
+            CaliptraError::RUNTIME_RT_MIN_SVN_HANDOFF_FAILED,
+        )
     }
 
     /// Retrieve FMC SVN.
     pub fn fmc_svn(&self) -> CaliptraResult<u32> {
-        self.read_from_ds(self.fht.fmc_svn_dv_hdl.try_into()?)
-            .map_err(|_| CaliptraError::RUNTIME_FMC_SVN_HANDOFF_FAILED)
+        self.data_vault_entry4(
+            self.fht.fmc_svn_dv_hdl,
+            CaliptraError::RUNTIME_FMC_SVN_HANDOFF_FAILED,
+        )
     }
 
     /// Retrieve the RT FW hash chain.

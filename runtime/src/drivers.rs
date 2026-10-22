@@ -33,14 +33,13 @@ use caliptra_common::mailbox_api::AddSubjectAltNameReq;
 use caliptra_dpe_response_buffer::SliceResponseBuffer;
 use caliptra_drivers::KeyId;
 use caliptra_drivers::{
-    cprintln,
+    hand_off::DataStore, FirmwareHandoffTable, Hmac384, Mldsa87, Mldsa87PubKey, Mldsa87Seed,
+    PcrBank, Sha256, Sha256Alg, Sha2_512_384Acc, Sha384, Trng,
+};
+use caliptra_drivers::{
     pcr_log::{RT_FW_CURRENT_PCR, RT_FW_JOURNEY_PCR},
     Array4x12, CaliptraError, CaliptraResult, DataVault, Ecc384, KeyVault, Lms,
     PersistentDataAccessor, Pic, ResetReason, Sha1, SocIfc,
-};
-use caliptra_drivers::{
-    hand_off::DataStore, FirmwareHandoffTable, Hmac384, Mldsa87, Mldsa87PubKey, Mldsa87Seed,
-    PcrBank, Sha256, Sha256Alg, Sha2_512_384Acc, Sha384, Trng,
 };
 use caliptra_image_types::ImageManifest;
 use caliptra_registers::el2_pic_ctrl::El2PicCtrl;
@@ -299,7 +298,7 @@ impl Drivers {
                     );
                 }
                 Err(e) => {
-                    cprintln!("{}", e.0);
+                    drivers.soc_ifc.set_fw_extended_error(e.into());
                     return Err(CaliptraError::RUNTIME_GLOBAL_EXCEPTION);
                 }
             }
@@ -324,7 +323,7 @@ impl Drivers {
                         caliptra_drivers::report_fw_error_non_fatal(e.into());
                     }
                     Err(e) => {
-                        cprintln!("{}", e.0);
+                        drivers.soc_ifc.set_fw_extended_error(e.into());
                         return Err(CaliptraError::RUNTIME_GLOBAL_EXCEPTION);
                     }
                 }
@@ -423,7 +422,7 @@ impl Drivers {
                     caliptra_drivers::report_fw_error_non_fatal(error.into());
                 }
                 Err(e) => {
-                    cprintln!("{}", e.0);
+                    drivers.soc_ifc.set_fw_extended_error(e.into());
                     return Err(CaliptraError::RUNTIME_GLOBAL_EXCEPTION);
                 }
             }
@@ -831,27 +830,23 @@ impl Drivers {
     ///
     pub fn get_cert_validity_info(manifest: &ImageManifest) -> (NotBefore, NotAfter) {
         // If there is a valid value in the manifest for the not_before and not_after times,
-        // use those. Otherwise use the default values.
-        let mut nb = NotBefore::default();
-        let mut nf = NotAfter::default();
-        let null_time = [0u8; 15];
-
-        if manifest.header.vendor_data.vendor_not_after != null_time
-            && manifest.header.vendor_data.vendor_not_before != null_time
-        {
-            nf.value = manifest.header.vendor_data.vendor_not_after;
-            nb.value = manifest.header.vendor_data.vendor_not_before;
+        // use those (with owner values taking preference). Otherwise use the default values.
+        #[inline(never)]
+        fn is_valid_pair(nb: &[u8; 15], nf: &[u8; 15]) -> bool {
+            nb.iter().any(|&b| b != 0) && nf.iter().any(|&b| b != 0)
         }
 
-        // Owner values take preference.
-        if manifest.header.owner_data.owner_not_after != null_time
-            && manifest.header.owner_data.owner_not_before != null_time
-        {
-            nf.value = manifest.header.owner_data.owner_not_after;
-            nb.value = manifest.header.owner_data.owner_not_before;
-        }
+        let od = &manifest.header.owner_data;
+        let vd = &manifest.header.vendor_data;
+        let (nb, nf) = if is_valid_pair(&od.owner_not_before, &od.owner_not_after) {
+            (od.owner_not_before, od.owner_not_after)
+        } else if is_valid_pair(&vd.vendor_not_before, &vd.vendor_not_after) {
+            (vd.vendor_not_before, vd.vendor_not_after)
+        } else {
+            (NotBefore::default().value, NotAfter::default().value)
+        };
 
-        (nb, nf)
+        (NotBefore { value: nb }, NotAfter { value: nf })
     }
 
     /// Computes the SHA-384 hash over critical initialization values

@@ -47,8 +47,9 @@ impl RevokeExportedCdiHandleCmd {
                     *active = U8Bool::new(false);
                     slot.zeroize();
 
-                    let mut resp = RevokeExportedCdiHandleResp::default();
-                    return crate::packet::copy_to_mbox(drivers, resp.as_mut_bytes());
+                    return crate::packet::copy_resp_hdr_to_mbox::<RevokeExportedCdiHandleResp>(
+                        drivers,
+                    );
                 }
                 _ => (),
             }
@@ -66,8 +67,9 @@ impl RevokeExportedCdiHandleCmd {
                 slot.active = U8Bool::new(false);
                 slot.zeroize();
 
-                let mut resp = RevokeExportedCdiHandleResp::default();
-                return crate::packet::copy_to_mbox(drivers, resp.as_mut_bytes());
+                return crate::packet::copy_resp_hdr_to_mbox::<RevokeExportedCdiHandleResp>(
+                    drivers,
+                );
             }
         }
 

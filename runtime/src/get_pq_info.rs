@@ -18,7 +18,7 @@ Abstract:
 
 --*/
 
-use crate::packet::{copy_from_mbox, copy_to_mbox};
+use crate::packet::{copy_req_hdr_from_mbox, copy_to_mbox};
 use crate::Drivers;
 use caliptra_common::mailbox_api::{GetPqInfoReq, GetPqInfoResp};
 use caliptra_drivers::{CaliptraResult, Mldsa87, Mldsa87PubKey, Mldsa87Seed};
@@ -29,7 +29,7 @@ pub struct GetPqInfoCmd;
 impl GetPqInfoCmd {
     #[inline(never)]
     pub(crate) fn execute(drivers: &mut Drivers) -> CaliptraResult<()> {
-        copy_from_mbox(drivers, GetPqInfoReq::new_zeroed().as_mut_bytes())?;
+        copy_req_hdr_from_mbox::<GetPqInfoReq>(drivers)?;
 
         // Computing the ML-DSA-87 public key below exceeds the default 20M-cycle
         // command watchdog budget; extend it.
