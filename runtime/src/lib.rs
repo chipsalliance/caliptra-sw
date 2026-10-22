@@ -49,6 +49,7 @@ mod verify;
 
 // Used by runtime tests
 pub mod mailbox;
+use arrayvec::ArrayVec;
 use authorize_and_stash::AuthorizeAndStashCmd;
 use caliptra_cfi_lib::{
     cfi_assert, cfi_assert_bool, cfi_assert_eq, cfi_assert_ne, cfi_launder, CfiCounter,
@@ -82,7 +83,7 @@ pub use dpe_platform::{DpePlatform, VENDOR_ID, VENDOR_SKU};
 pub use fips::FipsShutdownCmd;
 #[cfg(feature = "fips_self_test")]
 pub use fips::{fips_self_test_cmd, fips_self_test_cmd::SelfTestStatus};
-use platform::Platform;
+use platform::{Platform, MAX_OTHER_NAME_SIZE};
 pub use populate_idev::PopulateIDevIdCertCmd;
 pub use populate_pq::PopulatePqCertCmd;
 
@@ -419,7 +420,7 @@ pub fn handle_mailbox_commands(drivers: &mut Drivers) -> CaliptraResult<()> {
 
 pub struct CaliptraDpeEnv<'a> {
     crypto: DpeCrypto<'a>,
-    pub(crate) platform: DpePlatform<'a>,
+    platform: DpePlatform<'a>,
     state: &'a mut State,
 }
 
@@ -439,27 +440,11 @@ impl DpeEnv for CaliptraDpeEnv<'_> {
 }
 
 #[inline(never)]
-fn new_dpe_platform<'a>(
-    profile: CaliptraDpeProfile,
-    hashed_rt_pub_key: crypto::Digest,
-    cert_chain: &'a [u8],
-    manifest: &caliptra_image_types::ImageManifest,
-) -> DpePlatform<'a> {
-    let (nb, nf) = Drivers::get_cert_validity_info(manifest);
-    DpePlatform::new(
-        profile,
-        manifest.header.pl0_pauser,
-        hashed_rt_pub_key,
-        cert_chain,
-        nb,
-        nf,
-        None,
-        None,
-    )
-}
-
-#[inline(never)]
-fn ec_dpe_env(drivers: &mut Drivers) -> CaliptraResult<CaliptraDpeEnv<'_>> {
+fn ec_dpe_env(
+    drivers: &mut Drivers,
+    dmtf_device_info: Option<ArrayVec<u8, { MAX_OTHER_NAME_SIZE }>>,
+    ueid: Option<[u8; 17]>,
+) -> CaliptraResult<CaliptraDpeEnv<'_>> {
     let hashed_rt_pub_key = drivers.compute_rt_alias_sn()?;
     let pdata = drivers.persistent_data.get_mut();
     let crypto = crate::dpe_crypto::new_ec_dpe_crypto(
@@ -471,20 +456,30 @@ fn ec_dpe_env(drivers: &mut Drivers) -> CaliptraResult<CaliptraDpeEnv<'_>> {
         &pdata.fht,
         &mut pdata.exported_cdi_slots,
     )?;
+    let pl0_pauser = pdata.manifest1.header.pl0_pauser;
+    let (nb, nf) = Drivers::get_cert_validity_info(&pdata.manifest1);
     Ok(CaliptraDpeEnv {
         crypto,
-        platform: new_dpe_platform(
+        platform: DpePlatform::new(
             CaliptraDpeProfile::Ecc384,
+            pl0_pauser,
             hashed_rt_pub_key,
             &drivers.cert_chain,
-            &pdata.manifest1,
+            nb,
+            nf,
+            dmtf_device_info,
+            ueid,
         ),
         state: &mut pdata.dpe,
     })
 }
 
 #[inline(never)]
-fn mldsa_dpe_env(drivers: &mut Drivers) -> CaliptraResult<CaliptraDpeEnv<'_>> {
+fn mldsa_dpe_env(
+    drivers: &mut Drivers,
+    dmtf_device_info: Option<ArrayVec<u8, { MAX_OTHER_NAME_SIZE }>>,
+    ueid: Option<[u8; 17]>,
+) -> CaliptraResult<CaliptraDpeEnv<'_>> {
     let digest = drivers.persistent_data.get().pq_devid_pub_key_digest()?;
     let pdata = drivers.persistent_data.get_mut();
     let pq_devid_cdi = pdata.pq_devid_cdi()?;
@@ -500,13 +495,19 @@ fn mldsa_dpe_env(drivers: &mut Drivers) -> CaliptraResult<CaliptraDpeEnv<'_>> {
         &mut pdata.exported_cdi_slots,
         &mut pdata.mldsa_exported_cdi_slots,
     )?;
+    let pl0_pauser = pdata.manifest1.header.pl0_pauser;
+    let (nb, nf) = Drivers::get_cert_validity_info(&pdata.manifest1);
     Ok(CaliptraDpeEnv {
         crypto,
-        platform: new_dpe_platform(
+        platform: DpePlatform::new(
             CaliptraDpeProfile::Mldsa,
+            pl0_pauser,
             digest.into(),
             &drivers.mldsa_cert_chain,
-            &pdata.manifest1,
+            nb,
+            nf,
+            dmtf_device_info,
+            ueid,
         ),
         state: &mut pdata.dpe,
     })

@@ -81,8 +81,8 @@ pub fn invoke_dpe_cmd(
     // The DPE environment differs by identity (ECDSA RT alias vs ML-DSA
     // PQ.DevID), but the state and command execution are shared.
     let mut env = match profile {
-        CaliptraDpeProfile::Ecc384 => ec_dpe_env(drivers),
-        CaliptraDpeProfile::Mldsa => mldsa_dpe_env(drivers),
+        CaliptraDpeProfile::Ecc384 => ec_dpe_env(drivers, dmtf_device_info, ueid),
+        CaliptraDpeProfile::Mldsa => mldsa_dpe_env(drivers, dmtf_device_info, ueid),
     };
     let env = match env.as_mut() {
         Ok(r) => r,
@@ -92,8 +92,6 @@ pub fn invoke_dpe_cmd(
             ))
         }
     };
-    env.platform.dmtf_device_info = dmtf_device_info;
-    env.platform.ueid = ueid;
     let dpe = &mut DpeInstance::initialized(profile.into());
     command.execute_serialized(dpe, env, locality, out)
 }
