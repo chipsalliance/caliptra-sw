@@ -1651,6 +1651,20 @@ Command Code: `0x4143_5446` ("ACTF")
 
 Unknown flag bits are rejected with `RUNTIME_MAILBOX_INVALID_PARAMS`.
 
+For MCU hitless updates (`INITIAL_ACTIVATE` clear), the MCU entry in the
+selected authorization manifest must set `image_load_address` to the full
+64-bit MCU SRAM address, `MCI_BASE + 0x00c00000`. Runtime rejects a mismatch
+with `IMAGE_VERIFIER_ACTIVATION_FAILED` before changing the MCU reset reason,
+execution-control bits, SRAM contents, or MCU firmware DPE measurement. This
+requirement applies to both vendor + owner and owner-only manifests.
+
+Runtime copies `mcu_image_size` bytes from `image_staging_address` to that
+MCU SRAM destination, then authorizes the image at `image_load_address`.
+Requiring these destination addresses to match binds the post-copy digest
+check to the installed firmware. After successful authorization, Runtime
+updates the MCU firmware DPE measurement and enables execution. SoC-only
+activation does not impose this MCU address requirement.
+
 `INITIAL_ACTIVATE` is used exclusively by MCU ROM at the tail of the
 `EncryptedFirmware` boot flow. MCU ROM has already loaded firmware into MCU
 SRAM via `RI_DOWNLOAD_ENCRYPTED_FIRMWARE` and decrypted it in place via
@@ -1658,7 +1672,8 @@ SRAM via `RI_DOWNLOAD_ENCRYPTED_FIRMWARE` and decrypted it in place via
 
 - Skips the hitless-update steps (set `RESET_REASON.FwHitlessUpd`, clear
   `FW_EXEC_CTRL`, wait for MCU reset request and reset assertion, DMA-reload
-  from staging, re-`AuthorizeAndStash`).
+  from staging, re-`AuthorizeAndStash`), including the hitless load-address
+  requirement above.
 - Just publishes `FW_EXEC_CTRL[MCU]` (and any other requested bits) so that
   MCI's `BOOT_RST_MCU` state releases MCU from reset on the next warm reset
   that MCU ROM triggers.

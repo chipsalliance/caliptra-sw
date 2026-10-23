@@ -64,6 +64,14 @@ The serialized IME layout follows `AuthManifestImageMetadata` in
 | **Image Staging Address High (`image_staging_address.hi`)** | 4 | High 4 bytes of the 64-bit AXI address where the image will be temporarily written during firmware update download and verification. |
 | **Image Digest (`digest`)** | 48       | SHA2-384 digest of the SOC image. |
 
+For MCU hitless activation (`fw_id = 2`), set `image_load_address` to the full
+64-bit MCU SRAM address, `MCI_BASE + 0x00c00000`. Runtime copies the staged
+image to this fixed destination and authorizes it there. `ACTIVATE_FIRMWARE`
+rejects a different load address before requesting an MCU reset or copying
+the image. This applies to both vendor + owner and owner-only manifests;
+encrypted-boot `INITIAL_ACTIVATE` does not use this hitless-update check.
+See [ACTIVATE_FIRMWARE](../runtime/README.md#activate_firmware).
+
 #### **Optional Device UEID Entry**
 
 The original SoC manifest can be bound to a device without changing the
