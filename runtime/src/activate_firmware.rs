@@ -201,6 +201,28 @@ impl ActivateFirmwareCmd {
             }
         }
 
+        let mcu_update_addresses = if mcu_activate_requested && !initial_activate {
+            let persistent_data = drivers.persistent_data.get();
+            let image_metadata = find_metadata_entry_by_type(
+                &persistent_data.fw.auth_manifest_image_metadata_col,
+                &persistent_data.fw.owner_auth_manifest_image_metadata_col,
+                ActivateFirmwareReq::MCU_IMAGE_ID,
+                manifest_source,
+            )
+            .ok_or(())?;
+            let mcu_sram_addr = mci_base_addr
+                .checked_offset(MCU_SRAM_OFFSET, mcu_image_size as u64)
+                .map_err(|_| ())?;
+            if image_metadata.image_load_address.lo != mcu_sram_addr.lo
+                || image_metadata.image_load_address.hi != mcu_sram_addr.hi
+            {
+                return Err(());
+            }
+            Some((image_metadata.image_staging_address, mcu_sram_addr))
+        } else {
+            None
+        };
+
         if mcu_activate_requested && !initial_activate {
             // If MCU image is being activated, set the RESET_REASON first before clearing the FW_EXEC_CTRL
             // to ensure the correct reset reason is captured after the reset.
@@ -227,7 +249,7 @@ impl ActivateFirmwareCmd {
 
         drivers.soc_ifc.set_ss_generic_fw_exec_ctrl(&temp_bitmap);
 
-        if mcu_activate_requested && !initial_activate {
+        if let Some((image_staging_address, mcu_sram_addr)) = mcu_update_addresses {
             // MCU sees request from Caliptra and shall clear the interrupt status.
             // MCU sets RESET_REQUEST.mcu_req in MCI to request a reset.
             // MCI does an MCU halt req/ack handshake to ensure the MCU is idle
@@ -251,33 +273,20 @@ impl ActivateFirmwareCmd {
             }
 
             // Caliptra will then have access to MCU SRAM Updatable Execution Region and update the FW image.
-            let persistent_data = drivers.persistent_data.get();
-            let image_metadata = find_metadata_entry_by_type(
-                &persistent_data.fw.auth_manifest_image_metadata_col,
-                &persistent_data.fw.owner_auth_manifest_image_metadata_col,
-                ActivateFirmwareReq::MCU_IMAGE_ID,
-                manifest_source,
-            )
-            .ok_or(())?;
             let dma_image = DmaRecovery::new(
                 drivers.soc_ifc.recovery_interface_base_addr().into(),
                 drivers.soc_ifc.caliptra_base_axi_addr().into(),
                 drivers.soc_ifc.mci_base_addr().into(),
                 &drivers.dma,
             );
-            let mcu_sram_addr: u64 =
-                ((mci_base_addr.hi as u64) << 32) + (mci_base_addr.lo as u64) + MCU_SRAM_OFFSET;
             dma_image
                 .transfer_payload_to_axi(
                     AxiAddr {
-                        hi: image_metadata.image_staging_address.hi,
-                        lo: image_metadata.image_staging_address.lo,
+                        hi: image_staging_address.hi,
+                        lo: image_staging_address.lo,
                     },
                     mcu_image_size,
-                    AxiAddr {
-                        hi: (mcu_sram_addr >> 32) as u32,
-                        lo: mcu_sram_addr as u32,
-                    },
+                    mcu_sram_addr,
                     false,
                     false,
                     AesDmaMode::None,
