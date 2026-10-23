@@ -1135,6 +1135,13 @@ fn test_mailbox_txn_drop() {
 /// TC-1..TC-5: reseed/counter/interval/disable tests with good entropy.
 /// Runs on all targets including FPGA itrng (TC-5 exercises auto-enable).
 #[test]
+#[cfg_attr(
+    all(
+        any(feature = "verilator", feature = "fpga_realtime"),
+        not(feature = "itrng")
+    ),
+    ignore
+)]
 fn test_csrng_reseed() {
     let rom =
         caliptra_builder::build_firmware_rom(&firmware::driver_tests::CSRNG_RESEED_TESTS).unwrap();
@@ -1158,6 +1165,13 @@ fn test_csrng_reseed() {
 /// entropy — the failure comes from the hook, not the TRNG — so it runs on
 /// every target including FPGA itrng.
 #[test]
+#[cfg_attr(
+    all(
+        any(feature = "verilator", feature = "fpga_realtime"),
+        not(feature = "itrng")
+    ),
+    ignore
+)]
 fn test_csrng_reseed_health_fail() {
     let rom = caliptra_builder::build_firmware_rom(
         &firmware::driver_tests::CSRNG_RESEED_HEALTH_FAIL_TESTS,
