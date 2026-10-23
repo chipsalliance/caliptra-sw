@@ -321,10 +321,23 @@ This area is reserved for definition of additional fields that may be added duri
 
 ## PCR registers
 
-FMC has the responsibility to update 2 PCR registers.<br>
-FMC updates PCR3 to reflect the firmware update Journey with measurements of RT firmware and FW Manifest. This register is only cleared on cold reset.<br>
-FMC updates PCR2 to reflect only the Current running firmware with measurements of RT firmware and FW Manifest. This register is cleared on all reset types.<br>
-FMC locks its PCR registers before handing control to RT firmware so that they may not be cleared later in the boot.
+FMC maintains PCR2 (Runtime current) and PCR3 (Runtime journey) using the Runtime
+TCI supplied by ROM. It does not separately hash or extend the firmware manifest
+into these PCRs.
+
+An extension computes `SHA384(previous PCR value || Runtime TCI)`. PCR2 represents
+the current Runtime measurement; PCR3 accumulates Runtime measurement changes
+since cold reset. Both PCR values start at zero on cold reset.
+
+| Reset path | PCR2 (current) | PCR3 (journey) | FMC PCR-log action |
+| ---------- | -------------- | -------------- | ------------------ |
+| Cold reset | Clear, then extend with Runtime TCI | Extend with Runtime TCI | Append one `RtTci` entry for PCR2 and PCR3 |
+| Update reset, predicted PCR2 differs from the stored value | Clear, then extend with Runtime TCI | Extend the retained value with Runtime TCI | Append one `RtTci` entry for PCR2 and PCR3 |
+| Update reset, predicted PCR2 matches the stored value | Leave unchanged | Leave unchanged | Do not append an entry |
+| Warm reset | Leave unchanged | Leave unchanged | Do not append an entry |
+
+FMC locks both PCRs after this reset-specific processing and before handing
+control to Runtime. Resetting the PCR locks does not itself erase the PCR values.
 
 ## FMC boot flow
 
@@ -345,12 +358,9 @@ it does not guarantee erasure of every key.
    utilizes the ROM-based FIPS Crypto Module or its own internal FIPS Crypto services in implementations without a discrete FW-based FIPS Crypto Module.
 1. FMC locates the Manifest at fht.manifest_load_addr.
 1. FMC reads the measurement of the Runtime FW Module, TCI<sub>RT</sub>, from the DCCM datavault that has previously been validated by ROM.
-1. FMC reads the manifest address of the Image Bundle from the HandOff Table, and calculates the SHA-384 TCI<sub>MAN</sub>
-1. FMC clears Current PCR
-1. FMC extends Current and Journey PCR registers with TCI<sub>RT</sub>.
-1. FMC extends Current and Journey PCR registers with TCI<sub>MAN</sub>.
+1. FMC applies the reset-specific PCR handling described above. When an extension is needed, it clears Current PCR, extends Current and Journey PCRs with TCI<sub>RT</sub>, and appends one `RtTci` log entry.
 1. FMC locks Current and Journey PCR registers.
-1. FMC derives CDI<sub>RT</sub> from CDI<sub>FMC</sub> mixed with TCI<sub>RT</sub> and TCI<sub>MAN</sub>, then stores it in the Key Vault.
+1. FMC derives CDI<sub>RT</sub> using the HMAC-SHA-512 KDF with CDI<sub>FMC</sub> as the key, `alias_rt_cdi` as the label, and TCI<sub>RT</sub> as the context. It stores CDI<sub>RT</sub> in a separate Key Vault slot; the derivation does not include a separate manifest digest or overwrite CDI<sub>FMC</sub>.
 1. FMC updates fht.rt_cdi_ecdsa_kv_hdl and fht.rt_cdi_mldsa_kv_hdl in the FHT.
 1. FMC derives ECDSA and MLDSA AliasKeyPair<sub>RT</sub> from CDI<sub>RT</sub>. The ECDSA Private Key and the MLDSA Key Generation Seed are stored in the Key Vault, while the ECDSA Public Key X and Y coordinates and MLDSA Public Key are stored in the DCCM datavault.
 1. FMC updates fht.rt_priv_key_ecdsa_kv_hdl, fht.rt_pub_key_ecdsa_x_dv_hdl, and fht.rt_pub_key_ecdsa_y_dv_hdl in the FHT.
@@ -418,12 +428,16 @@ sequenceDiagram
 
     rect rgba(0, 100, 200, .2)
 
+    opt Cold reset or update reset with a different predicted PCR2
     FMC->>+FIPS: ClearPcr(RtCurrent)
     FIPS-->>-FMC: return()
     FMC->>+FIPS: ExtendPcr(RtCurrent, PCR_hdl_RT, RtTci)
     FIPS-->>-FMC: return()
     FMC->>+FIPS: ExtendPcr(RtJourney, PCR_hdl_RT, RtTci)
     FIPS-->>-FMC: return()
+    FMC->>FMC: Append RtTci to PCR log for PCR2 and PCR3
+    end
+
     FMC->>+FIPS: LockPcr(RtCurrent)
     FIPS-->>-FMC: return()
     FMC->>+FIPS: LockPcr(RtJourney)
@@ -496,13 +510,18 @@ sequenceDiagram
 
 ## Resets
 
-FMC does not distinguish between cold boots or any other type of reset. Instead, FMC is designed such that it always performs the same set of operations
-regardless of which reset path caused it to be executed.
+FMC distinguishes cold, warm, and update resets. Its PCR handling follows the
+table in [PCR registers](#pcr-registers): warm resets preserve PCR2 and PCR3,
+while update resets extend them only when the predicted PCR2 differs from the
+retained value. FMC rejects an unknown reset reason with `FMC_UNKNOWN_RESET`.
 
 ## Update and recovery
 
-FMC does not participate in Caliptra update/recovery flows. FMC is designed such that it does not perform any different steps during update
-and simply behaves the same as it does during other cold/warm resets.
+ROM handles firmware authentication and loading during an update. After ROM
+transfers control to FMC, FMC uses the Runtime TCI in the Data Vault to decide
+whether to update PCR2, PCR3, and the PCR log. It then derives the Runtime Alias
+identity and prepares the handoff to Runtime. FMC does not independently load
+or authenticate the update image.
 
 ## Fake FMC
 
