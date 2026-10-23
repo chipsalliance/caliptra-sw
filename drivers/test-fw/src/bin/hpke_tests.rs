@@ -54,11 +54,14 @@ const HYBRID_TRAD_EK: &[u8] = &[
 test_suite! {
     test_ml_kem_1024_test_vector,
     test_ml_kem_1024_self_talk,
+    test_ml_kem_1024_modified_enc,
     test_p384_self_talk,
     test_p384_test_vector,
     test_p384_public_key_curve_validation,
     test_hybrid_test_vector,
     test_hybrid_self_talk,
+    test_hybrid_modified_ml_kem_enc,
+    test_hybrid_modified_ml_kem_and_invalid_p384_enc,
     test_hpke_open_failure,
 }
 
@@ -453,4 +456,211 @@ fn test_hpke_open_failure() {
         )
         .unwrap_err();
     assert_eq!(err, CaliptraError::RUNTIME_DRIVER_HPKE_OPEN_FAILED);
+}
+
+fn test_ml_kem_1024_modified_enc() {
+    CfiCounter::reset(&mut || Ok((0xdeadbeef, 0xdeadbeef, 0xdeadbeef, 0xdeadbeef)));
+    let mut regs = TestRegisters::default();
+    regs.abr.seed_entropy(&mut regs.trng).unwrap();
+
+    let hpke = HpkeMlKemContext::generate(&mut regs.trng).unwrap();
+    let mut kem = {
+        let mut ml_kem_driver = MlKem1024::new(regs.abr.abr_reg());
+        let mut ctx = MlKemContext::new(&mut regs.trng, &mut regs.sha3, &mut ml_kem_driver);
+        MlKem::derive_key_pair(&mut ctx, hpke.as_ref()).unwrap()
+    };
+    let mut kem_ctx = HpkeMlKemDrivers::new(
+        &mut regs.trng,
+        &mut regs.sha3,
+        &mut regs.hmac,
+        regs.abr.abr_reg(),
+    );
+
+    let mut pk_rm = [0; MlKem::NPK];
+    hpke.serialize_public_key(&mut kem, &mut kem_ctx, &mut pk_rm)
+        .unwrap();
+
+    let (enc, mut sender) = hpke
+        .setup_base_s(
+            &mut kem,
+            &mut kem_ctx,
+            &MlKemEncapsulationKey::from(pk_rm),
+            &MLKEM_TEST_VECTOR.info,
+        )
+        .unwrap();
+
+    // Modify the ML-KEM encapsulated secret (ciphertext `c`).
+    // FIPS 203 ML-KEM.Decaps uses implicit rejection (`J(z || c)`), so `setup_base_r` succeeds
+    // and returns a receiver context keyed with the implicit-rejection shared secret.
+    let mut corrupted_enc_bytes: [u8; MlKem::NENC] = *enc.as_ref();
+    corrupted_enc_bytes[0] ^= 0xFF;
+    let corrupted_enc = MlKemEncapsulatedSecret::from(corrupted_enc_bytes);
+
+    let mut reader = hpke
+        .setup_base_r(
+            &mut kem,
+            &mut kem_ctx,
+            &corrupted_enc,
+            &MLKEM_TEST_VECTOR.info,
+        )
+        .unwrap();
+
+    let mut ct = [0; 32];
+    let payload = b"secret payload";
+    let tag = sender
+        .seal(
+            &mut regs.aes,
+            &mut regs.trng,
+            b"aad",
+            payload,
+            &mut ct[..payload.len()],
+        )
+        .unwrap();
+
+    let mut pt = [0; 32];
+    let err = reader
+        .open(
+            &mut regs.aes,
+            &mut regs.trng,
+            b"aad",
+            &tag,
+            &ct[..payload.len()],
+            &mut pt[..payload.len()],
+        )
+        .unwrap_err();
+    assert_eq!(err, CaliptraError::RUNTIME_DRIVER_HPKE_OPEN_FAILED);
+}
+
+fn test_hybrid_modified_ml_kem_enc() {
+    CfiCounter::reset(&mut || Ok((0xdeadbeef, 0xdeadbeef, 0xdeadbeef, 0xdeadbeef)));
+    let mut regs = TestRegisters::default();
+    regs.abr.seed_entropy(&mut regs.trng).unwrap();
+
+    let hpke = HpkeHybridContext::generate(&mut regs.trng).unwrap();
+
+    let mut kem_ctx = MlKem1024P384KemContext::new(
+        &mut regs.trng,
+        &mut regs.sha3,
+        regs.abr.abr_reg(),
+        &mut regs.ecc,
+        &mut regs.hmac,
+    );
+    let mut kem = MlKem1024P384::derive_key_pair(&mut kem_ctx, hpke.as_ref()).unwrap();
+    let mut drivers = HpkeHybridDrivers::new(
+        &mut regs.trng,
+        &mut regs.sha3,
+        &mut regs.hmac,
+        regs.abr.abr_reg(),
+        &mut regs.ecc,
+    );
+
+    let mut pk_rm = [0; MlKem1024P384::NPK];
+    hpke.serialize_public_key(&mut kem, &mut drivers, &mut pk_rm)
+        .unwrap();
+
+    let (enc, mut sender) = hpke
+        .setup_base_s(
+            &mut kem,
+            &mut drivers,
+            &HybridEncapsulationKey::from(&pk_rm),
+            &HYBRID_TEST_VECTOR.info,
+        )
+        .unwrap();
+
+    // Modify the ML-KEM portion (first `MlKem::NENC` bytes) of the hybrid encapsulated secret.
+    // The ML-KEM implicit-rejection secret is mixed into the hybrid combiner, causing `open` to fail.
+    let mut corrupted_enc_bytes: [u8; MlKem1024P384::NENC] = *enc.as_ref();
+    corrupted_enc_bytes[0] ^= 0xFF;
+    let corrupted_enc = HybridEncapsulatedSecret::read_from_bytes(&corrupted_enc_bytes).unwrap();
+
+    let mut reader = hpke
+        .setup_base_r(
+            &mut kem,
+            &mut drivers,
+            &corrupted_enc,
+            &HYBRID_TEST_VECTOR.info,
+        )
+        .unwrap();
+
+    let mut ct = [0; 32];
+    let payload = b"secret payload";
+    let tag = sender
+        .seal(
+            &mut regs.aes,
+            &mut regs.trng,
+            b"aad",
+            payload,
+            &mut ct[..payload.len()],
+        )
+        .unwrap();
+
+    let mut pt = [0; 32];
+    let err = reader
+        .open(
+            &mut regs.aes,
+            &mut regs.trng,
+            b"aad",
+            &tag,
+            &ct[..payload.len()],
+            &mut pt[..payload.len()],
+        )
+        .unwrap_err();
+    assert_eq!(err, CaliptraError::RUNTIME_DRIVER_HPKE_OPEN_FAILED);
+}
+
+fn test_hybrid_modified_ml_kem_and_invalid_p384_enc() {
+    CfiCounter::reset(&mut || Ok((0xdeadbeef, 0xdeadbeef, 0xdeadbeef, 0xdeadbeef)));
+    let mut regs = TestRegisters::default();
+    regs.abr.seed_entropy(&mut regs.trng).unwrap();
+
+    let hpke = HpkeHybridContext::generate(&mut regs.trng).unwrap();
+
+    let mut kem_ctx = MlKem1024P384KemContext::new(
+        &mut regs.trng,
+        &mut regs.sha3,
+        regs.abr.abr_reg(),
+        &mut regs.ecc,
+        &mut regs.hmac,
+    );
+    let mut kem = MlKem1024P384::derive_key_pair(&mut kem_ctx, hpke.as_ref()).unwrap();
+    let mut drivers = HpkeHybridDrivers::new(
+        &mut regs.trng,
+        &mut regs.sha3,
+        &mut regs.hmac,
+        regs.abr.abr_reg(),
+        &mut regs.ecc,
+    );
+
+    let mut pk_rm = [0; MlKem1024P384::NPK];
+    hpke.serialize_public_key(&mut kem, &mut drivers, &mut pk_rm)
+        .unwrap();
+
+    let (enc, _sender) = hpke
+        .setup_base_s(
+            &mut kem,
+            &mut drivers,
+            &HybridEncapsulationKey::from(&pk_rm),
+            &HYBRID_TEST_VECTOR.info,
+        )
+        .unwrap();
+
+    // Corrupt BOTH the ML-KEM ciphertext (`enc[..MlKem::NENC]`) AND the P-384 ECDH public key
+    // (`enc[MlKem::NENC..MlKem::NENC + P384::NENC]`) so that the point is off the curve.
+    // Even though `MlKem1024P384::decap` runs `mlkem.decap` first (which returns `Ok` with the
+    // implicit-rejection secret), `self.trad.raw_decap` subsequently runs hardware ECDH point
+    // validation and fails with `DRIVER_ECC384_HW_ERROR` during `setup_base_r`.
+    let mut corrupted_enc_bytes: [u8; MlKem1024P384::NENC] = *enc.as_ref();
+    corrupted_enc_bytes[0] ^= 0xFF;
+    corrupted_enc_bytes[MlKem::NENC + 9] ^= 0xFF;
+    let corrupted_enc = HybridEncapsulatedSecret::read_from_bytes(&corrupted_enc_bytes).unwrap();
+
+    let err = hpke
+        .setup_base_r(
+            &mut kem,
+            &mut drivers,
+            &corrupted_enc,
+            &HYBRID_TEST_VECTOR.info,
+        )
+        .unwrap_err();
+    assert_eq!(err, CaliptraError::DRIVER_ECC384_HW_ERROR);
 }
