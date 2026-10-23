@@ -16,12 +16,23 @@ Abstract:
 compile_error!("This file should NEVER be included except for the fake-rom feature");
 
 use crate::fht;
-use crate::flow::cold_reset::fw_processor::FirmwareProcessor;
+use crate::flow::cold_reset::{
+    self,
+    fmc_alias::FmcAliasLayer,
+    fw_processor::FirmwareProcessor,
+    idev_id::{InitDevIdLayer, DOE_IV},
+    ldev_id::LocalDevIdLayer,
+    ocp_lock,
+};
 use crate::flow::update_reset;
 use crate::flow::warm_reset;
 use crate::print::HexBytes;
 use crate::rom_env::RomEnv;
-use caliptra_common::keyids::KEY_ID_ROM_FMC_CDI;
+use caliptra_common::keyids::{
+    KEY_ID_FE, KEY_ID_FMC_ECDSA_PRIV_KEY, KEY_ID_FMC_MLDSA_KEYPAIR_SEED, KEY_ID_HEK_SEED,
+    KEY_ID_ROM_FMC_CDI, KEY_ID_STABLE_IDEV, KEY_ID_STABLE_LDEV, KEY_ID_UDS,
+};
+use caliptra_common::pcr::PCR_ID_FMC_CURRENT;
 use caliptra_common::FirmwareHandoffTable;
 use caliptra_common::RomBootStatus::*;
 use caliptra_drivers::cprintln;
@@ -57,6 +68,12 @@ impl FakeRomFlow {
                 env.persistent_data.get_mut().rom.marker = RomPersistentData::MAGIC;
                 env.persistent_data.get_mut().rom.major_version = RomPersistentData::MAJOR_VERSION;
                 env.persistent_data.get_mut().rom.minor_version = RomPersistentData::MINOR_VERSION;
+                env.persistent_data.get_mut().rom.boot_mode = BootMode::Normal;
+                env.persistent_data
+                    .get_mut()
+                    .rom
+                    .data_vault
+                    .set_rom_cold_boot_status(ColdResetStarted.into());
 
                 // Zeroize the key vault in the fake ROM flow
                 unsafe { KeyVault::zeroize() };
@@ -65,11 +82,32 @@ impl FakeRomFlow {
 
                 fht::initialize_fht(env);
 
-                // SKIP Execute IDEVID layer
+                // Run fast DOE & HMAC key derivations (skipping slow IDevID/LDevID ECC/MLDSA keygen & cert signing)
+                InitDevIdLayer::decrypt_uds(env, KEY_ID_UDS)?;
+                InitDevIdLayer::decrypt_field_entropy(env, KEY_ID_FE)?;
+                InitDevIdLayer::derive_stable_owner_root_key(env)?;
+                if env.soc_ifc.ocp_lock_enabled() {
+                    env.doe.decrypt_hek_seed(&DOE_IV, KEY_ID_HEK_SEED)?;
+                }
+                InitDevIdLayer::clear_doe_secrets(env)?;
+                InitDevIdLayer::derive_cdi(env, KEY_ID_UDS, KEY_ID_ROM_FMC_CDI)?;
+                ocp_lock::ocp_lock_cold_reset_flow(env)?;
+
+                LocalDevIdLayer::derive_stable_identity_root_idev(
+                    env,
+                    KEY_ID_ROM_FMC_CDI,
+                    KEY_ID_STABLE_IDEV,
+                )?;
+                LocalDevIdLayer::derive_cdi(env, KEY_ID_FE, KEY_ID_ROM_FMC_CDI)?;
+                LocalDevIdLayer::derive_stable_identity_root_ldev(
+                    env,
+                    KEY_ID_ROM_FMC_CDI,
+                    KEY_ID_STABLE_LDEV,
+                )?;
+                cold_reset::generate_cmb_aes_key(env)?;
+
                 // LDEVID cert
                 copy_canned_ldev_cert(env)?;
-                // LDEVID cdi
-                initialize_fake_ldevid_cdi(env)?;
 
                 // Unlock the SHA Acc by creating a SHA Acc operation and dropping it.
                 // In real ROM, this is done as part of executing the SHA-ACC KAT.
@@ -82,8 +120,20 @@ impl FakeRomFlow {
                 // Download and validate firmware.
                 _ = FirmwareProcessor::process(env)?;
 
-                // FMC Alias Cert
+                // FMC Alias Cert (canned TBS/sig) + real FMC Alias CDI and keypair in KeyVault/DataVault for real FMC
                 copy_canned_fmc_alias_cert(env)?;
+                let measurement = env.pcr_bank.read_pcr(PCR_ID_FMC_CURRENT);
+                FmcAliasLayer::derive_cdi(env, &measurement, KEY_ID_ROM_FMC_CDI)?;
+                let (ecc_key_pair, mldsa_key_pair) = FmcAliasLayer::derive_key_pair(
+                    env,
+                    KEY_ID_ROM_FMC_CDI,
+                    KEY_ID_FMC_ECDSA_PRIV_KEY,
+                    KEY_ID_FMC_MLDSA_KEYPAIR_SEED,
+                )?;
+                let data_vault = &mut env.persistent_data.get_mut().rom.data_vault;
+                data_vault.set_fmc_ecc_pub_key(&ecc_key_pair.pub_key);
+                data_vault.set_fmc_mldsa_pub_key(&mldsa_key_pair.pub_key);
+                data_vault.set_rom_cold_boot_status(ColdResetComplete.into());
 
                 cprintln!("[fake-rom-cold-reset] --");
                 report_boot_status(ColdResetComplete.into());
@@ -101,18 +151,6 @@ impl FakeRomFlow {
             ResetReason::Unknown => Err(CaliptraError::ROM_UNKNOWN_RESET_FLOW),
         }
     }
-}
-
-// Used to derive the firmware's key ladder.
-fn initialize_fake_ldevid_cdi(env: &mut RomEnv) -> CaliptraResult<()> {
-    let fake_key = Array4x16::from([0x1234_5678u32; 16]);
-    env.hmac.hmac(
-        HmacKey::Array4x16(&fake_key),
-        HmacData::Slice(b""),
-        &mut env.trng,
-        KeyWriteArgs::new(KEY_ID_ROM_FMC_CDI, KeyUsage::default().set_hmac_key_en()).into(),
-        HmacMode::Hmac512,
-    )
 }
 
 pub fn copy_canned_ldev_cert(env: &mut RomEnv) -> CaliptraResult<()> {
