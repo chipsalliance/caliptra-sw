@@ -186,14 +186,14 @@ fn make_mldsa_csr(env: &mut FmcEnv, output: &DiceOutput) -> CaliptraResult<()> {
         sig: sig.as_bytes()[..4627].try_into().unwrap(),
     };
     let result = MlDsa87CsrBuilder::new(tbs.tbs(), &mldsa87_signature)
-        .ok_or(CaliptraError::ROM_IDEVID_CSR_BUILDER_INIT_FAILURE);
+        .ok_or(CaliptraError::FMC_ALIAS_CSR_BUILDER_INIT_FAILURE);
     sig.zeroize();
 
     let csr_bldr = result?;
     let fmc_alias_csr = &mut env.persistent_data.get_mut().fw.fmc_alias_csr;
     let csr_len = csr_bldr
         .build(&mut fmc_alias_csr.mldsa_csr)
-        .ok_or(CaliptraError::ROM_IDEVID_CSR_BUILDER_BUILD_FAILURE)?;
+        .ok_or(CaliptraError::FMC_ALIAS_CSR_BUILDER_BUILD_FAILURE)?;
 
     if csr_len > fmc_alias_csr.mldsa_csr.len() {
         return Err(CaliptraError::FMC_ALIAS_CSR_OVERFLOW);

@@ -274,19 +274,20 @@ impl RtAliasLayer {
         (nb, nf)
     }
 
-    /// Permute Composite Device Identity (CDI) using Rt TCI and Image Manifest Digest
-    /// The RT Alias CDI will overwrite the FMC Alias CDI in the KeyVault Slot
+    /// Derive the Runtime Alias CDI using the FMC CDI and Runtime TCI.
+    /// Use HMAC-SHA-512 with label "alias_rt_cdi" and Runtime TCI as context.
+    /// Store the result in a separate Key Vault slot, preserving the FMC CDI.
     ///
     /// # Arguments
     ///
-    /// * `env` - ROM Environment
-    /// * `fmc_cdi` - Key Slot that holds the current CDI
-    /// * `rt_cdi` - Key Slot to store the generated CDI
+    /// * `env` - FMC Environment
+    /// * `fmc_cdi` - Key slot holding the FMC CDI
+    /// * `rt_cdi` - Key slot to store the Runtime CDI
     #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     fn derive_cdi(env: &mut FmcEnv, fmc_cdi: KeyId, rt_cdi: KeyId) -> CaliptraResult<()> {
         let rt_tci: [u8; 48] = HandOff::rt_tci(env).into();
 
-        // Permute CDI from FMC TCI
+        // Derive from the FMC CDI with the Runtime TCI as context.
         Crypto::hmac_kdf(
             &mut env.hmac,
             &mut env.trng,
