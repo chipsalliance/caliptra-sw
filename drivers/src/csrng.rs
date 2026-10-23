@@ -158,8 +158,8 @@ impl Csrng {
             });
         }
 
-        send_command(&mut result.csrng, Command::Uninstantiate)?;
-        send_command(&mut result.csrng, Command::Instantiate(seed))?;
+        result.send_command(Command::Uninstantiate)?;
+        result.send_command(Command::Instantiate(seed))?;
 
         Ok(result)
     }
@@ -176,19 +176,16 @@ impl Csrng {
     }
 
     fn do_generate4(&mut self, _token: GenerateToken) -> CaliptraResult<(u32, u32, u32, u32)> {
-        send_command(
-            &mut self.csrng,
-            Command::Generate {
-                num_128_bit_blocks: 1,
-            },
-        )?;
+        self.send_command(Command::Generate {
+            num_128_bit_blocks: 1,
+        })?;
         wait::until(|| self.csrng.regs().genbits_vld().read().genbits_vld());
-        Ok((
-            self.csrng.regs().genbits().read(),
-            self.csrng.regs().genbits().read(),
-            self.csrng.regs().genbits().read(),
-            self.csrng.regs().genbits().read(),
-        ))
+        let w0 = self.csrng.regs().genbits().read();
+        let w1 = self.csrng.regs().genbits().read();
+        let w2 = self.csrng.regs().genbits().read();
+        let w3 = self.csrng.regs().genbits().read();
+        self.wait_for_csrng_idle(CaliptraError::DRIVER_CSRNG_GENERATE)?;
+        Ok((w0, w1, w2, w3))
     }
 
     /// Return 12 randomly generated [`u32`]s.
@@ -277,7 +274,7 @@ impl Csrng {
         _token: GenerateToken,
         num_128_bit_blocks: usize,
     ) -> CaliptraResult<[u32; N]> {
-        send_command(&mut self.csrng, Command::Generate { num_128_bit_blocks })?;
+        self.send_command(Command::Generate { num_128_bit_blocks })?;
 
         let mut result = [0u32; N];
         for block in result.chunks_mut(WORDS_PER_BLOCK) {
@@ -286,6 +283,7 @@ impl Csrng {
                 *word = self.csrng.regs().genbits().read();
             }
         }
+        self.wait_for_csrng_idle(CaliptraError::DRIVER_CSRNG_GENERATE)?;
         Ok(result)
     }
 
@@ -315,10 +313,7 @@ impl Csrng {
     }
 
     /// Reseed the DRBG with the given seed. Returns only after the CSRNG has
-    /// fully processed the Reseed — `send_command` alone returns when the
-    /// command is accepted into the staging FIFO, not when the seed has been
-    /// consumed. Callers that disable entropy_src after this call need that
-    /// stronger guarantee.
+    /// fully processed the Reseed.
     pub fn reseed(&mut self, seed: Seed) -> CaliptraResult<()> {
         self.ensure_entropy_src_enabled(&seed)?;
         // FIPS test hook: inject a reseed failure for testing on platforms
@@ -329,8 +324,7 @@ impl Csrng {
         unsafe {
             crate::FipsTestHook::error_if_hook_set(crate::FipsTestHook::CSRNG_RESEED_FAILURE)?;
         }
-        send_command(&mut self.csrng, Command::Reseed(seed))?;
-        self.wait_for_csrng_idle()
+        self.send_command(Command::Reseed(seed))
     }
 
     /// Tear down the current DRBG instance and create a new one with the
@@ -349,8 +343,8 @@ impl Csrng {
     /// `Instantiate` command fails.
     pub fn reinstantiate(&mut self, seed: Seed) -> CaliptraResult<()> {
         self.ensure_entropy_src_enabled(&seed)?;
-        send_command(&mut self.csrng, Command::Uninstantiate)?;
-        send_command(&mut self.csrng, Command::Instantiate(seed))
+        self.send_command(Command::Uninstantiate)?;
+        self.send_command(Command::Instantiate(seed))
     }
 
     /// Enables entropy_src and waits for it to be ready if the seed source is
@@ -376,7 +370,7 @@ impl Csrng {
     pub fn update(&mut self, additional_data: &[u32]) -> CaliptraResult<()> {
         // if we are given too much data, do multiple updates
         for data in additional_data.chunks(MAX_SEED_WORDS) {
-            send_command(&mut self.csrng, Command::Update(data))?;
+            self.send_command(Command::Update(data))?;
         }
         Ok(())
     }
@@ -392,33 +386,141 @@ impl Csrng {
     }
 
     pub fn uninstantiate(mut self) {
-        let _ = send_command(&mut self.csrng, Command::Uninstantiate);
+        let _ = self.send_command(Command::Uninstantiate);
     }
 
     pub fn zeroize(&mut self) -> CaliptraResult<()> {
-        send_command(&mut self.csrng, Command::Uninstantiate)
+        self.send_command(Command::Uninstantiate)
     }
 
-    /// Wait for the CSRNG main SM to return to Idle. `send_command` returns
-    /// when the command is accepted into the staging FIFO, not when the CSRNG
-    /// finishes executing it.
-    fn wait_for_csrng_idle(&self) -> CaliptraResult<()> {
+    /// Wait for the CSRNG command interface to be ready to accept a word.
+    fn wait_for_cmd_rdy(&self, err: CaliptraError) -> CaliptraResult<()> {
+        loop {
+            let reg = self.csrng.regs().sw_cmd_sts().read();
+
+            // Order matters. Check for errors first.
+            if reg.cmd_sts() != 0 || u32::from(self.csrng.regs().err_code().read()) != 0 {
+                // TODO: Somehow convey additional error information found in
+                // the ERR_CODE register.
+                return Err(err);
+            }
+
+            if reg.cmd_rdy() {
+                return Ok(());
+            }
+        }
+    }
+
+    /// Wait for the CSRNG command to be acknowledged and the main SM to return
+    /// to Idle.
+    fn wait_for_csrng_idle(&self, err: CaliptraError) -> CaliptraResult<()> {
         const MAIN_SM_IDLE: u32 = 0x4e;
         const ALERT_HANG: u32 = 0x1fb;
         loop {
+            let reg = self.csrng.regs().sw_cmd_sts().read();
+            if reg.cmd_sts() != 0 || u32::from(self.csrng.regs().err_code().read()) != 0 {
+                return Err(err);
+            }
             let csrng_state = self.csrng.regs().main_sm_state().read().main_sm_state();
+            if reg.cmd_rdy() && reg.cmd_ack() && csrng_state == MAIN_SM_IDLE {
+                return Ok(());
+            }
             let es_state = self
                 .entropy_src
                 .regs()
                 .main_sm_state()
                 .read()
                 .main_sm_state();
-            if csrng_state == MAIN_SM_IDLE {
-                return Ok(());
-            }
             if es_state == ALERT_HANG {
                 return check_for_alert_state(self.entropy_src.regs());
             }
+        }
+    }
+
+    fn send_command(&mut self, command: Command) -> CaliptraResult<()> {
+        // https://opentitan.org/book/hw/ip/csrng/doc/theory_of_operation.html#general-command-format
+        let acmd: u32;
+        let clen: usize;
+        let flag0: MultiBitBool;
+        let glen: usize;
+        let extra_words: &[u32];
+        let err: CaliptraError;
+
+        match command {
+            Command::Instantiate(ref seed) | Command::Reseed(ref seed) => {
+                acmd = if matches!(command, Command::Instantiate(_)) {
+                    err = CaliptraError::DRIVER_CSRNG_INSTANTIATE;
+                    1
+                } else {
+                    err = CaliptraError::DRIVER_CSRNG_RESEED;
+                    2
+                };
+
+                match seed {
+                    Seed::EntropySrc => {
+                        clen = 0;
+                        flag0 = MultiBitBool::False;
+                        extra_words = &[];
+                    }
+
+                    Seed::Constant(constant) => {
+                        clen = constant.len().min(MAX_SEED_WORDS);
+                        flag0 = MultiBitBool::True;
+                        extra_words = &constant[..clen];
+                    }
+                }
+
+                glen = 0;
+            }
+
+            Command::Generate { num_128_bit_blocks } => {
+                acmd = 3;
+                clen = 0;
+                flag0 = MultiBitBool::False;
+                glen = num_128_bit_blocks;
+                extra_words = &[];
+                err = CaliptraError::DRIVER_CSRNG_GENERATE;
+            }
+
+            Command::Update(words) => {
+                acmd = 4;
+                clen = words.len().min(MAX_SEED_WORDS);
+                flag0 = MultiBitBool::True;
+                glen = 0;
+                extra_words = &words[..clen];
+                err = CaliptraError::DRIVER_CSRNG_UPDATE;
+            }
+
+            Command::Uninstantiate => {
+                acmd = 5;
+                clen = 0;
+                flag0 = MultiBitBool::False;
+                glen = 0;
+                extra_words = &[];
+                err = CaliptraError::DRIVER_CSRNG_UNINSTANTIATE;
+            }
+        }
+
+        // Write mandatory 32-bit command header.
+        self.wait_for_cmd_rdy(err)?;
+        self.csrng.regs_mut().cmd_req().write(|w| {
+            w.acmd(acmd)
+                .clen(clen as u32)
+                .flag0(flag0 as u32)
+                .glen(glen as u32)
+        });
+
+        // Write optional extra words.
+        for &word in extra_words {
+            self.wait_for_cmd_rdy(err)?;
+            self.csrng.regs_mut().cmd_req().write(|_| word.into());
+        }
+
+        if matches!(command, Command::Generate { .. }) {
+            // Generate commands are only acknowledged after GENBITS are read.
+            self.wait_for_cmd_rdy(err)
+        } else {
+            self.wait_for_csrng_idle(err)
         }
     }
 }
@@ -500,102 +602,6 @@ pub struct HealthFailCounts {
 
     /// The counts of specific failing health checks.
     pub specific: AlertFailCountsReadVal,
-}
-
-fn send_command(csrng: &mut CsrngReg, command: Command) -> CaliptraResult<()> {
-    // https://opentitan.org/book/hw/ip/csrng/doc/theory_of_operation.html#general-command-format
-    let acmd: u32;
-    let clen: usize;
-    let flag0: MultiBitBool;
-    let glen: usize;
-    let extra_words: &[u32];
-    let err: CaliptraError;
-
-    match command {
-        Command::Instantiate(ref seed) | Command::Reseed(ref seed) => {
-            acmd = if matches!(command, Command::Instantiate(_)) {
-                err = CaliptraError::DRIVER_CSRNG_INSTANTIATE;
-                1
-            } else {
-                err = CaliptraError::DRIVER_CSRNG_RESEED;
-                2
-            };
-
-            match seed {
-                Seed::EntropySrc => {
-                    clen = 0;
-                    flag0 = MultiBitBool::False;
-                    extra_words = &[];
-                }
-
-                Seed::Constant(constant) => {
-                    clen = constant.len().min(MAX_SEED_WORDS);
-                    flag0 = MultiBitBool::True;
-                    extra_words = &constant[..clen];
-                }
-            }
-
-            glen = 0;
-        }
-
-        Command::Generate { num_128_bit_blocks } => {
-            acmd = 3;
-            clen = 0;
-            flag0 = MultiBitBool::False;
-            glen = num_128_bit_blocks;
-            extra_words = &[];
-            err = CaliptraError::DRIVER_CSRNG_GENERATE;
-        }
-
-        Command::Update(words) => {
-            acmd = 4;
-            clen = words.len().min(MAX_SEED_WORDS);
-            flag0 = MultiBitBool::True;
-            glen = 0;
-            extra_words = &words[..clen];
-            err = CaliptraError::DRIVER_CSRNG_UPDATE;
-        }
-
-        Command::Uninstantiate => {
-            acmd = 5;
-            clen = 0;
-            flag0 = MultiBitBool::False;
-            glen = 0;
-            extra_words = &[];
-            err = CaliptraError::DRIVER_CSRNG_UNINSTANTIATE;
-        }
-    }
-
-    // Write mandatory 32-bit command header.
-    csrng.regs_mut().cmd_req().write(|w| {
-        w.acmd(acmd)
-            .clen(clen as u32)
-            .flag0(flag0 as u32)
-            .glen(glen as u32)
-    });
-
-    // Write optional extra words.
-    for &word in extra_words {
-        csrng.regs_mut().cmd_req().write(|_| word.into());
-    }
-
-    // Wait for command.
-    loop {
-        let reg = csrng.regs().sw_cmd_sts().read();
-
-        // Order matters. Check for errors first.
-        if reg.cmd_sts() != 0 || u32::from(csrng.regs().err_code().read()) != 0 {
-            // TODO: Somehow convey additional error information found in
-            // the ERR_CODE register.
-            return Err(err);
-        }
-
-        // TODO: if the hardware is fixed to make the ack flag sticky, we should
-        // check that as well before exiting the loop.
-        if reg.cmd_rdy() {
-            return Ok(());
-        }
-    }
 }
 
 fn read_entropy_configuration(
