@@ -50,9 +50,6 @@ const I3C_TARGET_MAPPING: (usize, usize) = (1, 2);
 const MCI_MAPPING: (usize, usize) = (1, 3);
 const OTP_MAPPING: (usize, usize) = (1, 4);
 
-// Default flash size: 16MB each, initialized to 0xFF
-const DEFAULT_FLASH_SIZE: usize = 16 * 1024 * 1024;
-
 #[allow(dead_code)]
 mod otp_ctrl_mmap {
     include!(concat!(env!("OUT_DIR"), "/otp_ctrl_mmap_offsets.rs"));
@@ -656,19 +653,14 @@ impl ModelFpgaSubsystem {
         if !self.mmio.enabled() {
             return;
         }
-        let (start, page_num, op) = {
+        let (page_num, op) = {
             let regs = self.flash_ctrl_regs(is_primary);
-            (
-                regs.fl_control.read(FlashControl::START),
-                regs.page_num.get() as usize,
-                regs.fl_control.read(FlashControl::OP),
-            )
+            let ctrl = regs.fl_control.extract();
+            if !ctrl.is_set(FlashControl::START) {
+                return;
+            }
+            (regs.page_num.get() as usize, ctrl.read(FlashControl::OP))
         };
-
-        // Check if START bit is set
-        if start == 0 {
-            return;
-        }
 
         let flash = if is_primary {
             &mut self.primary_flash
@@ -693,9 +685,9 @@ impl ModelFpgaSubsystem {
             match op {
                 1 => {
                     // Read page: copy from flash buffer to memory at page_addr
-                    let page_data = flash[flash_offset..flash_offset + FLASH_PAGE_SIZE].to_vec();
+                    let mut page_data = [0u8; FLASH_PAGE_SIZE];
+                    page_data.copy_from_slice(&flash[flash_offset..flash_offset + FLASH_PAGE_SIZE]);
                     let word_count = FLASH_PAGE_SIZE / 4;
-                    // re-borrow to avoid borrow checker
                     let flash_ctrl = self.flash_ctrl_regs(is_primary);
                     for i in 0..word_count {
                         let byte_offset = i * 4;
@@ -776,7 +768,7 @@ impl ModelFpgaSubsystem {
 
     fn handle_log(&mut self) {
         // limit steps so that we don't starve the flash controller and BMC
-        const MAX_STEPS: i32 = 1000;
+        const MAX_STEPS: i32 = 16;
         for _ in 0..MAX_STEPS {
             // Check if the FIFO is full (which probably means there was an overrun)
             if self
@@ -1981,14 +1973,13 @@ impl HwModel for ModelFpgaSubsystem {
                 .primary_flash_initial_contents
                 .map(|c| {
                     let mut flash = c.to_vec();
-                    // Ensure flash is at least DEFAULT_FLASH_SIZE, pad with 0xFF
-                    if flash.len() < DEFAULT_FLASH_SIZE {
-                        flash.resize(DEFAULT_FLASH_SIZE, 0xFF);
+                    if flash.len() < FLASH_PAGE_SIZE {
+                        flash.resize(FLASH_PAGE_SIZE, 0xFF);
                     }
                     flash
                 })
-                .unwrap_or_else(|| vec![0xFF; DEFAULT_FLASH_SIZE]),
-            secondary_flash: vec![0xFF; DEFAULT_FLASH_SIZE],
+                .unwrap_or_else(|| vec![0xFF; FLASH_PAGE_SIZE]),
+            secondary_flash: vec![0xFF; FLASH_PAGE_SIZE],
             flash_boot: params
                 .ss_init_params
                 .primary_flash_initial_contents
