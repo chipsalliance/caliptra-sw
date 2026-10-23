@@ -22,6 +22,8 @@ Abstract:
 
 --*/
 use crate::{wait, CaliptraError, CaliptraResult};
+#[cfg(not(feature = "rom"))]
+use caliptra_registers::csrng::regs::CmdReqWriteVal;
 use caliptra_registers::csrng::CsrngReg;
 use caliptra_registers::entropy_src::{self, regs::AlertFailCountsReadVal, EntropySrcReg};
 use caliptra_registers::soc_ifc::{self, SocIfcReg};
@@ -126,8 +128,8 @@ impl Csrng {
             });
         }
 
-        send_command(&mut result.csrng, Command::Uninstantiate)?;
-        send_command(&mut result.csrng, Command::Instantiate(seed))?;
+        result.send_command(Command::Uninstantiate)?;
+        result.send_command(Command::Instantiate(seed))?;
 
         Ok(result)
     }
@@ -146,20 +148,17 @@ impl Csrng {
 
     #[cfg(not(feature = "rom"))]
     fn do_generate4(&mut self, _token: GenerateToken) -> CaliptraResult<(u32, u32, u32, u32)> {
-        send_command(
-            &mut self.csrng,
-            Command::Generate {
-                num_128_bit_blocks: 1,
-            },
-        )?;
+        self.send_command(Command::Generate {
+            num_128_bit_blocks: 1,
+        })?;
         self.reseed_counter = self.reseed_counter.saturating_add(1);
         wait::until(|| self.csrng.regs().genbits_vld().read().genbits_vld());
-        Ok((
-            self.csrng.regs().genbits().read(),
-            self.csrng.regs().genbits().read(),
-            self.csrng.regs().genbits().read(),
-            self.csrng.regs().genbits().read(),
-        ))
+        let w0 = self.csrng.regs().genbits().read();
+        let w1 = self.csrng.regs().genbits().read();
+        let w2 = self.csrng.regs().genbits().read();
+        let w3 = self.csrng.regs().genbits().read();
+        self.wait_for_csrng_idle(CaliptraError::DRIVER_CSRNG_GENERATE)?;
+        Ok((w0, w1, w2, w3))
     }
 
     /// Return 12 randomly generated [`u32`]s.
@@ -246,12 +245,9 @@ impl Csrng {
     }
 
     fn do_generate12(&mut self, _token: GenerateToken) -> CaliptraResult<[u32; 12]> {
-        send_command(
-            &mut self.csrng,
-            Command::Generate {
-                num_128_bit_blocks: 12 / WORDS_PER_BLOCK,
-            },
-        )?;
+        self.send_command(Command::Generate {
+            num_128_bit_blocks: 12 / WORDS_PER_BLOCK,
+        })?;
         #[cfg(not(feature = "rom"))]
         {
             self.reseed_counter = self.reseed_counter.saturating_add(1);
@@ -275,15 +271,21 @@ impl Csrng {
             dest.add(9).write(self.csrng.regs().genbits().read());
             dest.add(10).write(self.csrng.regs().genbits().read());
             dest.add(11).write(self.csrng.regs().genbits().read());
+            // The Generate command is only acknowledged once all GENBITS have
+            // been drained; wait for the CSRNG to return to Idle before handing
+            // the words back so no command is left in flight. (Not in the ROM,
+            // which keeps the original command handling; see `send_command`.)
+            #[cfg(not(feature = "rom"))]
+            {
+                self.wait_for_csrng_idle(CaliptraError::DRIVER_CSRNG_GENERATE)?;
+            }
             Ok(result.assume_init())
         }
     }
 
-    /// Reseed the DRBG with the given seed. Returns only after the CSRNG has
-    /// fully processed the Reseed — `send_command` alone returns when the
-    /// command is accepted into the staging FIFO, not when the seed has been
-    /// consumed. Callers that disable entropy_src after this call need that
-    /// stronger guarantee.
+    /// Reseed the DRBG with the given seed. Outside the ROM this returns only
+    /// after the CSRNG has fully processed the Reseed, so callers may safely
+    /// disable entropy_src afterwards.
     pub fn reseed(&mut self, seed: Seed) -> CaliptraResult<()> {
         #[cfg(feature = "rom")]
         {
@@ -300,9 +302,9 @@ impl Csrng {
             unsafe {
                 crate::FipsTestHook::error_if_hook_set(crate::FipsTestHook::CSRNG_RESEED_FAILURE)?;
             }
-            send_command(&mut self.csrng, Command::Reseed(seed))?;
+            self.send_command(Command::Reseed(seed))?;
             self.reseed_counter = 0;
-            self.wait_for_csrng_idle()
+            Ok(())
         }
     }
 
@@ -316,8 +318,8 @@ impl Csrng {
     #[cfg(not(feature = "rom"))]
     pub fn reinstantiate(&mut self, seed: Seed) -> CaliptraResult<()> {
         self.ensure_entropy_src_enabled(&seed)?;
-        send_command(&mut self.csrng, Command::Uninstantiate)?;
-        send_command(&mut self.csrng, Command::Instantiate(seed))?;
+        self.send_command(Command::Uninstantiate)?;
+        self.send_command(Command::Instantiate(seed))?;
         self.reseed_counter = 0;
         Ok(())
     }
@@ -363,7 +365,7 @@ impl Csrng {
     }
 
     pub fn update(&mut self, additional_data: &[u32]) -> CaliptraResult<()> {
-        send_command(&mut self.csrng, Command::Update(additional_data))
+        self.send_command(Command::Update(additional_data))
     }
 
     /// Returns the number of failing health checks.
@@ -377,30 +379,135 @@ impl Csrng {
     }
 
     pub fn uninstantiate(mut self) {
-        let _ = send_command(&mut self.csrng, Command::Uninstantiate);
+        let _ = self.send_command(Command::Uninstantiate);
     }
 
-    /// Wait for the CSRNG main SM to return to Idle. `send_command` returns
-    /// when the command is accepted into the staging FIFO, not when the CSRNG
-    /// finishes executing it.
+    /// Issue `command` the way the released ROM does: write the header and
+    /// any extra words back to back and return once `SW_CMD_STS.CMD_RDY`
+    /// re-asserts.
+    ///
+    /// The ROM image is frozen, so it keeps this behaviour; it is safe there
+    /// because the ROM only ever issues single-word commands and never powers
+    /// entropy_src down. See the non-ROM `send_command` for the hazards.
+    #[cfg(feature = "rom")]
+    fn send_command(&mut self, command: Command) -> CaliptraResult<()> {
+        send_command(&mut self.csrng, command)
+    }
+
+    /// Write one word to `CMD_REQ`, first waiting for the command interface
+    /// to be ready to accept it.
+    ///
+    /// The software application port's command staging FIFO is only two
+    /// words deep and silently drops any `CMD_REQ` write made while
+    /// `SW_CMD_STS.CMD_RDY` is clear, so `CMD_RDY` must be polled before
+    /// every word written to `CMD_REQ`.
     #[cfg(not(feature = "rom"))]
-    fn wait_for_csrng_idle(&self) -> CaliptraResult<()> {
+    fn write_cmd_word(&mut self, word: u32, err: CaliptraError) -> CaliptraResult<()> {
+        loop {
+            let reg = self.csrng.regs().sw_cmd_sts().read();
+
+            // Order matters. Check for errors first.
+            if reg.cmd_sts() || u32::from(self.csrng.regs().err_code().read()) != 0 {
+                // TODO: Somehow convey additional error information found in
+                // the ERR_CODE register.
+                return Err(err);
+            }
+
+            if reg.cmd_rdy() {
+                break;
+            }
+        }
+        self.csrng.regs_mut().cmd_req().write(|_| word.into());
+        Ok(())
+    }
+
+    /// Wait for the CSRNG main SM to return to Idle.
+    ///
+    /// `SW_CMD_STS.CMD_RDY` only indicates that the command staging FIFO can
+    /// accept another word, not that the CSRNG has finished executing the
+    /// command. Caliptra 1.x does not expose `CMD_ACK`, so completion is
+    /// detected by the main SM returning to `MainSmIdle`.
+    #[cfg(not(feature = "rom"))]
+    fn wait_for_csrng_idle(&self, err: CaliptraError) -> CaliptraResult<()> {
         const MAIN_SM_IDLE: u32 = 0x4e;
         const ALERT_HANG: u32 = 0x15c;
         loop {
+            let reg = self.csrng.regs().sw_cmd_sts().read();
+            if reg.cmd_sts() || u32::from(self.csrng.regs().err_code().read()) != 0 {
+                return Err(err);
+            }
             let csrng_state = self.csrng.regs().main_sm_state().read().main_sm_state();
+            if reg.cmd_rdy() && csrng_state == MAIN_SM_IDLE {
+                return Ok(());
+            }
             let es_state = self
                 .entropy_src
                 .regs()
                 .main_sm_state()
                 .read()
                 .main_sm_state();
-            if csrng_state == MAIN_SM_IDLE {
-                return Ok(());
-            }
             if es_state == ALERT_HANG {
                 return check_for_alert_state(self.entropy_src.regs());
             }
+        }
+    }
+
+    /// Issue `command`, polling `SW_CMD_STS.CMD_RDY` before every word
+    /// written to `CMD_REQ` (the two-word staging FIFO silently drops writes
+    /// made while it is full) and, unless the command is a `Generate`,
+    /// returning only once the CSRNG main SM is idle again, so that a
+    /// following `disable_entropy_source()` cannot pull the seed out from
+    /// under an in-flight `Instantiate` / `Reseed`.
+    #[cfg(not(feature = "rom"))]
+    fn send_command(&mut self, command: Command) -> CaliptraResult<()> {
+        // https://opentitan.org/book/hw/ip/csrng/doc/theory_of_operation.html#general-command-format
+        let (acmd, err) = match command {
+            Command::Instantiate(_) => (1, CaliptraError::DRIVER_CSRNG_INSTANTIATE),
+            Command::Reseed(_) => (2, CaliptraError::DRIVER_CSRNG_RESEED),
+            Command::Generate { .. } => (3, CaliptraError::DRIVER_CSRNG_GENERATE),
+            Command::Update(_) => (4, CaliptraError::DRIVER_CSRNG_UPDATE),
+            Command::Uninstantiate => (5, CaliptraError::DRIVER_CSRNG_UNINSTANTIATE),
+        };
+
+        let (flag0, glen, extra_words): (MultiBitBool, usize, &[u32]) = match command {
+            // Seed / additional data supplied by software.
+            Command::Instantiate(Seed::Constant(words))
+            | Command::Reseed(Seed::Constant(words))
+            | Command::Update(words) => (
+                MultiBitBool::True,
+                0,
+                &words[..words.len().min(MAX_SEED_WORDS)],
+            ),
+
+            Command::Generate { num_128_bit_blocks } => {
+                (MultiBitBool::False, num_128_bit_blocks, &[])
+            }
+
+            // Seed from entropy_src, or no payload at all.
+            Command::Instantiate(Seed::EntropySrc)
+            | Command::Reseed(Seed::EntropySrc)
+            | Command::Uninstantiate => (MultiBitBool::False, 0, &[]),
+        };
+
+        // Write the mandatory 32-bit command header.
+        let header = CmdReqWriteVal::from(0)
+            .acmd(acmd)
+            .clen(extra_words.len() as u32)
+            .flag0(flag0 as u32)
+            .glen(glen as u32);
+        self.write_cmd_word(header.into(), err)?;
+
+        // Write the optional extra words.
+        for &word in extra_words {
+            self.write_cmd_word(word, err)?;
+        }
+
+        if matches!(command, Command::Generate { .. }) {
+            // Generate commands only complete once GENBITS have been read, so
+            // the caller waits for idle after draining them.
+            Ok(())
+        } else {
+            self.wait_for_csrng_idle(err)
         }
     }
 }
@@ -484,6 +591,8 @@ pub struct HealthFailCounts {
     pub specific: AlertFailCountsReadVal,
 }
 
+/// Original CSRNG command path, kept verbatim for the (frozen) ROM image.
+#[cfg(feature = "rom")]
 fn send_command(csrng: &mut CsrngReg, command: Command) -> CaliptraResult<()> {
     // https://opentitan.org/book/hw/ip/csrng/doc/theory_of_operation.html#general-command-format
     let acmd: u32;
