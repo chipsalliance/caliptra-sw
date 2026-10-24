@@ -38,7 +38,6 @@ impl ReallocateDpeContextLimitsCmd {
 
         const TOTAL_DPE_CONTEXT_LIMIT: usize =
             PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD + PL1_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD;
-        let pl1_context_limit = TOTAL_DPE_CONTEXT_LIMIT as u32 - cmd.pl0_context_limit;
 
         // Only allowed by PL0
         drivers.ensure_pl0()?;
@@ -50,6 +49,7 @@ impl ReallocateDpeContextLimitsCmd {
         if cmd.pl0_context_limit > TOTAL_DPE_CONTEXT_LIMIT as u32 {
             Err(CaliptraError::RUNTIME_REALLOCATE_DPE_CONTEXTS_PL0_GREATER_THAN_MAX)?
         }
+        let pl1_context_limit = TOTAL_DPE_CONTEXT_LIMIT as u32 - cmd.pl0_context_limit;
 
         // Error checking against used contexts
         let (used_pl0_dpe_context_count, used_pl1_dpe_context_count) =
