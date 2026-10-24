@@ -38,7 +38,7 @@ fn import_mlkem_seed(model: &mut DefaultHwModel, seed: &[u8]) -> Cmk {
     let resp = CmImportResp::ref_from_bytes(resp.as_slice()).unwrap();
     assert_eq!(
         resp.hdr.fips_status,
-        MailboxRespHeader::FIPS_STATUS_APPROVED
+        MailboxRespHeader::FIPS_STATUS_NOT_APPROVED_USER_SUPPLIED_KEY
     );
     resp.cmk.clone()
 }
@@ -63,7 +63,7 @@ fn decrypt_with_cmk(
     let resp = CmAesGcmDecryptInitResp::ref_from_bytes(resp.as_slice()).unwrap();
     assert_eq!(
         resp.hdr.fips_status,
-        MailboxRespHeader::FIPS_STATUS_APPROVED
+        MailboxRespHeader::FIPS_STATUS_NOT_APPROVED_USER_SUPPLIED_KEY
     );
 
     let mut req = CmAesGcmDecryptFinalReq {
@@ -85,7 +85,7 @@ fn decrypt_with_cmk(
     let header = CmAesGcmDecryptFinalRespHeader::read_from_bytes(&resp[..HEADER_SIZE]).unwrap();
     assert_eq!(
         header.hdr.fips_status,
-        MailboxRespHeader::FIPS_STATUS_APPROVED
+        MailboxRespHeader::FIPS_STATUS_NOT_APPROVED_USER_SUPPLIED_KEY
     );
     let plaintext_size = header.plaintext_size as usize;
     assert!(plaintext_size <= MAX_CMB_DATA_SIZE);
@@ -143,6 +143,10 @@ fn mlkem_cmd_run_wycheproof() {
                 .unwrap()
                 .expect("CM_MLKEM_KEY_GEN should return a response");
             let resp = CmMlkemKeyGenResp::ref_from_bytes(resp.as_slice()).unwrap();
+            assert_eq!(
+                resp.hdr.fips_status,
+                MailboxRespHeader::FIPS_STATUS_NOT_APPROVED_USER_SUPPLIED_KEY
+            );
             assert_eq!(
                 resp.encaps_key.as_slice(),
                 expected_encaps_key,
@@ -243,6 +247,10 @@ fn mlkem_cmd_run_wycheproof() {
                 .unwrap()
                 .expect("CM_MLKEM_DECAPSULATE should return a response");
             let resp = CmMlkemDecapsulateResp::ref_from_bytes(resp.as_slice()).unwrap();
+            assert_eq!(
+                resp.hdr.fips_status,
+                MailboxRespHeader::FIPS_STATUS_NOT_APPROVED_USER_SUPPLIED_KEY
+            );
 
             let iv = [0x42; 12];
             let expected_plaintext = [0x5a; 32];
