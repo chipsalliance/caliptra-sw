@@ -782,11 +782,15 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             .env
             .ecc384_verify(digest, pub_key, sig)
             .map_err(|err| {
-                self.env.set_fw_extended_error(err.into());
-                if is_owner {
-                    CaliptraError::IMAGE_VERIFIER_ERR_OWNER_ECC_VERIFY_FAILURE
+                if err == CaliptraError::DRIVER_ECC384_SIGNATURE_VERIFICATION_FAILED {
+                    signature_invalid
                 } else {
-                    CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_VERIFY_FAILURE
+                    self.env.set_fw_extended_error(err.into());
+                    if is_owner {
+                        CaliptraError::IMAGE_VERIFIER_ERR_OWNER_ECC_VERIFY_FAILURE
+                    } else {
+                        CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_VERIFY_FAILURE
+                    }
                 }
             })?;
 
@@ -826,8 +830,12 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             .env
             .ecc384_verify(digest_holder.digest_384, ecc_pub_key, ecc_sig)
             .map_err(|err| {
-                self.env.set_fw_extended_error(err.into());
-                CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_VERIFY_FAILURE
+                if err == CaliptraError::DRIVER_ECC384_SIGNATURE_VERIFICATION_FAILED {
+                    CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_SIGNATURE_INVALID
+                } else {
+                    self.env.set_fw_extended_error(err.into());
+                    CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_VERIFY_FAILURE
+                }
             })?;
 
         if cfi_launder(verify_r) != caliptra_drivers::Array4xN(ecc_sig.r) {
@@ -2830,12 +2838,79 @@ mod tests {
         assert_eq!(info.size, 100);
     }
 
+    #[test]
+    fn test_ecc_hardware_rejection_preserves_signature_errors() {
+        let public_key = ImageEccPubKey {
+            x: DUMMY_DATA,
+            y: DUMMY_DATA,
+        };
+        let signature = ImageEccSignature {
+            r: DUMMY_DATA,
+            s: DUMMY_DATA,
+        };
+        for is_owner in [false, true] {
+            for error in [
+                CaliptraError::DRIVER_ECC384_SIGNATURE_VERIFICATION_FAILED,
+                CaliptraError::DRIVER_ECC384_VERIFY_RESULT_MISMATCH,
+            ] {
+                let mut verifier = ImageVerifier::new(TestEnv {
+                    ecc_verify_error: Some(error),
+                    ..Default::default()
+                });
+                let expected =
+                    if error == CaliptraError::DRIVER_ECC384_SIGNATURE_VERIFICATION_FAILED {
+                        if is_owner {
+                            CaliptraError::IMAGE_VERIFIER_ERR_OWNER_ECC_SIGNATURE_INVALID
+                        } else {
+                            CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_SIGNATURE_INVALID
+                        }
+                    } else if is_owner {
+                        CaliptraError::IMAGE_VERIFIER_ERR_OWNER_ECC_VERIFY_FAILURE
+                    } else {
+                        CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_VERIFY_FAILURE
+                    };
+                assert_eq!(
+                    verifier.verify_ecc_sig(&DUMMY_DATA, &public_key, &signature, is_owner),
+                    Err(expected)
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_vendor_hardware_rejection_preserves_signature_error() {
+        let public_key = ImageEccPubKey {
+            x: DUMMY_DATA,
+            y: DUMMY_DATA,
+        };
+        let signature = ImageEccSignature {
+            r: DUMMY_DATA,
+            s: DUMMY_DATA,
+        };
+        let digest = ImageSignData {
+            digest_384: &DUMMY_DATA,
+            mldsa_msg: None,
+        };
+        let public_lms = ImageLmsPublicKey::default();
+        let signature_lms = ImageLmsSignature::default();
+        let pqc = PqcKeyInfo::Lms(&public_lms, &signature_lms);
+        let mut verifier = ImageVerifier::new(TestEnv {
+            ecc_verify_error: Some(CaliptraError::DRIVER_ECC384_SIGNATURE_VERIFICATION_FAILED),
+            ..Default::default()
+        });
+        assert_eq!(
+            verifier.verify_vendor_sig(&digest, (&public_key, &signature), &pqc),
+            Err(CaliptraError::IMAGE_VERIFIER_ERR_VENDOR_ECC_SIGNATURE_INVALID)
+        );
+    }
+
     struct TestEnv {
         digest_384: ImageDigest384,
         digest_512: ImageDigest512,
         manifest_digest_inputs: Vec<Vec<u8>>,
         fmc_digest: ImageDigest384,
         verify_result: bool,
+        ecc_verify_error: Option<CaliptraError>,
         verify_pqc_result: bool,
         vendor_pub_key_digest: ImageDigest384,
         vendor_ecc_pub_key_revocation: VendorEccPubKeyRevocation,
@@ -2858,6 +2933,7 @@ mod tests {
                 manifest_digest_inputs: Vec::new(),
                 fmc_digest: ImageDigest384::default(),
                 verify_result: false,
+                ecc_verify_error: None,
                 verify_pqc_result: false,
                 vendor_pub_key_digest: ImageDigest384::default(),
                 vendor_ecc_pub_key_revocation: VendorEccPubKeyRevocation::default(),
@@ -2916,6 +2992,9 @@ mod tests {
             _pub_key: &ImageEccPubKey,
             sig: &ImageEccSignature,
         ) -> CaliptraResult<Array4xN<12, 48>> {
+            if let Some(error) = self.ecc_verify_error {
+                return Err(error);
+            }
             if self.verify_result {
                 Ok(Array4x12::from(sig.r))
             } else {

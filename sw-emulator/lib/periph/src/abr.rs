@@ -164,6 +164,7 @@ register_bitfields! [
         READY OFFSET(0) NUMBITS(1) [],
         VALID OFFSET(1) NUMBITS(1) [],
         MSG_STREAM_READY OFFSET(2) NUMBITS(1) [],
+        VERIFY_PASS OFFSET(4) NUMBITS(1) [],
     ],
 
     /// ML-KEM Status Register Fields
@@ -555,9 +556,11 @@ impl Abr {
             }
             Some(MlDsaControl::CTRL::Value::VERIFYING) => {
                 // Reset the Ready and Valid status bits
-                self.mldsa_status
-                    .reg
-                    .modify(MlDsaStatus::READY::CLEAR + MlDsaStatus::VALID::CLEAR);
+                self.mldsa_status.reg.modify(
+                    MlDsaStatus::READY::CLEAR
+                        + MlDsaStatus::VALID::CLEAR
+                        + MlDsaStatus::VERIFY_PASS::CLEAR,
+                );
 
                 if self.mldsa_ctrl.reg.is_set(MlDsaControl::STREAM_MSG) {
                     // Clear any previous streamed message
@@ -577,8 +580,15 @@ impl Abr {
         }
 
         if self.mldsa_ctrl.reg.is_set(MlDsaControl::ZEROIZE) {
-            // Reset the Ready status bit
-            self.mldsa_status.reg.modify(MlDsaStatus::READY::CLEAR);
+            self.mldsa_op_complete_action = None;
+            self.mldsa_op_seed_read_complete_action = None;
+            self.mldsa_op_msg_stream_ready_action = None;
+            self.mldsa_status.reg.modify(
+                MlDsaStatus::READY::CLEAR
+                    + MlDsaStatus::VALID::CLEAR
+                    + MlDsaStatus::MSG_STREAM_READY::CLEAR
+                    + MlDsaStatus::VERIFY_PASS::CLEAR,
+            );
 
             self.mldsa_op_zeroize_complete_action =
                 Some(self.timer.schedule_poll_in(ML_DSA87_OP_TICKS));
@@ -819,6 +829,9 @@ impl Abr {
             self.mldsa_verify_msg(key_bytes, signature)
         };
 
+        self.mldsa_status
+            .reg
+            .modify(MlDsaStatus::VERIFY_PASS.val(u32::from(success)));
         if success {
             self.mldsa_verify_res
                 .copy_from_slice(&self.mldsa_signature[..(ML_DSA87_VERIFICATION_SIZE_BYTES / 4)]);
@@ -964,7 +977,8 @@ impl Abr {
         self.mldsa_status.reg.modify(
             MlDsaStatus::READY::SET
                 + MlDsaStatus::VALID::CLEAR
-                + MlDsaStatus::MSG_STREAM_READY::CLEAR,
+                + MlDsaStatus::MSG_STREAM_READY::CLEAR
+                + MlDsaStatus::VERIFY_PASS::CLEAR,
         );
     }
 
@@ -1449,12 +1463,12 @@ impl Abr {
 
     /// Called by Bus::warm_reset() to indicate a warm reset
     fn warm_reset(&mut self) {
-        // TODO: Reset registers
+        self.mldsa_zeroize();
     }
 
     /// Called by Bus::update_reset() to indicate an update reset
     fn update_reset(&mut self) {
-        // TODO: Reset registers
+        self.mldsa_zeroize();
     }
 }
 
@@ -1829,6 +1843,117 @@ mod tests {
             result,
             &sig_for_comp[sig_for_comp.len() - ML_DSA87_VERIFICATION_SIZE_BYTES..]
         );
+        assert!(!ml_dsa87.mldsa_status.reg.is_set(MlDsaStatus::VERIFY_PASS));
+    }
+
+    fn verification_fixture(clock: &Clock) -> Abr {
+        let key_vault = KeyVault::new();
+        let sha512 = HashSha512::new(clock, key_vault.clone());
+        let mut abr = Abr::new(clock, key_vault, sha512);
+        let mut rng = SeedOnlyRng::new([7; 32]);
+        let (public_key, private_key) = try_keygen_with_rng(&mut rng).unwrap();
+        let signature = private_key
+            .try_sign_with_seed(&[0; 32], &[0; 64], &[])
+            .unwrap();
+        abr.mldsa_pubkey = words_from_bytes_le(&public_key.into_bytes());
+        let mut padded = [0; ML_DSA87_SIGNATURE_SIZE];
+        padded[..SIG_LEN].copy_from_slice(&signature);
+        abr.mldsa_signature = words_from_bytes_le(&padded);
+        abr
+    }
+
+    fn complete_verification(clock: &Clock, abr: &mut Abr) {
+        abr.write(
+            RvSize::Word,
+            OFFSET_MLDSA_CONTROL,
+            MlDsaControl::CTRL::VERIFYING.into(),
+        )
+        .unwrap();
+        assert!(!abr.mldsa_status.reg.is_set(MlDsaStatus::VERIFY_PASS));
+        clock.increment_and_process_timer_actions(ML_DSA87_OP_TICKS, abr);
+        assert!(abr.mldsa_status.reg.is_set(MlDsaStatus::READY));
+        assert!(abr.mldsa_status.reg.is_set(MlDsaStatus::VALID));
+    }
+
+    #[test]
+    fn test_mldsa_verify_pass_latched_and_rejected_signature_clears_it() {
+        let clock = Clock::new();
+        let mut abr = verification_fixture(&clock);
+        complete_verification(&clock, &mut abr);
+        assert!(abr.mldsa_status.reg.is_set(MlDsaStatus::VERIFY_PASS));
+        let original = abr.mldsa_signature;
+        abr.write(RvSize::Word, OFFSET_MLDSA_SIGNATURE, original[0] ^ 1)
+            .unwrap();
+        assert!(abr.mldsa_status.reg.is_set(MlDsaStatus::VERIFY_PASS));
+
+        abr.mldsa_signature.fill(0);
+        complete_verification(&clock, &mut abr);
+        assert!(!abr.mldsa_status.reg.is_set(MlDsaStatus::VERIFY_PASS));
+        assert_eq!(
+            abr.mldsa_verify_res,
+            [0; ML_DSA87_VERIFICATION_SIZE_BYTES / 4]
+        );
+        abr.mldsa_signature = original;
+        complete_verification(&clock, &mut abr);
+        assert!(abr.mldsa_status.reg.is_set(MlDsaStatus::VERIFY_PASS));
+    }
+
+    #[test]
+    fn test_mldsa_verify_pass_zeroize_cancels_pending_completion() {
+        for pending in [false, true] {
+            let clock = Clock::new();
+            let mut abr = verification_fixture(&clock);
+            complete_verification(&clock, &mut abr);
+            assert!(abr.mldsa_status.reg.is_set(MlDsaStatus::VERIFY_PASS));
+            if pending {
+                abr.write(
+                    RvSize::Word,
+                    OFFSET_MLDSA_CONTROL,
+                    MlDsaControl::CTRL::VERIFYING.into(),
+                )
+                .unwrap();
+            }
+            abr.write(
+                RvSize::Word,
+                OFFSET_MLDSA_CONTROL,
+                MlDsaControl::ZEROIZE::SET.into(),
+            )
+            .unwrap();
+            assert!(!abr.mldsa_status.reg.is_set(MlDsaStatus::VERIFY_PASS));
+            clock.increment_and_process_timer_actions(ML_DSA87_OP_TICKS * 2, &mut abr);
+            assert!(!abr.mldsa_status.reg.is_set(MlDsaStatus::VERIFY_PASS));
+            assert!(!abr.mldsa_status.reg.is_set(MlDsaStatus::VALID));
+            assert!(abr.mldsa_status.reg.is_set(MlDsaStatus::READY));
+        }
+    }
+
+    #[test]
+    fn test_mldsa_verify_pass_reset_cancels_pending_completion() {
+        for update in [false, true] {
+            for pending in [false, true] {
+                let clock = Clock::new();
+                let mut abr = verification_fixture(&clock);
+                complete_verification(&clock, &mut abr);
+                assert!(abr.mldsa_status.reg.is_set(MlDsaStatus::VERIFY_PASS));
+                if pending {
+                    abr.write(
+                        RvSize::Word,
+                        OFFSET_MLDSA_CONTROL,
+                        MlDsaControl::CTRL::VERIFYING.into(),
+                    )
+                    .unwrap();
+                }
+                if update {
+                    abr.update_reset();
+                } else {
+                    abr.warm_reset();
+                }
+                clock.increment_and_process_timer_actions(ML_DSA87_OP_TICKS * 2, &mut abr);
+                assert!(!abr.mldsa_status.reg.is_set(MlDsaStatus::VERIFY_PASS));
+                assert!(!abr.mldsa_status.reg.is_set(MlDsaStatus::VALID));
+                assert!(abr.mldsa_status.reg.is_set(MlDsaStatus::READY));
+            }
+        }
     }
 
     #[test]

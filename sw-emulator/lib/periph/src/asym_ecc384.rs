@@ -62,7 +62,8 @@ register_bitfields! [
     Status[
         READY OFFSET(0) NUMBITS(1) [],
         VALID OFFSET(1) NUMBITS(1) [],
-        RSVD OFFSET(2) NUMBITS(30) [],
+        VERIFY_PASS OFFSET(2) NUMBITS(1) [],
+        RSVD OFFSET(3) NUMBITS(29) [],
     ],
 
     /// Key Control Register Fields
@@ -321,9 +322,9 @@ impl AsymEcc384 {
             | Some(Control::CTRL::Value::SIGN)
             | Some(Control::CTRL::Value::VERIFY) => {
                 // Reset the Ready and Valid status bits
-                self.status
-                    .reg
-                    .modify(Status::READY::CLEAR + Status::VALID::CLEAR);
+                self.status.reg.modify(
+                    Status::READY::CLEAR + Status::VALID::CLEAR + Status::VERIFY_PASS::CLEAR,
+                );
 
                 self.op_complete_action = Some(self.timer.schedule_poll_in(ECC384_OP_TICKS));
             }
@@ -334,7 +335,7 @@ impl AsymEcc384 {
             // Reset the Ready and Valid status bits
             self.status
                 .reg
-                .modify(Status::READY::CLEAR + Status::VALID::CLEAR);
+                .modify(Status::READY::CLEAR + Status::VALID::CLEAR + Status::VERIFY_PASS::CLEAR);
 
             self.op_complete_action = Some(self.timer.schedule_poll_in(ECC384_OP_TICKS));
         }
@@ -510,12 +511,12 @@ impl AsymEcc384 {
 
     /// Called by Bus::warm_reset() to indicate a warm reset
     fn warm_reset(&mut self) {
-        // TODO: Reset registers
+        self.zeroize();
     }
 
     /// Called by Bus::update_reset() to indicate an update reset
     fn update_reset(&mut self) {
-        // TODO: Reset registers
+        self.zeroize();
     }
 
     fn op_complete(&mut self) {
@@ -722,10 +723,19 @@ impl AsymEcc384 {
             },
         );
         self.verify_r = words_from_bytes_le(&verify_r);
+        self.status.reg.modify(Status::VERIFY_PASS.val(u32::from(
+            self.verify_r == self.sig_r && self.sig_r.iter().any(|word| *word != 0),
+        )));
     }
 
     // Clear registers
     fn zeroize(&mut self) {
+        self.op_complete_action = None;
+        self.op_key_read_complete_action = None;
+        self.op_seed_read_complete_action = None;
+        self.op_key_write_complete_action = None;
+        self.control.reg.set(0);
+        self.status.reg.write(Status::READY::SET);
         self.seed.fill(0);
         self.hash.fill(0);
         self.priv_key_out.fill(0);
@@ -1375,6 +1385,109 @@ mod tests {
         sig_s_reverse.to_little_endian();
 
         assert_eq!(&sig_s_reverse, &SIG_R);
+        assert!(ecc.status.reg.is_set(Status::VERIFY_PASS));
+    }
+
+    fn verification_fixture(clock: &Clock) -> AsymEcc384 {
+        let key_vault = KeyVault::new();
+        let sha512 = HashSha512::new(clock, key_vault.clone());
+        let mut ecc = AsymEcc384::new(clock, key_vault, sha512);
+        let mut x = PUB_KEY_X;
+        let mut y = PUB_KEY_Y;
+        let mut r = SIG_R;
+        let mut s = SIG_S;
+        x.to_big_endian();
+        y.to_big_endian();
+        r.to_big_endian();
+        s.to_big_endian();
+        ecc.pub_key_x = words_from_bytes_le(&x);
+        ecc.pub_key_y = words_from_bytes_le(&y);
+        ecc.sig_r = words_from_bytes_le(&r);
+        ecc.sig_s = words_from_bytes_le(&s);
+        ecc
+    }
+
+    fn complete_verification(clock: &Clock, ecc: &mut AsymEcc384) {
+        ecc.write(RvSize::Word, OFFSET_CONTROL, Control::CTRL::VERIFY.into())
+            .unwrap();
+        assert!(!ecc.status.reg.is_set(Status::VERIFY_PASS));
+        clock.increment_and_process_timer_actions(ECC384_OP_TICKS, ecc);
+        assert!(ecc.status.reg.is_set(Status::VALID));
+        assert!(ecc.status.reg.is_set(Status::READY));
+    }
+
+    #[test]
+    fn test_verify_pass_latched_and_cleared_between_commands() {
+        let clock = Clock::new();
+        let mut ecc = verification_fixture(&clock);
+        complete_verification(&clock, &mut ecc);
+        assert!(ecc.status.reg.is_set(Status::VERIFY_PASS));
+
+        let original_r = ecc.sig_r[0];
+        ecc.write(RvSize::Word, OFFSET_SIG_R, original_r ^ 1)
+            .unwrap();
+        assert!(ecc.status.reg.is_set(Status::VERIFY_PASS));
+        ecc.write(RvSize::Word, OFFSET_SIG_R, original_r).unwrap();
+
+        ecc.write(RvSize::Word, OFFSET_HASH, 1).unwrap();
+        complete_verification(&clock, &mut ecc);
+        assert!(!ecc.status.reg.is_set(Status::VERIFY_PASS));
+        assert_ne!(ecc.verify_r, ecc.sig_r);
+        ecc.write(RvSize::Word, OFFSET_HASH, 0).unwrap();
+        complete_verification(&clock, &mut ecc);
+        assert!(ecc.status.reg.is_set(Status::VERIFY_PASS));
+
+        ecc.write(RvSize::Word, OFFSET_CONTROL, Control::CTRL::GEN_KEY.into())
+            .unwrap();
+        assert!(!ecc.status.reg.is_set(Status::VERIFY_PASS));
+        clock.increment_and_process_timer_actions(ECC384_OP_TICKS, &mut ecc);
+        assert!(!ecc.status.reg.is_set(Status::VERIFY_PASS));
+    }
+
+    #[test]
+    fn test_verify_pass_zeroize_cancels_pending_completion() {
+        for pending in [false, true] {
+            let clock = Clock::new();
+            let mut ecc = verification_fixture(&clock);
+            complete_verification(&clock, &mut ecc);
+            assert!(ecc.status.reg.is_set(Status::VERIFY_PASS));
+            if pending {
+                ecc.write(RvSize::Word, OFFSET_CONTROL, Control::CTRL::VERIFY.into())
+                    .unwrap();
+            }
+            ecc.write(RvSize::Word, OFFSET_CONTROL, Control::ZEROIZE::SET.into())
+                .unwrap();
+            assert!(!ecc.status.reg.is_set(Status::VERIFY_PASS));
+            clock.increment_and_process_timer_actions(ECC384_OP_TICKS * 2, &mut ecc);
+            assert!(!ecc.status.reg.is_set(Status::VERIFY_PASS));
+            assert!(!ecc.status.reg.is_set(Status::VALID));
+            assert!(ecc.status.reg.is_set(Status::READY));
+        }
+    }
+
+    #[test]
+    fn test_verify_pass_reset_cancels_pending_completion() {
+        for update in [false, true] {
+            for pending in [false, true] {
+                let clock = Clock::new();
+                let mut ecc = verification_fixture(&clock);
+                complete_verification(&clock, &mut ecc);
+                assert!(ecc.status.reg.is_set(Status::VERIFY_PASS));
+                if pending {
+                    ecc.write(RvSize::Word, OFFSET_CONTROL, Control::CTRL::VERIFY.into())
+                        .unwrap();
+                }
+                if update {
+                    ecc.update_reset();
+                } else {
+                    ecc.warm_reset();
+                }
+                clock.increment_and_process_timer_actions(ECC384_OP_TICKS * 2, &mut ecc);
+                assert!(!ecc.status.reg.is_set(Status::VERIFY_PASS));
+                assert!(!ecc.status.reg.is_set(Status::VALID));
+                assert!(ecc.status.reg.is_set(Status::READY));
+            }
+        }
     }
 
     #[test]

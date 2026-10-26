@@ -31,6 +31,26 @@ digest output and pending command, returning to idle while retaining
 configuration. These tests validate software-visible behavior, not
 cycle-accurate RTL timing or physical erasure of host memory.
 
+### Signature verification
+
+The 2.2 ECC and ML-DSA drivers consume `ECC_STATUS.VERIFY_PASS` and
+`MLDSA_STATUS.VERIFY_PASS` after verification completes, before zeroizing the
+engine. The hardware verdict must agree with a full-width comparison against
+the original firmware-held signature R or challenge. Disagreement returns a
+driver error; ordinary invalid signatures retain their verification-failed
+result. The raw ECC R interface returns data only when hardware passes and the
+firmware comparison agrees; hardware rejection returns a driver error. ROM
+maps that rejection to its existing invalid-signature errors and retains its
+additional full-width comparison.
+
+The emulator latches ECC bit 2 and ML-DSA bit 4 at verification completion.
+ECC clears its verdict on a new command; ML-DSA clears it on a new verification.
+Zeroization and warm/update reset clear both verdicts and cancel pending
+verification completion, preventing a stale result from resurfacing.
+Tests cover the verdict/comparison truth table, every result word, rejection,
+latched-result behavior, zeroization, resets, and repeated driver operations.
+These are functional emulator tests, not RTL fault-injection qualification.
+
 ### Boot integrity
 
 The boot-flow monitor and automatic ICCM-write measurement are enabled only in

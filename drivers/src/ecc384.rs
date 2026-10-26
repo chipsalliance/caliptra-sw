@@ -30,6 +30,7 @@ pub type Ecc384Scalar = Array4x12;
 #[must_use]
 #[repr(u32)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "cfi", derive(caliptra_cfi_derive::Launder))]
 pub enum Ecc384Result {
     Success = 0xAAAAAAAA,
     SigVerifyFailed = 0x55555555,
@@ -633,11 +634,14 @@ impl Ecc384 {
         let sig = okmutref(&mut sig_result)?;
 
         // Verify the signature just created
-        let _r = self.verify_r(pub_key, data, sig)?;
+        let (result, _r) = self.verify_internal(pub_key, data, sig)?;
         // Not using standard error flow here for increased CFI safety
         // An error here will end up reporting the CFI assert failure
         #[cfg(feature = "cfi")]
         caliptra_cfi_lib::cfi_assert_eq_12_words(&_r.0, &sig.r.0);
+        if result != Ecc384Result::Success {
+            return Err(CaliptraError::DRIVER_ECC384_SIGN_VALIDATION_FAILED);
+        }
 
         #[cfg(feature = "fips-test-hooks")]
         let sig_result = Ok(unsafe {
@@ -658,9 +662,8 @@ impl Ecc384 {
     /// * `digest` - digest to verify
     /// * `signature` - Signature to verify
     ///
-    ///  Note: Use this function only if glitch protection is not needed.
-    ///        If glitch protection is needed, use `verify_r` instead.
-    ///
+    /// Checks the hardware verdict against an independent firmware comparison.
+    /// Use `verify_r` when the caller also needs the computed R.
     ///
     /// # Result
     ///
@@ -672,25 +675,14 @@ impl Ecc384 {
         digest: &Ecc384Scalar,
         signature: &Ecc384Signature,
     ) -> CaliptraResult<Ecc384Result> {
-        // Get the verify r result
-        let mut verify_r = self.verify_r(pub_key, digest, signature)?;
-
-        // compare the hardware generate `r` with one in signature
-        let result = if verify_r == signature.r {
-            #[cfg(feature = "cfi")]
-            caliptra_cfi_lib::cfi_assert_eq_12_words(&verify_r.0, &signature.r.0);
-            Ecc384Result::Success
-        } else {
-            Ecc384Result::SigVerifyFailed
-        };
-
+        let (result, mut verify_r) = self.verify_internal(pub_key, digest, signature)?;
         verify_r.0.zeroize();
         Ok(result)
     }
 
-    /// Returns the R value of the signature with specified public key and digest.
-    ///  Caller is expected to compare the returned R value against the provided signature's
-    ///  R value to determine whether the signature is valid.
+    /// Returns the computed R only if hardware accepts the signature and the
+    /// independent firmware comparison agrees. Callers may additionally compare
+    /// this value against their own signature R as a fault-attack check.
     ///
     /// # Arguments
     ///
@@ -708,6 +700,26 @@ impl Ecc384 {
         digest: &Ecc384Scalar,
         signature: &Ecc384Signature,
     ) -> CaliptraResult<Array4xN<12, 48>> {
+        let (result, mut verify_r) = self.verify_internal(pub_key, digest, signature)?;
+        if result != Ecc384Result::Success {
+            verify_r.zeroize();
+            return Err(CaliptraError::DRIVER_ECC384_SIGNATURE_VERIFICATION_FAILED);
+        }
+        #[cfg(feature = "cfi")]
+        caliptra_cfi_lib::cfi_assert_eq(
+            caliptra_cfi_lib::cfi_launder(result),
+            Ecc384Result::Success,
+        );
+        Ok(verify_r)
+    }
+
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
+    fn verify_internal(
+        &mut self,
+        pub_key: &Ecc384PubKey,
+        digest: &Ecc384Scalar,
+        signature: &Ecc384Signature,
+    ) -> CaliptraResult<(Ecc384Result, Array4x12)> {
         #[cfg(feature = "fips-test-hooks")]
         unsafe {
             crate::FipsTestHook::error_if_hook_set(crate::FipsTestHook::ECC384_VERIFY_FAILURE)?
@@ -718,6 +730,7 @@ impl Ecc384 {
             return Err(CaliptraError::DRIVER_ECC384_SCALAR_RANGE_CHECK_FAILED);
         }
 
+        let expected_r = signature.r.0;
         let ecc = self.ecc.regs_mut();
 
         // Wait for hardware ready
@@ -737,15 +750,43 @@ impl Ecc384 {
         // Program the command register
         ecc.ctrl().write(|w| w.ctrl(|w| w.verifying()));
 
-        // Wait for command to complete
-        Ecc384::wait(ecc, || ecc.status().read().valid())?;
+        // VERIFY_PASS is gated by READY in addition to operation completion.
+        Ecc384::wait(ecc, || {
+            let status = ecc.status().read();
+            status.valid() && status.ready()
+        })?;
 
-        // Copy the random value
+        // Capture both outputs before zeroize clears the hardware verdict.
+        let verify_pass = ecc.status().read().verify_pass();
         let verify_r = Array4x12::read_from_reg(ecc.verify_r());
 
         self.zeroize_internal();
 
-        Ok(verify_r)
+        let result = Self::check_verify_result(verify_pass, &verify_r.0, &expected_r)?;
+        #[cfg(feature = "cfi")]
+        {
+            caliptra_cfi_lib::cfi_assert_eq(verify_pass, verify_r.0 == expected_r);
+            if verify_pass {
+                caliptra_cfi_lib::cfi_assert_eq_12_words(&verify_r.0, &expected_r);
+            }
+        }
+        Ok((result, verify_r))
+    }
+
+    fn check_verify_result(
+        verify_pass: bool,
+        verify_r: &[u32; 12],
+        expected_r: &[u32; 12],
+    ) -> CaliptraResult<Ecc384Result> {
+        let firmware_pass = verify_r == expected_r;
+        if verify_pass != firmware_pass {
+            return Err(CaliptraError::DRIVER_ECC384_VERIFY_RESULT_MISMATCH);
+        }
+        if verify_pass {
+            Ok(Ecc384Result::Success)
+        } else {
+            Ok(Ecc384Result::SigVerifyFailed)
+        }
     }
 
     /// Compute a shared secret using ECDH (Elliptic Curve Diffie-Hellman)
@@ -887,6 +928,53 @@ impl Ecc384KeyAccessErr for KvAccessErr {
             KvAccessErr::KeyRead => CaliptraError::DRIVER_ECC384_WRITE_PRIV_KEY_KV_READ,
             KvAccessErr::KeyWrite => CaliptraError::DRIVER_ECC384_WRITE_PRIV_KEY_KV_WRITE,
             KvAccessErr::Generic => CaliptraError::DRIVER_ECC384_WRITE_PRIV_KEY_KV_UNKNOWN,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_verify_result_truth_table() {
+        let expected = [0x1234_5678; 12];
+        let different = [0x1234_5679; 12];
+        for (hardware_pass, actual, result) in [
+            (true, expected, Ok(Ecc384Result::Success)),
+            (false, different, Ok(Ecc384Result::SigVerifyFailed)),
+            (
+                false,
+                expected,
+                Err(CaliptraError::DRIVER_ECC384_VERIFY_RESULT_MISMATCH),
+            ),
+            (
+                true,
+                different,
+                Err(CaliptraError::DRIVER_ECC384_VERIFY_RESULT_MISMATCH),
+            ),
+        ] {
+            assert_eq!(
+                Ecc384::check_verify_result(hardware_pass, &actual, &expected),
+                result
+            );
+        }
+    }
+
+    #[test]
+    fn test_verify_result_checks_every_word() {
+        let expected = [0xa5a5_a5a5; 12];
+        for index in 0..expected.len() {
+            let mut actual = expected;
+            actual[index] ^= 1;
+            assert_eq!(
+                Ecc384::check_verify_result(true, &actual, &expected),
+                Err(CaliptraError::DRIVER_ECC384_VERIFY_RESULT_MISMATCH)
+            );
+            assert_eq!(
+                Ecc384::check_verify_result(false, &actual, &expected),
+                Ok(Ecc384Result::SigVerifyFailed)
+            );
         }
     }
 }

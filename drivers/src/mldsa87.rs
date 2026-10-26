@@ -581,23 +581,7 @@ impl<'a> Mldsa87<'a> {
             .mldsa_ctrl()
             .write(|w| w.ctrl(VERIFY).external_mu(external_mu));
 
-        // Wait for status to be valid
-        Mldsa87::wait(mldsa, || mldsa.mldsa_status().read().valid())?;
-
-        // Copy the random value
-        let verify_res = LEArray4x16::read_from_reg(mldsa.mldsa_verify_res());
-
-        // Clear the hardware when done
-        mldsa.mldsa_ctrl().write(|w| w.zeroize(true));
-
-        let result = if verify_res.0 == truncated_signature {
-            cfi_assert_eq_16_words(&verify_res.0, &truncated_signature);
-            Mldsa87Result::Success
-        } else {
-            Mldsa87Result::SigVerifyFailed
-        };
-
-        Ok(result)
+        Self::finish_verify(mldsa, &truncated_signature)
     }
 
     #[cfg_attr(feature = "cfi", cfi_impl_fn)]
@@ -638,20 +622,41 @@ impl<'a> Mldsa87<'a> {
         // Program the message to the hardware
         Mldsa87::program_var_msg(mldsa, msg)?;
 
-        // Copy the result
-        let verify_res = LEArray4x16::read_from_reg(mldsa.mldsa_verify_res());
+        Self::finish_verify(mldsa, &truncated_signature)
+    }
 
-        // Clear the hardware when done
+    fn finish_verify(
+        mldsa: RegisterBlock<caliptra_ureg::RealMmioMut>,
+        expected_c: &[u32; MLDSA87_VERIFY_RES_WORD_LEN],
+    ) -> CaliptraResult<Mldsa87Result> {
+        Mldsa87::wait(mldsa, || mldsa.mldsa_status().read().valid())?;
+        // Capture both outputs before zeroize clears the hardware verdict.
+        let verify_pass = mldsa.mldsa_status().read().verify_pass();
+        let verify_res = LEArray4x16::read_from_reg(mldsa.mldsa_verify_res());
         mldsa.mldsa_ctrl().write(|w| w.zeroize(true));
 
-        let result = if verify_res.0 == truncated_signature {
-            cfi_assert_eq_16_words(&verify_res.0, &truncated_signature);
-            Mldsa87Result::Success
-        } else {
-            Mldsa87Result::SigVerifyFailed
-        };
-
+        let result = Self::check_verify_result(verify_pass, &verify_res.0, expected_c)?;
+        cfi_assert_eq(verify_pass, verify_res.0 == *expected_c);
+        if verify_pass {
+            cfi_assert_eq_16_words(&verify_res.0, expected_c);
+        }
         Ok(result)
+    }
+
+    fn check_verify_result(
+        verify_pass: bool,
+        verify_res: &[u32; MLDSA87_VERIFY_RES_WORD_LEN],
+        expected_c: &[u32; MLDSA87_VERIFY_RES_WORD_LEN],
+    ) -> CaliptraResult<Mldsa87Result> {
+        let firmware_pass = verify_res == expected_c;
+        if verify_pass != firmware_pass {
+            return Err(CaliptraError::DRIVER_MLDSA87_VERIFY_RESULT_MISMATCH);
+        }
+        if verify_pass {
+            Ok(Mldsa87Result::Success)
+        } else {
+            Ok(Mldsa87Result::SigVerifyFailed)
+        }
     }
 
     /// Sign the PCR digest with PCR signing private key (seed) in keyvault slot 8 (KV8).
@@ -740,6 +745,53 @@ impl MlDsaKeyAccessErr for KvAccessErr {
             KvAccessErr::KeyRead => CaliptraError::DRIVER_MLDSA87_READ_SEED_KV_READ,
             KvAccessErr::KeyWrite => CaliptraError::DRIVER_MLDSA87_READ_SEED_KV_WRITE,
             KvAccessErr::Generic => CaliptraError::DRIVER_MLDSA87_READ_SEED_KV_UNKNOWN,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_verify_result_truth_table() {
+        let expected = [0x1234_5678; MLDSA87_VERIFY_RES_WORD_LEN];
+        let different = [0x1234_5679; MLDSA87_VERIFY_RES_WORD_LEN];
+        for (hardware_pass, actual, result) in [
+            (true, expected, Ok(Mldsa87Result::Success)),
+            (false, different, Ok(Mldsa87Result::SigVerifyFailed)),
+            (
+                false,
+                expected,
+                Err(CaliptraError::DRIVER_MLDSA87_VERIFY_RESULT_MISMATCH),
+            ),
+            (
+                true,
+                different,
+                Err(CaliptraError::DRIVER_MLDSA87_VERIFY_RESULT_MISMATCH),
+            ),
+        ] {
+            assert_eq!(
+                Mldsa87::check_verify_result(hardware_pass, &actual, &expected),
+                result
+            );
+        }
+    }
+
+    #[test]
+    fn test_verify_result_checks_every_word() {
+        let expected = [0xa5a5_a5a5; MLDSA87_VERIFY_RES_WORD_LEN];
+        for index in 0..expected.len() {
+            let mut actual = expected;
+            actual[index] ^= 1;
+            assert_eq!(
+                Mldsa87::check_verify_result(true, &actual, &expected),
+                Err(CaliptraError::DRIVER_MLDSA87_VERIFY_RESULT_MISMATCH)
+            );
+            assert_eq!(
+                Mldsa87::check_verify_result(false, &actual, &expected),
+                Ok(Mldsa87Result::SigVerifyFailed)
+            );
         }
     }
 }

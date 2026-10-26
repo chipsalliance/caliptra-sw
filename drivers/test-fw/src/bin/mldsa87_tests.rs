@@ -1008,6 +1008,30 @@ fn test_sign_var_no_verify() {
     assert_eq!(signature, Mldsa87Signature::from(MLDSA_SIGN));
 }
 
+fn test_verify_streaming_success_failure_success() {
+    let mut abr_reg = unsafe { AbrReg::new() };
+    let mut ml_dsa87 = Mldsa87::new(&mut abr_reg);
+    let public_key = Mldsa87PubKey::from(PUBKEY);
+    let signature = Mldsa87Signature::from(SIGNATURE);
+    let message: [u8; 64] = Mldsa87Msg::from(MESSAGE).into();
+    for valid in [true, false, true] {
+        let mut data = message;
+        if !valid {
+            data[0] ^= 1;
+        }
+        assert_eq!(
+            ml_dsa87.verify_var(&public_key, &data, &signature).unwrap(),
+            if valid {
+                Mldsa87Result::Success
+            } else {
+                Mldsa87Result::SigVerifyFailed
+            }
+        );
+    }
+    let registers = unsafe { AbrReg::new() };
+    assert!(!registers.regs().mldsa_status().read().verify_pass());
+}
+
 fn test_sign_external_mu_op_matches_sign_var() {
     let mut abr_reg = unsafe { AbrReg::new() };
     let mut ml_dsa87 = Mldsa87::new(&mut abr_reg);
@@ -1056,6 +1080,26 @@ fn test_sign_external_mu_op_matches_sign_var() {
         .unwrap();
 
     assert_eq!(sig_ext_mu, sig_var);
+    assert_eq!(
+        ml_dsa87
+            .verify_external_mu(&pub_key, &mu, &sig_ext_mu)
+            .unwrap(),
+        Mldsa87Result::Success
+    );
+    let mut wrong_mu = mu;
+    wrong_mu.0[0] ^= 1;
+    assert_eq!(
+        ml_dsa87
+            .verify_external_mu(&pub_key, &wrong_mu, &sig_ext_mu)
+            .unwrap(),
+        Mldsa87Result::SigVerifyFailed
+    );
+    assert_eq!(
+        ml_dsa87
+            .verify_external_mu(&pub_key, &mu, &sig_ext_mu)
+            .unwrap(),
+        Mldsa87Result::Success
+    );
 }
 
 test_suite! {
@@ -1069,6 +1113,7 @@ test_suite! {
     test_keygen_caller_provided_seed,
     test_verify,
     test_verify_failure,
+    test_verify_streaming_success_failure_success,
     test_sign_var_no_verify,
     test_sign_external_mu_op_matches_sign_var,
 }

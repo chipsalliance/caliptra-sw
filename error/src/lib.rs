@@ -328,6 +328,16 @@ impl CaliptraError {
             "Driver Error: ECC384 ECDH pairwise consistency failure"
         ),
         (
+            DRIVER_ECC384_VERIFY_RESULT_MISMATCH,
+            0x00050013,
+            "Driver Error: ECC384 hardware verification verdict disagrees with result data"
+        ),
+        (
+            DRIVER_ECC384_SIGNATURE_VERIFICATION_FAILED,
+            0x00050014,
+            "Driver Error: ECC384 hardware rejected the signature"
+        ),
+        (
             DRIVER_MLDSA87_READ_SEED_KV_READ,
             0x00058000,
             "Driver Error: MLDSA87 read seed KV read"
@@ -366,6 +376,11 @@ impl CaliptraError {
             DRIVER_MLDSA87_KEYGEN_PAIRWISE_CONSISTENCY_FAILURE,
             0x00058007,
             "Driver Error: MLDSA87 key generation pairwise consistency failure"
+        ),
+        (
+            DRIVER_MLDSA87_VERIFY_RESULT_MISMATCH,
+            0x00058008,
+            "Driver Error: MLDSA87 hardware verification verdict disagrees with result data"
         ),
         (
             DRIVER_MLKEM_READ_SEED_KV_READ,

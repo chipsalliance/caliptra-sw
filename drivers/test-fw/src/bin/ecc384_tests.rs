@@ -279,6 +279,16 @@ fn test_verify_failure() {
     let result = ecc.verify(&pub_key, &Ecc384Scalar::from(hash), &signature);
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), Ecc384Result::SigVerifyFailed);
+    assert_eq!(
+        ecc.verify_r(&pub_key, &Ecc384Scalar::from(hash), &signature),
+        Err(CaliptraError::DRIVER_ECC384_SIGNATURE_VERIFICATION_FAILED)
+    );
+    assert_eq!(
+        ecc.verify(&pub_key, &digest, &signature).unwrap(),
+        Ecc384Result::Success
+    );
+    let registers = unsafe { EccReg::new() };
+    assert!(!registers.regs().status().read().verify_pass());
 }
 
 fn test_kv_seed_from_input_msg_from_input() {
