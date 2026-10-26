@@ -343,6 +343,13 @@ struct caliptra_set_auth_manifest_req
     uint8_t manifest[34 * 1024];
 };
 
+struct caliptra_set_owner_auth_manifest_req
+{
+    struct caliptra_req_header hdr;
+    uint32_t manifest_size;
+    uint8_t manifest[24 * 1024];
+};
+
 struct caliptra_authorize_and_stash_req
 {
     struct caliptra_req_header hdr;
