@@ -27,6 +27,8 @@ use crate::{wait, CaliptraError, CaliptraResult, PersistentDataAccessor, ResetRe
 use caliptra_registers::csrng::CsrngReg;
 use caliptra_registers::entropy_src::{self, regs::AlertFailCountsReadVal, EntropySrcReg};
 use caliptra_registers::soc_ifc::{self, SocIfcReg};
+#[allow(unused_imports)]
+use caliptra_registers::{EntropySrcRegisterBlockFacade, EntropyThresholdWriteValFacade};
 
 // https://opentitan.org/book/hw/ip/csrng/doc/theory_of_operation.html#command-description
 pub const MAX_SEED_WORDS: usize = 12;

@@ -1,7 +1,9 @@
 // Licensed under the Apache-2.0 license
 
 use super::BITS_PER_NIBBLE;
-use caliptra_registers::entropy_src::regs::{
+#[allow(unused_imports)]
+use caliptra_registers::EntropyThresholdReadValFacade;
+use caliptra_registers::{
     AdaptpHiThresholdsReadVal, AdaptpLoThresholdsReadVal, RepcntThresholdsReadVal,
     RepcntsThresholdsReadVal,
 };

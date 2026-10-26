@@ -3,9 +3,10 @@
 use caliptra_emu_bus::{BusError, ReadOnlyRegister, WriteOnlyRegister};
 use caliptra_emu_derive::Bus;
 use caliptra_emu_types::{RvData, RvSize};
-use caliptra_registers::entropy_src::regs::{
-    AdaptpHiThresholdsReadVal, AdaptpLoThresholdsReadVal, ConfReadVal, HealthTestWindowsReadVal,
-    RepcntThresholdsReadVal, RepcntsThresholdsReadVal,
+use caliptra_registers::entropy_src::regs::{ConfReadVal, HealthTestWindowsReadVal};
+use caliptra_registers::{
+    AdaptpHiThresholdsReadVal, AdaptpLoThresholdsReadVal, RepcntThresholdsReadVal,
+    RepcntsThresholdsReadVal,
 };
 use sha3::{Digest, Sha3_384};
 use std::mem;
