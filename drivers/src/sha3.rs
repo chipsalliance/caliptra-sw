@@ -15,6 +15,7 @@ Abstract:
 use crate::{wait, Array4xN, CaliptraError, CaliptraResult};
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_registers::kmac::{regs::CfgShadowedWriteVal, Kmac as KmacReg};
+use caliptra_registers::sha3::Sha3 as Sha3Reg;
 
 #[allow(unused)]
 #[derive(Copy, Clone)]
@@ -257,18 +258,11 @@ impl Sha3 {
         // Any new operation invalidates an active streaming session
         self.active_session_token = None;
 
-        let reg = self.sha3.regs_mut();
-
-        // INIT
-        // If hardware is not idle (e.g., abandoned streaming op), reset it
-        if !reg.status().read().sha3_idle() {
-            // If we are in absorb, we first have to squeeze before we can transition to done.
-            if reg.status().read().sha3_absorb() {
-                reg.cmd().write(|w| w.cmd(Sha3Cmd::Process.reg_value()));
-                wait::until(|| reg.status().read().sha3_squeeze());
-            }
-            reg.cmd().write(|w| w.cmd(Sha3Cmd::Done.reg_value()));
+        if !self.sha3.regs().status().read().sha3_idle() {
+            self.zeroize_internal();
         }
+
+        let reg = self.sha3.regs_mut();
 
         // Ensure HW is in the right state
         wait::until(|| reg.status().read().sha3_idle());
@@ -361,15 +355,14 @@ impl Sha3 {
     /// Zeroize the hardware registers.
     fn zeroize_internal(&mut self) {
         self.active_session_token = None;
-        self.sha3
-            .regs_mut()
-            .cmd()
-            .write(|w| w.cmd(Sha3Cmd::Done.reg_value()));
+        // SAFETY: This driver owns the engine and has finished or abandoned its operation.
+        unsafe { Self::zeroize() };
     }
 
     /// Zeroize the hardware registers.
     ///
-    /// This is useful to call from a fatal-error-handling routine.
+    /// Aborts any operation without waiting, including from a fatal-error handler.
+    /// Before reusing the engine, wait for `STATUS.sha3_idle`.
     ///
     /// # Safety
     ///
@@ -378,10 +371,8 @@ impl Sha3 {
     ///
     /// This function is safe to call from a trap handler.
     pub unsafe fn zeroize() {
-        let mut sha3 = KmacReg::new();
-        sha3.regs_mut()
-            .cmd()
-            .write(|w| w.cmd(Sha3Cmd::Done.reg_value()));
+        let mut sha3 = Sha3Reg::new();
+        sha3.regs_mut().ctrl().write(|w| w.zeroize(true));
     }
 }
 

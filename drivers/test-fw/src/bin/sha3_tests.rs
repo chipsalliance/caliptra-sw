@@ -16,7 +16,7 @@ Abstract:
 #![no_main]
 
 use caliptra_cfi_lib::CfiCounter;
-use caliptra_drivers::{Array4x16, Array4x8, Sha3};
+use caliptra_drivers::{Array4x16, Array4x8, CaliptraError, Sha3};
 use caliptra_kat::Shake256Kat;
 use caliptra_registers::kmac::Kmac as KmacReg;
 
@@ -230,7 +230,113 @@ fn test_kat() {
 
     let mut sha3 = unsafe { Sha3::new(KmacReg::new()) };
 
-    assert_eq!(Shake256Kat::default().execute(&mut sha3).is_ok(), true);
+    assert!(Shake256Kat::default().execute(&mut sha3).is_ok());
+}
+
+fn assert_zeroized() {
+    let sha3 = unsafe { KmacReg::new() };
+    let reg = sha3.regs();
+    while !reg.status().read().sha3_idle() {}
+    let status = reg.status().read();
+    assert!(!status.sha3_absorb());
+    assert!(!status.sha3_squeeze());
+    assert!(status.fifo_empty());
+    assert_eq!(status.fifo_depth(), 0);
+    assert!(!status.alert_fatal_fault());
+    assert!(reg.cfg_regwen().read().en());
+    assert_eq!(reg.err_code().read(), 0);
+    assert_eq!(reg.state().truncate::<50>().read(), [0; 50]);
+}
+
+fn test_zeroize_idle() {
+    unsafe { Sha3::zeroize() };
+    assert_zeroized();
+    unsafe { Sha3::zeroize() };
+    assert_zeroized();
+    test_shake256_digest0();
+}
+
+fn test_zeroize_during_absorb() {
+    let mut sha3 = unsafe { Sha3::new(KmacReg::new()) };
+    {
+        let mut op = sha3.shake256_digest_init().unwrap();
+        op.update(&[0xa5; 139]).unwrap();
+    }
+    unsafe { Sha3::zeroize() };
+    assert_zeroized();
+    test_shake256_digest0();
+}
+
+fn test_zeroize_during_squeeze() {
+    let mut sha3 = unsafe { Sha3::new(KmacReg::new()) };
+    sha3.shake256_streaming_start(1).unwrap();
+    sha3.shake256_streaming_update(1, b"abc").unwrap();
+    let mut registers = unsafe { KmacReg::new() };
+    let reg = registers.regs_mut();
+    reg.cmd().write(|w| w.cmd(0x2e));
+    while !reg.status().read().sha3_squeeze() {}
+    assert!(reg
+        .state()
+        .truncate::<8>()
+        .read()
+        .iter()
+        .any(|word| *word != 0));
+    unsafe { Sha3::zeroize() };
+    assert_zeroized();
+    test_shake256_digest0();
+}
+
+fn test_abandoned_streaming_operation() {
+    let mut sha3 = unsafe { Sha3::new(KmacReg::new()) };
+    let expected: Array4x8 = sha3.shake256_digest(b"abc").unwrap();
+    sha3.shake256_streaming_start(1).unwrap();
+    sha3.shake256_streaming_update(1, &[0xa5; 139]).unwrap();
+    let actual: Array4x8 = sha3.shake256_digest(b"abc").unwrap();
+    assert_eq!(actual, expected);
+    assert_zeroized();
+    assert_eq!(
+        sha3.shake256_streaming_update(1, b"stale"),
+        Err(CaliptraError::DRIVER_SHA3_INVALID_STATE_ERR)
+    );
+}
+
+fn test_streaming_finalize_zeroizes() {
+    let mut sha3 = unsafe { Sha3::new(KmacReg::new()) };
+    let expected: Array4x16 = sha3.shake256_digest(b"abc").unwrap();
+    sha3.shake256_streaming_start(2).unwrap();
+    sha3.shake256_streaming_update(2, b"abc").unwrap();
+    let actual = sha3.shake256_streaming_finalize(2).unwrap();
+    assert_eq!(actual, expected);
+    assert_zeroized();
+    assert_eq!(
+        sha3.shake256_streaming_update(2, b"stale"),
+        Err(CaliptraError::DRIVER_SHA3_INVALID_STATE_ERR)
+    );
+}
+
+fn test_multistep_finalize_zeroizes() {
+    let mut sha3 = unsafe { Sha3::new(KmacReg::new()) };
+    let expected: Array4x8 = sha3.shake256_digest(b"abc").unwrap();
+    let mut op = sha3.shake256_digest_init().unwrap();
+    op.update(b"a").unwrap();
+    op.update(b"bc").unwrap();
+    let actual: Array4x8 = op.finalize().unwrap();
+    assert_eq!(actual, expected);
+    assert_zeroized();
+}
+
+fn test_sha3_256_finalize_zeroizes() {
+    let mut sha3 = unsafe { Sha3::new(KmacReg::new()) };
+    let expected = [
+        0x3a, 0x98, 0x5d, 0xa7, 0x4f, 0xe2, 0x25, 0xb2, 0x04, 0x5c, 0x17, 0x2d, 0x6b, 0xd3, 0x90,
+        0xbd, 0x85, 0x5f, 0x08, 0x6e, 0x3e, 0x9d, 0x52, 0x5b, 0x46, 0xbf, 0xe2, 0x45, 0x11, 0x43,
+        0x15, 0x32,
+    ];
+    assert_eq!(
+        sha3.sha3_256_digest(b"abc").unwrap(),
+        Array4x8::from(expected)
+    );
+    assert_zeroized();
 }
 
 test_suite! {
@@ -248,4 +354,11 @@ test_suite! {
     test_shake256_op2,
     test_shake256_op3,
     test_shake256_op4,
+    test_zeroize_idle,
+    test_zeroize_during_absorb,
+    test_zeroize_during_squeeze,
+    test_abandoned_streaming_operation,
+    test_streaming_finalize_zeroizes,
+    test_multistep_finalize_zeroizes,
+    test_sha3_256_finalize_zeroizes,
 }

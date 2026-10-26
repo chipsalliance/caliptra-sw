@@ -412,7 +412,7 @@ pub struct CaliptraRootBus {
     #[peripheral(offset = 0x1003_0000, len = 0x10000)]
     pub abr: CryptoEngineSlot,
 
-    #[peripheral(offset = 0x1004_0000, len = 0xa14)]
+    #[peripheral(offset = 0x1004_0000, len = 0x1014)]
     pub sha3: Sha3Slot,
 
     #[peripheral(offset = 0x4000_0000, len = 0x40000)]

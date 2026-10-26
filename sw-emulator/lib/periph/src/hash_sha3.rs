@@ -191,6 +191,9 @@ pub struct HashSha3 {
     #[peripheral(offset = 0x0000_0800, len = 0x100)]
     msg_fifo: MsgFifo,
 
+    #[register(offset = 0x0000_1010, write_fn = on_write_ctrl)]
+    ctrl: ReadOnlyRegister<u32>,
+
     /// SHA3 engine
     sha3: Sha3,
 }
@@ -282,7 +285,31 @@ impl HashSha3 {
                 data: Vec::new(),
                 swap_endianness: false,
             },
+            ctrl: ReadOnlyRegister::new(0),
         }
+    }
+
+    fn on_write_ctrl(&mut self, size: RvSize, val: RvData) -> Result<(), BusError> {
+        if size != RvSize::Word {
+            return Err(BusError::StoreAccessFault);
+        }
+        if val & 1 != 0 {
+            self.sha3 = Sha3::new();
+            self.msg_fifo.data.fill(0);
+            self.msg_fifo.data.clear();
+            self.state.fill(0);
+            self.cmd.reg.set(0);
+            self.cfg_regwen.reg.set(1);
+            self.status.reg.modify(
+                Status::SHA3_IDLE::SET
+                    + Status::SHA3_ABSORB::CLEAR
+                    + Status::SHA3_SQUEEZE::CLEAR
+                    + Status::FIFO_DEPTH.val(0)
+                    + Status::FIFO_EMPTY::SET
+                    + Status::FIFO_FULL::CLEAR,
+            );
+        }
+        Ok(())
     }
 
     /// On Write callback for `alert test` register
@@ -364,6 +391,9 @@ impl HashSha3 {
         let cmd: CmdType = self.cmd.reg.read(Cmd::CMD).into();
         match cmd {
             CmdType::Start => {
+                let mode = self.cfg_shadowed.reg.read(CfgShadowed::MODE);
+                let strength = self.cfg_shadowed.reg.read(CfgShadowed::KSTRENGTH);
+                self.sha3.set_hasher(mode.into(), strength.into());
                 // Transition to Absorb state: clear Idle, set Absorb
                 self.msg_fifo.data.clear();
                 self.status
@@ -381,6 +411,7 @@ impl HashSha3 {
                     Err(BusError::StoreAccessFault)?
                 }
                 let res = self.sha3.finalize();
+                self.msg_fifo.data.fill(0);
                 self.msg_fifo.data.clear();
 
                 if !res {
@@ -417,7 +448,131 @@ mod tests {
     const OFFSET_VERSION0: RvAddr = 0x8;
     const OFFSET_VERSION1: RvAddr = 0xC;
     const OFFSET_CFG_SHADOWED: RvAddr = 0x14;
+    const OFFSET_CMD: RvAddr = 0x18;
     const OFFSET_STATUS: RvAddr = 0x1C;
+    const OFFSET_STATE: RvAddr = 0x400;
+    const OFFSET_MSG_FIFO: RvAddr = 0x800;
+    const OFFSET_CTRL: RvAddr = 0x1010;
+
+    fn configure(sha3: &mut HashSha3, mode: Sha3Mode) {
+        sha3.write(
+            RvSize::Word,
+            OFFSET_CFG_SHADOWED,
+            (CfgShadowed::KSTRENGTH.val(Sha3Strength::L256.into())
+                + CfgShadowed::MODE.val(mode.into())
+                + CfgShadowed::STATE_ENDIANNESS.val(Endianness::Big.into()))
+            .into(),
+        )
+        .unwrap();
+    }
+
+    fn assert_zeroized(sha3: &mut HashSha3) {
+        let status = InMemoryRegister::<u32, Status::Register>::new(
+            sha3.read(RvSize::Word, OFFSET_STATUS).unwrap(),
+        );
+        assert!(status.is_set(Status::SHA3_IDLE));
+        assert!(!status.is_set(Status::SHA3_ABSORB));
+        assert!(!status.is_set(Status::SHA3_SQUEEZE));
+        assert!(status.is_set(Status::FIFO_EMPTY));
+        assert!(!status.is_set(Status::FIFO_FULL));
+        assert_eq!(status.read(Status::FIFO_DEPTH), 0);
+        assert!(sha3.cfg_regwen.reg.is_set(CfgRegWen::EN));
+        assert!(sha3.msg_fifo.data.is_empty());
+        assert!(!sha3.sha3.has_hasher());
+        assert_eq!(sha3.sha3.digest(), [0; 200]);
+        assert_eq!(sha3.cmd.reg.get(), 0);
+        assert_eq!(sha3.read(RvSize::Word, OFFSET_CTRL).unwrap(), 0);
+        for offset in (0..200).step_by(4) {
+            assert_eq!(sha3.read(RvSize::Word, OFFSET_STATE + offset).unwrap(), 0);
+        }
+    }
+
+    #[test]
+    fn test_zeroize_from_idle_absorb_and_squeeze() {
+        for mode in [Sha3Mode::SHA3, Sha3Mode::SHAKE] {
+            for phase in 0..3 {
+                let mut sha3 = HashSha3::new();
+                configure(&mut sha3, mode);
+                if phase != 0 {
+                    sha3.write(RvSize::Word, OFFSET_CMD, CmdType::Start.into())
+                        .unwrap();
+                }
+                sha3.write(RvSize::Word, OFFSET_MSG_FIFO, 0xdead_beef)
+                    .unwrap();
+                sha3.write(RvSize::Byte, OFFSET_MSG_FIFO, 0xa5).unwrap();
+                if phase == 2 {
+                    sha3.write(RvSize::Word, OFFSET_CMD, CmdType::Process.into())
+                        .unwrap();
+                    assert!(sha3.state.iter().any(|word| *word != 0));
+                    assert!(sha3.sha3.digest().iter().any(|byte| *byte != 0));
+                }
+                let cfg = sha3.cfg_shadowed.reg.get();
+                sha3.write(RvSize::Word, OFFSET_CTRL, 1).unwrap();
+                assert_zeroized(&mut sha3);
+                assert_eq!(sha3.cfg_shadowed.reg.get(), cfg);
+                sha3.write(RvSize::Word, OFFSET_CTRL, 1).unwrap();
+                assert_zeroized(&mut sha3);
+            }
+        }
+    }
+
+    #[test]
+    fn test_zeroize_control_pulse_and_access_size() {
+        let mut sha3 = HashSha3::new();
+        configure(&mut sha3, Sha3Mode::SHAKE);
+        sha3.write(RvSize::Word, OFFSET_CMD, CmdType::Start.into())
+            .unwrap();
+        sha3.write(RvSize::Word, OFFSET_MSG_FIFO, 0xdead_beef)
+            .unwrap();
+        let message = sha3.msg_fifo.data.clone();
+        let status = sha3.status.reg.get();
+        for value in [0, 2, u32::MAX - 1] {
+            sha3.write(RvSize::Word, OFFSET_CTRL, value).unwrap();
+            assert_eq!(sha3.msg_fifo.data, message);
+            assert_eq!(sha3.status.reg.get(), status);
+            assert_eq!(sha3.read(RvSize::Word, OFFSET_CTRL).unwrap(), 0);
+        }
+        for size in [RvSize::Byte, RvSize::HalfWord] {
+            assert_eq!(
+                sha3.write(size, OFFSET_CTRL, 1),
+                Err(BusError::StoreAccessFault)
+            );
+            assert_eq!(sha3.msg_fifo.data, message);
+        }
+        sha3.write(RvSize::Word, OFFSET_CTRL, u32::MAX).unwrap();
+        assert_zeroized(&mut sha3);
+    }
+
+    #[test]
+    fn test_zeroize_retains_configuration_for_next_operation() {
+        for mode in [Sha3Mode::SHA3, Sha3Mode::SHAKE] {
+            let mut sha3 = HashSha3::new();
+            configure(&mut sha3, mode);
+            sha3.write(RvSize::Word, OFFSET_CMD, CmdType::Start.into())
+                .unwrap();
+            sha3.write(RvSize::Word, OFFSET_MSG_FIFO, 0xdead_beef)
+                .unwrap();
+            sha3.write(RvSize::Word, OFFSET_CTRL, 1).unwrap();
+            assert_zeroized(&mut sha3);
+
+            sha3.write(RvSize::Word, OFFSET_CMD, CmdType::Start.into())
+                .unwrap();
+            for byte in b"abc" {
+                sha3.write(RvSize::Byte, OFFSET_MSG_FIFO, u32::from(*byte))
+                    .unwrap();
+            }
+            sha3.write(RvSize::Word, OFFSET_CMD, CmdType::Process.into())
+                .unwrap();
+
+            let mut expected = Sha3::new();
+            expected.set_hasher(mode, Sha3Strength::L256);
+            assert!(expected.update(b"abc"));
+            assert!(expected.finalize());
+            assert_eq!(sha3.state, digest_to_state(expected.digest(), true));
+            sha3.write(RvSize::Word, OFFSET_CTRL, 1).unwrap();
+            assert_zeroized(&mut sha3);
+        }
+    }
 
     #[ignore] // disabled as the RTL does not seem to have these registers
     #[test]

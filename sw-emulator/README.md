@@ -17,6 +17,20 @@ produces the outer HMAC tag. The driver arms key-vault tag output only for that
 final command. The emulator models the six-word, write-only LFSR seed bank,
 live-key OPAD finalization, command pulses, and zeroize cancellation.
 
+### SHA3/SHAKE
+
+The driver uses the 2.2 `SHA3_CTRL.ZEROIZE` pulse at `0x10041010` after
+digest completion, when abandoning an operation, and during fatal cleanup.
+Unlike `CMD.Done`, zeroize aborts from any engine state and clears the message
+and digest datapath. The driver waits for `STATUS.sha3_idle` before starting
+another operation; fatal cleanup issues the pulse without waiting.
+
+The emulator maps the wrapper control register to the same SHA3 engine as the
+KMAC operation registers. Zeroize clears buffered input, the hash context,
+digest output and pending command, returning to idle while retaining
+configuration. These tests validate software-visible behavior, not
+cycle-accurate RTL timing or physical erasure of host memory.
+
 ### Boot integrity
 
 The boot-flow monitor and automatic ICCM-write measurement are enabled only in
