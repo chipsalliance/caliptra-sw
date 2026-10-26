@@ -623,8 +623,7 @@ impl<'a> DmaRecovery<'a> {
             | CaliptraError::IMAGE_VERIFIER_ERR_OWNER_PUB_KEY_DIGEST_MISMATCH
             | CaliptraError::IMAGE_VERIFIER_ERR_OWNER_ECC_PUB_KEY_INVALID_ARG
             | CaliptraError::IMAGE_VERIFIER_ERR_LMS_OWNER_PUB_KEY_INVALID
-            | CaliptraError::IMAGE_VERIFIER_ERR_MLDSA_OWNER_PUB_KEY_READ_FAILED
-            | CaliptraError::IMAGE_VERIFIER_ERR_DOT_OWNER_PUB_KEY_DIGEST_MISMATCH => {
+            | CaliptraError::IMAGE_VERIFIER_ERR_MLDSA_OWNER_PUB_KEY_READ_FAILED => {
                 Self::RECOVERY_REASON_OWNER_KEY_INVALID
             }
             CaliptraError::IMAGE_VERIFIER_ERR_OWNER_ECC_VERIFY_FAILURE

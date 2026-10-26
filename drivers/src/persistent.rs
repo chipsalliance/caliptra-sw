@@ -53,7 +53,7 @@ pub const PCR_LOG_MAX_COUNT: usize = 17;
 pub const FUSE_LOG_MAX_COUNT: usize = 62;
 pub const MEASUREMENT_MAX_COUNT: usize = 8;
 pub const CMB_AES_KEY_SHARE_SIZE: u32 = 32;
-pub const DOT_OWNER_PK_HASH_SIZE: u32 = 13 * 4;
+const ROM_RESERVED7_SIZE: u32 = 52;
 pub const ROM_OCP_LOCK_METADATA_SIZE: u32 = 8;
 pub const ROM_ENTROPY_CFG_SIZE: u32 = 24;
 pub const CLEARED_NON_FATAL_FW_ERROR_SIZE: u32 = 4;
@@ -399,14 +399,6 @@ pub mod fmc_alias_csr {
 
 #[derive(FromZeros, IntoBytes, KnownLayout, Zeroize)]
 #[repr(C)]
-pub struct DOT_OWNER_PK_HASH {
-    pub owner_pk_hash: [u32; 12],
-    pub valid: bool,
-    reserved: [u8; 3],
-}
-
-#[derive(FromZeros, IntoBytes, KnownLayout, Zeroize)]
-#[repr(C)]
 pub struct OcpLockMetadataRom {
     pub total_hek_seed_slots: u16,
     pub active_hek_seed_slots: u16,
@@ -512,7 +504,8 @@ pub struct RomPersistentData {
     pub cmb_aes_key_share0: LEArray4x8,
     pub cmb_aes_key_share1: LEArray4x8,
 
-    pub dot_owner_pk_hash: DOT_OWNER_PK_HASH,
+    // Preserve the ROM/FMC/runtime persistent-data layout.
+    reserved7: [u8; ROM_RESERVED7_SIZE as usize],
 
     pub cleared_non_fatal_fw_error: u32,
 
@@ -647,11 +640,11 @@ impl RomPersistentData {
 
             persistent_data_offset += CMB_AES_KEY_SHARE_SIZE;
             assert_eq!(
-                addr_of!((*P).rom.dot_owner_pk_hash) as u32,
+                addr_of!((*P).rom.reserved7) as u32,
                 memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
             );
 
-            persistent_data_offset += DOT_OWNER_PK_HASH_SIZE;
+            persistent_data_offset += ROM_RESERVED7_SIZE;
             assert_eq!(
                 addr_of!((*P).rom.cleared_non_fatal_fw_error) as u32,
                 memory_layout::PERSISTENT_DATA_ORG + persistent_data_offset
@@ -1069,7 +1062,7 @@ mod tests {
             (offset_of!(RomPersistentData, entropy_cfg_extension), 59984, "entropy_cfg_extension"),
             (offset_of!(RomPersistentData, cmb_aes_key_share0), 60416, "cmb_aes_key_share0"),
             (offset_of!(RomPersistentData, cmb_aes_key_share1), 60448, "cmb_aes_key_share1"),
-            (offset_of!(RomPersistentData, dot_owner_pk_hash), 60480, "dot_owner_pk_hash"),
+            (offset_of!(RomPersistentData, reserved7), 60480, "reserved7"),
             (offset_of!(RomPersistentData, cleared_non_fatal_fw_error), 60532, "cleared_non_fatal_fw_error"),
             (offset_of!(RomPersistentData, ocp_lock_metadata), 60536, "ocp_lock_metadata"),
             (offset_of!(RomPersistentData, entropy_cfg), 60544, "entropy_cfg"),

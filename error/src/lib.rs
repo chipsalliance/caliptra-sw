@@ -917,11 +917,6 @@ impl CaliptraError {
             "Image Verifier Error: Activation failed"
         ),
         (
-            IMAGE_VERIFIER_ERR_DOT_OWNER_PUB_KEY_DIGEST_MISMATCH,
-            0x000b005e,
-            "Image Verifier Error: DOT owner public key digest mismatch"
-        ),
-        (
             OCP_LOCK_ENGINE_TIMEOUT,
             0x000b005f,
             "OCP LOCK Encryption Engine Timeout"

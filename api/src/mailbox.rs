@@ -217,9 +217,6 @@ impl CommandId {
     // Image metadata commands
     pub const GET_IMAGE_INFO: Self = Self(0x494D_4530); // "IME0"
 
-    // Device Ownership Transfer command
-    pub const INSTALL_OWNER_PK_HASH: Self = Self(0x4F574E50); // "OWNP"
-
     // Cryptographic mailbox commands
     pub const CM_IMPORT: Self = Self(0x434D_494D); // "CMIM"
     pub const CM_DELETE: Self = Self(0x434D_444C); // "CMDL"
@@ -678,7 +675,6 @@ pub enum RomMailboxResp {
     CmRandomGenerate(CmRandomGenerateResp),
     CmHmac(CmHmacResp),
     OcpLockReportHekMetaData(OcpLockReportHekMetadataReq),
-    InstallOwnerPkHash(InstallOwnerPkHashResp),
     GetLdevCert(GetLdevCertResp),
     ZeroizeUdsFe(ZeroizeUdsFeResp),
 }
@@ -5841,27 +5837,6 @@ impl Default for OcpLockTestAccessKeyResp {
         }
     }
 }
-
-// INSTALL_OWNER_PK_HASH
-#[repr(C)]
-#[derive(Debug, Default, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
-pub struct InstallOwnerPkHashReq {
-    pub hdr: MailboxReqHeader,
-    pub digest: [u32; 12],
-}
-
-impl Request for InstallOwnerPkHashReq {
-    const ID: CommandId = CommandId::INSTALL_OWNER_PK_HASH;
-    type Resp = InstallOwnerPkHashResp;
-}
-
-#[repr(C)]
-#[derive(Debug, Default, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
-pub struct InstallOwnerPkHashResp {
-    pub hdr: MailboxRespHeader,
-    pub dpe_result: u32,
-}
-impl Response for InstallOwnerPkHashResp {}
 
 // REALLOCATE_DPE_CONTEXT_LIMITS
 #[repr(C)]

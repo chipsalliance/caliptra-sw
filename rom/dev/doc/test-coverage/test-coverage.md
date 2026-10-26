@@ -57,8 +57,8 @@ behavior or checks state/data without expecting a ROM error code.
 | Reject an out-of-range LMS public key descriptor index in the preamble | `test_preamble_vendor_lms_pubkey_descriptor_bad_index` | `IMAGE_VERIFIER_ERR_VENDOR_PQC_PUB_KEY_INDEX_OUT_OF_BOUNDS` |
 | Reject an out-of-range MLDSA public key descriptor index in the preamble | `test_preamble_vendor_mldsa_pubkey_descriptor_bad_index` | `IMAGE_VERIFIER_ERR_VENDOR_PQC_PUB_KEY_INDEX_OUT_OF_BOUNDS` |
 | Reject an owner public key digest mismatch | `test_preamble_owner_pubkey_digest_mismatch` | `IMAGE_VERIFIER_ERR_OWNER_PUB_KEY_DIGEST_MISMATCH` |
-| Reject a DOT owner public key digest mismatch | `test_preamble_dot_owner_pubkey_digest_mismatch` | `IMAGE_VERIFIER_ERR_DOT_OWNER_PUB_KEY_DIGEST_MISMATCH` |
-| Accept a valid DOT owner public key digest | `test_preamble_dot_owner_pubkey_digest_success` | N/A |
+| Reject an owner public key digest programmed after fuse-write-done when it mismatches the image | `test_preamble_owner_pubkey_digest_after_fuses_mismatch` | `IMAGE_VERIFIER_ERR_OWNER_PUB_KEY_DIGEST_MISMATCH` |
+| Accept a matching owner public key digest programmed and locked after fuse-write-done | `test_preamble_owner_pubkey_digest_after_fuses_success` | N/A |
 | Reject revoked vendor ECC public key indexes and allow the non-revocable last index | `test_preamble_vendor_ecc_pubkey_revocation` | `IMAGE_VERIFIER_ERR_VENDOR_ECC_PUB_KEY_REVOKED` |
 | Reject revoked vendor LMS public key indexes and allow the non-revocable last index | `test_preamble_vendor_lms_pubkey_revocation` | `IMAGE_VERIFIER_ERR_VENDOR_PQC_PUB_KEY_REVOKED` |
 | Reject revoked vendor MLDSA public key indexes and allow the non-revocable last index | `test_preamble_vendor_mldsa_pubkey_revocation` | `IMAGE_VERIFIER_ERR_VENDOR_PQC_PUB_KEY_REVOKED` |

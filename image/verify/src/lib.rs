@@ -169,7 +169,7 @@ pub trait ImageVerificationEnv {
     /// Get Vendor MLDSA Public Key Revocation list
     fn vendor_mldsa_pub_key_revocation(&self) -> u32;
 
-    /// Get Owner Public Key Digest from fuses
+    /// Get the owner public key digest from CPTRA_OWNER_PK_HASH.
     fn owner_pub_key_digest_fuses(&self) -> ImageDigest384;
 
     /// Get Anti-Rollback disable setting
@@ -207,8 +207,6 @@ pub trait ImageVerificationEnv {
 
     // Get the PQC Key Type from the fuse.
     fn pqc_key_type_fuse(&self) -> CaliptraResult<FwVerificationPqcKeyType>;
-
-    fn dot_owner_pk_hash(&self) -> Option<&ImageDigest384>;
 
     /// Whether this boot mode permits vendor-authorized debug images.
     fn debug_image_allowed(&self) -> bool;

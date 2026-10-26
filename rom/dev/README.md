@@ -854,9 +854,8 @@ ROM supports the following set of commands before handling the FW_DOWNLOAD comma
 13. **CM_SHA**: This ROM-only command (ROM 2.0.1+ only) computes a SHA-384 or SHA-512 hash of input data in a single operation. This is useful for MCU ROM to verify signatures and hashes against Vendor PK hash without needing its own hash implementation. Unlike the runtime CM_SHA_INIT/CM_SHA_UPDATE/CM_SHA_FINAL commands, this is a one-shot operation that does not support streaming or contexts. See [CM_SHA](#cm_sha) below for details.
 14. **GET_LDEV_ECC384_CERT**: This command fetches an LDevID ECC384 certificate signed by the ECC384 IDevID private key. [GET_LDEV_ECC384_CERT](https://github.com/chipsalliance/caliptra-sw/blob/main/runtime#get_ldev_ecc384_cert)
 15. **GET_LDEV_MLDSA87_CERT**: This command fetches an LDevID MLDSA87 certificate signed by the MLDSA87 IDevID private key. [GET_LDEV_MLDSA87_CERT](https://github.com/chipsalliance/caliptra-sw/blob/main/runtime#get_ldev_mldsa87_cert)
-16. **INSTALL_OWNER_PK_HASH**: This command saves the owner public key hash to persistent data. [INSTALL_OWNER_PK_HASH](https://github.com/chipsalliance/caliptra-sw/blob/main/runtime#install_owner_pk_hash)
-17. **OCP_LOCK_REPORT_HEK_METADATA**: This command allows the MCU to report HEK seed state and metadata to the ROM, which determines if the HEK is available. See the [OCP LOCK specification](https://github.com/chipsalliance/Caliptra/blob/main/doc/ocp_lock/releases/OCP_LOCK_Specification_v1.0_RC2.pdf) for details.
-18. **ZEROIZE_UDS_FE**
+16. **OCP_LOCK_REPORT_HEK_METADATA**: This command allows the MCU to report HEK seed state and metadata to the ROM, which determines if the HEK is available. See the [OCP LOCK specification](https://github.com/chipsalliance/Caliptra/blob/main/doc/ocp_lock/releases/OCP_LOCK_Specification_v1.0_RC2.pdf) for details.
+17. **ZEROIZE_UDS_FE**
 
 Zeroizes (sets to 0xFFFFFFFF) the UDS (Unique Device Secret) and/or FE (Field Entropy) partitions in the OTP fuse controller. This command is typically used during device decommissioning or ownership transfer flows.
 
@@ -1396,10 +1395,22 @@ The following are the pre-conditions that should be satisfied:
 ### Preamble validation: Validate the Owner key
 
 - The preamble includes a designated slot for the owner ECC key and a slot for either LMS or MLDSA keys.
-- The fuse_owner_pk_hash contains the hash of the owner public keys.
-- The validation process for owner public keys involves generating a SHA2-384 hash from the owner public keys within the preamble and comparing it to the hash stored in the fuse_owner_pk_hash register.
-- If the computed hash matches the value in fuse_owner_pk_hash, the owner public keys are deemed valid.
-- If there is a hash mismatch, the image validation process fails.
+- ROM reads the owner public key digest only from `CPTRA_OWNER_PK_HASH[0..11]`.
+  There is no mailbox-installed or DCCM-backed owner digest override.
+- MCU ROM must select the applicable owner digest, authenticate any DOT blob used
+  to select it, program all 12 register words, and verify their readback. It must
+  then set and verify `CPTRA_OWNER_PK_HASH_LOCK` before requesting firmware download.
+  The register remains SoC-writable after `CPTRA_FUSE_WR_DONE` while its separate
+  lock is clear. The hash and lock reset only on a power cycle, so changing a
+  locked owner digest requires a power cycle.
+- If the register is nonzero, ROM computes a SHA2-384 hash of the owner public keys
+  in the preamble and rejects a mismatch, including incomplete register programming.
+  An all-zero register retains the existing unpinned-owner behavior.
+- Any nonzero register value sets `owner_pub_keys_digest_in_fuses`, including a
+  DOT-selected digest written by MCU ROM. This preserves the existing register-based
+  attestation semantics; the flag does not distinguish physical fuse provenance.
+- The former owner's 52-byte DCCM override slot is reserved to preserve the
+  ROM/FMC/runtime persistent-data layout. It no longer stores an owner digest.
 
 ### Public key hash byte ordering (dword reversal)
 

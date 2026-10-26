@@ -57,7 +57,6 @@ mod cm_sha;
 mod ecdsa_verify;
 mod get_idev_csr;
 mod get_ldev_cert;
-mod install_owner_pk_hash;
 mod mldsa_verify;
 mod report_hek_metadata;
 mod ri_download_firmware;
@@ -76,7 +75,6 @@ use cm_sha::CmShaCmd;
 use ecdsa_verify::EcdsaVerifyCmd;
 use get_idev_csr::{GetIdevEcc384CsrCmd, GetIdevMldsa87CsrCmd};
 use get_ldev_cert::GetLdevCertCmd;
-use install_owner_pk_hash::InstallOwnerPkHashCmd;
 use mldsa_verify::MldsaVerifyCmd;
 use report_hek_metadata::OcpLockReportHekMetadataCmd;
 use ri_download_firmware::RiDownloadFirmwareCmd;
@@ -473,9 +471,6 @@ impl FirmwareProcessor {
                             persistent_data,
                             resp,
                         )?
-                    }
-                    CommandId::INSTALL_OWNER_PK_HASH => {
-                        InstallOwnerPkHashCmd::execute(cmd_bytes, persistent_data, resp)?
                     }
                     CommandId::GET_LDEV_ECC384_CERT | CommandId::GET_LDEV_MLDSA87_CERT => {
                         let algo = if CommandId::from(cmd) == CommandId::GET_LDEV_ECC384_CERT {

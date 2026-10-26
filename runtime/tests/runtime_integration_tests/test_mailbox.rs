@@ -129,20 +129,20 @@ fn test_unimplemented_cmds() {
 
     model.step_until(|m| m.soc_mbox().status().read().mbox_fsm_ps().mbox_idle());
 
-    // Send something that is not a valid RT command.
-    const INVALID_CMD: u32 = 0xAABBCCDD;
-    let payload = MailboxReqHeader {
-        chksum: caliptra_common::checksum::calc_checksum(INVALID_CMD, &[]),
-    };
+    for command in [0xAABBCCDD, u32::from_be_bytes(*b"OWNP")] {
+        // Include the removed owner-hash command's former valid request shape.
+        let mut payload = [0u32; 13];
+        payload[0] = caliptra_common::checksum::calc_checksum(command, payload[1..].as_bytes());
 
-    let resp = model
-        .mailbox_execute(INVALID_CMD, payload.as_bytes())
-        .unwrap_err();
-    assert_error(
-        &mut model,
-        caliptra_drivers::CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND,
-        resp,
-    );
+        let resp = model
+            .mailbox_execute(command, payload.as_bytes())
+            .unwrap_err();
+        assert_error(
+            &mut model,
+            caliptra_drivers::CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND,
+            resp,
+        );
+    }
 }
 
 #[test]

@@ -3,10 +3,7 @@
 #![allow(dead_code)]
 #![allow(unexpected_cfgs)]
 
-use caliptra_api::{
-    mailbox::{CommandId, InstallOwnerPkHashReq, InstallOwnerPkHashResp},
-    SocManager,
-};
+use caliptra_api::{mailbox::CommandId, SocManager};
 use caliptra_builder::{
     firmware::{
         rom_tests::{TEST_FMC_INTERACTIVE, TEST_FMC_WITH_UART, TEST_RT_WITH_UART},
@@ -688,20 +685,11 @@ fn test_preamble_owner_pubkey_digest_mismatch() {
 
         let (mut hw, image_bundle) = helpers::build_hw_model_and_image_bundle(fuses, image_options);
 
-        // In subsystem mode, the owner PK hash flows through the DOT mailbox
-        // command (INSTALL_OWNER_PK_HASH) from the MCU ROM, not through the
-        // fuse controller registers. So the verifier hits the DOT check path.
-        let expected_err = if hw.subsystem_mode() {
-            CaliptraError::IMAGE_VERIFIER_ERR_DOT_OWNER_PUB_KEY_DIGEST_MISMATCH
-        } else {
-            CaliptraError::IMAGE_VERIFIER_ERR_OWNER_PUB_KEY_DIGEST_MISMATCH
-        };
-
         helpers::assert_fatal_fw_load(
             &mut hw,
             *pqc_key_type,
             &image_bundle.to_bytes().unwrap(),
-            expected_err,
+            CaliptraError::IMAGE_VERIFIER_ERR_OWNER_PUB_KEY_DIGEST_MISMATCH,
         );
 
         assert_eq!(
@@ -711,8 +699,19 @@ fn test_preamble_owner_pubkey_digest_mismatch() {
     }
 }
 
+fn program_owner_pk_hash_after_fuses(hw: &mut DefaultHwModel, digest: &[u32; 12]) {
+    assert!(hw.soc_ifc().cptra_fuse_wr_done().read().done());
+    assert!(!hw.soc_ifc().cptra_owner_pk_hash_lock().read().lock());
+    hw.soc_ifc().cptra_owner_pk_hash().write(digest);
+    assert_eq!(hw.soc_ifc().cptra_owner_pk_hash().read(), *digest);
+    hw.soc_ifc()
+        .cptra_owner_pk_hash_lock()
+        .write(|w| w.lock(true));
+    assert!(hw.soc_ifc().cptra_owner_pk_hash_lock().read().lock());
+}
+
 #[test]
-fn test_preamble_dot_owner_pubkey_digest_mismatch() {
+fn test_preamble_owner_pubkey_digest_after_fuses_mismatch() {
     for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
         let image_options = ImageOptions {
             pqc_key_type: *pqc_key_type,
@@ -725,27 +724,13 @@ fn test_preamble_dot_owner_pubkey_digest_mismatch() {
 
         let (mut hw, image_bundle) = helpers::build_hw_model_and_image_bundle(fuses, image_options);
 
-        let mut request = InstallOwnerPkHashReq {
-            digest: [0u32; 12],
-            ..Default::default()
-        };
-        request.hdr.chksum = caliptra_common::checksum::calc_checksum(
-            u32::from(CommandId::INSTALL_OWNER_PK_HASH),
-            &request.as_bytes()[core::mem::size_of_val(&request.hdr.chksum)..],
-        );
-        let response = hw
-            .mailbox_execute(CommandId::INSTALL_OWNER_PK_HASH.into(), request.as_bytes())
-            .unwrap()
-            .unwrap();
-
-        let resp = InstallOwnerPkHashResp::ref_from_bytes(response.as_bytes()).unwrap();
-        assert_eq!(resp.dpe_result, 0);
+        program_owner_pk_hash_after_fuses(&mut hw, &[0xDEADBEEF; 12]);
 
         helpers::assert_fatal_fw_load(
             &mut hw,
             *pqc_key_type,
             &image_bundle.to_bytes().unwrap(),
-            CaliptraError::IMAGE_VERIFIER_ERR_DOT_OWNER_PUB_KEY_DIGEST_MISMATCH,
+            CaliptraError::IMAGE_VERIFIER_ERR_OWNER_PUB_KEY_DIGEST_MISMATCH,
         );
 
         assert_eq!(
@@ -756,7 +741,7 @@ fn test_preamble_dot_owner_pubkey_digest_mismatch() {
 }
 
 #[test]
-fn test_preamble_dot_owner_pubkey_digest_success() {
+fn test_preamble_owner_pubkey_digest_after_fuses_success() {
     for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
         let image_options = ImageOptions {
             pqc_key_type: *pqc_key_type,
@@ -774,21 +759,7 @@ fn test_preamble_dot_owner_pubkey_digest_success() {
             .owner_pubkey_digest(&image_bundle.manifest.preamble)
             .unwrap();
 
-        let mut request = InstallOwnerPkHashReq {
-            digest,
-            ..Default::default()
-        };
-        request.hdr.chksum = caliptra_common::checksum::calc_checksum(
-            u32::from(CommandId::INSTALL_OWNER_PK_HASH),
-            &request.as_bytes()[core::mem::size_of_val(&request.hdr.chksum)..],
-        );
-        let response = hw
-            .mailbox_execute(CommandId::INSTALL_OWNER_PK_HASH.into(), request.as_bytes())
-            .unwrap()
-            .unwrap();
-
-        let resp = InstallOwnerPkHashResp::ref_from_bytes(response.as_bytes()).unwrap();
-        assert_eq!(resp.dpe_result, 0);
+        program_owner_pk_hash_after_fuses(&mut hw, &digest);
 
         crate::helpers::test_upload_firmware(
             &mut hw,

@@ -15,31 +15,26 @@ const MAX_WAIT_CYCLES: u32 = 30_000_000;
 
 #[test]
 fn test_unknown_command_is_fatal() {
-    let (mut hw, _image_bundle) =
-        helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
+    for command in [0xabcd_1234, u32::from_be_bytes(*b"OWNP")] {
+        let (mut hw, _image_bundle) =
+            helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
 
-    // This command does not exist
-    // Calculate checksum for unknown command with empty payload (no bytes after header)
-    let checksum = caliptra_common::checksum::calc_checksum(
-        0xabcd_1234,
-        &[], // No payload after header
-    );
+        // Include the removed owner-hash command's former valid request shape.
+        let mut payload = [0u32; 13];
+        payload[0] = caliptra_common::checksum::calc_checksum(command, payload[1..].as_bytes());
 
-    // Create final header with correct checksum
-    let header = MailboxReqHeader { chksum: checksum };
+        assert_eq!(
+            hw.mailbox_execute(command, payload.as_bytes()),
+            Err(ModelError::MailboxCmdFailed(
+                CaliptraError::FW_PROC_MAILBOX_INVALID_COMMAND.into()
+            ))
+        );
 
-    // This command does not exist
-    assert_eq!(
-        hw.mailbox_execute(0xabcd_1234, header.as_bytes()),
-        Err(ModelError::MailboxCmdFailed(
-            CaliptraError::FW_PROC_MAILBOX_INVALID_COMMAND.into()
-        ))
-    );
-
-    hw.step_until_fatal_error(
-        CaliptraError::FW_PROC_MAILBOX_INVALID_COMMAND.into(),
-        MAX_WAIT_CYCLES,
-    );
+        hw.step_until_fatal_error(
+            CaliptraError::FW_PROC_MAILBOX_INVALID_COMMAND.into(),
+            MAX_WAIT_CYCLES,
+        );
+    }
 }
 
 #[test]
