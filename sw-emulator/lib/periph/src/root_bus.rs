@@ -547,7 +547,9 @@ impl CaliptraRootBus {
             _ => Sha3Slot::active(HashSha3::new()),
         };
         let csrng = match hw_version {
-            CaliptraHwVersion::V2_2 => CsrngSlot::new(CsrngLatest::new(itrng_nibbles.unwrap())),
+            CaliptraHwVersion::V2_2 | CaliptraHwVersion::Latest => {
+                CsrngSlot::new(CsrngLatest::new(itrng_nibbles.unwrap()))
+            }
             _ => CsrngSlot::new(Csrng::new(itrng_nibbles.unwrap())),
         };
 

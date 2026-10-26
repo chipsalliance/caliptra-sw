@@ -26,6 +26,7 @@ use zerocopy::{FromBytes, FromZeros, IntoBytes};
 use caliptra_emu_periph::MailboxRequester;
 use caliptra_registers::mbox;
 use caliptra_registers::mbox::enums::{MboxFsmE, MboxStatusE};
+use caliptra_registers::CALIPTRA_HW_REV_CHOSEN;
 use caliptra_registers::{CptraItrngEntropyConfig0WriteVal, CptraItrngEntropyConfig1WriteVal};
 
 use rand::{rngs::StdRng, SeedableRng};
@@ -360,7 +361,10 @@ impl Default for InitParams<'_> {
                 Box::new(RandomEtrngResponses::new_from_stdrng())
             };
         Self {
-            hw_version: Default::default(),
+            // Use the same RTL version as the one chosen by the registers crate. Default to latest.
+            hw_version: CaliptraHwVersion::from_str(CALIPTRA_HW_REV_CHOSEN)
+                .ok()
+                .unwrap_or(CaliptraHwVersion::Latest),
             fuses: Default::default(),
             rom: Default::default(),
             dccm: Default::default(),

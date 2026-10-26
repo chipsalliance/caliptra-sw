@@ -10,9 +10,13 @@ compile_error!("Select one of the supported HW revisions by setting the `hw_rev`
 
 #[cfg(hw_rev = "latest")]
 pub use caliptra_registers_latest::*;
+#[cfg(hw_rev = "latest")]
+pub const CALIPTRA_HW_REV_CHOSEN: &str = "latest";
 
 #[cfg(hw_rev = "2.1")]
 pub use caliptra_registers_rev_2_1::*;
+#[cfg(hw_rev = "2.1")]
+pub const CALIPTRA_HW_REV_CHOSEN: &str = "2.1";
 
 #[cfg(hw_rev = "2.0")]
 compile_error!("TODO: add v2.0 HW register definitions");

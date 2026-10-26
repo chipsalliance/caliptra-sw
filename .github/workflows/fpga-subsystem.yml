@@ -62,6 +62,9 @@ permissions:
 
 env:
   CALIPTRA_MCU_COMMIT: ${{ inputs.mcu-commit || '24ea8b90bb56c0aed5512232dfbbca3dd2e39716' }}
+  # Note that currently we don't have a bitstream for the latest RTL, so
+  # use the pinned one for CI tests.
+  CALIPTRA_HW_REV: "2.1"
 
 jobs:
   check_cache:

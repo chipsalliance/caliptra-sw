@@ -13,8 +13,9 @@ use rand::{
 /// Caliptra Hardware Version
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum CaliptraHwVersion {
-    V2_0,
     #[default]
+    Latest,
+    V2_0,
     V2_1,
     V2_2,
 }
@@ -27,6 +28,7 @@ impl FromStr for CaliptraHwVersion {
             "2.0" => Ok(Self::V2_0),
             "2.1" => Ok(Self::V2_1),
             "2.2" => Ok(Self::V2_2),
+            "latest" => Ok(Self::Latest),
             _ => Err(()),
         }
     }
@@ -38,6 +40,7 @@ impl CaliptraHwVersion {
             Self::V2_0 => "2.0",
             Self::V2_1 => "2.1",
             Self::V2_2 => "2.2",
+            Self::Latest => "latest",
         }
     }
 }
@@ -299,11 +302,13 @@ mod test {
         assert_eq!(CaliptraHwVersion::V2_0, "2.0".parse().unwrap());
         assert_eq!(CaliptraHwVersion::V2_1, "2.1".parse().unwrap());
         assert_eq!(CaliptraHwVersion::V2_2, "2.2".parse().unwrap());
+        assert_eq!(CaliptraHwVersion::Latest, "latest".parse().unwrap());
 
         assert_eq!(Err(()), "potato".parse::<CaliptraHwVersion>());
 
         assert_eq!("2.0", CaliptraHwVersion::V2_0.as_str());
         assert_eq!("2.1", CaliptraHwVersion::V2_1.as_str());
         assert_eq!("2.2", CaliptraHwVersion::V2_2.as_str());
+        assert_eq!("latest", CaliptraHwVersion::Latest.as_str());
     }
 }

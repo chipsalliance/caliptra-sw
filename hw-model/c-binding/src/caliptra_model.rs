@@ -39,14 +39,18 @@ pub struct caliptra_buffer {
 #[allow(non_camel_case_types)]
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum caliptra_hw_version {
-    CALIPTRA_HW_VERSION_2_0 = 0,
-    CALIPTRA_HW_VERSION_2_1 = 1,
-    CALIPTRA_HW_VERSION_2_2 = 2,
+    CALIPTRA_HW_VERSION_LATEST = 0,
+    CALIPTRA_HW_VERSION_2_0 = 1,
+    CALIPTRA_HW_VERSION_2_1 = 2,
+    CALIPTRA_HW_VERSION_2_2 = 3,
 }
 
 impl From<caliptra_hw_version> for caliptra_hw_model::CaliptraHwVersion {
     fn from(v: caliptra_hw_version) -> Self {
         match v {
+            caliptra_hw_version::CALIPTRA_HW_VERSION_LATEST => {
+                caliptra_hw_model::CaliptraHwVersion::Latest
+            }
             caliptra_hw_version::CALIPTRA_HW_VERSION_2_0 => {
                 caliptra_hw_model::CaliptraHwVersion::V2_0
             }
