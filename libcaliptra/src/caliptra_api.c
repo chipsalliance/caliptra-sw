@@ -1553,6 +1553,19 @@ int caliptra_set_auth_manifest(struct caliptra_set_auth_manifest_req *req, bool 
     return pack_and_execute_command(&p, async);
 }
 
+// Set Owner Authorization Manifest
+int caliptra_set_owner_auth_manifest(struct caliptra_set_owner_auth_manifest_req *req, bool async)
+{
+    if (!req)
+    {
+        return INVALID_PARAMS;
+    }
+
+    CREATE_PARCEL(p,OP_SET_OWNER_AUTH_MANIFEST, req, &g_resp_hdr);
+
+    return pack_and_execute_command(&p, async);
+}
+
 // Authorize and Stash
 int caliptra_authorize_and_stash(struct caliptra_authorize_and_stash_req *req, struct caliptra_authorize_and_stash_resp *resp, bool async)
 {
