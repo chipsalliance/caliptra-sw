@@ -30,8 +30,6 @@ use caliptra_dpe::{
 use caliptra_drivers::{pcr_log::PCR_ID_STASH_MEASUREMENT, CaliptraError, CaliptraResult};
 use zerocopy::{FromBytes, IntoBytes};
 
-const MCU_TCI_TYPE: u32 = u32::from_be_bytes(*b"MCFW");
-
 /// Firmware ID reserved for the Caliptra-managed MCU runtime DPE context.
 ///
 /// Measurements stashed under this ID are tagged with the `MCFW` TCI type and
@@ -86,7 +84,7 @@ impl StashMeasurementCmd {
         let dpe_result = {
             // Check for MCU FW ID and swap it's TCI type
             let tci_type = if is_mcu_rt {
-                MCU_TCI_TYPE
+                Drivers::MCU_RT_TCI_TYPE
             } else {
                 u32::from_ne_bytes(*metadata)
             };

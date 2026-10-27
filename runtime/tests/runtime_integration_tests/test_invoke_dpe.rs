@@ -627,12 +627,11 @@ fn test_subsystem_leaf_cert_contains_caliptra_managed_tci_types() {
     let parsed_tcb_infos = asn1::parse_single::<asn1::SequenceOf<TcbInfo>>(ext.value).unwrap();
 
     let tcb_infos: Vec<TcbInfo> = parsed_tcb_infos.collect();
-    for expected_tci_type in [b"SOMV", b"SOMO", b"MCFW"] {
-        let expected_tci_type = u32::from_be_bytes(*expected_tci_type);
+    for expected_tci_type in [b"RTMR", b"CCIV", b"SOMV", b"SOMO", b"MCFW"] {
         assert_eq!(
             tcb_infos
                 .iter()
-                .filter(|tcb_info| tcb_info.tci_type == Some(expected_tci_type.as_bytes()))
+                .filter(|tcb_info| tcb_info.tci_type == Some(expected_tci_type.as_slice()))
                 .count(),
             1
         );
