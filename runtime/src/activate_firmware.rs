@@ -218,7 +218,25 @@ impl ActivateFirmwareCmd {
             {
                 return Err(());
             }
-            Some((image_metadata.image_staging_address, mcu_sram_addr))
+            // Reject a wrapping source range before resetting the MCU.
+            let image_staging_address = AxiAddr {
+                lo: image_metadata.image_staging_address.lo,
+                hi: image_metadata.image_staging_address.hi,
+            }
+            .checked_offset(0, mcu_image_size as u64)
+            .map_err(|_| ())?;
+            let mmio = DmaMmio::new(mci_base_addr, &drivers.dma);
+            let mci = unsafe {
+                // Register offsets start at zero; DmaMmio adds the MCI base address.
+                caliptra_registers::mci::RegisterBlock::new_with_mmio(core::ptr::null_mut(), &mmio)
+            };
+            // Check actual SRAM capacity, not just address overflow.
+            // HW_CONFIG1 reports KB; the command size is in bytes.
+            let mcu_sram_size = u64::from(mci.hw_config1().read().mcu_sram_size()) * 1024;
+            if u64::from(mcu_image_size) > mcu_sram_size {
+                return Err(());
+            }
+            Some((image_staging_address, mcu_sram_addr))
         } else {
             None
         };
@@ -281,10 +299,7 @@ impl ActivateFirmwareCmd {
             );
             dma_image
                 .transfer_payload_to_axi(
-                    AxiAddr {
-                        hi: image_staging_address.hi,
-                        lo: image_staging_address.lo,
-                    },
+                    image_staging_address,
                     mcu_image_size,
                     mcu_sram_addr,
                     false,

@@ -73,9 +73,11 @@ Existing TOML configurations do not need to add this field.
 For MCU hitless activation (`fw_id = 2`), set `image_load_address` to the full
 64-bit MCU SRAM address, `MCI_BASE + 0x00c00000`. Runtime copies the staged
 image to this fixed destination and authorizes it there. `ACTIVATE_FIRMWARE`
-rejects a different load address before requesting an MCU reset or copying
-the image. This applies to both vendor + owner and owner-only manifests;
-encrypted-boot `INITIAL_ACTIVATE` does not use this hitless-update check.
+rejects a different load address, a source or destination range that overflows
+the 64-bit AXI address space, or an image larger than the hardware-reported
+MCU SRAM capacity before requesting an MCU reset or copying the image.
+This applies to both vendor + owner and owner-only manifests; encrypted-boot
+`INITIAL_ACTIVATE` does not use these hitless-update checks.
 See [ACTIVATE_FIRMWARE](../runtime/README.md#activate_firmware).
 
 #### **Optional Device UEID Entry**

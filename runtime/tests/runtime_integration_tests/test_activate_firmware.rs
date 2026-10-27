@@ -826,6 +826,196 @@ fn test_activate_owner_mcu_fw_load_address_mismatch() {
     assert_mcu_load_address_mismatch_rejected(0x1000, AuthManifestSource::Owner);
 }
 
+#[cfg_attr(any(feature = "fpga_realtime", feature = "fpga_subsystem"), ignore)]
+#[test]
+fn test_activate_mcu_fw_staging_address_overflow() {
+    for manifest_source in [AuthManifestSource::VendorOwner, AuthManifestSource::Owner] {
+        assert_mcu_activation_range_checked(manifest_source, McuRangeError::StagingAddressOverflow);
+    }
+}
+
+#[cfg_attr(any(feature = "fpga_realtime", feature = "fpga_subsystem"), ignore)]
+#[test]
+fn test_activate_mcu_fw_size_exceeds_sram() {
+    for manifest_source in [AuthManifestSource::VendorOwner, AuthManifestSource::Owner] {
+        assert_mcu_activation_range_checked(manifest_source, McuRangeError::ImageTooLarge);
+    }
+}
+
+enum McuRangeError {
+    StagingAddressOverflow,
+    ImageTooLarge,
+}
+
+fn assert_mcu_activation_range_checked(
+    manifest_source: AuthManifestSource,
+    range_error: McuRangeError,
+) {
+    let mcu_image = Image {
+        fw_id: MCU_FW_ID_1,
+        staging_offset: 0x2000,
+        load_offset: MCU_LOAD_OFFSET,
+        contents: mcu_test_firmware(),
+        exec_bit: 2,
+    };
+    let soc_image = Image {
+        fw_id: SOC_FW_ID_1,
+        staging_offset: SOC_STAGING_OFFSET,
+        load_offset: SOC_LOAD_OFFSET,
+        contents: vec![0xAA; SOC_FW_SIZE],
+        exec_bit: 3,
+    };
+    let staged_contents = vec![0x73; 1024 * 1024];
+    let mut model = load_and_authorize_fw_with_args(
+        &[mcu_image.clone(), soc_image.clone()],
+        RuntimeTestArgs {
+            test_sram: Some(&staged_contents),
+            ..RuntimeTestArgs::test_productions_args()
+        },
+    );
+    let mcu_sram_size = model.mci().hw_config1().read().mcu_sram_size() * 1024;
+    assert!(mcu_sram_size >= MCU_FW_SIZE as u32);
+    assert!(mcu_sram_size as usize <= staged_contents.len());
+    let staging_address = model.staging_physical_address().unwrap();
+    if manifest_source == AuthManifestSource::Owner {
+        let vendor_manifest = create_auth_manifest_with_metadata(vec![AuthManifestImageMetadata {
+            fw_id: INVALID_FW_ID,
+            ..soc_image.metadata(staging_address)
+        }]);
+        send_set_auth_manifest(&mut model, &vendor_manifest);
+    }
+    let image_size = match range_error {
+        McuRangeError::StagingAddressOverflow => MCU_FW_SIZE as u32,
+        McuRangeError::ImageTooLarge => mcu_sram_size,
+    };
+    let updated_contents = &staged_contents[..image_size as usize];
+    let metadata = AuthManifestImageMetadata {
+        image_staging_address: TEST_SRAM_BASE,
+        digest: Sha384::digest(updated_contents).into(),
+        ..mcu_image.metadata(staging_address)
+    };
+    let mut invalid_metadata = metadata;
+    let invalid_sizes = match range_error {
+        McuRangeError::StagingAddressOverflow => {
+            invalid_metadata.image_staging_address = Addr64 {
+                lo: 0xffff_ff00,
+                hi: u32::MAX,
+            };
+            vec![image_size]
+        }
+        McuRangeError::ImageTooLarge => vec![mcu_sram_size + 1, mcu_sram_size + 4, u32::MAX],
+    };
+    let send_manifest = |model: &mut DefaultHwModel, mcu_metadata| {
+        let metadata = vec![mcu_metadata, soc_image.metadata(staging_address)];
+        match manifest_source {
+            AuthManifestSource::Owner => {
+                send_set_owner_auth_manifest(model, &build_owner_manifest(metadata, 1));
+            }
+            AuthManifestSource::VendorOwner => {
+                send_set_auth_manifest(model, &create_auth_manifest_with_metadata(metadata));
+            }
+        }
+    };
+    send_manifest(&mut model, invalid_metadata);
+    let initial_mcu_tci = tag_and_get_mcu_tci(&mut model);
+    let activation_request = |image_size| {
+        MailboxReq::ActivateFirmware(ActivateFirmwareReq {
+            fw_id_count: 2,
+            mcu_fw_image_size: image_size,
+            fw_ids: {
+                let mut fw_ids = [0; ActivateFirmwareReq::MAX_FW_ID_COUNT];
+                fw_ids[0] = MCU_FW_ID_1;
+                fw_ids[1] = SOC_FW_ID_1;
+                fw_ids
+            },
+            flags: manifest_source.flag_bits(),
+            ..Default::default()
+        })
+    };
+    for invalid_size in invalid_sizes {
+        assert_mcu_activation_rejected_without_side_effects(
+            &mut model,
+            activation_request(invalid_size),
+        );
+    }
+
+    send_manifest(&mut model, metadata);
+    let mut activate_cmd = activation_request(image_size);
+    activate_cmd.populate_chksum().unwrap();
+    send_activate_firmware_cmd(&mut model, activate_cmd, true)
+        .unwrap()
+        .expect("Activation should succeed with a valid source range and image size");
+    assert_eq!(
+        model
+            .read_payload_from_ss_staging_area(image_size as usize, MCU_LOAD_OFFSET)
+            .unwrap(),
+        updated_contents
+    );
+    assert_eq!(
+        model.soc_ifc().ss_generic_fw_exec_ctrl().at(0).read() & ((1 << 2) | (1 << 3)),
+        (1 << 2) | (1 << 3)
+    );
+    let updated_mcu_tci = get_mcu_tci(&mut model);
+    assert_eq!(updated_mcu_tci.tci_current, metadata.digest);
+    assert_ne!(updated_mcu_tci.tci_current, initial_mcu_tci.tci_current);
+    assert_ne!(
+        updated_mcu_tci.tci_cumulative,
+        initial_mcu_tci.tci_cumulative
+    );
+}
+
+fn assert_mcu_activation_rejected_without_side_effects(
+    model: &mut DefaultHwModel,
+    mut activate_cmd: MailboxReq,
+) {
+    let initial_mcu_tci = get_mcu_tci(model);
+    let initial_exec_ctrl: [u32; 4] =
+        core::array::from_fn(|index| model.soc_ifc().ss_generic_fw_exec_ctrl().at(index).read());
+    let initial_reset_reason = u32::from(model.mci().reset_reason().read());
+    let mcu_sram_size = model.mci().hw_config1().read().mcu_sram_size() as usize * 1024;
+    let initial_mcu_contents = model
+        .read_payload_from_ss_staging_area(mcu_sram_size, MCU_LOAD_OFFSET)
+        .unwrap();
+    activate_cmd.populate_chksum().unwrap();
+    model
+        .start_mailbox_execute(
+            u32::from(CommandId::ACTIVATE_FIRMWARE),
+            activate_cmd.as_bytes().unwrap(),
+        )
+        .unwrap();
+    for _ in 0..100_000 {
+        model.step();
+    }
+    assert!(!model
+        .mci()
+        .intr_block_rf()
+        .notif0_internal_intr_r()
+        .read()
+        .notif_cptra_mcu_reset_req_sts());
+    assert_eq!(
+        model.finish_mailbox_execute(),
+        Err(ModelError::MailboxCmdFailed(
+            CaliptraError::IMAGE_VERIFIER_ACTIVATION_FAILED.into()
+        ))
+    );
+    let final_exec_ctrl: [u32; 4] =
+        core::array::from_fn(|index| model.soc_ifc().ss_generic_fw_exec_ctrl().at(index).read());
+    assert_eq!(final_exec_ctrl, initial_exec_ctrl);
+    assert_eq!(
+        u32::from(model.mci().reset_reason().read()),
+        initial_reset_reason
+    );
+    assert_eq!(
+        model
+            .read_payload_from_ss_staging_area(mcu_sram_size, MCU_LOAD_OFFSET)
+            .unwrap(),
+        initial_mcu_contents
+    );
+    let final_mcu_tci = get_mcu_tci(model);
+    assert_eq!(final_mcu_tci.tci_current, initial_mcu_tci.tci_current);
+    assert_eq!(final_mcu_tci.tci_cumulative, initial_mcu_tci.tci_cumulative);
+}
+
 fn assert_mcu_load_address_mismatch_rejected(
     load_offset: usize,
     manifest_source: AuthManifestSource,
@@ -872,14 +1062,8 @@ fn assert_mcu_load_address_mismatch_rejected(
         .write_payload_to_ss_staging_area(&vec![0x73; MCU_FW_SIZE], 0x2000)
         .unwrap();
     let initial_mcu_tci = tag_and_get_mcu_tci(&mut model);
-    let initial_exec_ctrl: [u32; 4] =
-        core::array::from_fn(|index| model.soc_ifc().ss_generic_fw_exec_ctrl().at(index).read());
-    let initial_reset_reason = u32::from(model.mci().reset_reason().read());
-    let initial_mcu_contents = model
-        .read_payload_from_ss_staging_area(MCU_FW_SIZE, MCU_LOAD_OFFSET)
-        .unwrap();
 
-    let mut activate_cmd = MailboxReq::ActivateFirmware(ActivateFirmwareReq {
+    let activate_cmd = MailboxReq::ActivateFirmware(ActivateFirmwareReq {
         fw_id_count: 2,
         mcu_fw_image_size: MCU_FW_SIZE as u32,
         fw_ids: {
@@ -891,44 +1075,7 @@ fn assert_mcu_load_address_mismatch_rejected(
         flags: manifest_source.flag_bits(),
         ..Default::default()
     });
-    activate_cmd.populate_chksum().unwrap();
-    model
-        .start_mailbox_execute(
-            u32::from(CommandId::ACTIVATE_FIRMWARE),
-            activate_cmd.as_bytes().unwrap(),
-        )
-        .unwrap();
-    for _ in 0..100_000 {
-        model.step();
-    }
-    assert!(!model
-        .mci()
-        .intr_block_rf()
-        .notif0_internal_intr_r()
-        .read()
-        .notif_cptra_mcu_reset_req_sts());
-    assert_eq!(
-        model.finish_mailbox_execute(),
-        Err(ModelError::MailboxCmdFailed(
-            CaliptraError::IMAGE_VERIFIER_ACTIVATION_FAILED.into()
-        ))
-    );
-    let final_exec_ctrl: [u32; 4] =
-        core::array::from_fn(|index| model.soc_ifc().ss_generic_fw_exec_ctrl().at(index).read());
-    assert_eq!(final_exec_ctrl, initial_exec_ctrl);
-    assert_eq!(
-        u32::from(model.mci().reset_reason().read()),
-        initial_reset_reason
-    );
-    assert_eq!(
-        model
-            .read_payload_from_ss_staging_area(MCU_FW_SIZE, MCU_LOAD_OFFSET)
-            .unwrap(),
-        initial_mcu_contents
-    );
-    let final_mcu_tci = get_mcu_tci(&mut model);
-    assert_eq!(final_mcu_tci.tci_current, initial_mcu_tci.tci_current);
-    assert_eq!(final_mcu_tci.tci_cumulative, initial_mcu_tci.tci_cumulative);
+    assert_mcu_activation_rejected_without_side_effects(&mut model, activate_cmd);
 
     let updated_image = Image {
         load_offset: MCU_LOAD_OFFSET,
