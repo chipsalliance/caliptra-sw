@@ -281,14 +281,13 @@ fn dpe_tcb_snapshots(model: &mut DefaultHwModel) -> Vec<TcbSnapshot> {
 }
 
 fn find_tcb_snapshot<'a>(snapshots: &'a [TcbSnapshot], tci_type: &[u8; 4]) -> &'a TcbSnapshot {
-    let tci_type = u32::from_be_bytes(*tci_type);
     snapshots
         .iter()
-        .find(|snapshot| snapshot.tci_type == tci_type.as_bytes())
+        .find(|snapshot| snapshot.tci_type == *tci_type)
         .unwrap_or_else(|| {
             panic!(
                 "{} TCB info missing",
-                core::str::from_utf8(tci_type.as_bytes()).unwrap()
+                core::str::from_utf8(tci_type).unwrap()
             )
         })
 }

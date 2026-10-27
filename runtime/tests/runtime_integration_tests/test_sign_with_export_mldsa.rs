@@ -228,7 +228,7 @@ fn test_sign_with_exported_cdi_measurement_update_duplicate_cdi_mldsa() {
         tci_type: if model.subsystem_mode() {
             0
         } else {
-            u32::from_be_bytes(*b"CCIV")
+            u32::from_le_bytes(*b"CCIV")
         },
         ..Default::default()
     };
@@ -310,7 +310,7 @@ fn test_sign_with_exported_cdi_measurement_update_mldsa() {
         tci_type: if model.subsystem_mode() {
             0
         } else {
-            u32::from_be_bytes(*b"CCIV")
+            u32::from_le_bytes(*b"CCIV")
         },
         ..Default::default()
     };

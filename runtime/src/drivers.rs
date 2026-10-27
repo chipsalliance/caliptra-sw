@@ -216,10 +216,10 @@ pub struct Drivers {
 }
 
 impl Drivers {
-    pub const CCIV_TCI_TYPE: u32 = u32::from_be_bytes(*b"CCIV");
-    pub const SOMV_TCI_TYPE: u32 = u32::from_be_bytes(*b"SOMV");
-    pub const SOMO_TCI_TYPE: u32 = u32::from_be_bytes(*b"SOMO");
-    pub const MCU_RT_TCI_TYPE: u32 = u32::from_be_bytes(*b"MCFW");
+    pub const CCIV_TCI_TYPE: u32 = u32::from_le_bytes(*b"CCIV");
+    pub const SOMV_TCI_TYPE: u32 = u32::from_le_bytes(*b"SOMV");
+    pub const SOMO_TCI_TYPE: u32 = u32::from_le_bytes(*b"SOMO");
+    pub const MCU_RT_TCI_TYPE: u32 = u32::from_le_bytes(*b"MCFW");
 
     /// # Safety
     ///
@@ -904,7 +904,7 @@ impl Drivers {
         let mut dpe = DpeInstance::new_auto_init(
             &mut env,
             DpeProfile::P384Sha384,
-            u32::from_be_bytes(*b"RTMR"),
+            u32::from_le_bytes(*b"RTMR"),
             &current_pcr,
         )
         .map_err(|_| CaliptraError::RUNTIME_INITIALIZE_DPE_FAILED)?;
@@ -928,7 +928,7 @@ impl Drivers {
                 | DeriveContextFlags::ALLOW_NEW_CONTEXT_TO_EXPORT
                 | DeriveContextFlags::INPUT_ALLOW_X509
                 | DeriveContextFlags::ALLOW_RECURSIVE,
-            tci_type: u32::from_be_bytes(*b"CCIV"),
+            tci_type: u32::from_le_bytes(*b"CCIV"),
             target_locality: pl0_pauser_locality,
             svn: 0,
         }
