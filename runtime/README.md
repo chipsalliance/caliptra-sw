@@ -55,6 +55,14 @@ After booting, Caliptra Runtime Firmware is responsible for the following.
 
 Callers must wait until Caliptra is no longer busy to call a mailbox command.
 
+### Command watchdog
+
+On debug-locked devices, Runtime starts WDT1 before processing each mailbox
+command with a timeout of `max(20_000_000, CPTRA_WDT_CFG)` cycles. The complete
+64-bit configuration is honored; smaller values retain the 20-million-cycle
+minimum. Runtime stops the watchdog after command processing and while idle.
+Debug-unlocked devices keep the watchdog disabled. ROM watchdog policy is unchanged.
+
 ### Fault handling
 
 A mailbox command can fail to complete in the following ways:
