@@ -44,3 +44,4 @@ mod test_stash_measurement;
 mod test_tagging;
 mod test_update_reset;
 mod test_warm_reset;
+mod test_zeroize_uds_fe;
