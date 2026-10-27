@@ -17,7 +17,7 @@ Abstract:
 
 use caliptra_cfi_lib::CfiCounter;
 use caliptra_drivers::{
-    AesDmaMode, Array4x16, AxiAddr, Dma, DmaRecovery, Sha2_512_384, Sha2_512_384Acc,
+    AesDmaMode, Array4x16, AxiAddr, CaliptraError, Dma, DmaRecovery, Sha2_512_384, Sha2_512_384Acc,
     ShaAccLockState, SocIfc, StreamEndianness,
 };
 use caliptra_registers::sha512::Sha512Reg;
@@ -27,6 +27,26 @@ use caliptra_test_harness::test_suite;
 
 const TEST_DATA_SIZE: usize = 1024; // 1KB of test data
 const MCU_SRAM_OFFSET: u64 = 0xc0_0000;
+
+fn test_dma_sha384_single_dword_rejects_overflow() {
+    let dma = Dma::default();
+    let soc_ifc = SocIfc::new(unsafe { SocIfcReg::new() });
+
+    for (source, length) in [(u64::MAX - 3, 8), (u64::MAX - 7, 12)] {
+        let mut sha_acc = unsafe { Sha2_512_384Acc::new(Sha512AccCsr::new()) };
+        let dma_recovery = DmaRecovery::new(
+            soc_ifc.recovery_interface_base_addr().into(),
+            soc_ifc.caliptra_base_axi_addr().into(),
+            soc_ifc.mci_base_addr().into(),
+            &dma,
+        );
+
+        assert_eq!(
+            dma_recovery.sha384_image_single_dword(&mut sha_acc, source.into(), length),
+            Err(CaliptraError::DRIVER_DMA_AXI_ADDRESS_OVERFLOW)
+        );
+    }
+}
 
 fn test_dma_sha384_mcu_sram() {
     // Init CFI
@@ -180,6 +200,7 @@ fn test_dma_sha384_small_data() {
 }
 
 test_suite! {
+    test_dma_sha384_single_dword_rejects_overflow,
     test_dma_sha384_mcu_sram,
     test_dma_sha384_empty_data,
     test_dma_sha384_small_data,

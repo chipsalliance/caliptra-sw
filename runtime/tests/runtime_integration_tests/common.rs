@@ -164,6 +164,7 @@ pub struct RuntimeTestArgs<'a> {
     pub test_sram: Option<&'a [u8]>,
     pub stop_at_rom: bool,
     pub security_state: Option<SecurityState>,
+    pub wdt_timeout_cycles: Option<u64>,
     pub production_state: Option<RuntimeProductionArgs>,
     pub soc_manifest_svn: Option<u32>,
     pub soc_manifest_max_svn: Option<u32>,
@@ -217,6 +218,7 @@ impl Default for RuntimeTestArgs<'_> {
             test_sram: None,
             stop_at_rom: false,
             security_state: None,
+            wdt_timeout_cycles: None,
             production_state: None,
             soc_manifest_svn: None,
             soc_manifest_max_svn: None,
@@ -416,6 +418,9 @@ pub fn start_rt_test_pqc_model(
         init_params,
         BootParams {
             fw_image: if args.stop_at_rom { None } else { Some(&image) },
+            wdt_timeout_cycles: args
+                .wdt_timeout_cycles
+                .unwrap_or(BootParams::default().wdt_timeout_cycles),
             initial_dbg_manuf_service_reg: boot_flags,
             initial_ss_strap_generic_3: args.initial_ss_strap_generic_3,
             soc_manifest,

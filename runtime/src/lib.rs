@@ -750,6 +750,12 @@ fn setup_mailbox_wfi(drivers: &mut Drivers) {
     drivers.soc_ifc.enable_mbox_notif_interrupts();
 }
 
+fn command_wdt_timeout(configured_cycles: u64) -> caliptra_common::WdtTimeout {
+    caliptra_common::WdtTimeout::new_const(
+        u64::from(caliptra_common::WdtTimeout::default()).max(configured_cycles),
+    )
+}
+
 /// Handles mailbox commands when the command is ready
 pub fn handle_mailbox_commands(drivers: &mut Drivers) -> CaliptraResult<()> {
     // Indicator to SOC that RT firmware is ready
@@ -825,10 +831,8 @@ pub fn handle_mailbox_commands(drivers: &mut Drivers) -> CaliptraResult<()> {
             }
 
             // TODO : Move start/stop WDT to wait_for_cmd when NMI is implemented.
-            caliptra_common::wdt::start_wdt(
-                &mut drivers.soc_ifc,
-                caliptra_common::WdtTimeout::default(),
-            );
+            let timeout = command_wdt_timeout(drivers.soc_ifc.wdt1_timeout_cycle_count());
+            caliptra_common::wdt::start_wdt(&mut drivers.soc_ifc, timeout);
 
             // Clear non-fatal error before processing command
             caliptra_drivers::clear_fw_error_non_fatal(drivers.persistent_data.get_mut());
@@ -967,4 +971,28 @@ fn mldsa_dpe_env(
         ),
         state: &mut pdata.fw.dpe.state,
     })
+}
+
+#[cfg(test)]
+mod wdt_tests {
+    #[test]
+    fn test_command_wdt_timeout() {
+        for (configured_cycles, expected_cycles) in [
+            (0, 20_000_000),
+            (1, 20_000_000),
+            (19_999_999, 20_000_000),
+            (20_000_000, 20_000_000),
+            (20_000_001, 20_000_001),
+            (40_000_000, 40_000_000),
+            (1 << 32, 1 << 32),
+            ((1 << 32) + 123, (1 << 32) + 123),
+            (u64::MAX, u64::MAX),
+        ] {
+            assert_eq!(
+                u64::from(super::command_wdt_timeout(configured_cycles)),
+                expected_cycles,
+                "configured timeout: {configured_cycles}"
+            );
+        }
+    }
 }

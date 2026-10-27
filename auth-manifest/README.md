@@ -57,12 +57,18 @@ The serialized IME layout follows `AuthManifestImageMetadata` in
 | **Firmware ID (`fw_id`)** | 4           | Platform-wide identifier for a firmware image. It must be unique across the active vendor + owner and owner-only Image Metadata Collections. |
 | **Component ID (`component_id`)** | 4   | Identifies the image component to be loaded. This corresponds to the `ComponentIdentifier` field defined in the DMTF PLDM Firmware Update Specification (DSP0267). |
 | **Classification (`classification`)** | 4 | Component classification value associated with the image. |
-| **Flags (`flags`)**     | 4            | Image-specific flags.<br/>**Bits 1:0:** Image source.<br/>**Bit 2:** If set, the image digest will **not** be verified; otherwise, the metadata image digest will be compared against the calculated digest of the image.<br/>**Bits 8–14:** Firmware execution control bit mapped to this image.<br/>Other bits: reserved. |
+| **Flags (`flags`)**     | 4            | Image-specific flags.<br/>**Bits 1:0:** Image source.<br/>**Bit 2:** If set, the image digest will **not** be verified; otherwise, the metadata image digest will be compared against the calculated digest of the image.<br/>**Bit 3:** If set, Runtime streams the image into SHA-384 using one four-byte DMA command per word instead of burst reads. The image address and size must be four-byte aligned.<br/>**Bits 8–14:** Firmware execution control bit mapped to this image.<br/>Other bits: reserved. |
 | **Image Load Address Low (`image_load_address.lo`)** | 4 | Low 4 bytes of the 64-bit AXI address where the image will be loaded for verification and execution. |
 | **Image Load Address High (`image_load_address.hi`)** | 4 | High 4 bytes of the 64-bit AXI address where the image will be loaded for verification and execution. |
 | **Image Staging Address Low (`image_staging_address.lo`)** | 4 | Low 4 bytes of the 64-bit AXI address where the image will be temporarily written during firmware update download and verification. |
 | **Image Staging Address High (`image_staging_address.hi`)** | 4 | High 4 bytes of the 64-bit AXI address where the image will be temporarily written during firmware update download and verification. |
 | **Image Digest (`digest`)** | 48       | SHA2-384 digest of the SOC image. |
+
+For both vendor + owner and owner-only manifests, the `dma_single_dword_read`
+boolean in each TOML `image_metadata_list` entry is optional and defaults to
+`false` (burst DMA) when omitted. Set it to `true` to opt in to single-DWORD DMA
+hashing from the image's load or staging address by setting IME flag bit 3.
+Existing TOML configurations do not need to add this field.
 
 #### **Optional Device UEID Entry**
 
