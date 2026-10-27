@@ -17,6 +17,7 @@ Abstract:
 use bitfield::bitfield;
 use caliptra_image_types::*;
 use core::default::Default;
+use core::mem::{offset_of, size_of};
 use core::ops::Range;
 use memoffset::span_of;
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
@@ -25,6 +26,27 @@ use zeroize::Zeroize;
 pub const AUTH_MANIFEST_MARKER: u32 = 0x324D_5441;
 pub const AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT: usize = 80;
 pub const AUTH_MANIFEST_PREAMBLE_SIZE: usize = 24292;
+/// Size of the message signed by `AuthManifestPreamble::owner_pub_keys_signatures`:
+/// `version`, `svn`, `flags`, `owner_pub_keys`.
+pub const AUTH_MANIFEST_OWNER_SIGNED_DATA_SIZE: usize = {
+    let [policy, owner] = AuthManifestPreamble::owner_signed_data_ranges();
+    ((policy.end - policy.start) + (owner.end - owner.start)) as usize
+};
+
+// The vendor-signed data is a single contiguous range only if the policy
+// fields are immediately followed by `vendor_pub_keys`.
+const _: () = assert!(
+    AuthManifestPreamble::policy_fields_range().end
+        == AuthManifestPreamble::vendor_pub_keys_range().start
+);
+
+// The vendor-signed data spans `version` through the end of `vendor_pub_keys`,
+// ending exactly where `vendor_pub_keys_signatures` begins.
+const _: () = {
+    let range = AuthManifestPreamble::vendor_signed_data_range();
+    assert!(range.start as usize == offset_of!(AuthManifestPreamble, version));
+    assert!(range.end as usize == offset_of!(AuthManifestPreamble, vendor_pub_keys_signatures));
+};
 /// Firmware ID reserved for the optional UEID entry in the original SoC manifest.
 pub const AUTH_MANIFEST_UEID_FW_ID: u32 = 0x0000_0FFF;
 /// Number of bytes in a device UEID.
@@ -108,10 +130,29 @@ pub struct AuthManifestPreamble {
 }
 
 impl AuthManifestPreamble {
-    /// Returns `Range<u32>` containing the version, flags and vendor manifest pub keys.
-    pub fn vendor_signed_data_range() -> Range<u32> {
-        let span = span_of!(AuthManifestPreamble, version..=vendor_pub_keys);
-        span.start as u32..span.end as u32
+    /// Returns `Range<u32>` containing the version, svn and flags.
+    ///
+    /// These policy fields are covered by both the vendor and owner
+    /// preamble signatures.
+    pub const fn policy_fields_range() -> Range<u32> {
+        let start = offset_of!(AuthManifestPreamble, version);
+        let end = offset_of!(AuthManifestPreamble, flags) + size_of::<u32>();
+        start as u32..end as u32
+    }
+
+    /// Returns `Range<u32>` containing the vendor_pub_keys
+    pub const fn vendor_pub_keys_range() -> Range<u32> {
+        let start = offset_of!(AuthManifestPreamble, vendor_pub_keys);
+        start as u32..(start + size_of::<AuthManifestPubKeys>()) as u32
+    }
+
+    /// Returns `Range<u32>` signed by `vendor_pub_keys_signatures`: the policy
+    /// fields (`version..=flags`) followed by `vendor_pub_keys`.
+    ///
+    /// The two are adjacent in the preamble (checked at build time), so the
+    /// vendor-signed message is a single contiguous range.
+    pub const fn vendor_signed_data_range() -> Range<u32> {
+        Self::policy_fields_range().start..Self::vendor_pub_keys_range().end
     }
 
     /// Returns `Range<u32>` containing the vendor_pub_keys_signatures
@@ -121,9 +162,30 @@ impl AuthManifestPreamble {
     }
 
     /// Returns `Range<u32>` containing the owner_pub_keys
-    pub fn owner_pub_keys_range() -> Range<u32> {
-        let span = span_of!(AuthManifestPreamble, owner_pub_keys);
-        span.start as u32..span.end as u32
+    pub const fn owner_pub_keys_range() -> Range<u32> {
+        let start = offset_of!(AuthManifestPreamble, owner_pub_keys);
+        start as u32..(start + size_of::<AuthManifestPubKeys>()) as u32
+    }
+
+    /// Returns the preamble ranges signed by `owner_pub_keys_signatures`.
+    ///
+    /// The owner-signed message is the concatenation, in order, of the
+    /// policy fields (`version..=flags`) and `owner_pub_keys`. The vendor
+    /// public keys and signatures are not covered.
+    pub const fn owner_signed_data_ranges() -> [Range<u32>; 2] {
+        [Self::policy_fields_range(), Self::owner_pub_keys_range()]
+    }
+
+    /// Writes the owner-signed message (see [`Self::owner_signed_data_ranges`])
+    /// into `out`.
+    pub fn owner_signed_data(&self, out: &mut [u8; AUTH_MANIFEST_OWNER_SIGNED_DATA_SIZE]) {
+        let bytes = self.as_bytes();
+        let mut offset = 0;
+        for range in Self::owner_signed_data_ranges() {
+            let src = &bytes[range.start as usize..range.end as usize];
+            out[offset..offset + src.len()].copy_from_slice(src);
+            offset += src.len();
+        }
     }
 
     /// Returns `Range<u32>` containing the owner_pub_keys_signatures
@@ -370,7 +432,8 @@ pub struct OwnerAuthorizationManifest {
 mod test {
     use crate::{
         AuthManifestImageMetadata, AuthManifestPreamble, ImageMetadataFlags,
-        OwnerAuthManifestPreamble, OwnerAuthorizationManifest, AUTH_MANIFEST_PREAMBLE_SIZE,
+        OwnerAuthManifestPreamble, OwnerAuthorizationManifest,
+        AUTH_MANIFEST_OWNER_SIGNED_DATA_SIZE, AUTH_MANIFEST_PREAMBLE_SIZE,
         AUTH_MANIFEST_UEID_FW_ID, AUTH_MANIFEST_UEID_LEN, OWNER_AUTH_MANIFEST_MARKER,
         OWNER_AUTH_MANIFEST_PREAMBLE_SIZE, OWNER_AUTH_MANIFEST_SIZE,
     };
@@ -443,5 +506,39 @@ mod test {
         assert!(pub_keys_sigs.end <= imc_sigs.start);
         // Non-empty.
         assert!(range.start < range.end);
+    }
+
+    #[test]
+    fn test_auth_manifest_owner_signed_data() {
+        let [policy, owner] = AuthManifestPreamble::owner_signed_data_ranges();
+        assert_eq!(owner, AuthManifestPreamble::owner_pub_keys_range());
+        assert_eq!(
+            policy.len() + owner.len(),
+            AUTH_MANIFEST_OWNER_SIGNED_DATA_SIZE
+        );
+        // Starts at `version` (skips marker and size) and stops before
+        // the vendor public keys; vendor keys and signatures are not covered.
+        let vendor = AuthManifestPreamble::vendor_signed_data_range();
+        assert_eq!(policy.start, vendor.start);
+        assert_eq!(policy.len(), 3 * core::mem::size_of::<u32>());
+        // Vendor and owner sign the same policy fields.
+        let vendor_pub_keys = AuthManifestPreamble::vendor_pub_keys_range();
+        assert_eq!(policy.end, vendor_pub_keys.start);
+        assert_eq!(vendor.end, vendor_pub_keys.end);
+        let vendor_sigs = AuthManifestPreamble::vendor_pub_keys_signatures_range();
+        assert_eq!(vendor_sigs.end, owner.start);
+
+        let mut preamble = AuthManifestPreamble::default();
+        preamble
+            .as_mut_bytes()
+            .iter_mut()
+            .enumerate()
+            .for_each(|(i, b)| *b = i as u8);
+        let mut out = [0u8; AUTH_MANIFEST_OWNER_SIGNED_DATA_SIZE];
+        preamble.owner_signed_data(&mut out);
+        let bytes = preamble.as_bytes();
+        let (head, tail) = out.split_at(policy.len());
+        assert_eq!(head, &bytes[policy.start as usize..policy.end as usize]);
+        assert_eq!(tail, &bytes[owner.start as usize..owner.end as usize]);
     }
 }
