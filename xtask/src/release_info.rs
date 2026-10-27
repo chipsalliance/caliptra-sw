@@ -65,6 +65,12 @@ pub const ALL_RELEASES: &[ReleaseEntry] = &[
     ReleaseEntry { name: "rom-2.1.0", tag: "rom-2.1.0", ty: ReleaseType::Rom, asset_tag: None, build: false },
     ReleaseEntry { name: "rom-2.1.1", tag: "rom-2.1.1", ty: ReleaseType::Rom, asset_tag: None, build: false },
     ReleaseEntry { name: "rom-2.1.2", tag: "rom-2.1.2", ty: ReleaseType::Rom, asset_tag: None, build: false },
+    ReleaseEntry { name: "rom-2.0.3", tag: "rom-2.0.3-1", ty: ReleaseType::Rom, asset_tag: None, build: false },
+    ReleaseEntry { name: "rom-2.0.4", tag: "rom-2.0.4", ty: ReleaseType::Rom, asset_tag: None, build: false },
+    ReleaseEntry { name: "rom-2.1.3", tag: "rom-2.1.3-1", ty: ReleaseType::Rom, asset_tag: None, build: false },
+    ReleaseEntry { name: "rom-2.0.3", tag: "rom-2.0.3-1", ty: ReleaseType::Rom, asset_tag: None, build: false },
+    ReleaseEntry { name: "rom-2.0.4", tag: "rom-2.0.4", ty: ReleaseType::Rom, asset_tag: None, build: false },
+    ReleaseEntry { name: "rom-2.1.3", tag: "rom-2.1.3-1", ty: ReleaseType::Rom, asset_tag: None, build: false },
     // ── FMC + Runtime FW releases ────────────────────────────────
     ReleaseEntry { name: "fmc-1.0.0 / rt-1.0.0", tag: "rt-1.0.0",   ty: ReleaseType::Fw, asset_tag: None, build: false },
     ReleaseEntry { name: "fmc-1.0.2 / rt-1.0.2", tag: "fmc-1.0.2",  ty: ReleaseType::Fw, asset_tag: Some("release_v20240522_1"), build: false },
@@ -83,6 +89,8 @@ pub const ALL_RELEASES: &[ReleaseEntry] = &[
     ReleaseEntry { name: "fw-2.1.0",  tag: "fw-2.1.0",  ty: ReleaseType::Fw, asset_tag: None, build: false },
     ReleaseEntry { name: "fw-2.1.1",  tag: "fw-2.1.1",  ty: ReleaseType::Fw, asset_tag: None, build: false },
     ReleaseEntry { name: "fw-2.1.2",  tag: "fw-2.1.2",  ty: ReleaseType::Fw, asset_tag: None, build: false },
+    ReleaseEntry { name: "fw-2.1.3",  tag: "fw-2.1.3",  ty: ReleaseType::Fw, asset_tag: None, build: false },
+    ReleaseEntry { name: "fw-2.1.4",  tag: "rom-2.1.3-1",  ty: ReleaseType::Fw, asset_tag: Some("rom-2.1.3-1"), build: false },
 ];
 
 #[derive(Default)]
