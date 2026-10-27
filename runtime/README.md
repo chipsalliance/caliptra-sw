@@ -806,6 +806,10 @@ Command Code: `0x4453_424C` ("DSBL")
 
 Invokes a serialized DPE command.
 
+Named TCI identifiers (`RTMR`, `CCIV`, `SOMV`, `SOMO`, and `MCFW`) appear as
+those four ASCII bytes in attestation output. Their numeric representation uses
+DPE's little-endian encoding, correcting the reversed names in earlier 2.0 firmware.
+
 Command Code: `0x4450_4543` ("DPEC")
 
 *Table: `INVOKE_DPE_COMMAND` input arguments*
