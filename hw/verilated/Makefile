@@ -58,7 +58,7 @@ $(LIB_OBJS): out/%.o: $(VERILATED_DIR)/%.cpp
 out/Vcaliptra_verilated.h: ${VERILATED_DIR}/caliptra_verilated.sv out
 	$(VERILATOR) --cc -CFLAGS "${CFLAGS}" \
 	  --trace \
-	  +libext+.v+.sv +define+RV_OPENSOURCE +define+VERILATOR \
+	  +libext+.v+.sv +define+RV_OPENSOURCE +define+VERILATOR +define+CALIPTRA_TOP=caliptra_verilated \
 	  --timescale 1ns/1ps \
 	  --trace-structs \
 	  --timing \
