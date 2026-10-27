@@ -151,194 +151,6 @@ impl Csrng {
         }
     }
 
-    fn cmd_req_write(&mut self, _: RvSize, data: RvData) -> Result<(), BusError> {
-        // Since the CMD_REQ register can be used to initiate new commands or
-        // supply words to an existing command, we need to track which "state"
-        // we're in for this register and branch accordingly.
-        match self.cmd_req_state {
-            CmdReqState::NewCommand => self.process_new_cmd(data),
-
-            CmdReqState::SeedWords { num_words } => {
-                self.seed.push(data);
-                if self.seed.len() == num_words {
-                    self.ctr_drbg.instantiate(Instantiate::Words(&self.seed));
-                    self.seed.clear();
-                    self.cmd_req_state = CmdReqState::NewCommand;
-                }
-            }
-
-            CmdReqState::ReseedWords { num_words } => {
-                self.seed.push(data);
-                if self.seed.len() == num_words {
-                    self.ctr_drbg.reseed(Instantiate::Words(&self.seed));
-                    self.seed.clear();
-                    self.cmd_req_state = CmdReqState::NewCommand;
-                }
-            }
-
-            CmdReqState::UpdateWords { num_words } => {
-                self.update.push(data);
-                if self.update.len() == num_words {
-                    let seed32: [u32; SEED_LEN_BYTES / 4] =
-                        self.update.as_slice().try_into().unwrap();
-                    let seed = bytes_from_words_be(&seed32);
-                    self.ctr_drbg.update(seed);
-                    self.update.clear();
-                    self.cmd_req_state = CmdReqState::NewCommand;
-                }
-            }
-        }
-        Ok(())
-    }
-
-    fn reseed_interval_write(&mut self, _: RvSize, data: RvData) -> Result<(), BusError> {
-        if self.sw_regupd == 0 {
-            return Ok(());
-        }
-        self.reseed_interval = data;
-
-        self.ctr_drbg.set_reseed_interval(data);
-        Ok(())
-    }
-
-    /// Read handler for RESEED_COUNTER_2 (SW app instance; NumApps=3).
-    fn reseed_counter_read(&mut self, _: RvSize) -> Result<RvData, BusError> {
-        Ok(self.ctr_drbg.reseed_counter())
-    }
-
-    fn genbits_vld_read(&mut self, _: RvSize) -> Result<RvData, BusError> {
-        if self.words.is_empty() {
-            // Check if the CTR_DRBG has any bits for us.
-            if let Some(block) = self.ctr_drbg.pop_block() {
-                self.words = Words::new(block);
-                Ok(0b01)
-            } else {
-                Ok(0b00)
-            }
-        } else {
-            Ok(0b01)
-        }
-    }
-
-    fn genbits_read(&mut self, _: RvSize) -> Result<RvData, BusError> {
-        Ok(self.words.next().unwrap_or(0xCAFE_F00D))
-    }
-
-    /// ME_REGWEN write handler - W0C (write-0-clear) behavior.
-    /// When cleared to 0, MODULE_ENABLE becomes read-only.
-    fn me_regwen_write(&mut self, _: RvSize, data: RvData) -> Result<(), BusError> {
-        // W0C: writing 0 clears the bit, writing 1 has no effect
-        // Once cleared, cannot be set back to 1 (until reset)
-        if data & 1 == 0 {
-            self.me_regwen = 0;
-        }
-        Ok(())
-    }
-
-    /// SW_REGUPD write handler - W0C (write-0-clear) behavior.
-    /// When cleared to 0, configuration registers become read-only.
-    fn sw_regupd_write(&mut self, _: RvSize, data: RvData) -> Result<(), BusError> {
-        // W0C: writing 0 clears the bit, writing 1 has no effect
-        // Once cleared, cannot be set back to 1 (until reset)
-        if data & 1 == 0 {
-            self.sw_regupd = 0;
-        }
-        Ok(())
-    }
-
-    fn module_enable_write(&mut self, _: RvSize, data: RvData) -> Result<(), BusError> {
-        // If ME_REGWEN is cleared, MODULE_ENABLE is read-only
-        if self.me_regwen == 0 {
-            return Ok(()); // Silently ignore writes when locked
-        }
-        self.module_enable = data;
-
-        if data == MultiBitBool::False as u32 {
-            return Ok(());
-        }
-
-        if ConfReadVal::from(self.conf).fips_enable() == MultiBitBool::False as u32 {
-            unimplemented!("emulation of non-FIPS mode");
-        }
-
-        self.health_tester.test_startup_windows();
-
-        Ok(())
-    }
-
-    fn conf_write(&mut self, _: RvSize, data: RvData) -> Result<(), BusError> {
-        // CONF is protected by SW_REGUPD - if cleared, CONF is read-only
-        if self.sw_regupd == 0 {
-            return Ok(()); // Silently ignore writes when locked
-        }
-        self.conf = data;
-
-        let conf = ConfReadVal::from(self.conf);
-        let threshold_scope = conf.threshold_scope() == MultiBitBool::True as u32;
-        self.health_tester
-            .adaptp
-            .set_threshold_scope(threshold_scope);
-
-        // Single-bit (single-lane) mode: entropy_src samples only the RNG lane
-        // selected by RNG_BIT_SEL and runs the health tests on that one bit.
-        let rng_bit_enable = conf.rng_bit_enable() == MultiBitBool::True as u32;
-        let rng_bit_sel = conf.rng_bit_sel() as usize;
-        self.health_tester
-            .set_rng_bit_mode(rng_bit_enable, rng_bit_sel);
-
-        Ok(())
-    }
-
-    /// HEALTH_TEST_WINDOWS write handler.
-    /// Sets the FIPS health-test window size in clock cycles. Each clock
-    /// produces a 4-bit RNG nibble, so `window_size_bits = 4 * FIPS_WINDOW`.
-    /// Protected by SW_REGUPD just like the other configuration registers.
-    fn health_test_windows_write(&mut self, _: RvSize, data: RvData) -> Result<(), BusError> {
-        if self.sw_regupd == 0 {
-            return Ok(());
-        }
-        self.health_test_windows = data;
-
-        let fips_window = HealthTestWindowsReadVal::from(data).fips_window() as usize;
-        let window_size_bits = BITS_PER_NIBBLE * fips_window;
-        self.health_tester.set_window_size_bits(window_size_bits);
-        Ok(())
-    }
-
-    fn repcnt_thresholds_write(&mut self, _: RvSize, data: RvData) -> Result<(), BusError> {
-        self.health_tester
-            .repcnt
-            .set_threshold(RepcntThresholdsReadVal::from(data));
-        Ok(())
-    }
-
-    fn repcnts_thresholds_write(&mut self, _: RvSize, data: RvData) -> Result<(), BusError> {
-        self.health_tester
-            .repcnts
-            .set_threshold(RepcntsThresholdsReadVal::from(data));
-        Ok(())
-    }
-
-    fn adaptp_hi_thresholds_write(&mut self, _: RvSize, data: RvData) -> Result<(), BusError> {
-        self.health_tester
-            .adaptp
-            .set_hi_threshold(AdaptpHiThresholdsReadVal::from(data));
-        Ok(())
-    }
-
-    fn adaptp_lo_thresholds_write(&mut self, _: RvSize, data: RvData) -> Result<(), BusError> {
-        self.health_tester
-            .adaptp
-            .set_lo_threshold(AdaptpLoThresholdsReadVal::from(data));
-        Ok(())
-    }
-
-    fn alert_summary_fail_counts_read(&mut self, _: RvSize) -> Result<RvData, BusError> {
-        let failures = self.health_tester.failures();
-        self.alert_summary_fail_counts = ReadOnlyRegister::new(failures);
-        Ok(failures)
-    }
-
     fn alert_fail_counts_read(&mut self, _: RvSize) -> Result<RvData, BusError> {
         // Don't have a `AlertFailCountsWriteVal` from caliptra_ureg, so let's pack counts manually.
         // Bit positions from entropy_src register definitions:
@@ -355,199 +167,553 @@ impl Csrng {
         self.alert_fail_counts = ReadOnlyRegister::new(fail_counts);
         Ok(fail_counts)
     }
+}
 
-    fn main_sm_state_read(&mut self, _: RvSize) -> Result<RvData, BusError> {
-        // https://opentitan.org/earlgrey_1.0.0/book/hw/ip/entropy_src/doc/theory_of_operation.html#main-state-machine-diagram
-        // https://github.com/chipsalliance/caliptra-rtl/blob/main/src/entropy_src/rtl/entropy_src_main_sm_pkg.sv
-        // https://github.com/chipsalliance/caliptra-rtl/blob/main/src/entropy_src/rtl/entropy_src_core.sv
-        //
-        // From entropy_src_core.sv (lines 2185-2191):
-        //   assign alert_threshold = reg2hw.alert_threshold.alert_threshold.q;
-        //   assign any_fail_count_q >= alert_threshold -> alert_threshold_fail
-        //
-        // The state machine only transitions to AlertHang when alert_threshold_fail is true,
-        // meaning the total failure count must meet or exceed the configured alert threshold.
-        const ALERT_HANG: u32 = 0x1fb;
-        const CONT_HT_RUNNING: u32 = 0x1a2;
+/// The new CSRNG block from the latest (the upcoming 2.2) RTL,
+/// with the added `threshold_oneway` field and a few removed fields
+/// such that the offsets are different from the original layout.
+#[derive(Bus)]
+#[warm_reset_fn(warm_reset)]
+pub struct CsrngLatest {
+    // CSRNG registers
+    #[register(offset = 0x14)]
+    ctrl: u32,
 
-        // In real hardware, entropy_src continuously pulls entropy from the TRNG and runs
-        // health tests. The state machine state reflects the ongoing health test results.
-        // To simulate this behavior, we consume a health test window worth of entropy
-        // when the state is read, running it through the health testers.
-        self.simulate_continuous_health_testing();
+    #[register(offset = 0x18, write_fn = cmd_req_write)]
+    cmd_req: WriteOnlyRegister<u32>,
 
-        // Extract alert_threshold from the alert_thresholds register (bits [15:0])
-        let alert_threshold = self.alert_thresholds & 0xffff;
-        let failures = self.health_tester.failures();
+    #[register(offset = 0x1C, write_fn = reseed_interval_write)]
+    reseed_interval: u32,
 
-        let state = if failures >= alert_threshold {
-            ALERT_HANG
-        } else {
-            CONT_HT_RUNNING
-        };
+    // SW app instance counter (NumApps=3, instance 2 is what the driver reads).
+    #[register(offset = 0x28, read_fn = reseed_counter_read)]
+    reseed_counter_2: ReadOnlyRegister<u32>,
 
-        self.main_sm_state = ReadOnlyRegister::new(state);
-        Ok(state)
-    }
+    #[register(offset = 0x2c)]
+    sw_cmd_sts: ReadOnlyRegister<u32>,
 
-    /// Simulate the continuous health testing that happens in real hardware.
-    /// In the RTL, entropy_src continuously pulls entropy from the TRNG and runs health tests.
-    /// We simulate this by consuming a health test window worth of entropy when state is queried.
-    ///
-    /// This is only done AFTER boot/instantiate is complete to avoid consuming entropy that's
-    /// needed for seed conditioning in tests with limited entropy.
-    fn simulate_continuous_health_testing(&mut self) {
-        // Only run continuous testing if:
-        // 1. The module is enabled
-        // 2. Boot/instantiate has completed (so we don't consume entropy needed for seed conditioning)
-        if self.module_enable != MultiBitBool::True as u32 {
-            return;
-        }
-        if !self.boot_instantiate_complete {
-            return;
-        }
+    #[register(offset = 0x30, read_fn = genbits_vld_read)]
+    genbits_vld: ReadOnlyRegister<u32>,
 
-        let num_nibbles = self.health_tester.nibbles_per_window();
+    #[register(offset = 0x34, read_fn = genbits_read)]
+    genbits: ReadOnlyRegister<u32>,
 
-        // Consume a window's worth of entropy through the health testers
-        for _ in 0..num_nibbles {
-            if let Some(nibble) = self.health_tester.next() {
-                // The nibble was already fed through health testers in HealthTester::next()
-                let _ = nibble;
-            } else {
-                // No more entropy available
-                break;
-            }
-        }
-    }
+    // MAIN_SM_STATE (0x5c): CSRNG main SM state. The emulator processes
+    // commands synchronously, so it always reads Idle (0x4e = MainSmIdle).
+    #[register(offset = 0x5c)]
+    main_sm_state_csrng: ReadOnlyRegister<u32>,
 
-    fn warm_reset(&mut self) {
-        // disable on reset
-        self.module_enable = MultiBitBool::False as u32;
-    }
+    #[register(offset = 0x54)]
+    err_code: ReadOnlyRegister<u32>,
 
-    fn process_new_cmd(&mut self, data: RvData) {
-        const INSTANTIATE: u32 = 1;
-        const RESEED: u32 = 2;
-        const GENERATE: u32 = 3;
-        const UPDATE: u32 = 4;
-        const UNINSTANTIATE: u32 = 5;
+    // Entropy Source registers
+    // ME_REGWEN: Module enable register write enable (W0C - write-0-clear)
+    // When cleared (false), MODULE_ENABLE becomes read-only
+    #[register(offset = 0x1010, write_fn = me_regwen_write)]
+    me_regwen: u32,
 
-        let acmd = data & 0xf;
-        let clen = (data >> 4) & 0xf;
-        let flag0 = (data >> 8) & 0xf;
-        let glen = (data >> 12) & 0x1fff;
+    // SW_REGUPD: Software update enable (W0C - write-0-clear)
+    // When cleared (false), configuration registers become read-only
+    #[register(offset = 0x1014, write_fn = sw_regupd_write)]
+    sw_regupd: u32,
 
-        match acmd {
-            INSTANTIATE => {
-                const FALSE: u32 = MultiBitBool::False as u32;
-                const TRUE: u32 = MultiBitBool::True as u32;
+    #[register(offset = 0x1020, write_fn = module_enable_write)]
+    module_enable: u32,
 
-                // https://opentitan.org/book/hw/ip/csrng/doc/theory_of_operation.html#command-description
-                match [flag0, clen] {
-                    [FALSE, 0] => {
-                        // Seed from entropy_src.
-                        let seed = self.get_conditioned_seed();
-                        self.ctr_drbg.instantiate(Instantiate::Bytes(&seed));
-                        // Mark boot as complete - continuous health testing can now run
-                        self.boot_instantiate_complete = true;
-                    }
+    #[register(offset = 0x1024, write_fn = conf_write)]
+    conf: u32,
 
-                    [FALSE, _] => unimplemented!("seed: entropy_src XOR constant"),
+    #[register(offset = 0x1030, write_fn = health_test_windows_write)]
+    health_test_windows: u32,
 
-                    [TRUE, 0] => {
-                        // Zero seed.
-                        self.ctr_drbg.instantiate(Instantiate::default());
-                    }
+    #[register(offset = 0x1034, write_fn = threshold_oneway_write)]
+    threshold_oneway: u32,
 
-                    [TRUE, _] => {
-                        self.cmd_req_state = CmdReqState::SeedWords {
-                            num_words: clen as usize,
-                        };
-                    }
+    #[register(offset = 0x1038, write_fn = repcnt_thresholds_write)]
+    repcnt_thresholds: u32,
 
-                    _ => unreachable!("invalid INSTANTIATE state: flag0={flag0}, clen={clen}"),
-                }
-            }
+    #[register(offset = 0x103c, write_fn = repcnts_thresholds_write)]
+    repcnts_thresholds: u32,
 
-            RESEED => {
-                const FALSE: u32 = MultiBitBool::False as u32;
-                const TRUE: u32 = MultiBitBool::True as u32;
+    #[register(offset = 0x1040, write_fn = adaptp_hi_thresholds_write)]
+    adaptp_hi_thresholds: u32,
 
-                // Mirror INSTANTIATE flag handling for RESEED.
-                match [flag0, clen] {
-                    [FALSE, 0] => {
-                        let seed = self.get_conditioned_seed();
-                        self.ctr_drbg.reseed(Instantiate::Bytes(&seed));
-                    }
+    #[register(offset = 0x1044, write_fn = adaptp_lo_thresholds_write)]
+    adaptp_lo_thresholds: u32,
 
-                    [FALSE, _] => unimplemented!("reseed: entropy_src XOR constant"),
+    #[register(offset = 0x1090)]
+    alert_thresholds: u32, // TODO: implement this
 
-                    [TRUE, 0] => {
-                        self.ctr_drbg.reseed(Instantiate::default());
-                    }
+    #[register(offset = 0x1094, read_fn = alert_summary_fail_counts_read)]
+    alert_summary_fail_counts: ReadOnlyRegister<u32>,
 
-                    [TRUE, _] => {
-                        self.cmd_req_state = CmdReqState::ReseedWords {
-                            num_words: clen as usize,
-                        };
-                    }
+    #[register(offset = 0x1098, read_fn = alert_fail_counts_read)]
+    alert_fail_counts: ReadOnlyRegister<u32>,
 
-                    _ => unreachable!("invalid RESEED state: flag0={flag0}, clen={clen}"),
-                }
-            }
+    #[register(offset = 0x10d0, read_fn = main_sm_state_read)]
+    main_sm_state: ReadOnlyRegister<u32>,
 
-            GENERATE => {
-                self.ctr_drbg.generate(glen as usize);
-            }
+    cmd_req_state: CmdReqState,
+    seed: Vec<u32>,
+    update: Vec<u32>,
+    ctr_drbg: CtrDrbg,
+    words: Words,
+    health_tester: HealthTester,
+    /// Tracks whether the first instantiate has completed (boot is done).
+    /// Only after boot is complete should continuous health testing consume entropy,
+    /// to avoid interfering with seed conditioning that requires specific entropy amounts.
+    boot_instantiate_complete: bool,
+}
 
-            UNINSTANTIATE => {
-                self.ctr_drbg.uninstantiate();
-            }
+impl CsrngLatest {
+    pub fn new(itrng_nibbles: Box<dyn Iterator<Item = u8>>) -> Self {
+        Self {
+            // These reset values come from register definitions
+            ctrl: 0x999,
+            cmd_req: WriteOnlyRegister::new(0),
+            reseed_interval: 0xffffffff,
+            reseed_counter_2: ReadOnlyRegister::new(0),
+            sw_cmd_sts: ReadOnlyRegister::new(0b110), // cmd_rdy=1, cmd_ack=1, cmd_sts=0
+            genbits_vld: ReadOnlyRegister::new(0b01),
+            genbits: ReadOnlyRegister::new(0),
+            main_sm_state_csrng: ReadOnlyRegister::new(0x4e), // MainSmIdle (csrng_pkg.sv)
+            err_code: ReadOnlyRegister::new(0),
+            me_regwen: 1, // Reset value: enabled (writable)
+            sw_regupd: 1, // Reset value: enabled (writable)
+            module_enable: 0x9,
+            conf: 0x909099,
+            health_test_windows: 0x600200,
+            threshold_oneway: 0x9,
+            repcnt_thresholds: 0xffffffff,
+            repcnts_thresholds: 0xffffffff,
+            adaptp_hi_thresholds: 0xffffffff,
+            adaptp_lo_thresholds: 0,
+            alert_thresholds: 2,
+            alert_summary_fail_counts: ReadOnlyRegister::new(0),
+            alert_fail_counts: ReadOnlyRegister::new(0),
+            main_sm_state: ReadOnlyRegister::new(0x2c), // StartupHTStart, entropy_src_main_sm_pkg.sv
 
-            UPDATE => {
-                self.cmd_req_state = CmdReqState::UpdateWords {
-                    num_words: SEED_LEN_BYTES / 4,
-                };
-            }
-
-            _ => {
-                unimplemented!("CSRNG cmd: {acmd}");
-            }
+            cmd_req_state: CmdReqState::NewCommand,
+            seed: vec![],
+            update: vec![],
+            ctr_drbg: CtrDrbg::new(),
+            words: Words::default(),
+            health_tester: HealthTester::new(itrng_nibbles),
+            boot_instantiate_complete: false,
         }
     }
 
-    fn get_conditioned_seed(&mut self) -> Seed {
-        // Replicate the logic in caliptra-rtl/src/entropy_src/rtl/entropy_src_core.sv.
-        const NUM_TEST_WINDOWS: usize = 2;
-        const BITS_PER_BLOCK: usize = 8 * mem::size_of::<u64>();
+    fn threshold_oneway_write(&mut self, _: RvSize, _data: RvData) -> Result<(), BusError> {
+        unimplemented!("entropy_src.THRESHOLD_ONEWAY register");
+    }
 
-        let window_size_bits = self.health_tester.window_size_bits();
-        let num_blocks = NUM_TEST_WINDOWS * window_size_bits / BITS_PER_BLOCK;
+    fn alert_fail_counts_read(&mut self, _: RvSize) -> Result<RvData, BusError> {
+        // Don't have a `AlertFailCountsWriteVal` from caliptra_ureg, so let's pack counts manually.
+        // Bit positions from entropy_src register definitions:
+        // - repcnt_fail_count: bits [3:0]
+        // - repcnts_fail_count: bits [7:4]
+        // - adaptp_hi_fail_count: bits [11:8]
+        // - adaptp_lo_fail_count: bits [15:12]
+        let repcnt = self.health_tester.repcnt.failures().min(0xf) & 0xf;
+        let repcnts = self.health_tester.repcnts.failures().min(0xf) & 0xf;
+        let adapt_hi = self.health_tester.adaptp.hi_failures().min(0xf) & 0xf;
+        let adapt_lo = self.health_tester.adaptp.lo_failures().min(0xf) & 0xf;
+        let fail_counts = (adapt_lo << 12) | (adapt_hi << 8) | (repcnts << 4) | repcnt;
 
-        let mut hasher = Sha3_384::new();
-
-        for _ in 0..num_blocks {
-            // Update the hasher in 64-bit packed entropy blocks.
-            const NUM_NIBBLES: usize = BITS_PER_BLOCK / BITS_PER_NIBBLE;
-
-            let packed_entropy = (0..NUM_NIBBLES).fold(0, |packed, i| {
-                let nibble = self.health_tester.next().expect(
-                    "itrng iterator should provide at least two health-test windows in FIPS mode",
-                );
-                packed | (u64::from(nibble) << (i * BITS_PER_NIBBLE))
-            });
-            hasher.update(packed_entropy.to_le_bytes());
-        }
-
-        let mut digest = hasher.finalize();
-        digest.as_mut_slice().reverse();
-        digest
-            .as_slice()
-            .try_into()
-            .expect("SHA3-384 should generate a 384 bit seed from raw entropy nibbles")
+        self.alert_fail_counts = ReadOnlyRegister::new(fail_counts);
+        Ok(fail_counts)
     }
 }
+
+/// Implement common methods shared by both CSRNG layouts.
+macro_rules! impl_csrng_core {
+    ($type_name:ty) => {
+        impl $type_name {
+            fn cmd_req_write(&mut self, _: RvSize, data: RvData) -> Result<(), BusError> {
+                // Since the CMD_REQ register can be used to initiate new commands or
+                // supply words to an existing command, we need to track which "state"
+                // we're in for this register and branch accordingly.
+                match self.cmd_req_state {
+                    CmdReqState::NewCommand => self.process_new_cmd(data),
+
+                    CmdReqState::SeedWords { num_words } => {
+                        self.seed.push(data);
+                        if self.seed.len() == num_words {
+                            self.ctr_drbg.instantiate(Instantiate::Words(&self.seed));
+                            self.seed.clear();
+                            self.cmd_req_state = CmdReqState::NewCommand;
+                        }
+                    }
+
+                    CmdReqState::ReseedWords { num_words } => {
+                        self.seed.push(data);
+                        if self.seed.len() == num_words {
+                            self.ctr_drbg.reseed(Instantiate::Words(&self.seed));
+                            self.seed.clear();
+                            self.cmd_req_state = CmdReqState::NewCommand;
+                        }
+                    }
+
+                    CmdReqState::UpdateWords { num_words } => {
+                        self.update.push(data);
+                        if self.update.len() == num_words {
+                            let seed32: [u32; SEED_LEN_BYTES / 4] =
+                                self.update.as_slice().try_into().unwrap();
+                            let seed = bytes_from_words_be(&seed32);
+                            self.ctr_drbg.update(seed);
+                            self.update.clear();
+                            self.cmd_req_state = CmdReqState::NewCommand;
+                        }
+                    }
+                }
+                Ok(())
+            }
+
+            fn reseed_interval_write(&mut self, _: RvSize, data: RvData) -> Result<(), BusError> {
+                if self.sw_regupd == 0 {
+                    return Ok(());
+                }
+                self.reseed_interval = data;
+
+                self.ctr_drbg.set_reseed_interval(data);
+                Ok(())
+            }
+
+            /// Read handler for RESEED_COUNTER_2 (SW app instance; NumApps=3).
+            fn reseed_counter_read(&mut self, _: RvSize) -> Result<RvData, BusError> {
+                Ok(self.ctr_drbg.reseed_counter())
+            }
+
+            fn genbits_vld_read(&mut self, _: RvSize) -> Result<RvData, BusError> {
+                if self.words.is_empty() {
+                    // Check if the CTR_DRBG has any bits for us.
+                    if let Some(block) = self.ctr_drbg.pop_block() {
+                        self.words = Words::new(block);
+                        Ok(0b01)
+                    } else {
+                        Ok(0b00)
+                    }
+                } else {
+                    Ok(0b01)
+                }
+            }
+
+            fn genbits_read(&mut self, _: RvSize) -> Result<RvData, BusError> {
+                Ok(self.words.next().unwrap_or(0xCAFE_F00D))
+            }
+
+            /// ME_REGWEN write handler - W0C (write-0-clear) behavior.
+            /// When cleared to 0, MODULE_ENABLE becomes read-only.
+            fn me_regwen_write(&mut self, _: RvSize, data: RvData) -> Result<(), BusError> {
+                // W0C: writing 0 clears the bit, writing 1 has no effect
+                // Once cleared, cannot be set back to 1 (until reset)
+                if data & 1 == 0 {
+                    self.me_regwen = 0;
+                }
+                Ok(())
+            }
+
+            /// SW_REGUPD write handler - W0C (write-0-clear) behavior.
+            /// When cleared to 0, configuration registers become read-only.
+            fn sw_regupd_write(&mut self, _: RvSize, data: RvData) -> Result<(), BusError> {
+                // W0C: writing 0 clears the bit, writing 1 has no effect
+                // Once cleared, cannot be set back to 1 (until reset)
+                if data & 1 == 0 {
+                    self.sw_regupd = 0;
+                }
+                Ok(())
+            }
+
+            fn module_enable_write(&mut self, _: RvSize, data: RvData) -> Result<(), BusError> {
+                // If ME_REGWEN is cleared, MODULE_ENABLE is read-only
+                if self.me_regwen == 0 {
+                    return Ok(()); // Silently ignore writes when locked
+                }
+                self.module_enable = data;
+
+                if data == MultiBitBool::False as u32 {
+                    return Ok(());
+                }
+
+                if ConfReadVal::from(self.conf).fips_enable() == MultiBitBool::False as u32 {
+                    unimplemented!("emulation of non-FIPS mode");
+                }
+
+                self.health_tester.test_startup_windows();
+
+                Ok(())
+            }
+
+            fn conf_write(&mut self, _: RvSize, data: RvData) -> Result<(), BusError> {
+                // CONF is protected by SW_REGUPD - if cleared, CONF is read-only
+                if self.sw_regupd == 0 {
+                    return Ok(()); // Silently ignore writes when locked
+                }
+                self.conf = data;
+
+                let conf = ConfReadVal::from(self.conf);
+                let threshold_scope = conf.threshold_scope() == MultiBitBool::True as u32;
+                self.health_tester
+                    .adaptp
+                    .set_threshold_scope(threshold_scope);
+
+                // Single-bit (single-lane) mode: entropy_src samples only the RNG lane
+                // selected by RNG_BIT_SEL and runs the health tests on that one bit.
+                let rng_bit_enable = conf.rng_bit_enable() == MultiBitBool::True as u32;
+                let rng_bit_sel = conf.rng_bit_sel() as usize;
+                self.health_tester
+                    .set_rng_bit_mode(rng_bit_enable, rng_bit_sel);
+
+                Ok(())
+            }
+
+            /// HEALTH_TEST_WINDOWS write handler.
+            /// Sets the FIPS health-test window size in clock cycles. Each clock
+            /// produces a 4-bit RNG nibble, so `window_size_bits = 4 * FIPS_WINDOW`.
+            /// Protected by SW_REGUPD just like the other configuration registers.
+            fn health_test_windows_write(&mut self, _: RvSize, data: RvData) -> Result<(), BusError> {
+                if self.sw_regupd == 0 {
+                    return Ok(());
+                }
+                self.health_test_windows = data;
+
+                let fips_window = HealthTestWindowsReadVal::from(data).fips_window() as usize;
+                let window_size_bits = BITS_PER_NIBBLE * fips_window;
+                self.health_tester.set_window_size_bits(window_size_bits);
+                Ok(())
+            }
+
+            fn repcnt_thresholds_write(&mut self, _: RvSize, data: RvData) -> Result<(), BusError> {
+                self.health_tester
+                    .repcnt
+                    .set_threshold(RepcntThresholdsReadVal::from(data));
+                Ok(())
+            }
+
+            fn repcnts_thresholds_write(&mut self, _: RvSize, data: RvData) -> Result<(), BusError> {
+                self.health_tester
+                    .repcnts
+                    .set_threshold(RepcntsThresholdsReadVal::from(data));
+                Ok(())
+            }
+
+            fn adaptp_hi_thresholds_write(&mut self, _: RvSize, data: RvData) -> Result<(), BusError> {
+                self.health_tester
+                    .adaptp
+                    .set_hi_threshold(AdaptpHiThresholdsReadVal::from(data));
+                Ok(())
+            }
+
+            fn adaptp_lo_thresholds_write(&mut self, _: RvSize, data: RvData) -> Result<(), BusError> {
+                self.health_tester
+                    .adaptp
+                    .set_lo_threshold(AdaptpLoThresholdsReadVal::from(data));
+                Ok(())
+            }
+
+            fn alert_summary_fail_counts_read(&mut self, _: RvSize) -> Result<RvData, BusError> {
+                let failures = self.health_tester.failures();
+                self.alert_summary_fail_counts = ReadOnlyRegister::new(failures);
+                Ok(failures)
+            }
+
+            fn main_sm_state_read(&mut self, _: RvSize) -> Result<RvData, BusError> {
+                // https://opentitan.org/earlgrey_1.0.0/book/hw/ip/entropy_src/doc/theory_of_operation.html#main-state-machine-diagram
+                // https://github.com/chipsalliance/caliptra-rtl/blob/main/src/entropy_src/rtl/entropy_src_main_sm_pkg.sv
+                // https://github.com/chipsalliance/caliptra-rtl/blob/main/src/entropy_src/rtl/entropy_src_core.sv
+                //
+                // From entropy_src_core.sv (lines 2185-2191):
+                //   assign alert_threshold = reg2hw.alert_threshold.alert_threshold.q;
+                //   assign any_fail_count_q >= alert_threshold -> alert_threshold_fail
+                //
+                // The state machine only transitions to AlertHang when alert_threshold_fail is true,
+                // meaning the total failure count must meet or exceed the configured alert threshold.
+                const ALERT_HANG: u32 = 0x1fb;
+                const CONT_HT_RUNNING: u32 = 0x1a2;
+
+                // In real hardware, entropy_src continuously pulls entropy from the TRNG and runs
+                // health tests. The state machine state reflects the ongoing health test results.
+                // To simulate this behavior, we consume a health test window worth of entropy
+                // when the state is read, running it through the health testers.
+                self.simulate_continuous_health_testing();
+
+                // Extract alert_threshold from the alert_thresholds register (bits [15:0])
+                let alert_threshold = self.alert_thresholds & 0xffff;
+                let failures = self.health_tester.failures();
+
+                let state = if failures >= alert_threshold {
+                    ALERT_HANG
+                } else {
+                    CONT_HT_RUNNING
+                };
+
+                self.main_sm_state = ReadOnlyRegister::new(state);
+                Ok(state)
+            }
+
+            /// Simulate the continuous health testing that happens in real hardware.
+            /// In the RTL, entropy_src continuously pulls entropy from the TRNG and runs health tests.
+            /// We simulate this by consuming a health test window worth of entropy when state is queried.
+            ///
+            /// This is only done AFTER boot/instantiate is complete to avoid consuming entropy that's
+            /// needed for seed conditioning in tests with limited entropy.
+            fn simulate_continuous_health_testing(&mut self) {
+                // Only run continuous testing if:
+                // 1. The module is enabled
+                // 2. Boot/instantiate has completed (so we don't consume entropy needed for seed conditioning)
+                if self.module_enable != MultiBitBool::True as u32 {
+                    return;
+                }
+                if !self.boot_instantiate_complete {
+                    return;
+                }
+
+                let num_nibbles = self.health_tester.nibbles_per_window();
+
+                // Consume a window's worth of entropy through the health testers
+                for _ in 0..num_nibbles {
+                    if let Some(nibble) = self.health_tester.next() {
+                        // The nibble was already fed through health testers in HealthTester::next()
+                        let _ = nibble;
+                    } else {
+                        // No more entropy available
+                        break;
+                    }
+                }
+            }
+
+            fn warm_reset(&mut self) {
+                // disable on reset
+                self.module_enable = MultiBitBool::False as u32;
+            }
+
+            fn process_new_cmd(&mut self, data: RvData) {
+                const INSTANTIATE: u32 = 1;
+                const RESEED: u32 = 2;
+                const GENERATE: u32 = 3;
+                const UPDATE: u32 = 4;
+                const UNINSTANTIATE: u32 = 5;
+
+                let acmd = data & 0xf;
+                let clen = (data >> 4) & 0xf;
+                let flag0 = (data >> 8) & 0xf;
+                let glen = (data >> 12) & 0x1fff;
+
+                match acmd {
+                    INSTANTIATE => {
+                        const FALSE: u32 = MultiBitBool::False as u32;
+                        const TRUE: u32 = MultiBitBool::True as u32;
+
+                        // https://opentitan.org/book/hw/ip/csrng/doc/theory_of_operation.html#command-description
+                        match [flag0, clen] {
+                            [FALSE, 0] => {
+                                // Seed from entropy_src.
+                                let seed = self.get_conditioned_seed();
+                                self.ctr_drbg.instantiate(Instantiate::Bytes(&seed));
+                                // Mark boot as complete - continuous health testing can now run
+                                self.boot_instantiate_complete = true;
+                            }
+
+                            [FALSE, _] => unimplemented!("seed: entropy_src XOR constant"),
+
+                            [TRUE, 0] => {
+                                // Zero seed.
+                                self.ctr_drbg.instantiate(Instantiate::default());
+                            }
+
+                            [TRUE, _] => {
+                                self.cmd_req_state = CmdReqState::SeedWords {
+                                    num_words: clen as usize,
+                                };
+                            }
+
+                            _ => unreachable!("invalid INSTANTIATE state: flag0={flag0}, clen={clen}"),
+                        }
+                    }
+
+                    RESEED => {
+                        const FALSE: u32 = MultiBitBool::False as u32;
+                        const TRUE: u32 = MultiBitBool::True as u32;
+
+                        // Mirror INSTANTIATE flag handling for RESEED.
+                        match [flag0, clen] {
+                            [FALSE, 0] => {
+                                let seed = self.get_conditioned_seed();
+                                self.ctr_drbg.reseed(Instantiate::Bytes(&seed));
+                            }
+
+                            [FALSE, _] => unimplemented!("reseed: entropy_src XOR constant"),
+
+                            [TRUE, 0] => {
+                                self.ctr_drbg.reseed(Instantiate::default());
+                            }
+
+                            [TRUE, _] => {
+                                self.cmd_req_state = CmdReqState::ReseedWords {
+                                    num_words: clen as usize,
+                                };
+                            }
+
+                            _ => unreachable!("invalid RESEED state: flag0={flag0}, clen={clen}"),
+                        }
+                    }
+
+                    GENERATE => {
+                        self.ctr_drbg.generate(glen as usize);
+                    }
+
+                    UNINSTANTIATE => {
+                        self.ctr_drbg.uninstantiate();
+                    }
+
+                    UPDATE => {
+                        self.cmd_req_state = CmdReqState::UpdateWords {
+                            num_words: SEED_LEN_BYTES / 4,
+                        };
+                    }
+
+                    _ => {
+                        unimplemented!("CSRNG cmd: {acmd}");
+                    }
+                }
+            }
+
+            fn get_conditioned_seed(&mut self) -> Seed {
+                // Replicate the logic in caliptra-rtl/src/entropy_src/rtl/entropy_src_core.sv.
+                const NUM_TEST_WINDOWS: usize = 2;
+                const BITS_PER_BLOCK: usize = 8 * mem::size_of::<u64>();
+
+                let window_size_bits = self.health_tester.window_size_bits();
+                let num_blocks = NUM_TEST_WINDOWS * window_size_bits / BITS_PER_BLOCK;
+
+                let mut hasher = Sha3_384::new();
+
+                for _ in 0..num_blocks {
+                    // Update the hasher in 64-bit packed entropy blocks.
+                    const NUM_NIBBLES: usize = BITS_PER_BLOCK / BITS_PER_NIBBLE;
+
+                    let packed_entropy = (0..NUM_NIBBLES).fold(0, |packed, i| {
+                        let nibble = self.health_tester.next().expect(
+                            "itrng iterator should provide at least two health-test windows in FIPS mode",
+                        );
+                        packed | (u64::from(nibble) << (i * BITS_PER_NIBBLE))
+                    });
+                    hasher.update(packed_entropy.to_le_bytes());
+                }
+
+                let mut digest = hasher.finalize();
+                digest.as_mut_slice().reverse();
+                digest
+                    .as_slice()
+                    .try_into()
+                    .expect("SHA3-384 should generate a 384 bit seed from raw entropy nibbles")
+            }
+        }
+    }
+}
+
+impl_csrng_core!(Csrng);
+impl_csrng_core!(CsrngLatest);
 
 #[derive(Default)]
 struct Words {

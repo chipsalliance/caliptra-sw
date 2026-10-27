@@ -42,7 +42,7 @@ pub use abr::Abr;
 pub use aes::Aes;
 pub use aes_clp::AesClp;
 pub use asym_ecc384::AsymEcc384;
-pub use csrng::Csrng;
+pub use csrng::{Csrng, CsrngLatest};
 pub use dma::Dma;
 pub use doe::Doe;
 pub use emu_ctrl::EmuCtrl;
