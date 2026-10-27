@@ -894,6 +894,25 @@ pub trait HwModel: SocManager {
         }
     }
 
+    /// Bound a test wait so a hung device reports the awaited condition.
+    fn step_until_or_timeout(
+        &mut self,
+        description: &str,
+        max_wait_cycles: u32,
+        mut predicate: impl FnMut(&mut Self) -> bool,
+    ) {
+        for _ in 0..max_wait_cycles {
+            if predicate(self) {
+                return;
+            }
+            self.step();
+        }
+        assert!(
+            predicate(self),
+            "timed out after {max_wait_cycles} cycles waiting for {description}"
+        );
+    }
+
     /// Toggle reset pins and wait for ready_for_fuses
     fn warm_reset(&mut self) {
         // To be overridden by HwModel implementations that support this

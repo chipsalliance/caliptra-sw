@@ -2,10 +2,98 @@
 
 use caliptra_api::SocManager;
 use caliptra_common::mailbox_api::{CommandId, MailboxReqHeader};
-use caliptra_hw_model::HwModel;
+use caliptra_hw_model::{HwModel, SecurityState};
 use zerocopy::IntoBytes;
 
 use crate::common::{assert_error, run_rt_test, RuntimeTestArgs};
+
+#[cfg_attr(any(feature = "fpga_realtime", feature = "fpga_subsystem"), ignore)]
+#[test]
+fn test_runtime_wdt_uses_configured_timeout() {
+    for configured_cycles in [20_000_000u64, 40_000_000, (1 << 32) + 123] {
+        let mut model = run_rt_test(RuntimeTestArgs {
+            security_state: Some(*SecurityState::default().set_debug_locked(true)),
+            wdt_timeout_cycles: Some(configured_cycles),
+            ..Default::default()
+        });
+        model.step_until_ready_for_runtime();
+        model.step_until_or_timeout("Runtime idle watchdog disabled", 100_000, |m| {
+            !m.soc_ifc().cptra_wdt_timer1_en().read().timer1_en()
+        });
+
+        let payload = MailboxReqHeader {
+            chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::VERSION), &[]),
+        };
+        model
+            .start_mailbox_execute(u32::from(CommandId::VERSION), payload.as_bytes())
+            .unwrap();
+        model.step_until_or_timeout("Runtime command watchdog enabled", 100_000, |m| {
+            m.soc_ifc().cptra_wdt_timer1_en().read().timer1_en()
+        });
+
+        let low = model
+            .soc_ifc()
+            .cptra_wdt_timer1_timeout_period()
+            .at(0)
+            .read();
+        let high = model
+            .soc_ifc()
+            .cptra_wdt_timer1_timeout_period()
+            .at(1)
+            .read();
+        assert_eq!(u64::from(low) | (u64::from(high) << 32), configured_cycles);
+        model
+            .finish_mailbox_execute()
+            .unwrap()
+            .expect("VERSION should return a response");
+        model.step_until_or_timeout("Runtime command watchdog stopped", 100_000, |m| {
+            !m.soc_ifc().cptra_wdt_timer1_en().read().timer1_en()
+        });
+    }
+}
+
+#[cfg_attr(any(feature = "fpga_realtime", feature = "fpga_subsystem"), ignore)]
+#[test]
+fn test_runtime_wdt_remains_disabled_when_debug_unlocked() {
+    let mut model = run_rt_test(RuntimeTestArgs {
+        wdt_timeout_cycles: Some((1 << 32) + 123),
+        ..Default::default()
+    });
+    model.step_until_ready_for_runtime();
+    assert!(!model.soc_ifc().cptra_security_state().read().debug_locked());
+    let timeout_before = [
+        model
+            .soc_ifc()
+            .cptra_wdt_timer1_timeout_period()
+            .at(0)
+            .read(),
+        model
+            .soc_ifc()
+            .cptra_wdt_timer1_timeout_period()
+            .at(1)
+            .read(),
+    ];
+
+    let payload = MailboxReqHeader {
+        chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::VERSION), &[]),
+    };
+    model
+        .mailbox_execute(u32::from(CommandId::VERSION), payload.as_bytes())
+        .unwrap()
+        .expect("VERSION should return a response");
+
+    assert!(!model.soc_ifc().cptra_wdt_timer1_en().read().timer1_en());
+    for (index, expected) in timeout_before.into_iter().enumerate() {
+        assert_eq!(
+            model
+                .soc_ifc()
+                .cptra_wdt_timer1_timeout_period()
+                .at(index)
+                .read(),
+            expected
+        );
+    }
+}
 
 /// When a successful command runs after a failed command, ensure the error
 /// register is cleared.
