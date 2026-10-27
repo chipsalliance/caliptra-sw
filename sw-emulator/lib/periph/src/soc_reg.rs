@@ -596,6 +596,85 @@ impl Bus for SocRegistersExternal {
 /// SOC Register implementation
 
 #[derive(Bus)]
+struct TrngEntropyConfigBlock {
+    #[register(offset = 0x0)]
+    cptra_i_trng_entropy_config_0: u32,
+
+    #[register(offset = 0x4)]
+    cptra_i_trng_entropy_config_1: u32,
+}
+
+impl TrngEntropyConfigBlock {
+    fn new() -> Self {
+        Self {
+            cptra_i_trng_entropy_config_0: 0,
+            cptra_i_trng_entropy_config_1: 0,
+        }
+    }
+}
+
+pub struct TrngEntropyConfigSlot(Option<Box<dyn Bus>>);
+
+impl TrngEntropyConfigSlot {
+    pub fn active<T: Bus + 'static>(trng_config: T) -> Self {
+        Self(Some(Box::new(trng_config)))
+    }
+
+    pub fn disabled() -> Self {
+        Self(None)
+    }
+}
+
+impl Bus for TrngEntropyConfigSlot {
+    fn read(
+        &mut self,
+        size: caliptra_emu_types::RvSize,
+        addr: caliptra_emu_types::RvAddr,
+    ) -> Result<caliptra_emu_types::RvData, caliptra_emu_bus::BusError> {
+        match &mut self.0 {
+            Some(s) => s.read(size, addr),
+            None => Err(caliptra_emu_bus::BusError::LoadAccessFault),
+        }
+    }
+    fn write(
+        &mut self,
+        size: caliptra_emu_types::RvSize,
+        addr: caliptra_emu_types::RvAddr,
+        val: caliptra_emu_types::RvData,
+    ) -> Result<(), caliptra_emu_bus::BusError> {
+        match &mut self.0 {
+            Some(s) => s.write(size, addr, val),
+            None => Err(caliptra_emu_bus::BusError::StoreAccessFault),
+        }
+    }
+    fn poll(&mut self) {
+        if let Some(s) = &mut self.0 {
+            s.poll();
+        }
+    }
+    fn warm_reset(&mut self) {
+        if let Some(s) = &mut self.0 {
+            s.warm_reset();
+        }
+    }
+    fn update_reset(&mut self) {
+        if let Some(s) = &mut self.0 {
+            s.update_reset();
+        }
+    }
+    fn incoming_event(&mut self, event: Rc<Event>) {
+        if let Some(s) = &mut self.0 {
+            s.incoming_event(event);
+        }
+    }
+    fn register_outgoing_events(&mut self, sender: mpsc::Sender<Event>) {
+        if let Some(s) = &mut self.0 {
+            s.register_outgoing_events(sender);
+        }
+    }
+}
+
+#[derive(Bus)]
 #[poll_fn(bus_poll)]
 struct SocRegistersImpl {
     #[register(offset = 0x0000)]
@@ -714,11 +793,8 @@ struct SocRegistersImpl {
     #[register_array(offset = 0x110)]
     cptra_wdt_cfg: [u32; 2],
 
-    #[register(offset = 0x0118)]
-    cptra_i_trng_entropy_config_0: u32,
-
-    #[register(offset = 0x011c)]
-    cptra_i_trng_entropy_config_1: u32,
+    #[peripheral(offset = 0x0118, len = 0x8)]
+    cptra_i_trng_entropy_config: TrngEntropyConfigSlot,
 
     #[register_array(offset = 0x0120)]
     cptra_rsvd_reg: [u32; 2],
@@ -738,6 +814,9 @@ struct SocRegistersImpl {
 
     #[register(offset = 0x170)]
     cptra_owner_pk_hash_lock: u32,
+
+    #[peripheral(offset = 0x180, len = 0x8)]
+    cptra_i_trng_entropy_config_latest: TrngEntropyConfigSlot,
 
     #[register_array(offset = 0x0200)]
     fuse_uds_seed: [u32; FUSE_UDS_SEED_SIZE / 4],
@@ -1044,6 +1123,17 @@ impl SocRegistersImpl {
             ),
             _ => (StashMeasurementBankSlot::disabled(), CPTRA_HW_REV_2_1),
         };
+        let (cptra_i_trng_entropy_config, cptra_i_trng_entropy_config_latest) =
+            match args.hw_version {
+                CaliptraHwVersion::V2_2 | CaliptraHwVersion::Latest => (
+                    TrngEntropyConfigSlot::disabled(),
+                    TrngEntropyConfigSlot::active(TrngEntropyConfigBlock::new()),
+                ),
+                _ => (
+                    TrngEntropyConfigSlot::active(TrngEntropyConfigBlock::new()),
+                    TrngEntropyConfigSlot::disabled(),
+                ),
+            };
 
         let regs = Self {
             cptra_hw_error_fatal: ReadWriteRegister::new(0),
@@ -1093,14 +1183,14 @@ impl SocRegistersImpl {
             cptra_fuse_valid_axi_user: ReadWriteRegister::new(0xffff_ffff),
             cptra_fuse_axi_user_lock: ReadWriteRegister::new(0),
             cptra_wdt_cfg: [0x0; 2],
-            cptra_i_trng_entropy_config_0: 0,
-            cptra_i_trng_entropy_config_1: 0,
+            cptra_i_trng_entropy_config,
             cptra_rsvd_reg: Default::default(),
             cptra_hw_capabilities: 0,
             cptra_fw_capabilities: 0,
             cptra_cap_lock: ReadWriteRegister::new(0),
             cptra_owner_pk_hash: Default::default(),
             cptra_owner_pk_hash_lock: 0,
+            cptra_i_trng_entropy_config_latest,
             fuse_uds_seed: words_from_bytes_be(&Self::UDS),
             fuse_field_entropy: [0xffff_ffff; 8],
             ss_strap_generic: [0; 4],
