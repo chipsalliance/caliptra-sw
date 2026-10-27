@@ -62,9 +62,12 @@ pub const ALL_RELEASES: &[ReleaseEntry] = &[
     ReleaseEntry { name: "rom-2.0.0", tag: "rom-2.0.0", ty: ReleaseType::Rom, asset_tag: None, build: false },
     ReleaseEntry { name: "rom-2.0.1", tag: "rom-2.0.1", ty: ReleaseType::Rom, asset_tag: None, build: false },
     ReleaseEntry { name: "rom-2.0.2", tag: "rom-2.0.2", ty: ReleaseType::Rom, asset_tag: None, build: false },
+    ReleaseEntry { name: "rom-2.0.3", tag: "rom-2.0.3-1", ty: ReleaseType::Rom, asset_tag: None, build: false },
+    ReleaseEntry { name: "rom-2.0.4", tag: "rom-2.0.4", ty: ReleaseType::Rom, asset_tag: None, build: false },
     ReleaseEntry { name: "rom-2.1.0", tag: "rom-2.1.0", ty: ReleaseType::Rom, asset_tag: None, build: false },
     ReleaseEntry { name: "rom-2.1.1", tag: "rom-2.1.1", ty: ReleaseType::Rom, asset_tag: None, build: false },
     ReleaseEntry { name: "rom-2.1.2", tag: "rom-2.1.2", ty: ReleaseType::Rom, asset_tag: None, build: false },
+    ReleaseEntry { name: "rom-2.1.3", tag: "rom-2.1.3-1", ty: ReleaseType::Rom, asset_tag: None, build: false },
     // ── FMC + Runtime FW releases ────────────────────────────────
     ReleaseEntry { name: "fmc-1.0.0 / rt-1.0.0", tag: "rt-1.0.0",   ty: ReleaseType::Fw, asset_tag: None, build: false },
     ReleaseEntry { name: "fmc-1.0.2 / rt-1.0.2", tag: "fmc-1.0.2",  ty: ReleaseType::Fw, asset_tag: Some("release_v20240522_1"), build: false },
@@ -76,6 +79,7 @@ pub const ALL_RELEASES: &[ReleaseEntry] = &[
     ReleaseEntry { name: "rt-1.2.4",  tag: "rt-1.2.4",  ty: ReleaseType::Fw, asset_tag: Some("release_v20260312_0"), build: false },
     ReleaseEntry { name: "rt-1.2.5",  tag: "rt-1.2.5",  ty: ReleaseType::Fw, asset_tag: None, build: false },
     ReleaseEntry { name: "rt-1.3.0",  tag: "rt-1.3.0",  ty: ReleaseType::Fw, asset_tag: None, build: false },
+    ReleaseEntry { name: "rt-1.3.1",  tag: "rt-1.3.1",  ty: ReleaseType::Fw, asset_tag: None, build: false },
     ReleaseEntry { name: "fw-2.0.0",  tag: "fw-2.0.0",  ty: ReleaseType::Fw, asset_tag: None, build: false },
     ReleaseEntry { name: "fw-2.0.1",  tag: "fw-2.0.1",  ty: ReleaseType::Fw, asset_tag: None, build: false },
     ReleaseEntry { name: "fw-2.0.2",  tag: "fw-2.0.2",  ty: ReleaseType::Fw, asset_tag: None, build: false },
@@ -83,6 +87,8 @@ pub const ALL_RELEASES: &[ReleaseEntry] = &[
     ReleaseEntry { name: "fw-2.1.0",  tag: "fw-2.1.0",  ty: ReleaseType::Fw, asset_tag: None, build: false },
     ReleaseEntry { name: "fw-2.1.1",  tag: "fw-2.1.1",  ty: ReleaseType::Fw, asset_tag: None, build: false },
     ReleaseEntry { name: "fw-2.1.2",  tag: "fw-2.1.2",  ty: ReleaseType::Fw, asset_tag: None, build: false },
+    ReleaseEntry { name: "fw-2.1.3",  tag: "fw-2.1.3",  ty: ReleaseType::Fw, asset_tag: None, build: false },
+    ReleaseEntry { name: "fw-2.1.4",  tag: "fw-2.1.4",  ty: ReleaseType::Fw, asset_tag: Some("rom-2.1.3-1"), build: false },
 ];
 
 #[derive(Default)]
@@ -832,9 +838,12 @@ mod tests {
         assert_eq!(rtl_compat("rom-1.2.0", ReleaseType::Rom), "1.1");
         assert_eq!(rtl_compat("rom-2.0.0", ReleaseType::Rom), "2.0.2+");
         assert_eq!(rtl_compat("rom-2.0.2", ReleaseType::Rom), "2.0.2+");
+        assert_eq!(rtl_compat("rom-2.0.3", ReleaseType::Rom), "2.0.2+");
+        assert_eq!(rtl_compat("rom-2.0.4", ReleaseType::Rom), "2.0.2+");
         assert_eq!(rtl_compat("rom-2.1.0", ReleaseType::Rom), "2.1");
         assert_eq!(rtl_compat("rom-2.1.1", ReleaseType::Rom), "2.1");
         assert_eq!(rtl_compat("rom-2.1.2", ReleaseType::Rom), "2.1");
+        assert_eq!(rtl_compat("rom-2.1.3", ReleaseType::Rom), "2.1");
     }
 
     #[test]
@@ -847,6 +856,7 @@ mod tests {
         assert_eq!(rtl_compat("rt-1.2.0", ReleaseType::Fw), "1.0, 1.1");
         assert_eq!(rtl_compat("rt-1.2.4", ReleaseType::Fw), "1.0, 1.1");
         assert_eq!(rtl_compat("rt-1.3.0", ReleaseType::Fw), "1.0, 1.1");
+        assert_eq!(rtl_compat("rt-1.3.1", ReleaseType::Fw), "1.0, 1.1");
         assert_eq!(rtl_compat("fw-2.0.0", ReleaseType::Fw), "2.0.2+");
         assert_eq!(rtl_compat("fw-2.0.1", ReleaseType::Fw), "2.0.2+");
         assert_eq!(rtl_compat("fw-2.0.2", ReleaseType::Fw), "2.0.2+");
@@ -854,5 +864,7 @@ mod tests {
         assert_eq!(rtl_compat("fw-2.1.0", ReleaseType::Fw), "2.1");
         assert_eq!(rtl_compat("fw-2.1.1", ReleaseType::Fw), "2.1");
         assert_eq!(rtl_compat("fw-2.1.2", ReleaseType::Fw), "2.1");
+        assert_eq!(rtl_compat("fw-2.1.3", ReleaseType::Fw), "2.1");
+        assert_eq!(rtl_compat("fw-2.1.4", ReleaseType::Fw), "2.1");
     }
 }
