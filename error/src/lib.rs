@@ -957,6 +957,21 @@ impl CaliptraError {
             "Image Verifier Error: Update reset FMC load address or size mismatch"
         ),
         (
+            IMAGE_VERIFIER_ERR_RUNTIME_OFFSET_INVALID,
+            0x000b0066,
+            "Image Verifier Error: Runtime offset invalid (gap between FMC and Runtime)"
+        ),
+        (
+            IMAGE_VERIFIER_ERR_FMC_ENTRY_POINT_NOT_AT_LOAD_ADDR,
+            0x000b0067,
+            "Image Verifier Error: FMC entry point must equal load address"
+        ),
+        (
+            IMAGE_VERIFIER_ERR_RUNTIME_ENTRY_POINT_NOT_AT_LOAD_ADDR,
+            0x000b0068,
+            "Image Verifier Error: Runtime entry point must equal load address"
+        ),
+        (
             DRIVER_LMS_INVALID_LMS_ALGO_TYPE,
             0x000c0001,
             "Driver Error: LMS invalid LMS algorithm type"
@@ -1123,6 +1138,11 @@ impl CaliptraError {
             DRIVER_DMA_AES_CHUNKING_UNSUPPORTED,
             0x0000f007,
             "DMA driver Error: AES cannot be split across multiple transfers"
+        ),
+        (
+            DRIVER_DMA_AXI_ADDRESS_OVERFLOW,
+            0x0000f008,
+            "DMA driver Error: AXI address range overflow"
         ),
         (
             DRIVER_SHA3_INVALID_STATE_ERR,
@@ -2023,6 +2043,11 @@ impl CaliptraError {
             0x000E00B4,
             "Runtime Error: Auth manifest UEID does not match device UEID"
         ),
+        (
+            RUNTIME_ZEROIZE_UDS_FE_NOT_SUBSYSTEM_MODE,
+            0x000E00B5,
+            "Runtime Error: UDS/FE zeroization requires subsystem mode"
+        ),
         // FMC Errors
         (FMC_GLOBAL_NMI, 0x000F0001, "FMC Error: Global NMI"),
         (
@@ -2141,6 +2166,11 @@ impl CaliptraError {
             FMC_REGENERATE_FMC_MLDSA_KEY_PAIR_FAILED,
             0x000F0001A,
             "FMC Error: Regenerate FMC MLDSA key pair failed"
+        ),
+        (
+            FMC_HANDOFF_INVALID_FHT,
+            0x000F0001B,
+            "FMC Error: Invalid firmware handoff table"
         ),
         (
             DRIVER_TRNG_EXT_TIMEOUT,

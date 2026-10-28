@@ -78,7 +78,7 @@ jobs:
           else
             RTL_VERSION="latest"
           fi
-          echo "rtl_cache_key=$(git rev-parse HEAD:hw/fpga/src)-$(git hash-object hw/fpga/fpga_configuration.tcl)-$(cd hw/${RTL_VERSION}/rtl && git rev-parse HEAD)-${{ inputs.fpga-itrng }}-${{ env.CACHE_BUSTER }}" >> $GITHUB_OUTPUT
+          echo "rtl_cache_key=$(git rev-parse HEAD:hw/fpga/src)-$(git hash-object hw/fpga/fpga_configuration.tcl)-$(cd hw/${RTL_VERSION}/caliptra-ss/third_party/caliptra-rtl && git rev-parse HEAD)-${{ inputs.fpga-itrng }}-${{ env.CACHE_BUSTER }}" >> $GITHUB_OUTPUT
 
 
   build_test_binaries:

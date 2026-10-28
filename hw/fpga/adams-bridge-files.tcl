@@ -1,6 +1,6 @@
 # Licensed under the Apache-2.0 license
 
-set adbDir $fpgaDir/../$RTL_VERSION/rtl/submodules/adams-bridge
+set adbDir $rtlDir/submodules/adams-bridge
 
 if { [file exists $adbDir/src/abr_prim/rtl/abr_prim_flop_macros.sv] == 0 } {
     puts "ERROR: $adbDir/src/abr_prim/rtl/abr_prim_flop_macros.sv not found"

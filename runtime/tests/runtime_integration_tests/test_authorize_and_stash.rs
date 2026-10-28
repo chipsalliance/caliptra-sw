@@ -1,8 +1,8 @@
 // Licensed under the Apache-2.0 license
 
 use crate::common::{
-    calculate_cptra_config_init_vals_hash, default_rt_test_soc_manifest_measurements, run_rt_test,
-    soc_manifest_measurements, RuntimeTestArgs,
+    assert_error, calculate_cptra_config_init_vals_hash, default_rt_test_soc_manifest_measurements,
+    run_rt_test, soc_manifest_measurements, RuntimeTestArgs,
 };
 use crate::test_set_auth_manifest::{
     create_auth_manifest, create_auth_manifest_with_metadata, AuthManifestBuilderCfg,
@@ -13,6 +13,7 @@ use crate::test_set_owner_auth_manifest::{
 };
 use crate::test_update_reset::update_fw;
 use caliptra_api::mailbox::{MailboxRespHeader, VerifyAuthManifestReq};
+use caliptra_api::SocManager;
 use caliptra_auth_man_types::{
     Addr64, AuthManifestFlags, AuthManifestImageMetadata, AuthorizationManifest, ImageMetadataFlags,
 };
@@ -22,7 +23,8 @@ use caliptra_common::mailbox_api::{
     AuthManifestSource, AuthorizeAndStashReq, AuthorizeAndStashResp, CommandId, GetTaggedTciReq,
     GetTaggedTciResp, ImageHashSource, MailboxReq, MailboxReqHeader, SetAuthManifestReq, TagTciReq,
 };
-use caliptra_hw_model::{DefaultHwModel, HwModel, ModelError};
+use caliptra_drivers::CaliptraError;
+use caliptra_hw_model::{DefaultHwModel, HwModel, ModelError, SecurityState};
 use caliptra_image_types::FwVerificationPqcKeyType;
 use caliptra_runtime::{
     IMAGE_AUTHORIZED, IMAGE_AUTHORIZED_OWNER_ONLY, IMAGE_AUTHORIZED_VENDOR_OWNER,
@@ -115,6 +117,20 @@ pub fn set_auth_manifest_with_test_sram(
     test_sram: &[u8],
     mcu_image: &[u8],
 ) -> DefaultHwModel {
+    set_auth_manifest_with_test_sram_args(
+        auth_manifest,
+        test_sram,
+        mcu_image,
+        RuntimeTestArgs::default(),
+    )
+}
+
+fn set_auth_manifest_with_test_sram_args(
+    auth_manifest: Option<AuthorizationManifest>,
+    test_sram: &[u8],
+    mcu_image: &[u8],
+    args: RuntimeTestArgs,
+) -> DefaultHwModel {
     let runtime_args = RuntimeTestArgs {
         test_image_options: Some(ImageOptions::default()),
         test_sram: Some(test_sram),
@@ -125,7 +141,7 @@ pub fn set_auth_manifest_with_test_sram(
                 .unwrap_or_default(),
         ),
         mcu_fw_image: Some(mcu_image),
-        ..Default::default()
+        ..args
     };
 
     let mut model = run_rt_test(runtime_args);
@@ -1166,7 +1182,7 @@ pub fn write_mcu_mbox_sram(model: &mut DefaultHwModel, data: &[u8]) {
         for (count, chunk) in data.chunks(4).enumerate() {
             mcu_mbox_sram_ptr
                 .offset(count as isize)
-                .write_volatile(u32::from_be_bytes(chunk.try_into().unwrap()));
+                .write_volatile(u32::from_le_bytes(chunk.try_into().unwrap()));
         }
     };
 }
@@ -1221,25 +1237,47 @@ fn tag_and_get_default_tci(model: &mut DefaultHwModel) -> GetTaggedTciResp {
     GetTaggedTciResp::read_from_bytes(resp.as_slice()).unwrap()
 }
 
-#[cfg_attr(feature = "fpga_realtime", ignore)]
-#[test]
-fn test_authorize_from_load_address() {
+fn authorize_from_memory(
+    single_dword_dma: bool,
+    manifest_source: AuthManifestSource,
+    image_source: ImageHashSource,
+) {
+    const IMAGE_SIZE: usize = 512;
+
+    let image_offset = match image_source {
+        ImageHashSource::LoadAddress => 0,
+        ImageHashSource::StagingAddress => IMAGE_SIZE,
+        _ => unreachable!(),
+    };
+    let image_source = image_source as u32;
     let mut flags = ImageMetadataFlags(0);
     flags.set_ignore_auth_check(false);
-    flags.set_image_source(ImageHashSource::LoadAddress as u32);
+    flags.set_image_source(image_source);
+    flags.set_dma_single_dword_read(single_dword_dma);
 
-    let load_memory_contents = [0x55u8; 512];
+    let mut test_sram = [0u8; IMAGE_SIZE * 2];
+    for (index, byte) in test_sram.iter_mut().enumerate() {
+        *byte = (index as u8)
+            .wrapping_mul(31)
+            .wrapping_add((index >> 8) as u8);
+    }
 
-    let mut hasher = Sha384::new();
-    hasher.update(load_memory_contents);
-    let fw_digest: [u8; 48] = hasher.finalize().into();
+    let fw_digest: [u8; 48] =
+        Sha384::digest(&test_sram[image_offset..image_offset + IMAGE_SIZE]).into();
+    let (fw_id, expected_result) = match manifest_source {
+        AuthManifestSource::VendorOwner => {
+            (u32::from_le_bytes(FW_ID_1), IMAGE_AUTHORIZED_VENDOR_OWNER)
+        }
+        AuthManifestSource::Owner => (OWNER_ONLY_FW_ID, IMAGE_AUTHORIZED_OWNER_ONLY),
+    };
 
     let image_metadata = AuthManifestImageMetadata {
-        fw_id: u32::from_le_bytes(FW_ID_1),
+        fw_id,
         flags: flags.0,
         digest: fw_digest,
-        image_load_address: Addr64 {
-            lo: TEST_SRAM_BASE.lo,
+        image_load_address: TEST_SRAM_BASE,
+        image_staging_address: Addr64 {
+            lo: TEST_SRAM_BASE.lo + IMAGE_SIZE as u32,
             hi: TEST_SRAM_BASE.hi,
         },
         ..Default::default()
@@ -1253,23 +1291,25 @@ fn test_authorize_from_load_address() {
     };
 
     let mcu_image_metadata = get_mcu_image_metadata(&mcu_image);
-    let auth_manifest =
-        create_auth_manifest_with_metadata([mcu_image_metadata, image_metadata].to_vec());
-    let mut model =
-        set_auth_manifest_with_test_sram(Some(auth_manifest), &load_memory_contents, &mcu_image);
+    let mut vendor_owner_metadata = vec![mcu_image_metadata];
+    if manifest_source == AuthManifestSource::VendorOwner {
+        vendor_owner_metadata.push(image_metadata);
+    }
+    let auth_manifest = create_auth_manifest_with_metadata(vendor_owner_metadata);
+    let mut model = set_auth_manifest_with_test_sram(Some(auth_manifest), &test_sram, &mcu_image);
 
-    write_to_test_sram(
-        &mut model,
-        image_metadata.image_load_address,
-        &load_memory_contents,
-    );
+    write_to_test_sram(&mut model, TEST_SRAM_BASE, &test_sram);
+    if manifest_source == AuthManifestSource::Owner {
+        let owner_manifest = build_owner_manifest(vec![image_metadata], 1);
+        send_set_owner_auth_manifest(&mut model, &owner_manifest);
+    }
     let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
         hdr: MailboxReqHeader { chksum: 0 },
-        fw_id: FW_ID_1,
+        fw_id: fw_id.to_le_bytes(),
         measurement: [0; 48],
-        source: ImageHashSource::LoadAddress as u32,
-        flags: 0, // Don't skip stash
-        image_size: load_memory_contents.len() as u32,
+        source: image_source,
+        flags: manifest_source.flag_bits(),
+        image_size: IMAGE_SIZE as u32,
         ..Default::default()
     });
     authorize_and_stash_cmd.populate_chksum().unwrap();
@@ -1283,10 +1323,122 @@ fn test_authorize_from_load_address() {
         .expect("We should have received a response");
 
     let authorize_and_stash_resp = AuthorizeAndStashResp::read_from_bytes(resp.as_slice()).unwrap();
-    assert_eq!(authorize_and_stash_resp.auth_req_result, IMAGE_AUTHORIZED);
+    assert_eq!(authorize_and_stash_resp.auth_req_result, expected_result);
 
     let tagged_tci = tag_and_get_default_tci(&mut model);
     assert_eq!(tagged_tci.tci_current, fw_digest);
+}
+
+#[cfg_attr(feature = "fpga_realtime", ignore)]
+#[test]
+fn test_authorize_from_load_address() {
+    authorize_from_memory(
+        false,
+        AuthManifestSource::VendorOwner,
+        ImageHashSource::LoadAddress,
+    );
+}
+
+#[cfg_attr(feature = "fpga_realtime", ignore)]
+#[test]
+fn test_authorize_from_load_address_single_dword_dma() {
+    authorize_from_memory(
+        true,
+        AuthManifestSource::VendorOwner,
+        ImageHashSource::LoadAddress,
+    );
+}
+
+#[cfg_attr(feature = "fpga_realtime", ignore)]
+#[test]
+fn test_authorize_from_staging_address_single_dword_dma() {
+    authorize_from_memory(
+        true,
+        AuthManifestSource::VendorOwner,
+        ImageHashSource::StagingAddress,
+    );
+}
+
+#[cfg_attr(feature = "fpga_realtime", ignore)]
+#[test]
+fn test_authorize_from_load_address_owner_only_single_dword_dma() {
+    authorize_from_memory(
+        true,
+        AuthManifestSource::Owner,
+        ImageHashSource::LoadAddress,
+    );
+}
+
+#[cfg_attr(feature = "fpga_realtime", ignore)]
+#[test]
+fn test_authorize_from_staging_address_owner_only_single_dword_dma() {
+    authorize_from_memory(
+        true,
+        AuthManifestSource::Owner,
+        ImageHashSource::StagingAddress,
+    );
+}
+
+#[cfg_attr(feature = "fpga_realtime", ignore)]
+#[test]
+fn test_authorize_single_dword_rejects_unaligned_address_and_size() {
+    const UNALIGNED_ADDRESS_FW_ID: [u8; 4] = 3u32.to_le_bytes();
+    const UNALIGNED_SIZE_FW_ID: [u8; 4] = 4u32.to_le_bytes();
+
+    let mut flags = ImageMetadataFlags(0);
+    flags.set_ignore_auth_check(false);
+    flags.set_image_source(ImageHashSource::LoadAddress as u32);
+    flags.set_dma_single_dword_read(true);
+
+    let unaligned_address_metadata = AuthManifestImageMetadata {
+        fw_id: u32::from_le_bytes(UNALIGNED_ADDRESS_FW_ID),
+        flags: flags.0,
+        image_load_address: Addr64 {
+            lo: TEST_SRAM_BASE.lo + 1,
+            hi: TEST_SRAM_BASE.hi,
+        },
+        ..Default::default()
+    };
+    let unaligned_size_metadata = AuthManifestImageMetadata {
+        fw_id: u32::from_le_bytes(UNALIGNED_SIZE_FW_ID),
+        flags: flags.0,
+        image_load_address: TEST_SRAM_BASE,
+        ..Default::default()
+    };
+    let mcu_image = [0xAA; 256];
+    let auth_manifest = create_auth_manifest_with_metadata(
+        [
+            get_mcu_image_metadata(&mcu_image),
+            unaligned_address_metadata,
+            unaligned_size_metadata,
+        ]
+        .to_vec(),
+    );
+    let test_sram = [0u8; 512];
+    let mut model = set_auth_manifest_with_test_sram(Some(auth_manifest), &test_sram, &mcu_image);
+
+    for (fw_id, image_size) in [(UNALIGNED_ADDRESS_FW_ID, 512), (UNALIGNED_SIZE_FW_ID, 510)] {
+        let mut cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
+            hdr: MailboxReqHeader { chksum: 0 },
+            fw_id,
+            source: ImageHashSource::LoadAddress as u32,
+            image_size,
+            ..Default::default()
+        });
+        cmd.populate_chksum().unwrap();
+
+        let err = model
+            .mailbox_execute(
+                u32::from(CommandId::AUTHORIZE_AND_STASH),
+                cmd.as_bytes().unwrap(),
+            )
+            .unwrap_err();
+        assert_error(
+            &mut model,
+            CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS,
+            err,
+        );
+    }
 }
 
 // Exercises an image larger than the DMA engine's 1 MiB per-transfer limit
@@ -1294,12 +1446,13 @@ fn test_authorize_from_load_address() {
 // the hash into multiple <= 1 MiB DMA transfers; this checks the resulting
 // digest matches a single-shot SHA384 over the whole image.
 // Ignored on FPGA: needs > 1 MiB of staging SRAM.
-#[cfg_attr(any(feature = "fpga_realtime", feature = "fpga_subsystem"), ignore)]
-#[test]
-fn test_authorize_from_load_address_larger_than_1mib() {
+fn authorize_large_image_from_load_address(single_dword_dma: bool) {
+    const EXTENDED_TIMEOUT_CYCLES: u32 = 1_000_000_000;
+
     let mut flags = ImageMetadataFlags(0);
     flags.set_ignore_auth_check(false);
     flags.set_image_source(ImageHashSource::LoadAddress as u32);
+    flags.set_dma_single_dword_read(single_dword_dma);
 
     // 2 MiB + 3 KiB: spans three DMA transfers (1 MiB, 1 MiB, remainder).
     let mut load_memory_contents = vec![0u8; 2 * 1024 * 1024 + 3 * 1024];
@@ -1325,8 +1478,21 @@ fn test_authorize_from_load_address_larger_than_1mib() {
     let mcu_image_metadata = get_mcu_image_metadata(&mcu_image);
     let auth_manifest =
         create_auth_manifest_with_metadata([mcu_image_metadata, image_metadata].to_vec());
-    let mut model =
-        set_auth_manifest_with_test_sram(Some(auth_manifest), &load_memory_contents, &mcu_image);
+    let args = if single_dword_dma {
+        RuntimeTestArgs {
+            security_state: Some(*SecurityState::default().set_debug_locked(true)),
+            wdt_timeout_cycles: Some(u64::from(EXTENDED_TIMEOUT_CYCLES)),
+            ..Default::default()
+        }
+    } else {
+        RuntimeTestArgs::default()
+    };
+    let mut model = set_auth_manifest_with_test_sram_args(
+        Some(auth_manifest),
+        &load_memory_contents,
+        &mcu_image,
+        args,
+    );
 
     write_to_test_sram(
         &mut model,
@@ -1344,19 +1510,67 @@ fn test_authorize_from_load_address_larger_than_1mib() {
     });
     authorize_and_stash_cmd.populate_chksum().unwrap();
 
-    let resp = model
-        .mailbox_execute(
+    let start_cycles = model.output().sink().now();
+    let resp = if single_dword_dma {
+        assert!(model.soc_ifc().cptra_security_state().read().debug_locked());
+        model
+            .start_mailbox_execute(
+                u32::from(CommandId::AUTHORIZE_AND_STASH),
+                authorize_and_stash_cmd.as_bytes().unwrap(),
+            )
+            .unwrap();
+        model.step_until_or_timeout("DWORD command watchdog enabled", 100_000, |m| {
+            m.soc_ifc().cptra_wdt_timer1_en().read().timer1_en()
+        });
+        model.step_until_or_timeout(
+            "DWORD authorization completion",
+            EXTENDED_TIMEOUT_CYCLES,
+            |m| {
+                assert_eq!(m.soc_ifc().cptra_fw_error_fatal().read(), 0);
+                !m.soc_mbox().status().read().status().cmd_busy()
+            },
+        );
+        model.finish_mailbox_execute()
+    } else {
+        model.mailbox_execute(
             u32::from(CommandId::AUTHORIZE_AND_STASH),
             authorize_and_stash_cmd.as_bytes().unwrap(),
         )
-        .unwrap()
-        .expect("We should have received a response");
+    }
+    .unwrap()
+    .expect("We should have received a response");
+
+    if single_dword_dma {
+        let elapsed_cycles = model.output().sink().now() - start_cycles;
+        println!("DWORD authorization completed in {elapsed_cycles} cycles");
+        assert!(elapsed_cycles > 20_000_000);
+        assert!(elapsed_cycles < u64::from(EXTENDED_TIMEOUT_CYCLES));
+    }
 
     let authorize_and_stash_resp = AuthorizeAndStashResp::read_from_bytes(resp.as_slice()).unwrap();
     assert_eq!(authorize_and_stash_resp.auth_req_result, IMAGE_AUTHORIZED);
 
     let tagged_tci = tag_and_get_default_tci(&mut model);
     assert_eq!(tagged_tci.tci_current, fw_digest);
+}
+
+#[cfg_attr(any(feature = "fpga_realtime", feature = "fpga_subsystem"), ignore)]
+#[test]
+fn test_authorize_from_load_address_larger_than_1mib() {
+    authorize_large_image_from_load_address(false);
+}
+
+#[cfg_attr(
+    any(
+        feature = "verilator",
+        feature = "fpga_realtime",
+        feature = "fpga_subsystem"
+    ),
+    ignore
+)]
+#[test]
+fn test_authorize_single_dword_with_extended_watchdog() {
+    authorize_large_image_from_load_address(true);
 }
 
 #[cfg_attr(feature = "fpga_realtime", ignore)]
@@ -1419,62 +1633,11 @@ fn test_authorize_from_load_address_incorrect_digest() {
 #[cfg_attr(feature = "fpga_realtime", ignore)]
 #[test]
 fn test_authorize_from_staging_address() {
-    let mut flags = ImageMetadataFlags(0);
-    flags.set_ignore_auth_check(false);
-    flags.set_image_source(ImageHashSource::StagingAddress as u32);
-
-    let load_memory_contents = [0x55u8; 512];
-
-    let mut hasher = Sha384::new();
-    hasher.update(load_memory_contents);
-    let fw_digest: [u8; 48] = hasher.finalize().into();
-
-    let image_metadata = AuthManifestImageMetadata {
-        fw_id: u32::from_le_bytes(FW_ID_1),
-        flags: flags.0,
-        digest: fw_digest,
-        image_staging_address: Addr64 {
-            lo: TEST_SRAM_BASE.lo,
-            hi: TEST_SRAM_BASE.hi,
-        },
-        ..Default::default()
-    };
-    let mcu_image = [0xAAu8; 256];
-    let mcu_image_metadata = get_mcu_image_metadata(&mcu_image);
-    let auth_manifest =
-        create_auth_manifest_with_metadata([mcu_image_metadata, image_metadata].to_vec());
-
-    let mut model =
-        set_auth_manifest_with_test_sram(Some(auth_manifest), &load_memory_contents, &mcu_image);
-    write_to_test_sram(
-        &mut model,
-        image_metadata.image_staging_address,
-        &load_memory_contents,
+    authorize_from_memory(
+        false,
+        AuthManifestSource::VendorOwner,
+        ImageHashSource::StagingAddress,
     );
-    let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
-        hdr: MailboxReqHeader { chksum: 0 },
-        fw_id: FW_ID_1,
-        measurement: [0; 48],
-        source: ImageHashSource::StagingAddress as u32,
-        flags: 0, // Don't skip stash
-        image_size: load_memory_contents.len() as u32,
-        ..Default::default()
-    });
-    authorize_and_stash_cmd.populate_chksum().unwrap();
-
-    let resp = model
-        .mailbox_execute(
-            u32::from(CommandId::AUTHORIZE_AND_STASH),
-            authorize_and_stash_cmd.as_bytes().unwrap(),
-        )
-        .unwrap()
-        .expect("We should have received a response");
-
-    let authorize_and_stash_resp = AuthorizeAndStashResp::read_from_bytes(resp.as_slice()).unwrap();
-    assert_eq!(authorize_and_stash_resp.auth_req_result, IMAGE_AUTHORIZED);
-
-    let tagged_tci = tag_and_get_default_tci(&mut model);
-    assert_eq!(tagged_tci.tci_current, fw_digest);
 }
 
 #[cfg_attr(feature = "fpga_realtime", ignore)]

@@ -131,15 +131,11 @@ impl ImageVerificationEnv for &mut FirmwareImageVerificationEnv<'_, '_, '_> {
                 Ok(result)
             }
             ImageSource::Axi { dma, axi_start } => {
+                let source = axi_start.checked_offset(offset as u64, len as u64)?;
                 let dma_recovery =
                     FirmwareImageVerificationEnv::create_dma_recovery(self.soc_ifc, dma);
                 let result = dma_recovery
-                    .sha384_image(
-                        self.sha2_512_384_acc,
-                        *axi_start + AxiAddr::from(offset as u64),
-                        len,
-                        dma::AesDmaMode::None,
-                    )?
+                    .sha384_image(self.sha2_512_384_acc, source, len, dma::AesDmaMode::None)?
                     .0;
                 Ok(result)
             }
@@ -176,17 +172,34 @@ impl ImageVerificationEnv for &mut FirmwareImageVerificationEnv<'_, '_, '_> {
                 Ok(self.sha2_512_384.sha512_digest(data)?.0)
             }
             ImageSource::Axi { dma, axi_start } => {
+                let source = axi_start.checked_offset(offset as u64, len as u64)?;
                 let dma_recovery =
                     FirmwareImageVerificationEnv::create_dma_recovery(self.soc_ifc, dma);
                 let result = dma_recovery.sha512_image(
                     self.sha2_512_384_acc,
-                    *axi_start + AxiAddr::from(offset as u64),
+                    source,
                     len,
                     dma::AesDmaMode::None,
                 )?;
                 Ok(result.into())
             }
         }
+    }
+
+    fn sha384_acc_digest_slice(
+        &mut self,
+        data: &[u8],
+        digest_failure: CaliptraError,
+    ) -> CaliptraResult<ImageDigest384> {
+        let mut digest = Array4x12::default();
+        let mut sha_acc_op = self
+            .sha2_512_384_acc
+            .try_start_operation(ShaAccLockState::NotAcquired)?
+            .ok_or(CaliptraError::DRIVER_SHA2_512_384_ACC_DIGEST_START_OP_FAILURE)?;
+        sha_acc_op
+            .digest_384_slice(data, StreamEndianness::Reorder, &mut digest)
+            .map_err(|_| digest_failure)?;
+        Ok(digest.0)
     }
 
     fn sha384_acc_digest(
@@ -231,20 +244,7 @@ impl ImageVerificationEnv for &mut FirmwareImageVerificationEnv<'_, '_, '_> {
                 )
                 .map_err(|_| digest_failure)?;
 
-                let mut digest = Array4x12::default();
-
-                if let Some(mut sha_acc_op) = self
-                    .sha2_512_384_acc
-                    .try_start_operation(ShaAccLockState::NotAcquired)?
-                {
-                    sha_acc_op
-                        .digest_384_slice(data, StreamEndianness::Reorder, &mut digest)
-                        .map_err(|_| digest_failure)?;
-                } else {
-                    Err(CaliptraError::DRIVER_SHA2_512_384_ACC_DIGEST_START_OP_FAILURE)?;
-                };
-
-                Ok(digest.0)
+                self.sha384_acc_digest_slice(data, digest_failure)
             }
         }
     }

@@ -335,6 +335,11 @@ pub mod hw_model_tests {
         bin_name: "test_pcr_extend",
         ..BASE_FWID
     };
+
+    pub const TEST_FMC_INVALID_FHT: FwId = FwId {
+        bin_name: "test_fmc_invalid_fht",
+        ..BASE_FWID
+    };
 }
 
 pub mod driver_tests {
@@ -575,6 +580,10 @@ pub mod driver_tests {
 
     pub const DMA_SHA384: FwId = FwId {
         bin_name: "dma_sha384",
+        fw_type: FirmwareType::Source {
+            features: &["emu", "dma-sha384"],
+            hw_revision: None,
+        },
         ..BASE_FWID
     };
 
@@ -582,7 +591,7 @@ pub mod driver_tests {
     pub const DMA_SHA384_FPGA: FwId = FwId {
         bin_name: "dma_sha384",
         fw_type: FirmwareType::Source {
-            features: &["emu", "fpga_subsystem"],
+            features: &["emu", "fpga_subsystem", "dma-sha384"],
             hw_revision: None,
         },
         ..BASE_FWID
@@ -699,6 +708,18 @@ pub mod rom_tests {
     pub const TEST_PMP_TESTS: FwId = FwId {
         bin_name: "pmp_tests",
         ..BASE_FWID
+    };
+
+    // ROM with stash-measurement-registers feature on but without hardware revision
+    // specified, only used in ROM integration tests to make sure the mailbox command
+    // is handled correctly.
+    pub const ROM_WITH_STASH_MEASUREMENT_FEATURE: FwId = FwId {
+        crate_name: "caliptra-rom",
+        bin_name: "caliptra-rom",
+        fw_type: FirmwareType::Source {
+            features: &["cfi", "stash-measurement-registers"],
+            hw_revision: None,
+        },
     };
 }
 
@@ -826,6 +847,7 @@ pub const REGISTERED_FW: &[&FwId] = &[
     &hw_model_tests::TEST_DCCM_DOUBLE_BIT_ECC,
     &hw_model_tests::TEST_UNITIALIZED_READ,
     &hw_model_tests::TEST_PCR_EXTEND,
+    &hw_model_tests::TEST_FMC_INVALID_FHT,
     &driver_tests::DOE,
     &driver_tests::AES,
     &driver_tests::ECC384,
@@ -883,6 +905,7 @@ pub const REGISTERED_FW: &[&FwId] = &[
     &rom_tests::FAKE_TEST_FMC_INTERACTIVE,
     &rom_tests::TEST_RT_WITH_UART,
     &rom_tests::TEST_PMP_TESTS,
+    &rom_tests::ROM_WITH_STASH_MEASUREMENT_FEATURE,
     &runtime_tests::BOOT,
     &runtime_tests::MBOX,
     &runtime_tests::MBOX_FPGA,

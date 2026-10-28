@@ -5,7 +5,6 @@
 
 use crate::common::{run_rt_test, RuntimeTestArgs};
 use crate::test_authorize_and_stash::{set_auth_manifest, FW_ID_1, IMAGE_DIGEST1};
-use crate::test_info::get_fwinfo;
 use crate::test_set_auth_manifest::create_auth_manifest_with_metadata_with_svn;
 use crate::test_update_reset::update_fw;
 use caliptra_api::{
@@ -29,7 +28,7 @@ use caliptra_common::mailbox_api::{
     MailboxReqHeader, SetAuthManifestReq, SetOwnerAuthManifestReq,
 };
 use caliptra_error::CaliptraError;
-use caliptra_hw_model::{DefaultHwModel, DeviceLifecycle, HwModel, ModelError, SecurityState};
+use caliptra_hw_model::{DefaultHwModel, HwModel, ModelError};
 use caliptra_image_crypto::OsslCrypto as Crypto;
 use caliptra_image_fake_keys::{
     OWNER_ECC_KEY_PRIVATE, OWNER_ECC_KEY_PUBLIC, OWNER_LMS_KEY_PRIVATE, OWNER_LMS_KEY_PUBLIC,
@@ -434,7 +433,15 @@ fn test_owner_and_vendor_auth_manifests_survive_update_reset() {
 }
 
 #[test]
+// On a subsystem MCU ROM owns SS_STRAP_GENERIC[3][15:8] and populates it from the
+// owner_soc_manifest_min_svn OTP fuse before CPTRA_FUSE_WR_DONE, so the floor seeded
+// here does not survive boot. Equivalent coverage lives in caliptra-mcu-sw's
+// test_increase_owner_soc_manifest_svn.
+#[cfg(not(feature = "fpga_subsystem"))]
 fn test_set_owner_auth_manifest_svn_floor_uses_strap_bits_15_8() {
+    use crate::test_info::get_fwinfo;
+    use caliptra_hw_model::{DeviceLifecycle, SecurityState};
+
     const MIN_SVN: u32 = 5;
     const EXISTING_STRAP_FLAGS: u32 = 0x3;
 

@@ -286,11 +286,17 @@ int caliptra_capabilities(struct caliptra_capabilities_resp *resp, bool async);
 // Set Authorization Manifest
 int caliptra_set_auth_manifest(struct caliptra_set_auth_manifest_req *req, bool async);
 
+// Set Owner Authorization Manifest
+int caliptra_set_owner_auth_manifest(struct caliptra_set_owner_auth_manifest_req *req, bool async);
+
 // Authorize and Stash
 int caliptra_authorize_and_stash(struct caliptra_authorize_and_stash_req *req, struct caliptra_authorize_and_stash_resp *resp, bool async);
 
 // Reallocate DPE Context Limits
 int caliptra_reallocate_dpe_context_limits(struct caliptra_reallocate_dpe_context_limits_req *req, struct caliptra_reallocate_dpe_context_limits_resp *resp, bool async);
+
+// Install Owner PK Hash
+int caliptra_install_owner_pk_hash(struct caliptra_install_owner_pk_hash_req *req, struct caliptra_install_owner_pk_hash_resp *resp, bool async);
 
 // OCP LOCK APIs
 int caliptra_ocp_lock_report_hek_metadata(struct caliptra_ocp_lock_report_hek_metadata_req *req, struct caliptra_ocp_lock_report_hek_metadata_resp *resp, bool async);

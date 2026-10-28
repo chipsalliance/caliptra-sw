@@ -18,6 +18,13 @@ Environment:
 
 #define MRAC 0x7C0
 
+// Firmware entry trampoline — placed first in the binary at load_addr.
+// ROM jumps here; entry_point == load_addr is enforced by the verifier.
+.section .init.entry, "ax"
+.global _fw_entry
+_fw_entry:
+    j _start
+
 .section .init, "ax"
 .global _start
 _start:

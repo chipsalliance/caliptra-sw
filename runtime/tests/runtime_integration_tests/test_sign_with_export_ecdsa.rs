@@ -237,7 +237,7 @@ fn test_sign_with_exported_cdi_measurement_update_duplicate_cdi() {
             // making it the default context with tci_type 0.
             0
         } else {
-            u32::from_be_bytes(*b"CCIV")
+            u32::from_le_bytes(*b"CCIV")
         },
         ..Default::default()
     };
@@ -323,7 +323,7 @@ fn test_sign_with_exported_cdi_measurement_update() {
             // making it the default context with tci_type 0.
             0
         } else {
-            u32::from_be_bytes(*b"CCIV")
+            u32::from_le_bytes(*b"CCIV")
         },
         ..Default::default()
     };

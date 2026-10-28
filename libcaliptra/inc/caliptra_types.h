@@ -343,6 +343,13 @@ struct caliptra_set_auth_manifest_req
     uint8_t manifest[34 * 1024];
 };
 
+struct caliptra_set_owner_auth_manifest_req
+{
+    struct caliptra_req_header hdr;
+    uint32_t manifest_size;
+    uint8_t manifest[24 * 1024];
+};
+
 struct caliptra_authorize_and_stash_req
 {
     struct caliptra_req_header hdr;
@@ -422,6 +429,18 @@ struct caliptra_reallocate_dpe_context_limits_resp
     struct caliptra_resp_header hdr;
     uint32_t new_pl0_context_limit;
     uint32_t new_pl1_context_limit;
+};
+
+struct caliptra_install_owner_pk_hash_req
+{
+    struct caliptra_req_header hdr;
+    uint32_t digest[12];
+};
+
+struct caliptra_install_owner_pk_hash_resp
+{
+    struct caliptra_resp_header hdr;
+    uint32_t dpe_result;
 };
 
 // DPE commands

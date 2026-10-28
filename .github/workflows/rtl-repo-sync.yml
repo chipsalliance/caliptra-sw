@@ -9,7 +9,7 @@ permissions:
 
 jobs:
   update-rtl:
-    name: Update RTL Submodule
+    name: Update Caliptra-SS Hardware
     runs-on: ubuntu-22.04
     outputs:
       branch_name: ${{ steps.branch.outputs.branch }}
@@ -24,18 +24,18 @@ jobs:
         with:
           ref: 'main'
 
-      - name: Update the Caliptra RTL submodule and rebuild registers
+      - name: Update Caliptra-SS and rebuild registers from its pinned dependencies
         run: |
+          set -euo pipefail
           echo "RTL-REPO-SYNC: release_ref=$(git rev-parse HEAD)"
 
           # Submodules need to be initialized here rather than actions/checkout
           # so that git can find the non main branches. Otherwise, it hides the
           # non-main branches.
-          git submodule update --init
+          git submodule update --init hw/latest/caliptra-ss
+          git submodule update --remote hw/latest/caliptra-ss
 
-          git submodule update --remote hw/latest/rtl
-
-          ./registers/update.sh
+          ./registers/update.sh latest
 
       - name: Find available branch name
         id: branch
@@ -61,7 +61,7 @@ jobs:
           git config --global user.email "username@users.noreply.github.com"
           echo "branch_base_ref=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
           git checkout -b ${{ steps.branch.outputs.branch }}
-          git commit -a -m "CI: Update Caliptra RTL"
+          git commit -a -m "CI: Update Caliptra-SS hardware and registers"
           git push -u origin ${{ steps.branch.outputs.branch }}
 
       - name: Create Pull Request
@@ -72,7 +72,7 @@ jobs:
           script: |
             const { repo, owner } = context.repo;
             const result = await github.rest.pulls.create({
-              title: 'CI: Update Caliptra RTL',
+              title: 'CI: Update Caliptra-SS hardware and registers',
               owner,
               repo,
               head: '${{ steps.branch.outputs.branch }}',

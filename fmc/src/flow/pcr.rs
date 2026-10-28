@@ -16,8 +16,9 @@ Environment:
 
 Note:
 
-    PCR2 - Current PCR unlocked and cleared on any reset
-    PCR3 - Journey PCR unlocked and cleared on cold reset
+    PCR2 - Current PCR cleared by FMC before a Runtime TCI extension
+    PCR3 - Journey PCR cleared on cold reset; otherwise extensions accumulate
+    Both PCR values are preserved on warm reset and matching update measurements.
 
 --*/
 use crate::fmc_env::FmcEnv;
@@ -37,10 +38,9 @@ use zerocopy::IntoBytes;
 /// # Arguments
 ///
 /// * `env` - FMC Environment
-/// * `pcr_id` - PCR slot to extend the data into
 #[cfg_attr(feature = "cfi", cfi_mod_fn)]
 pub fn extend_pcr_common(env: &mut FmcEnv) -> CaliptraResult<()> {
-    // Calculate RT TCI (Hash over runtime code)
+    // Retrieve the Runtime TCI supplied by ROM.
     let rt_tci: [u8; 48] = HandOff::rt_tci(env).into();
 
     // Clear current PCR before extending it.

@@ -5904,7 +5904,7 @@ pub const ZEROIZE_FE3_FLAG: u32 = 0x10; // Bit 4: FE partition 3
 #[derive(Debug, Default, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
 pub struct ZeroizeUdsFeReq {
     pub hdr: MailboxReqHeader,
-    /// Zeroize flags
+    /// Partition selection: bit 0 is UDS; bits 1 through 4 are FE0 through FE3.
     pub flags: u32,
 }
 
@@ -5912,6 +5912,7 @@ pub struct ZeroizeUdsFeReq {
 #[derive(Debug, Default, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
 pub struct ZeroizeUdsFeResp {
     pub hdr: MailboxRespHeader,
+    /// Zeroization result: 0 on success, 1 on failure. Check in addition to mailbox status.
     pub dpe_result: u32,
 }
 

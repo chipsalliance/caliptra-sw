@@ -15,7 +15,7 @@
 
 VERILATOR = verilator
 VERILATED_DIR := $(dir $(realpath $(lastword $(MAKEFILE_LIST))))
-CALIPTRA_RTL_DIR := $(realpath $(VERILATED_DIR)../latest/rtl)
+CALIPTRA_RTL_DIR := $(realpath $(VERILATED_DIR)../latest/caliptra-ss/third_party/caliptra-rtl)
 
 CFLAGS := -std=c++14 -fno-exceptions -fPIC
 # verilated_timing.cpp uses C++20 coroutines (generated when --timing is used).

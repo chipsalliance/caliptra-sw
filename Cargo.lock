@@ -1093,6 +1093,7 @@ version = "0.1.0"
 dependencies = [
  "aes-gcm",
  "caliptra-api",
+ "caliptra-api-types",
  "caliptra-auth-man-gen",
  "caliptra-auth-man-types",
  "caliptra-builder",

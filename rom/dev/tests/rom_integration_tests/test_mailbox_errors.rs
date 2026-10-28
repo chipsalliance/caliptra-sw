@@ -270,3 +270,47 @@ fn test_mailbox_reserved_pauser() {
         MAX_WAIT_CYCLES,
     );
 }
+
+#[test]
+#[cfg(feature = "stash-measurement-registers")]
+fn test_stash_measurement_command_becomes_invalid_when_feature_is_on() {
+    let security_state = *SecurityState::default()
+        .set_device_lifecycle(caliptra_api_types::DeviceLifecycle::Production);
+    let rom = caliptra_builder::build_firmware_rom(
+        &caliptra_builder::firmware::rom_tests::ROM_WITH_STASH_MEASUREMENT_FEATURE,
+    )
+    .unwrap();
+    let mut hw = caliptra_hw_model::new(
+        InitParams {
+            rom: &rom,
+            security_state,
+            ..Default::default()
+        },
+        BootParams::default(),
+    )
+    .unwrap();
+
+    let measurement = StashMeasurementReq {
+        measurement: [0xdeadbeef_u32; 12].as_bytes().try_into().unwrap(),
+        hdr: MailboxReqHeader { chksum: 0 },
+        metadata: [0xAB; 4],
+        context: [0xCD; 48],
+        svn: 0xEF01,
+    };
+    let checksum = caliptra_common::checksum::calc_checksum(
+        u32::from(CommandId::STASH_MEASUREMENT),
+        &measurement.as_bytes()[4..],
+    );
+    let measurement = StashMeasurementReq {
+        hdr: MailboxReqHeader { chksum: checksum },
+        ..measurement
+    };
+
+    let result = hw.upload_measurement(measurement.as_bytes());
+    assert_eq!(
+        result,
+        Err(ModelError::MailboxCmdFailed(
+            CaliptraError::FW_PROC_MAILBOX_INVALID_COMMAND.into()
+        ))
+    );
+}
