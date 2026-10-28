@@ -13,6 +13,8 @@ use crate::{trng_ext::TrngExt, Array4x12, Csrng, MfgFlags};
 pub enum Trng {
     Internal(Csrng) = 0xb714a2b1,
     External(TrngExt) = 0xf3702ce3,
+    /// Read preloaded external data without requesting fresh entropy.
+    ExternalDirect(SocIfcTrngReg) = 0xa9d14b6c,
     MfgMode() = 0x0c702ce3,
 
     // Teach the compiler that "other" values are possible to encourage it not
@@ -68,6 +70,9 @@ impl Trng {
         match self {
             Self::Internal(csrng) => Ok(csrng.generate12()?.into()),
             Self::External(trng_ext) => trng_ext.generate(),
+            Self::ExternalDirect(soc_ifc_trng) => Ok(Array4x12::read_from_reg(
+                soc_ifc_trng.regs().cptra_trng_data(),
+            )),
             Self::MfgMode() => {
                 unsafe {
                     let soc_ifc = SocIfcReg::new();

@@ -59,6 +59,25 @@ Following are the main FUSE & Architectural Registers used by the Caliptra ROM f
 | FUSE_ANTI_ROLLBACK_DISABLE      | 1            | Disable SVN checking for FMC & Runtime when bit is set  |
 | FUSE_IDEVID_CERT_ATTR           | 768          | FUSE containing information for generating IDEVID CSR  <br> **Word 0**: X509 Key Id Algorithm (2 bits) 1: SHA1, 2: SHA256, 2: SHA384, 3: Fuse <br> **Word 1,2,3,4,5**: Subject Key Id <br> **Word 6**: UEID type as defined in [IETF RATS specification](https://www.ietf.org/archive/id/draft-ietf-rats-eat-21.html#section-4.2.1.1) <br> **Words 7,8,9,10**: Manufacturer Serial Number |
 | CPTRA_DBG_MANUF_SERVICE_REG     | 16           | Manufacturing Services: <br> **Bit 0**: IDEVID CSR upload  <br> **Bit 1**: Random Number Generator Unavailable <br> **Bit 15:8**: FIPS test hook code  <br> **Bit 30**: Fake ROM enable in production lifecycle mode <br> **Bit 31**: Fake ROM image verify enable           |
+| CPTRA_GENERIC_INPUT_WIRES[0]    | 32           | **Bit 0**: `EXTERNAL_DIRECT` (mask `0x00000001`), selecting the `ExternalDirect` RNG mode. |
+
+## ExternalDirect RNG mode
+
+When `EXTERNAL_DIRECT` is set, ROM selects `ExternalDirect` instead of the normal
+hardware-configured or manufacturing-mode RNG. ROM does not initialize the
+internal entropy source or CSRNG, so their health checks are not invoked.
+Each random-data request reads all twelve `CPTRA_TRNG_DATA[0..11]` words directly,
+without accessing `CPTRA_TRNG_STATUS` or performing the normal eTRNG request/done
+handshake.
+
+The SoC must preload all twelve words before ROM's first RNG request and keep
+them stable during reads. Repeated reads may return the same block if the SoC
+does not refresh it; this mode does not validate entropy quality or freshness.
+Keep `EXTERNAL_DIRECT` stable throughout ROM execution.
+
+ROM integrity verification, cryptographic self-tests, and CFI remain enabled,
+with RNG-source validation recognizing `ExternalDirect`. With the bit clear,
+existing RNG behavior is unchanged. FMC and runtime do not select this mode.
 
 ## Firmware image bundle
 

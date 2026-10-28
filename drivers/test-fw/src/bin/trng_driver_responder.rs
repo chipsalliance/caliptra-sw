@@ -9,7 +9,7 @@
 #[allow(unused)]
 use caliptra_test_harness::{self, println};
 
-use caliptra_drivers::{self, Trng};
+use caliptra_drivers::{self, SocIfc, Trng};
 use caliptra_registers::{
     csrng::CsrngReg, entropy_src::EntropySrcReg, mbox::MboxCsr, soc_ifc::SocIfcReg,
     soc_ifc_trng::SocIfcTrngReg,
@@ -35,7 +35,12 @@ extern "C" fn main() {
     let mut soc_ifc = unsafe { SocIfcReg::new() };
 
     let mut mbox = unsafe { MboxCsr::new() };
-    let mut trng = Trng::new(csrng_reg, entropy_src_reg, soc_ifc_trng, &soc_ifc).unwrap();
+    let soc_ifc_driver = SocIfc::new(unsafe { SocIfcReg::new() });
+    let mut trng = if soc_ifc_driver.external_direct() {
+        Trng::ExternalDirect(soc_ifc_trng)
+    } else {
+        Trng::new(csrng_reg, entropy_src_reg, soc_ifc_trng, &soc_ifc).unwrap()
+    };
     loop {
         if !mbox.regs().status().read().mbox_fsm_ps().mbox_execute_uc() {
             continue;

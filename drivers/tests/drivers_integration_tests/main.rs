@@ -22,7 +22,7 @@ use caliptra_test::{
     derive::{DoeInput, DoeOutput},
 };
 use openssl::{hash::MessageDigest, pkey::PKey};
-use ureg::ResettableReg;
+use ureg::{MmioMut, ResettableReg};
 use zerocopy::{FromBytes, IntoBytes};
 
 fn default_init_params() -> InitParams<'static> {
@@ -1104,6 +1104,50 @@ fn test_trng_in_etrng_mode() {
 
     let trng_block = model.mailbox_execute(0, &[]).unwrap();
     assert_eq!(trng_block, Some(block1.as_bytes().to_vec()));
+}
+
+#[test]
+#[cfg_attr(any(feature = "verilator", feature = "fpga_realtime"), ignore)]
+fn test_trng_in_external_direct_mode() {
+    let rom = caliptra_builder::build_firmware_rom(&firmware::driver_tests::TRNG_DRIVER_RESPONDER)
+        .unwrap();
+    let block0: [u32; 12] = [
+        0x01020304, 0x11121314, 0x21222324, 0x31323334, 0x41424344, 0x51525354, 0x61626364,
+        0x71727374, 0x81828384, 0x91929394, 0xa1a2a3a4, 0xb1b2b3b4,
+    ];
+    let block1 = block0.map(|word| !word);
+
+    for trng_mode in [TrngMode::Internal, TrngMode::External] {
+        let mut model = caliptra_hw_model::new_unbooted(InitParams {
+            rom: &rom,
+            itrng_nibbles: Box::new(iter::from_fn(|| panic!("unexpected iTRNG request"))),
+            etrng_responses: Box::new(iter::from_fn(|| panic!("unexpected eTRNG request"))),
+            trng_mode: Some(trng_mode),
+            ..default_init_params()
+        })
+        .unwrap();
+
+        // The emulator allows injection of the otherwise read-only generic input wires.
+        let generic_input = model.soc_ifc().cptra_generic_input_wires().at(0).ptr;
+        unsafe {
+            model.mmio_mut().write_volatile(generic_input, 1);
+        }
+        model.soc_ifc_trng().cptra_trng_data().write(&block0);
+        model.boot(BootParams::default()).unwrap();
+
+        for _ in 0..2 {
+            let trng_block = model.mailbox_execute(0, &[]).unwrap();
+            assert_eq!(trng_block, Some(block0.as_bytes().to_vec()));
+        }
+
+        model.soc_ifc_trng().cptra_trng_data().write(&block1);
+        let trng_block = model.mailbox_execute(0, &[]).unwrap();
+        assert_eq!(trng_block, Some(block1.as_bytes().to_vec()));
+        assert_eq!(
+            u32::from(model.soc_ifc_trng().cptra_trng_status().read()),
+            0
+        );
+    }
 }
 
 #[test]
