@@ -155,3 +155,13 @@ Collection. Vendor key sections are ignored for owner-only manifest generation.
 
 `--pqc-key-type 1` selects MLDSA87 and `--pqc-key-type 3` selects
 LMS-SHA192-H15.
+
+### MCU activation load address
+
+The MCU firmware metadata used by `ACTIVATE_FIRMWARE` must set
+`image_load_address` to the actual SRAM installation address,
+`MCI_BASE + MCU_SRAM_OFFSET`. Runtime validates both address words, the staging
+range, and the SRAM capacity before requesting an MCU reset. Post-copy
+authorization then hashes the same region that was installed. This applies to
+both vendor + owner and owner-only authorization manifests and does not change
+their existing `ignore_auth_check` policy.

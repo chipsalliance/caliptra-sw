@@ -158,7 +158,48 @@ impl ActivateFirmwareCmd {
 
         let mut temp_bitmap: [u32; 4] = [0; 4];
 
-        if Self::is_bit_set(activate_bitmap, ActivateFirmwareReq::MCU_IMAGE_ID as usize) {
+        let mcu_update_addresses =
+            if Self::is_bit_set(activate_bitmap, ActivateFirmwareReq::MCU_IMAGE_ID as usize) {
+                let persistent_data = drivers.persistent_data.get();
+                let image_metadata = find_metadata_entry_by_type(
+                    &persistent_data.auth_manifest_image_metadata_col,
+                    &persistent_data.owner_auth_manifest_image_metadata_col,
+                    ActivateFirmwareReq::MCU_IMAGE_ID,
+                    manifest_source,
+                )
+                .ok_or(())?;
+                let mcu_sram_addr = mci_base_addr
+                    .checked_offset(MCU_SRAM_OFFSET, u64::from(mcu_image_size))
+                    .map_err(|_| ())?;
+                if image_metadata.image_load_address.lo != mcu_sram_addr.lo
+                    || image_metadata.image_load_address.hi != mcu_sram_addr.hi
+                {
+                    return Err(());
+                }
+                let image_staging_address = AxiAddr {
+                    lo: image_metadata.image_staging_address.lo,
+                    hi: image_metadata.image_staging_address.hi,
+                }
+                .checked_offset(0, u64::from(mcu_image_size))
+                .map_err(|_| ())?;
+                let mmio = DmaMmio::new(mci_base_addr, &drivers.dma);
+                let mci = unsafe {
+                    caliptra_registers::mci::RegisterBlock::new_with_mmio(
+                        core::ptr::null_mut(),
+                        &mmio,
+                    )
+                };
+                let hw_config = mmio.check_error(mci.hw_config1().read()).map_err(|_| ())?;
+                let mcu_sram_size = u64::from(hw_config.mcu_sram_size()) * 1024;
+                if u64::from(mcu_image_size) > mcu_sram_size {
+                    return Err(());
+                }
+                Some((image_staging_address, mcu_sram_addr))
+            } else {
+                None
+            };
+
+        if mcu_update_addresses.is_some() {
             // If MCU image is being activated, set the RESET_REASON first before clearing the FW_EXEC_CTRL
             // to ensure the correct reset reason is captured after the reset.
             drivers.persistent_data.get_mut().mcu_firmware_loaded =
@@ -173,7 +214,7 @@ impl ActivateFirmwareCmd {
 
         drivers.soc_ifc.set_ss_generic_fw_exec_ctrl(&temp_bitmap);
 
-        if Self::is_bit_set(activate_bitmap, ActivateFirmwareReq::MCU_IMAGE_ID as usize) {
+        if let Some((image_staging_address, mcu_sram_addr)) = mcu_update_addresses {
             // MCU sees request from Caliptra and shall clear the interrupt status.
             // MCU sets RESET_REQUEST.mcu_req in MCI to request a reset.
             // MCI does an MCU halt req/ack handshake to ensure the MCU is idle
@@ -197,33 +238,17 @@ impl ActivateFirmwareCmd {
             }
 
             // Caliptra will then have access to MCU SRAM Updatable Execution Region and update the FW image.
-            let persistent_data = drivers.persistent_data.get();
-            let image_metadata = find_metadata_entry_by_type(
-                &persistent_data.auth_manifest_image_metadata_col,
-                &persistent_data.owner_auth_manifest_image_metadata_col,
-                ActivateFirmwareReq::MCU_IMAGE_ID,
-                manifest_source,
-            )
-            .ok_or(())?;
             let dma_image = DmaRecovery::new(
                 drivers.soc_ifc.recovery_interface_base_addr().into(),
                 drivers.soc_ifc.caliptra_base_axi_addr().into(),
                 drivers.soc_ifc.mci_base_addr().into(),
                 &drivers.dma,
             );
-            let mcu_sram_addr: u64 =
-                ((mci_base_addr.hi as u64) << 32) + (mci_base_addr.lo as u64) + MCU_SRAM_OFFSET;
             dma_image
                 .transfer_payload_to_axi(
-                    AxiAddr {
-                        hi: image_metadata.image_staging_address.hi,
-                        lo: image_metadata.image_staging_address.lo,
-                    },
+                    image_staging_address,
                     mcu_image_size,
-                    AxiAddr {
-                        hi: (mcu_sram_addr >> 32) as u32,
-                        lo: mcu_sram_addr as u32,
-                    },
+                    mcu_sram_addr,
                     false,
                     false,
                 )

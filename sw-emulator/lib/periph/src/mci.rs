@@ -286,7 +286,8 @@ impl MciRegs {
             hw_rev_id: 0,
             fw_rev_id: [0; 2],
             hw_config0: 0,
-            hw_config1: 0,
+            // Report the allocated SRAM size in KB in HW_CONFIG1[16:5].
+            hw_config1: ((crate::dma::axi_root_bus::MCU_SRAM_SIZE / 1024) as u32) << 5,
             mcu_ifu_axi_user: 0,
             mcu_lsu_axi_user: 0,
             mcu_sram_config_axi_user: 0,
