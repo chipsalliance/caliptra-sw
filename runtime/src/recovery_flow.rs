@@ -28,7 +28,9 @@ use caliptra_common::{
     cprintln,
     mailbox_api::{AuthorizeAndStashReq, ImageHashSource},
 };
-use caliptra_drivers::{printer::HexBytes, AesDmaMode, BootMode, DmaMmio, DmaRecovery};
+use caliptra_drivers::{
+    printer::HexBytes, AesDmaMode, BootMode, Dma, DmaMmio, DmaRecovery, SocIfc,
+};
 use caliptra_kat::{CaliptraError, CaliptraResult};
 use caliptra_ureg::MmioMut;
 use zerocopy::IntoBytes;
@@ -38,12 +40,16 @@ const FW_BOOT_UPD_RESET: u32 = 0b1 << 1;
 pub enum RecoveryFlow {}
 
 impl RecoveryFlow {
-    fn dma_recovery(drivers: &Drivers) -> DmaRecovery<'_> {
+    /// Builds a `DmaRecovery` over the recovery interface, Caliptra and MCI
+    /// base addresses. Takes the two fields it needs rather than all of
+    /// `Drivers`, so a caller can still borrow another field mutably while the
+    /// handle is alive.
+    fn dma_recovery<'a>(soc_ifc: &SocIfc, dma: &'a Dma) -> DmaRecovery<'a> {
         DmaRecovery::new(
-            drivers.soc_ifc.recovery_interface_base_addr().into(),
-            drivers.soc_ifc.caliptra_base_axi_addr().into(),
-            drivers.soc_ifc.mci_base_addr().into(),
-            &drivers.dma,
+            soc_ifc.recovery_interface_base_addr().into(),
+            soc_ifc.caliptra_base_axi_addr().into(),
+            soc_ifc.mci_base_addr().into(),
+            dma,
         )
     }
 
@@ -52,7 +58,7 @@ impl RecoveryFlow {
         image_idx: u32,
         recovery_reason: u32,
     ) -> CaliptraResult<()> {
-        let dma_recovery = Self::dma_recovery(drivers);
+        let dma_recovery = Self::dma_recovery(&drivers.soc_ifc, &drivers.dma);
         dma_recovery.set_recovery_status(
             DmaRecovery::RECOVERY_STATUS_IMAGE_AUTHENTICATION_ERROR,
             image_idx,
@@ -69,13 +75,7 @@ impl RecoveryFlow {
         // use different scopes since we need to borrow drivers mutably and immutably
         let mut buffer = [0; size_of::<AuthorizationManifest>() / 4];
         let source = {
-            let dma = &drivers.dma;
-            let dma_recovery = DmaRecovery::new(
-                drivers.soc_ifc.recovery_interface_base_addr().into(),
-                drivers.soc_ifc.caliptra_base_axi_addr().into(),
-                drivers.soc_ifc.mci_base_addr().into(),
-                dma,
-            );
+            let dma_recovery = Self::dma_recovery(&drivers.soc_ifc, &drivers.dma);
             // need to make sure the device status is correct to load the next image
             dma_recovery.set_device_status(
                 DmaRecovery::DEVICE_STATUS_READY_TO_ACCEPT_RECOVERY_IMAGE_VALUE,
@@ -98,13 +98,7 @@ impl RecoveryFlow {
         }
 
         let (digest, mcu_size_bytes) = {
-            let dma = &drivers.dma;
-            let dma_recovery = DmaRecovery::new(
-                drivers.soc_ifc.recovery_interface_base_addr().into(),
-                drivers.soc_ifc.caliptra_base_axi_addr().into(),
-                drivers.soc_ifc.mci_base_addr().into(),
-                dma,
-            );
+            let dma_recovery = Self::dma_recovery(&drivers.soc_ifc, &drivers.dma);
             // Reset the RECOVERY_CTRL register Activate Recovery Image field by writing 0x1.
             dma_recovery.reset_recovery_ctrl_activate_rec_img()?;
             // Reset the Indirect FIFO control so that payload_available is reset.
@@ -177,12 +171,7 @@ impl RecoveryFlow {
         {
             let mci_base_addr = drivers.soc_ifc.mci_base_addr().into();
             let dma = &drivers.dma;
-            let dma_recovery = DmaRecovery::new(
-                drivers.soc_ifc.recovery_interface_base_addr().into(),
-                drivers.soc_ifc.caliptra_base_axi_addr().into(),
-                mci_base_addr,
-                dma,
-            );
+            let dma_recovery = Self::dma_recovery(&drivers.soc_ifc, dma);
 
             if auth_result != IMAGE_AUTHORIZED_VENDOR_OWNER
                 && auth_result != IMAGE_AUTHORIZED_OWNER_ONLY
