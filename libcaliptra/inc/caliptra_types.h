@@ -99,7 +99,7 @@ struct caliptra_get_fmc_alias_ecc384_cert_resp
 {
     struct caliptra_resp_header hdr;
     uint32_t data_size;
-    uint8_t data[1024];
+    uint8_t data[1152];
 };
 
 struct caliptra_get_rt_alias_ecc384_cert_resp
