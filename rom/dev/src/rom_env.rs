@@ -17,7 +17,7 @@ Abstract:
 
 use crate::fht::FhtDataStore;
 use caliptra_drivers::{
-    DataVault, DeobfuscationEngine, Ecc384, Hmac384, KeyVault, Lms, Mailbox, PcrBank,
+    cprintln, DataVault, DeobfuscationEngine, Ecc384, Hmac384, KeyVault, Lms, Mailbox, PcrBank,
     PersistentDataAccessor, Sha1, Sha256, Sha2_512_384Acc, Sha384, SocIfc, Trng,
 };
 use caliptra_error::CaliptraResult;
@@ -81,12 +81,18 @@ pub struct RomEnv {
 
 impl RomEnv {
     pub unsafe fn new_from_registers() -> CaliptraResult<Self> {
-        let trng = Trng::new(
-            CsrngReg::new(),
-            EntropySrcReg::new(),
-            SocIfcTrngReg::new(),
-            &SocIfcReg::new(),
-        )?;
+        let soc_ifc = SocIfc::new(SocIfcReg::new());
+        let trng = if soc_ifc.external_direct() {
+            cprintln!("[state] ExternalDirect enabled");
+            Trng::ExternalDirect(SocIfcTrngReg::new())
+        } else {
+            Trng::new(
+                CsrngReg::new(),
+                EntropySrcReg::new(),
+                SocIfcTrngReg::new(),
+                &SocIfcReg::new(),
+            )?
+        };
 
         Ok(Self {
             doe: DeobfuscationEngine::new(DoeReg::new()),
@@ -99,7 +105,7 @@ impl RomEnv {
             lms: Lms::default(),
             key_vault: KeyVault::new(KvReg::new()),
             data_vault: DataVault::new(DvReg::new()),
-            soc_ifc: SocIfc::new(SocIfcReg::new()),
+            soc_ifc,
             mbox: Mailbox::new(MboxCsr::new()),
             pcr_bank: PcrBank::new(PvReg::new()),
             fht_data_store: FhtDataStore::default(),

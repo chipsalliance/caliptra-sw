@@ -216,6 +216,13 @@ impl SocIfc {
         self.soc_ifc.regs().cptra_hw_config().read().i_trng_en()
     }
 
+    /// Read EXTERNAL_DIRECT from generic input word 0, bit 0.
+    #[inline(always)]
+    pub fn external_direct(&self) -> bool {
+        const EXTERNAL_DIRECT: u32 = 1 << 0;
+        self.soc_ifc.regs().cptra_generic_input_wires().at(0).read() & EXTERNAL_DIRECT != 0
+    }
+
     #[inline(always)]
     pub fn cptra_dbg_manuf_service_flags(&mut self) -> MfgFlags {
         (self.soc_ifc.regs().cptra_dbg_manuf_service_reg().read() & 0xffff).into()
