@@ -2907,7 +2907,9 @@ impl Request for ProductionAuthDebugUnlockToken {
 pub struct ExternalMailboxCmdReq {
     pub hdr: MailboxReqHeader,
     pub command_id: u32,
+    /// Payload size in bytes; must be nonzero and a multiple of four for DMA.
     pub command_size: u32,
+    /// Low word of the payload's AXI address; must be four-byte aligned.
     pub axi_address_start_low: u32,
     pub axi_address_start_high: u32,
 }
@@ -5311,11 +5313,12 @@ pub struct CmAesGcmDecryptDmaReq {
     pub tag: [u32; 4],
     /// SHA384 hash of the encrypted data (48 bytes)
     pub encrypted_data_sha384: [u8; 48],
-    /// AXI address (64 bits - low 32 bits)
+    /// AXI address (64 bits - low 32 bits); must be four-byte aligned.
     pub axi_addr_lo: u32,
     /// AXI address (64 bits - high 32 bits)
     pub axi_addr_hi: u32,
-    /// Length of data to decrypt in bytes
+    /// Ciphertext length in bytes; must be nonzero and a multiple of 16.
+    /// DMA decryption does not support a final partial AES block.
     pub length: u32,
     /// Length of AAD in bytes
     pub aad_length: u32,

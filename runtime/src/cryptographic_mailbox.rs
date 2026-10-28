@@ -2821,6 +2821,15 @@ impl Commands {
         let mut cmd = CmAesGcmDecryptDmaReq::default();
         cmd.as_mut_bytes()[..cmd_bytes.len()].copy_from_slice(cmd_bytes);
 
+        // DMA cannot change GCM's valid-byte count for a final partial block.
+        // Reject unsupported transfers before hashing or modifying ciphertext.
+        if cmd.length == 0
+            || !(cmd.length as usize).is_multiple_of(AES_BLOCK_SIZE_BYTES)
+            || !cmd.axi_addr_lo.is_multiple_of(4)
+        {
+            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+        }
+
         // Validate AAD length
         if cmd.aad_length as usize > cmd.aad.len() {
             Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
@@ -2875,10 +2884,8 @@ impl Commands {
             AesOperation::Decrypt,
         )?;
 
-        // Set the text phase with the length of the final partial block (or 16 if full)
-        let partial_len = length as usize % 16;
-        let text_len = if partial_len == 0 { 16 } else { partial_len };
-        drivers.aes.gcm_set_text(text_len as u32);
+        // One Text configuration applies to every block in this DMA transfer.
+        drivers.aes.gcm_set_text(AES_BLOCK_SIZE_BYTES as u32);
 
         // Second pass: Perform in-place AES-GCM decryption via DMA
         // The DMA hardware will read from axi_addr, decrypt through AES engine,
