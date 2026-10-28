@@ -12,6 +12,7 @@ Abstract:
 
 --*/
 use crate::keyids::KEY_ID_TMP;
+use caliptra_api::mailbox::MailboxRespHeader;
 use caliptra_drivers::{
     hpke::kem::{HybridEncapsulationKey, MlKemEncapsulationKey},
     okmutref, okref, AesGcmIv, AesGcmOp, AesKey, Array4x12, CaliptraResult, Ecc384,
@@ -60,7 +61,8 @@ pub const UNENCRYPTED_CMK_SIZE_BYTES: usize = 80;
 #[repr(C)]
 #[derive(Clone, FromBytes, Immutable, IntoBytes, KnownLayout, Zeroize, ZeroizeOnDrop)]
 pub struct UnencryptedCmk {
-    pub version: u16,
+    pub version: u8,
+    pub flags: u8,
     pub length: u16,
     pub key_usage: u8,
     pub id: [u8; 3],
@@ -69,11 +71,24 @@ pub struct UnencryptedCmk {
 }
 
 impl UnencryptedCmk {
+    pub const FIPS_NOT_APPROVED: u8 = 0;
+    pub const FIPS_APPROVED: u8 = 1;
+
     #[allow(unused)]
     pub fn key_id(&self) -> u32 {
         self.id[0] as u32 | ((self.id[1] as u32) << 8) | ((self.id[2] as u32) << 16)
     }
+
+    pub fn fips_approved(&self) -> bool {
+        self.flags & Self::FIPS_APPROVED != 0
+    }
+
+    pub fn to_mailbox_fips_status(&self) -> u32 {
+        MailboxRespHeader::fips_status_for_key(self.fips_approved())
+    }
 }
+
+const _: () = assert!(core::mem::size_of::<UnencryptedCmk>() == UNENCRYPTED_CMK_SIZE_BYTES);
 
 #[repr(C)]
 #[derive(Clone, FromBytes, Immutable, IntoBytes, KnownLayout)]
@@ -509,5 +524,57 @@ impl Crypto {
         )?;
         UnencryptedCmk::read_from_bytes(&plaintext[..])
             .map_err(|_| CaliptraError::CMB_HMAC_INVALID_DEC_CMK)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use caliptra_api::mailbox::CmKeyUsage;
+
+    #[test]
+    fn test_cmk_fips_flags_and_wire_layout() {
+        for flags in [
+            UnencryptedCmk::FIPS_NOT_APPROVED,
+            UnencryptedCmk::FIPS_APPROVED,
+        ] {
+            let cmk = UnencryptedCmk {
+                version: 1,
+                flags,
+                length: 32,
+                key_usage: CmKeyUsage::Aes as u8,
+                id: [1, 2, 3],
+                usage_counter: 4,
+                key_material: [0x42; CMK_MAX_KEY_SIZE_BITS / 8],
+            };
+            let bytes = cmk.as_bytes();
+            assert_eq!(bytes.len(), UNENCRYPTED_CMK_SIZE_BYTES);
+            assert_eq!(&bytes[..2], &[1, flags]);
+            assert_eq!(&bytes[2..4], &32u16.to_le_bytes());
+            assert_eq!(&bytes[16..], &cmk.key_material);
+
+            let decoded = UnencryptedCmk::read_from_bytes(bytes).unwrap();
+            assert_eq!(
+                decoded.fips_approved(),
+                flags == UnencryptedCmk::FIPS_APPROVED
+            );
+            assert_eq!(
+                decoded.to_mailbox_fips_status(),
+                MailboxRespHeader::fips_status_for_key(flags == UnencryptedCmk::FIPS_APPROVED)
+            );
+            assert_eq!(decoded.key_id(), 0x030201);
+        }
+    }
+
+    #[test]
+    fn test_legacy_cmk_is_not_approved() {
+        let mut bytes = [0u8; UNENCRYPTED_CMK_SIZE_BYTES];
+        bytes[..2].copy_from_slice(&1u16.to_le_bytes());
+        let cmk = UnencryptedCmk::read_from_bytes(&bytes).unwrap();
+        assert!(!cmk.fips_approved());
+        assert_eq!(
+            cmk.to_mailbox_fips_status(),
+            MailboxRespHeader::FIPS_STATUS_NOT_APPROVED_USER_SUPPLIED_KEY
+        );
     }
 }

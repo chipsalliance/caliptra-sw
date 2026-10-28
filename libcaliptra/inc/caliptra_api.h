@@ -120,6 +120,9 @@ int caliptra_read_reg(uint32_t addr, uint32_t *data);
 //          MBX_RESP_CHKSUM_INVALID     - The checksum in the response is not valid
 //          MBX_RESP_FIPS_NOT_APPROVED  - FIPS status in the response was not "approved"
 //          API_INTERNAL_ERROR          - The API internal state no longer matches the HW state (should not be possible)
+// A non-approved FIPS response can still indicate successful firmware execution.
+// The C API retains its strict approved-only policy; inspect the response header's
+// fips_status to distinguish an imported-key service from a command failure.
 
 // Test for completion of the previously issued mailbox command
 // returns: True   - Mailbox status is not busy
