@@ -138,6 +138,16 @@ impl ModelEmulated {
 }
 
 impl ModelEmulated {
+    /// Read emulated MCU SRAM without touching activation registers.
+    pub fn mcu_sram_contents(&self) -> &[u8] {
+        self.cpu.bus.bus.dma.axi.mcu_sram.data()
+    }
+
+    /// Change emulated MCU SRAM for image-installation fault injection.
+    pub fn mcu_sram_contents_mut(&mut self) -> &mut [u8] {
+        self.cpu.bus.bus.dma.axi.mcu_sram.data_mut()
+    }
+
     /// Write mailbox SRAM without advancing its FIFO pointers.
     pub fn write_mailbox_word(
         &mut self,

@@ -1409,6 +1409,13 @@ Command Code: `0x494D_4530` ("IME0")
 The MCU uses this command to 'activate' the image that has been previously downloaded through PLDM - T5.
 For the full behavior of this command, refer to the [Subsystem Support for Hitless Updates](https://github.com/chipsalliance/Caliptra/blob/main/doc/Caliptra.md#subsystem-support-for-hitless-updates) specification.
 
+For MCU firmware, the selected signed metadata must name the actual installation
+address, `MCI_BASE + MCU_SRAM_OFFSET`, in `image_load_address`. Runtime checks
+the complete 64-bit load and staging ranges and the MCU SRAM capacity reported
+by `HW_CONFIG1` before changing reset or execution state. An inconsistent
+destination, wrapping source, or oversized image returns
+`IMAGE_VERIFIER_ACTIVATION_FAILED` without installing the image.
+
 Command Code: `0x4143_5446` ("ACTF")
 
 *Table: `ACTIVATE_FIRMWARE` input arguments*
