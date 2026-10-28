@@ -34,7 +34,7 @@ pub type AxiAddr = u64;
 // per-transfer limit, so tests can exercise multi-transfer image hashing.
 const TEST_SRAM_SIZE: usize = 4 * 1024 * 1024;
 const EXTERNAL_TEST_SRAM_SIZE: usize = 1024 * 1024;
-const MCU_SRAM_SIZE: usize = 512 * 1024;
+pub(crate) const MCU_SRAM_SIZE: usize = 512 * 1024;
 
 pub struct AxiRootBus {
     pub reg: u32,

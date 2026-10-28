@@ -1652,7 +1652,7 @@ Command Code: `0x4143_5446` ("ACTF")
 | -------------- | -------------- | --------------------------------------------------------------------------- |
 | chksum         | u32            | Checksum over other input arguments, computed by the caller. Little endian. |
 | count          | u32            | Number of image_ids to activate. Item count of image_ids array parameter |
-| mcu_image_size | u32            | Size of MCU image, if included in the activation |
+| mcu_image_size | u32            | Size of MCU image in bytes, if included in the activation. Must not exceed MCU SRAM capacity for hitless updates. |
 | image_ids      | Array of u8[4] | Array of Image ids in little-endian format                           |
 | flags          | u32            | Optional flags (see below). Caliptra runtime 2.1.1+ only.                  |
 
@@ -1665,6 +1665,28 @@ Command Code: `0x4143_5446` ("ACTF")
 
 Unknown flag bits are rejected with `RUNTIME_MAILBOX_INVALID_PARAMS`.
 
+For MCU hitless updates (`INITIAL_ACTIVATE` clear), the MCU entry in the
+selected authorization manifest must set `image_load_address` to the full
+64-bit MCU SRAM address, `MCI_BASE + 0x00c00000`. The entire source and
+destination byte ranges must fit in the 64-bit AXI address space without
+wrapping. `mcu_image_size` must not exceed the MCU SRAM capacity reported by
+MCI `HW_CONFIG1.MCU_SRAM_SIZE` (in KB, multiplied by 1024 to obtain bytes).
+An image exactly equal to that capacity is permitted.
+
+Runtime rejects a load-address mismatch, address-range overflow, or oversized
+image with `IMAGE_VERIFIER_ACTIVATION_FAILED` before changing the MCU reset
+reason, execution-control bits, SRAM contents, or MCU firmware DPE measurement.
+These requirements apply to both vendor + owner and owner-only manifests.
+The address-range checks prevent arithmetic overflow; they do not establish
+that the staging memory is mapped or accessible.
+
+Runtime copies `mcu_image_size` bytes from `image_staging_address` to that
+MCU SRAM destination, then authorizes the image at `image_load_address`.
+Requiring these destination addresses to match binds the post-copy digest
+check to the installed firmware. After successful authorization, Runtime
+updates the MCU firmware DPE measurement and enables execution. SoC-only
+activation does not impose these MCU address and size requirements.
+
 `INITIAL_ACTIVATE` is used exclusively by MCU ROM at the tail of the
 `EncryptedFirmware` boot flow. MCU ROM has already loaded firmware into MCU
 SRAM via `RI_DOWNLOAD_ENCRYPTED_FIRMWARE` and decrypted it in place via
@@ -1672,7 +1694,8 @@ SRAM via `RI_DOWNLOAD_ENCRYPTED_FIRMWARE` and decrypted it in place via
 
 - Skips the hitless-update steps (set `RESET_REASON.FwHitlessUpd`, clear
   `FW_EXEC_CTRL`, wait for MCU reset request and reset assertion, DMA-reload
-  from staging, re-`AuthorizeAndStash`).
+  from staging, re-`AuthorizeAndStash`), including the hitless load-address
+  and range/size requirements above.
 - Just publishes `FW_EXEC_CTRL[MCU]` (and any other requested bits) so that
   MCI's `BOOT_RST_MCU` state releases MCU from reset on the next warm reset
   that MCU ROM triggers.
