@@ -173,6 +173,21 @@ impl ModelEmulated {
     pub fn cpu_halted(&self) -> bool {
         self.cpu.read_halted()
     }
+
+    /// Every word Caliptra wrote to RECOVERY_CTRL, in order. The register
+    /// holds only the last write, so a test that checks what Caliptra wrote
+    /// reads these words instead.
+    pub fn recovery_ctrl_writes(&mut self) -> &[u32] {
+        &self
+            .cpu
+            .bus
+            .inner_mut()
+            .bus
+            .dma
+            .axi
+            .recovery
+            .recovery_ctrl_writes
+    }
 }
 
 fn hash_slice(slice: &[u8]) -> u64 {
