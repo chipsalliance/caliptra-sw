@@ -17,6 +17,8 @@ struct OtpCtrlMmap {
 struct Partition {
     name: String,
     #[serde(default)]
+    size: Option<String>,
+    #[serde(default)]
     sw_digest: bool,
     #[serde(default)]
     hw_digest: bool,
@@ -215,6 +217,25 @@ fn otp_ctrl_mmap_offsets_rs(
         }
         if partition.zeroizable {
             offset += 8;
+        }
+
+        if let Some(size) = partition.size.as_ref() {
+            let declared_size = size.parse().unwrap_or_else(|err| {
+                panic!(
+                    "invalid OTP partition size {size:?} for {}: {err}",
+                    partition.name
+                );
+            });
+
+            if offset - partition_offset > declared_size {
+                panic!(
+                    "OTP partition {} size {} exceeds declared {declared_size}",
+                    partition.name,
+                    offset - partition_offset
+                );
+            }
+
+            offset = partition_offset + declared_size;
         }
 
         output.push_str(&format!(
