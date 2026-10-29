@@ -840,8 +840,8 @@ ROM supports the following set of commands before handling the FW_DOWNLOAD comma
 
 1. **STASH_MEASUREMENT**: Up to eight measurements can be sent to the ROM for recording. Sending more than eight measurements will result in an FW_PROC_MAILBOX_STASH_MEASUREMENT_MAX_LIMIT fatal error. Format of a measurement is documented at [Stash Measurement command](https://github.com/chipsalliance/caliptra-sw/blob/main/runtime/README.md#stash_measurement).
 2. **VERSION**: Get version info about the module. [Version command](https://github.com/chipsalliance/caliptra-sw/blob/main/runtime/README.md#version).
-3. **SELF_TEST_START**: This command is used to invoke the FIPS Known-Answer-Tests (aka KAT) on demand. [Self Test Start command](https://github.com/chipsalliance/caliptra-sw/blob/main/runtime/README.md#self_test_start).
-4. **SELF_TEST_GET_RESULTS**: This command is used to check if a SELF_TEST command is in progress. [Self Test Get Results command](https://github.com/chipsalliance/caliptra-sw/blob/main/runtime/README.md#self_test_get_results).
+3. **SELF_TEST_START** runs the FIPS Known-Answer-Tests (KATs) on demand. See [ROM self-test commands](#rom-self-test-commands) for sequencing and errors, and [Self Test Start command](https://github.com/chipsalliance/caliptra-sw/blob/main/runtime/README.md#self_test_start) for the request format.
+4. **SELF_TEST_GET_RESULTS** collects the successful result of a prior `SELF_TEST_START`. See [ROM self-test commands](#rom-self-test-commands) for sequencing and errors, and [Self Test Get Results command](https://github.com/chipsalliance/caliptra-sw/blob/main/runtime/README.md#self_test_get_results) for the request format.
 5. **SHUTDOWN**: This command is used clear the hardware crypto blocks including the keyvault. [Shutdown command](https://github.com/chipsalliance/caliptra-sw/blob/main/runtime/README.md#shutdown).
 6. **CAPABILITIES**: This command is used to query the ROM capabilities. Capabilities is a 128-bit value with individual bits indicating a specific capability. Capabilities are documented in the [Capabilities command](https://github.com/chipsalliance/caliptra-sw/blob/main/runtime/README.md#capabilities).
 7. **GET_IDEVID_CSR**: This command is used to fetch the IDevID CSR from ROM. [Fetch IDevIDCSR command](https://github.com/chipsalliance/caliptra-sw/blob/main/runtime/README.md#get_idevid_csr).
@@ -893,6 +893,21 @@ Command Code: `0x5A45_5546` ("ZEUF")
 | --------      | -------- | ---------------
 | chksum        | u32      | Checksum over other output arguments, computed by Caliptra. Little endian.
 | dpe_result    | u32      | Result code, 0 on success.
+
+#### ROM self-test commands
+
+ROM runs `SELF_TEST_START` synchronously and returns success only after the self-tests pass. The host then sends `SELF_TEST_GET_RESULTS` to collect the result before starting another self-test. The automatic boot-time self-tests do not create a pending mailbox self-test result.
+
+ROM tracks this state with `self_test_result_pending`. A value of `true` means a successful result awaits collection. A value of `false` means no result awaits collection.
+
+| Command | State | Outcome |
+| ------- | ----- | ------- |
+| `SELF_TEST_START` | No result pending | Run self-tests; on success, return a response header and retain a pending result. |
+| `SELF_TEST_START` | Result pending | Fail the command with `FW_PROC_MAILBOX_SELF_TEST_RESULT_PENDING` (`0x0102000F`); preserve the pending result without rerunning self-tests. |
+| `SELF_TEST_GET_RESULTS` | Result pending | Return a successful response header and clear the pending result. |
+| `SELF_TEST_GET_RESULTS` | No result pending | Fail the command with `FW_PROC_MAILBOX_SELF_TEST_NOT_STARTED` (`0x01020010`); keep the state unchanged. |
+
+For either sequencing error, ROM writes `CPTRA_FW_ERROR_NON_FATAL` before reporting mailbox failure and continues accepting commands. The host must read the error before submitting another command, which clears the nonfatal error register. A cryptographic self-test failure remains fatal; these sequencing errors do not change that behavior.
 
 #### CM_SHA
 
