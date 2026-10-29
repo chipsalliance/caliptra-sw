@@ -292,6 +292,71 @@ fn find_tcb_snapshot<'a>(snapshots: &'a [TcbSnapshot], tci_type: &[u8; 4]) -> &'
         })
 }
 
+/// The ROM and the runtime each clear the RECOVERY_CTRL Activate Recovery
+/// Image field after an image lands. OCP Recovery 1.1 page 42 defines 0x0
+/// DoNotActivate and 0xF Activate for that byte and nothing else, so a clear
+/// writes one of the two and the Recovery Agent reads back a defined value.
+///
+/// Emulator only: `recovery_ctrl_writes` is a `ModelEmulated` accessor.
+#[cfg(not(any(
+    feature = "verilator",
+    feature = "fpga_realtime",
+    feature = "fpga_subsystem"
+)))]
+#[test]
+fn test_recovery_ctrl_activate_clear_writes_a_defined_value() {
+    const ACTIVATE_SHIFT: u32 = 16;
+    const ACTIVATE_MASK: u32 = 0xff;
+    const DO_NOT_ACTIVATE: u32 = 0x0;
+    const ACTIVATE: u32 = 0xf;
+    // The two call sites the test covers: the ROM clears after the Caliptra
+    // firmware image, the runtime after the SoC manifest. Fewer writes than
+    // that means a clear did not run, and the check below has nothing to read.
+    const COVERED_CLEAR_SITES: usize = 2;
+
+    let mcu_fw = vec![0x37u8; 256];
+    const IMAGE_SOURCE_IN_REQUEST: u32 = 1;
+    let mut flags = ImageMetadataFlags(0);
+    flags.set_image_source(IMAGE_SOURCE_IN_REQUEST);
+    let crypto = Crypto::default();
+    let digest = from_hw_format(&crypto.sha384_digest(&mcu_fw).unwrap());
+    let metadata = vec![AuthManifestImageMetadata {
+        fw_id: 2,
+        flags: flags.0,
+        digest,
+        ..Default::default()
+    }];
+    let soc_manifest = create_auth_manifest_with_metadata(metadata);
+    let soc_manifest = soc_manifest.as_bytes();
+    let mut args = RuntimeTestArgs::default();
+    let rom = crate::common::rom_for_fw_integration_tests().unwrap();
+    args.init_params = Some(InitParams {
+        rom: &rom,
+        subsystem_mode: true,
+        ..Default::default()
+    });
+    args.soc_manifest = Some(soc_manifest);
+    args.mcu_fw_image = Some(&mcu_fw);
+    let mut model = run_rt_test(args);
+    model.step_until_boot_status(RT_READY_FOR_COMMANDS, true);
+
+    let activate_values: Vec<u32> = model
+        .recovery_ctrl_writes()
+        .iter()
+        .map(|word| (word >> ACTIVATE_SHIFT) & ACTIVATE_MASK)
+        .collect();
+    assert!(
+        activate_values.len() >= COVERED_CLEAR_SITES,
+        "expected the ROM and the runtime to each clear the activate field, got {activate_values:x?}"
+    );
+    for value in activate_values.iter() {
+        assert!(
+            *value == DO_NOT_ACTIVATE || *value == ACTIVATE,
+            "RECOVERY_CTRL activate written as {value:#x}, which page 42 does not define; writes were {activate_values:x?}"
+        );
+    }
+}
+
 #[cfg_attr(any(feature = "verilator", feature = "fpga_realtime"), ignore)]
 #[test]
 fn test_loads_mcu_fw() {

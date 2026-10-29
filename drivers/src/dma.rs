@@ -1076,12 +1076,17 @@ impl<'a> DmaRecovery<'a> {
         while self.dma.payload_available() {}
     }
 
+    /// Clears the RECOVERY_CTRL Activate Recovery Image field.
+    ///
+    /// The field is write-1-to-clear over the whole byte (`onwrite = woclr` in
+    /// `secure_firmware_recovery_interface.rdl`), so clearing the Activate
+    /// command of 0xF means writing 0xF back.
     pub fn reset_recovery_ctrl_activate_rec_img(&self) -> CaliptraResult<()> {
         self.with_regs_mut(|regs_mut| {
             let recovery = regs_mut.sec_fw_recovery_if();
-            recovery
-                .recovery_ctrl()
-                .modify(|recovery_ctrl_val| recovery_ctrl_val.activate_rec_img(Self::RESET_VAL));
+            recovery.recovery_ctrl().modify(|recovery_ctrl_val| {
+                recovery_ctrl_val.activate_rec_img(Self::ACTIVATE_RECOVERY_IMAGE_CMD)
+            });
         })
     }
 
