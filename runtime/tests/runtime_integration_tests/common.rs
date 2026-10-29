@@ -82,9 +82,35 @@ pub const TEST_MU: [u8; 64] = [
     27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50,
     51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64,
 ];
+pub const TEST_PL0_PAUSER: u32 = 1;
+pub const TEST_PL1_PAUSER: u32 = 2;
+const RUNTIME_IDLE_TIMEOUT_CYCLES: u32 = 40_000_000;
+const RUNTIME_IDLE_SETTLING_CYCLES: usize = 10_000;
 pub const TEST_SD_SHA384: PrecomputedSignData =
     PrecomputedSignData::Digest(Digest::Sha384(Sha384(TEST_DIGEST)));
 pub const TEST_SD_MU: PrecomputedSignData = PrecomputedSignData::Mu(Mu(TEST_MU));
+
+pub fn wait_for_runtime_idle(model: &mut DefaultHwModel) {
+    model.step_until_or_timeout("runtime idle", RUNTIME_IDLE_TIMEOUT_CYCLES, |model| {
+        let status = model.soc_ifc().cptra_flow_status().read();
+        status.ready_for_runtime() && status.mailbox_flow_done()
+    });
+
+    // mailbox_flow_done is asserted immediately before runtime_cmd_active is cleared.
+    for _ in 0..RUNTIME_IDLE_SETTLING_CYCLES {
+        model.step();
+    }
+}
+
+pub fn hw_model_subsystem_modes() -> &'static [bool] {
+    if cfg!(feature = "fpga_subsystem") {
+        &[true]
+    } else if cfg!(feature = "fpga_realtime") {
+        &[false]
+    } else {
+        &[false, true]
+    }
+}
 
 pub const DEFAULT_FMC_VERSION: u16 = 0xaaaa;
 pub const DEFAULT_APP_VERSION: u32 = 0xbbbbbbbb;
@@ -325,7 +351,7 @@ pub fn start_rt_test_pqc_model(
 
     let image_options = args.test_image_options.unwrap_or_else(|| {
         let mut opts = ImageOptions::default();
-        opts.vendor_config.pl0_pauser = Some(0x1);
+        opts.vendor_config.pl0_pauser = Some(TEST_PL0_PAUSER);
         opts.fmc_version = production_state.fmc_version;
         opts.app_version = production_state.app_version;
         opts.fw_svn = production_state.fw_svn;
