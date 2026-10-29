@@ -39,6 +39,7 @@ const OPCODE_READ_CACHED_DPE_CCIV_CONTEXT_MEASUREMENT: u32 = 0x6000_0006;
 const OPCODE_READ_CACHED_DPE_CCIV_CONTEXT_CUMULATIVE: u32 = 0x6000_0007;
 const OPCODE_READ_CACHED_DPE_MCU_RT_CONTEXT_MEASUREMENT: u32 = 0x6000_0008;
 const OPCODE_READ_CACHED_DPE_MCU_RT_CONTEXT_CUMULATIVE: u32 = 0x6000_0009;
+const OPCODE_READ_ATTESTATION_DISABLED: u32 = 0x6000_000A;
 const OPCODE_READ_DPE_TAGS: u32 = 0x7000_0000;
 const OPCODE_CORRUPT_CONTEXT_TAGS: u32 = 0x8000_0000;
 const OPCODE_CORRUPT_CONTEXT_HAS_TAG: u32 = 0x9000_0000;
@@ -372,6 +373,18 @@ pub fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
                     &mut drivers.mbox,
                     drivers.persistent_data.get().fw.dpe.state.as_bytes(),
                 );
+            }
+            CommandId(OPCODE_READ_ATTESTATION_DISABLED) => {
+                let disabled = u32::from(
+                    drivers
+                        .persistent_data
+                        .get()
+                        .fw
+                        .dpe
+                        .attestation_disabled
+                        .get(),
+                );
+                write_response(&mut drivers.mbox, &disabled.to_le_bytes());
             }
             CommandId(OPCODE_CORRUPT_DPE_INSTANCE) => {
                 let input_bytes = read_request(&drivers.mbox);
