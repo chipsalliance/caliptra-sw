@@ -702,7 +702,7 @@ impl FirmwareProcessor {
                 dma,
             );
 
-            // Reset the RECOVERY_CTRL register Activate Recovery Image field by writing 0x1.
+            // Clear the RECOVERY_CTRL Activate Recovery Image field.
             dma_recovery.reset_recovery_ctrl_activate_rec_img()?;
             // Reset the Indirect FIFO control so that payload_available is reset.
             dma_recovery.reset_indirect_fifo_ctrl()?;
