@@ -287,7 +287,20 @@ pub const fn svn_to_bitmap(svn: u32) -> [u32; 4] {
     ]
 }
 
+fn use_fake_rom() -> bool {
+    cfg!(feature = "fpga_subsystem")
+        && !cfg!(feature = "slow_tests")
+        && std::env::var("CPTRA_USE_REAL_ROM").is_err()
+        && std::env::var("CPTRA_CI_ROM_VERSION").is_err()
+}
+
 pub fn rom_for_fw_integration_tests() -> io::Result<Cow<'static, [u8]>> {
+    if use_fake_rom() {
+        return Ok(caliptra_builder::build_firmware_rom(
+            caliptra_builder::firmware::fake_rom(true),
+        )?
+        .into());
+    }
     caliptra_builder::rom_for_fw_integration_tests_fpga(cfg!(feature = "fpga_subsystem"))
 }
 
@@ -384,11 +397,15 @@ pub fn start_rt_test_pqc_model(
         ..Default::default()
     };
 
-    let boot_flags = if let Some(flags) = args.test_mfg_flags {
+    let mut boot_flags = if let Some(flags) = args.test_mfg_flags {
         flags.bits()
     } else {
         0
     };
+    if use_fake_rom() {
+        // BIT 30 (PROD_EN_IN_FAKE_MODE) allows fake-rom to run in Production lifecycle tests
+        boot_flags |= 1 << 30;
+    }
 
     let image = image_bundle.to_bytes().unwrap();
 

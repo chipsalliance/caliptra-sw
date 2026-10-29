@@ -396,6 +396,7 @@ jobs:
           # PR/merge_group runs use the short profile default so a hang fails fast
           # instead of stalling the pipeline. See .config/nextest-fpga-slow-tests.toml
           if [[ "${{ inputs.extra-features }}" == *slow_tests* ]]; then
+              VARS+=" CPTRA_USE_REAL_ROM=1"
               COMMON_ARGS+=(--tool-config-file "caliptra:$(pwd)/.config/nextest-fpga-slow-tests.toml")
           fi
 

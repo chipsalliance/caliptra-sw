@@ -2470,6 +2470,9 @@ impl HwModel for ModelFpgaSubsystem {
         self.bmc_step_counter = 0;
         self.blocks_sent = 0;
 
+        // Store non-persistent config regs set at boot before warm_reset clears them
+        let dbg_manuf_service_reg = self.soc_ifc().cptra_dbg_manuf_service_reg().read();
+
         {
             // Pause the TRNG thread so it doesn't access the AXI bus during reset
             let wrapper = self.wrapper.clone();
@@ -2492,6 +2495,11 @@ impl HwModel for ModelFpgaSubsystem {
             self.set_cptra_ss_rst_b(false);
             std::thread::sleep(std::time::Duration::from_micros(1));
             self.set_cptra_ss_rst_b(true);
+            if dbg_manuf_service_reg != 0 {
+                self.soc_ifc()
+                    .cptra_dbg_manuf_service_reg()
+                    .write(|_| dbg_manuf_service_reg);
+            }
         }
 
         // Wait for MCU ROM to complete its initial MCI register reads and warm
