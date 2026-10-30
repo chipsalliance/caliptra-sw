@@ -21,8 +21,9 @@ use crate::{
     mci::Mci,
     ml_dsa87::Mldsa87,
     soc_reg::{DebugManufService, SocRegistersExternal},
-    Aes, AsymEcc384, Csrng, Doe, EmuCtrl, HashSha256, HashSha3, HashSha512, HmacSha, KeyVault,
-    MailboxExternal, MailboxInternal, MailboxRam, Sha512Accelerator, SocRegistersInternal, Uart,
+    Aes, AsymEcc384, Csrng, CsrngLatest, Doe, EmuCtrl, HashSha256, HashSha3, HashSha512, HmacSha,
+    KeyVault, MailboxExternal, MailboxInternal, MailboxRam, Sha512Accelerator,
+    SocRegistersInternal, Uart,
 };
 use crate::{AesClp, MailboxRequester};
 use caliptra_api_types::{DbgManufServiceRegReq, SecurityState};
@@ -314,6 +315,47 @@ impl Bus for Sha3Slot {
     }
 }
 
+pub struct CsrngSlot(Box<dyn Bus>);
+
+impl CsrngSlot {
+    pub fn new<T: Bus + 'static>(csrng: T) -> Self {
+        Self(Box::new(csrng))
+    }
+}
+
+impl Bus for CsrngSlot {
+    fn read(
+        &mut self,
+        size: caliptra_emu_types::RvSize,
+        addr: caliptra_emu_types::RvAddr,
+    ) -> Result<caliptra_emu_types::RvData, caliptra_emu_bus::BusError> {
+        self.0.read(size, addr)
+    }
+    fn write(
+        &mut self,
+        size: caliptra_emu_types::RvSize,
+        addr: caliptra_emu_types::RvAddr,
+        val: caliptra_emu_types::RvData,
+    ) -> Result<(), caliptra_emu_bus::BusError> {
+        self.0.write(size, addr, val)
+    }
+    fn poll(&mut self) {
+        self.0.poll();
+    }
+    fn warm_reset(&mut self) {
+        self.0.warm_reset();
+    }
+    fn update_reset(&mut self) {
+        self.0.update_reset();
+    }
+    fn incoming_event(&mut self, event: Rc<Event>) {
+        self.0.incoming_event(event);
+    }
+    fn register_outgoing_events(&mut self, sender: mpsc::Sender<Event>) {
+        self.0.register_outgoing_events(sender);
+    }
+}
+
 /// Caliptra Root Bus Arguments
 pub struct CaliptraRootBusArgs<'a> {
     pub hw_version: CaliptraHwVersion,
@@ -422,7 +464,7 @@ pub struct CaliptraRootBus {
     pub uart: Uart,
 
     #[peripheral(offset = 0x2000_2000, len = 0x10e4)]
-    pub csrng: Csrng,
+    pub csrng: CsrngSlot,
 
     #[peripheral(offset = 0x2000_f000, len = 0x4)]
     pub ctrl: EmuCtrl,
@@ -504,6 +546,12 @@ impl CaliptraRootBus {
             CaliptraHwVersion::V2_0 => Sha3Slot::disabled(),
             _ => Sha3Slot::active(HashSha3::new()),
         };
+        let csrng = match hw_version {
+            CaliptraHwVersion::V2_2 | CaliptraHwVersion::Latest => {
+                CsrngSlot::new(CsrngLatest::new(itrng_nibbles.unwrap()))
+            }
+            _ => CsrngSlot::new(Csrng::new(itrng_nibbles.unwrap())),
+        };
 
         Self {
             rom,
@@ -526,7 +574,7 @@ impl CaliptraRootBus {
             mailbox,
             sha512_acc,
             dma,
-            csrng: Csrng::new(itrng_nibbles.unwrap()),
+            csrng,
             pic_regs: pic.mmio_regs(clock.clone()),
             mci,
         }

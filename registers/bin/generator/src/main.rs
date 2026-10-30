@@ -148,7 +148,7 @@ fn real_main() -> Result<(), Box<dyn Error>> {
         .filter(|p| p.exists())
         .collect();
 
-    if hw_version.as_str() >= "rev-2_2" {
+    if hw_version == "latest" || hw_version.as_str() >= "rev-2_2" {
         let f = rtl_dir.join("src/entropy_combiner/rtl/entropy_combiner_reg.rdl");
         if f.exists() {
             rdl_files.push(f);

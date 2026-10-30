@@ -277,9 +277,9 @@ caliptra_top caliptra_top_dut (
 
     .cptra_error_fatal(cptra_error_fatal),
     .cptra_error_non_fatal(),
-    .etrng_req(etrng_req),
-    .itrng_data(itrng_data),
-    .itrng_valid(itrng_valid),
+    .etrng0_req(etrng_req),
+    .itrng0_data(itrng_data),
+    .itrng0_valid(itrng_valid),
 
     // Subsystem mode straps - tied to standalone/non-subsystem values
     .strap_ss_caliptra_base_addr                            (64'h0),
@@ -518,20 +518,6 @@ abr_1r1w_ram #(
     .re_i    (abr_memory_export.mem_inst2_re_i),
     .raddr_i (abr_memory_export.mem_inst2_raddr_i),
     .rdata_o (abr_memory_export.mem_inst2_rdata_o)
-);
-
-// Memory instance 3 - true 1R1W dual-port
-abr_1r1w_ram #(
-    .DEPTH     (ABR_MEM_INST3_DEPTH),
-    .DATA_WIDTH(ABR_MEM_INST3_DATA_W)
-) abr_mem_inst3 (
-    .clk_i   (core_clk),
-    .we_i    (abr_memory_export.mem_inst3_we_i),
-    .waddr_i (abr_memory_export.mem_inst3_waddr_i),
-    .wdata_i (abr_memory_export.mem_inst3_wdata_i),
-    .re_i    (abr_memory_export.mem_inst3_re_i),
-    .raddr_i (abr_memory_export.mem_inst3_raddr_i),
-    .rdata_o (abr_memory_export.mem_inst3_rdata_o)
 );
 
 // SK memory bank 0 - true 1R1W dual-port

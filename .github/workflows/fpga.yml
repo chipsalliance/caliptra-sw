@@ -88,6 +88,9 @@ jobs:
     env:
       # Change this to a new random value if you suspect the cache is corrupted
       CACHE_BUSTER: 9ff0db888988
+      # Note that currently we don't have a bitstream for the latest RTL, so
+      # use the pinned one for CI tests.
+      CALIPTRA_HW_REV: "2.1"
 
     steps:
       - name: Checkout repo
