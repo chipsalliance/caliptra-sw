@@ -1,3 +1,5 @@
+# Licensed under the Apache-2.0 license
+
 import unittest
 
 from select_revisions import select_revisions

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Licensed under the Apache-2.0 license
 """Select Caliptra hardware revisions affected by changed paths."""
 
 import json
