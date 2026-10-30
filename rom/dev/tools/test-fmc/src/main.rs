@@ -23,6 +23,7 @@ use caliptra_drivers::{
     WarmResetEntry4::*,
 };
 use caliptra_registers::dv::DvReg;
+use caliptra_registers::entropy_src::EntropySrcReg;
 use caliptra_registers::pv::PvReg;
 use caliptra_registers::soc_ifc::SocIfcReg;
 use caliptra_x509::{
@@ -262,6 +263,9 @@ fn process_mailbox_command(mbox: &caliptra_registers::mbox::RegisterBlock<RealMm
         }
         0x1000_000E => {
             validate_fmc_rt_load_in_iccm(mbox);
+        }
+        0x1000_000F => {
+            read_entropy_src_conf(mbox);
         }
         _ => {}
     }
@@ -515,6 +519,14 @@ fn get_fuse_entry(entry_index: usize) -> FuseLogEntry {
 fn read_fht(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {
     let persistent_data = unsafe { PersistentDataAccessor::new() };
     send_to_mailbox(mbox, persistent_data.get().fht.as_bytes(), true);
+}
+
+fn read_entropy_src_conf(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {
+    let e = unsafe { EntropySrcReg::new() };
+    let conf = e.regs().conf().read();
+    // Pack rng_bit_enable into bits [3:0] and rng_bit_sel into bits [5:4].
+    let result = conf.rng_bit_enable() | (conf.rng_bit_sel() << 4);
+    send_to_mailbox(mbox, result.to_le_bytes().as_ref(), true);
 }
 
 fn send_to_mailbox(

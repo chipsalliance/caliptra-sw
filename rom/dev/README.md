@@ -59,6 +59,7 @@ Following are the main FUSE & Architectural Registers used by the Caliptra ROM f
 | FUSE_ANTI_ROLLBACK_DISABLE      | 1            | Disable SVN checking for FMC & Runtime when bit is set  |
 | FUSE_IDEVID_CERT_ATTR           | 768          | FUSE containing information for generating IDEVID CSR  <br> **Word 0**: X509 Key Id Algorithm (2 bits) 1: SHA1, 2: SHA256, 2: SHA384, 3: Fuse <br> **Word 1,2,3,4,5**: Subject Key Id <br> **Word 6**: UEID type as defined in [IETF RATS specification](https://www.ietf.org/archive/id/draft-ietf-rats-eat-21.html#section-4.2.1.1) <br> **Words 7,8,9,10**: Manufacturer Serial Number |
 | CPTRA_DBG_MANUF_SERVICE_REG     | 16           | Manufacturing Services: <br> **Bit 0**: IDEVID CSR upload  <br> **Bit 1**: Random Number Generator Unavailable <br> **Bit 15:8**: FIPS test hook code  <br> **Bit 30**: Fake ROM enable in production lifecycle mode <br> **Bit 31**: Fake ROM image verify enable           |
+| CPTRA_iTRNG_ENTROPY_CONFIG_1    | 32           | **Bit 16**: `RNG_BIT_ENABLE` — set to enable the entropy_src single-bit RO filter. <br> **Bits 18:17**: `RNG_BIT_SEL` — 2-bit channel select for the RO filter, direct mapped to `CONF.RNG_BIT_SEL`. Only applied when iTRNG is active and `EXTERNAL_DIRECT` is not set. |
 | CPTRA_GENERIC_INPUT_WIRES[0]    | 32           | **Bit 0**: `EXTERNAL_DIRECT` (mask `0x00000001`), selecting the `ExternalDirect` RNG mode. |
 
 ## ExternalDirect RNG mode
@@ -77,7 +78,15 @@ Keep `EXTERNAL_DIRECT` stable throughout ROM execution.
 
 ROM integrity verification, cryptographic self-tests, and CFI remain enabled,
 with RNG-source validation recognizing `ExternalDirect`. With the bit clear,
-existing RNG behavior is unchanged. FMC and runtime do not select this mode.
+existing RNG behavior is unchanged.
+
+## iTRNG single-bit RO filter
+
+When iTRNG is active, `CPTRA_iTRNG_ENTROPY_CONFIG_1` bit 16 (`RNG_BIT_ENABLE`) can
+be set to route entropy through the entropy_src single-bit RO filter instead of the
+full ring-oscillator array. Bits 18:17 (`RNG_BIT_SEL`) select which of the four
+RO channels (0–3) to use. These bits are applied to `entropy_src.CONF.rng_bit_enable`
+and `entropy_src.CONF.rng_bit_sel` during initialization.
 
 ## Firmware image bundle
 
