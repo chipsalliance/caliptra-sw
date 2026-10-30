@@ -29,9 +29,9 @@ use caliptra_cfi_lib::{
 use caliptra_common::mailbox_api::SetAuthManifestReq;
 use caliptra_dpe::U8Bool;
 use caliptra_drivers::{
-    Array4x12, Array4xN, CaliptraError, CaliptraResult, Ecc384, Ecc384PubKey, Ecc384Signature,
-    HashValue, Lifecycle, Lms, Mldsa87, Mldsa87PubKey, Mldsa87Result, Mldsa87Signature, Sha256,
-    Sha2_512_384, SocIfc,
+    sha2_512_384::Sha2DigestOpTrait, Array4x12, Array4xN, CaliptraError, CaliptraResult, Ecc384,
+    Ecc384PubKey, Ecc384Signature, HashValue, Lifecycle, Lms, Mldsa87, Mldsa87Mu, Mldsa87PubKey,
+    Mldsa87Result, Mldsa87Signature, Sha256, Sha2_512_384, Sha3, SocIfc,
 };
 use caliptra_image_types::{
     FwVerificationPqcKeyType, ImageDigest384, ImageEccPubKey, ImageEccSignature, ImageLmsPublicKey,
@@ -271,22 +271,33 @@ impl SetAuthManifestCmd {
         Ok(())
     }
 
-    fn verify_owner_pub_keys(
+    #[allow(clippy::too_many_arguments)]
+    fn verify_owner_signed_data(
         auth_manifest_preamble: &AuthManifestPreamble,
         fw_preamble: &ImagePreamble,
         sha2: &mut Sha2_512_384,
         ecc384: &mut Ecc384,
         sha256: &mut Sha256,
+        sha3: &mut Sha3,
         mldsa: &mut Mldsa87<'_>,
         pqc_key_type: FwVerificationPqcKeyType,
     ) -> CaliptraResult<()> {
-        let range = AuthManifestPreamble::owner_pub_keys_range();
-        let digest_owner = Self::sha384_digest(
-            sha2,
-            auth_manifest_preamble.as_bytes(),
-            range.start,
-            range.len() as u32,
-        )?;
+        // The owner signs version, svn, flags and owner_pub_keys. The message
+        // is not contiguous in the preamble, so stream each range into the
+        // hash / ML-DSA mu.
+        let manifest_bytes = auth_manifest_preamble.as_bytes();
+        let owner_ranges = AuthManifestPreamble::owner_signed_data_ranges();
+        let mut digest_op = sha2.sha384_digest_init()?;
+        for range in owner_ranges.iter() {
+            digest_op.update(Self::offset_data(
+                manifest_bytes,
+                range.start,
+                range.len() as u32,
+            )?)?;
+        }
+        let mut digest_owner = Array4x12::default();
+        digest_op.finalize(&mut digest_owner)?;
+        let digest_owner: ImageDigest384 = digest_owner.into();
 
         // Verify the owner ECC signature.
         let owner_fw_ecc_key = &fw_preamble.owner_pub_keys.ecc_pub_key;
@@ -339,12 +350,6 @@ impl SetAuthManifestCmd {
                 caliptra_cfi_lib::cfi_assert_eq_6_words(&candidate_key.0, &pub_key_digest.0);
             }
         } else {
-            let owner_data = Self::offset_data(
-                auth_manifest_preamble.as_bytes(),
-                range.start,
-                range.len() as u32,
-            )?;
-
             let (owner_fw_mldsa_key, _) =
                 Mldsa87PubKey::ref_from_prefix(fw_preamble.owner_pub_keys.pqc_pub_key.0.as_bytes())
                     .or(Err(
@@ -362,7 +367,19 @@ impl SetAuthManifestCmd {
                 CaliptraError::RUNTIME_AUTH_MANIFEST_MLDSA_OWNER_SIG_READ_FAILED,
             ))?;
 
-            let result = mldsa.verify_var(owner_fw_mldsa_key, owner_data, mldsa_sig)?;
+            // Pure ML-DSA with an empty context: mu = SHAKE256(tr || 0x00 || 0x00 || M).
+            let mut mu_op = sha3.mldsa_external_mu_init(owner_fw_mldsa_key.as_bytes())?;
+            for range in owner_ranges.iter() {
+                mu_op.update(Self::offset_data(
+                    manifest_bytes,
+                    range.start,
+                    range.len() as u32,
+                )?)?;
+            }
+            let mut mu = Mldsa87Mu::default();
+            mu_op.finalize(&mut mu)?;
+
+            let result = mldsa.verify_external_mu(owner_fw_mldsa_key, &mu, mldsa_sig)?;
             if cfi_launder(result) != Mldsa87Result::Success {
                 Err(CaliptraError::RUNTIME_AUTH_MANIFEST_MLDSA_OWNER_SIG_INVALID)?;
             }
@@ -895,13 +912,14 @@ impl SetAuthManifestCmd {
                     }
                 }
 
-                // Verify the owner public keys.
-                Self::verify_owner_pub_keys(
+                // Verify the owner signature over the policy fields and owner public keys.
+                Self::verify_owner_signed_data(
                     auth_manifest_preamble,
                     &persistent_data.rom.manifest1.preamble,
                     &mut drivers.sha2_512_384,
                     &mut drivers.ecc384,
                     &mut drivers.sha256,
+                    &mut drivers.sha3,
                     &mut mldsa87,
                     pqc_key_type,
                 )?;
