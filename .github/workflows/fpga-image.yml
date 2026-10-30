@@ -40,9 +40,16 @@ jobs:
       cache_updated: ${{ steps.export_cache.outputs.cache_updated }}
     strategy:
       matrix:
-        image_variant: [core, subsystem]
+        include:
+          - image_variant: core
+            flake_prefix: vck190-core
+          - image_variant: subsystem
+            flake_prefix: vck190-subsystem
+          - image_variant: zcu104
+            flake_prefix: zcu104
     env:
       IMAGE_VARIANT: ${{ matrix.image_variant }}
+      FLAKE_PREFIX: ${{ matrix.flake_prefix }}
 
     steps:
       - name: Checkout repo
@@ -69,31 +76,38 @@ jobs:
           cd ci-tools/fpga-image
 
           # Build Dev image (mutable ext4 + SSH keys + resize-rootfs)
-          nix build -L "path:.#vck190-${IMAGE_VARIANT}-dev" -o result-dev
+          nix build -L "path:.#${FLAKE_PREFIX}-dev" -o result-dev
           cp -f result-dev/dev-image.img dev-image.img
 
           # Build CI image (immutable zstd SquashFS + tmpfs overlay)
           mkdir -p out
-          nix build -L "path:.#vck190-${IMAGE_VARIANT}-ci" -o result-ci
+          nix build -L "path:.#${FLAKE_PREFIX}-ci" -o result-ci
           cp -f result-ci/image.img out/image.img
 
       - name: Export newly built boot firmware and kernel store paths on cache miss
         id: export_cache
         run: |
           cd ci-tools/fpga-image
-          TARGETS=(
-            "path:.#boot-bin-${IMAGE_VARIANT}"
-            "path:.#system-dtb"
-            "path:.#boot-scr"
-            "path:.#linux-xlnx"
-            "path:.#io-module-${IMAGE_VARIANT}"
-          )
+          if [ "${IMAGE_VARIANT}" = "zcu104" ]; then
+            TARGETS=(
+              "path:.#zcu104-system-boot"
+              "path:.#zcu104-kernel-modules"
+            )
+          else
+            TARGETS=(
+              "path:.#boot-bin-${IMAGE_VARIANT}"
+              "path:.#system-dtb"
+              "path:.#boot-scr"
+              "path:.#linux-xlnx"
+              "path:.#io-module-${IMAGE_VARIANT}"
+            )
+          fi
           if nix path-info --store "${GCS_NIX_CACHE_URL}" "${TARGETS[@]}" >/dev/null 2>&1; then
             echo "All kernel and boot firmware store paths are already cached in ${GCS_NIX_CACHE_BUCKET}."
           else
             echo "Cache miss detected; exporting store paths for GCS upload..."
-            mkdir -p /tmp/nix-vck190-cache
-            nix copy --to "file:///tmp/nix-vck190-cache?compression=zstd" "${TARGETS[@]}"
+            mkdir -p /tmp/nix-fpga-cache
+            nix copy --to "file:///tmp/nix-fpga-cache?compression=zstd" "${TARGETS[@]}"
             echo "cache_updated=true" >> "$GITHUB_OUTPUT"
           fi
 
@@ -101,8 +115,8 @@ jobs:
         if: steps.export_cache.outputs.cache_updated == 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: nix-vck190-cache-${{ matrix.image_variant }}
-          path: /tmp/nix-vck190-cache
+          name: nix-fpga-cache-${{ matrix.image_variant }}
+          path: /tmp/nix-fpga-cache
           retention-days: 1
 
       - name: Upload dev-image as artifact
@@ -127,11 +141,11 @@ jobs:
       - name: Download Nix cache bundle artifacts
         uses: actions/download-artifact@v4
         with:
-          pattern: nix-vck190-cache-*
+          pattern: nix-fpga-cache-*
           merge-multiple: true
-          path: /tmp/nix-vck190-cache
+          path: /tmp/nix-fpga-cache
 
       - name: Sync Nix cache to GCS
         run: |
           export PATH="$PATH:/snap/bin"
-          gcloud storage rsync --recursive /tmp/nix-vck190-cache "${GCS_NIX_CACHE_BUCKET}"
+          gcloud storage rsync --recursive /tmp/nix-fpga-cache "${GCS_NIX_CACHE_BUCKET}"

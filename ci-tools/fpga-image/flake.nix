@@ -1,5 +1,5 @@
 {
-  description = "NixOS SD Card Image for Caliptra AMD/Xilinx Versal VCK-190 FPGA";
+  description = "NixOS SD Card Images for Caliptra FPGAs (AMD/Xilinx VCK-190 & ZCU104)";
 
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixos-25.11";
@@ -18,7 +18,7 @@
       ];
       forAllSystems = nixpkgs.lib.genAttrs supportedSystems;
 
-      mkVck190System =
+      mkFpgaSystem =
         {
           variant,
           isDev,
@@ -41,7 +41,7 @@
           modules = [
             ./nix/configuration.nix
             {
-              vck190 = {
+              fpga = {
                 inherit
                   variant
                   isDev
@@ -54,20 +54,28 @@
     in
     {
       nixosConfigurations = {
-        vck190-core-ci = mkVck190System {
+        vck190-core-ci = mkFpgaSystem {
           variant = "core";
           isDev = false;
         };
-        vck190-core-dev = mkVck190System {
+        vck190-core-dev = mkFpgaSystem {
           variant = "core";
           isDev = true;
         };
-        vck190-subsystem-ci = mkVck190System {
+        vck190-subsystem-ci = mkFpgaSystem {
           variant = "subsystem";
           isDev = false;
         };
-        vck190-subsystem-dev = mkVck190System {
+        vck190-subsystem-dev = mkFpgaSystem {
           variant = "subsystem";
+          isDev = true;
+        };
+        zcu104-ci = mkFpgaSystem {
+          variant = "zcu104";
+          isDev = false;
+        };
+        zcu104-dev = mkFpgaSystem {
+          variant = "zcu104";
           isDev = true;
         };
       };
@@ -84,7 +92,7 @@
 
           mkImage =
             args:
-            (mkVck190System (args // { buildSystem = system; })).config.system.build.sdImage;
+            (mkFpgaSystem (args // { buildSystem = system; })).config.system.build.sdImage;
 
           bootFirmware = import ./nix/boot-firmware.nix {
             inherit buildPkgs targetPkgs;
@@ -95,6 +103,11 @@
             pkgs = targetPkgs;
             inherit (targetPkgs) lib;
           };
+
+          zcu104Boot = import ./nix/zcu104-boot.nix {
+            inherit buildPkgs;
+            inherit (buildPkgs) lib;
+          };
         in
         {
           default = mkImage {
@@ -102,6 +115,7 @@
             isDev = false;
           };
 
+          # Caliptra 2.x (AMD/Xilinx Versal VCK-190)
           vck190-core-ci = mkImage {
             variant = "core";
             isDev = false;
@@ -119,7 +133,17 @@
             isDev = true;
           };
 
-          # Standalone Versal boot firmware, kernel, and UIO module derivations
+          # Caliptra 1.x (AMD/Xilinx ZynqMP ZCU104)
+          zcu104-ci = mkImage {
+            variant = "zcu104";
+            isDev = false;
+          };
+          zcu104-dev = mkImage {
+            variant = "zcu104";
+            isDev = true;
+          };
+
+          # Standalone Versal & ZCU104 boot firmware, kernel, and UIO module derivations
           bootgen = bootFirmware.bootgen;
           system-dtb = bootFirmware.systemDtb;
           arm-trusted-firmware = bootFirmware.armTrustedFirmware;
@@ -128,6 +152,8 @@
           boot-bin-subsystem = bootFirmware.bootBinSubsystem;
           linux-xlnx = kernelBundle.linuxXlnx;
           boot-scr = kernelBundle.bootScr;
+          zcu104-system-boot = zcu104Boot.systemBootTarball;
+          zcu104-kernel-modules = zcu104Boot.kernelModules;
           io-module-core = targetPkgs.callPackage ./nix/io-module.nix {
             kernel = kernelBundle.linuxXlnx;
             variant = "core";

@@ -1,6 +1,6 @@
 # Licensed under the Apache-2.0 license
 #
-# Declarative NixOS configuration for the AMD/Xilinx Versal VCK-190 FPGA image.
+# Declarative NixOS configuration for Caliptra FPGA images (VCK-190 2.x & ZCU104 1.x).
 
 {
   config,
@@ -12,7 +12,9 @@
 }:
 
 let
-  cfg = config.vck190;
+  cfg = config.fpga;
+  isZcu104 = cfg.variant == "zcu104";
+  serialTty = if isZcu104 then "ttyPS0" else "ttyAMA0";
   sshKeys = import ./ssh-keys.nix;
 
   vck190KernelBundle = import ./kernel.nix {
@@ -20,9 +22,14 @@ let
     inherit (targetPkgs) lib;
   };
 
+  zcu104Boot = import ./zcu104-boot.nix {
+    inherit buildPkgs;
+    inherit (buildPkgs) lib;
+  };
+
   nixIoModule = targetPkgs.callPackage ./io-module.nix {
     kernel = vck190KernelBundle.linuxXlnx;
-    variant = cfg.variant;
+    inherit (cfg) variant;
   };
 
   # Deterministic, board-unique MAC address generator reading `/sys/block/mmcblk0/device/cid`
@@ -89,6 +96,9 @@ let
     ];
     text = ''
       # Developer mode (mutable filesystem)
+      ${lib.optionalString isZcu104 ''
+        echo 3 > /proc/sys/kernel/printk || true
+      ''}
       if [[ -f "/etc/no_overlayfs" ]]; then
         echo "Developer mode: Skipping CI startup logic."
         systemctl start resize-rootfs.service || true
@@ -149,7 +159,7 @@ let
 in
 {
   imports = [
-    ./sd-image-vck190.nix
+    ./sd-image.nix
   ];
 
   system.stateVersion = "25.11";
@@ -164,13 +174,17 @@ in
   system.build.initialRamdisk =
     buildPkgs.runCommand "dummy-initrd" { }
       "mkdir -p $out; touch $out/${config.system.boot.loader.initrdFile}";
-  boot.kernel.enable = true;
-  boot.kernelPackages = pkgs.linuxPackagesFor vck190KernelBundle.linuxXlnx;
-  boot.extraModulePackages = [ nixIoModule ];
-  boot.kernelModules = [ "io_module" ];
+  boot.kernel.enable = !isZcu104;
+  boot.kernelPackages = lib.mkIf (!isZcu104) (pkgs.linuxPackagesFor vck190KernelBundle.linuxXlnx);
+  boot.extraModulePackages = lib.mkIf (!isZcu104) [ nixIoModule ];
+  boot.kernelModules = lib.mkIf (!isZcu104) [ "io_module" ];
+  system.systemBuilderCommands = lib.mkIf isZcu104 ''
+    ln -s ${zcu104Boot.kernelModules} $out/kernel-modules
+  '';
 
   services.udev.extraRules = ''
     SUBSYSTEM=="uio", MODE="0666"
+    KERNEL=="caliptra-rom-backdoor", MODE="0666"
   '';
 
   # Root filesystem declaration matching `overlay-mount.sh`
@@ -357,14 +371,14 @@ in
     Image env : ${if cfg.isDev then "dev" else "non-dev"}
     Image variant : ${cfg.variant}
     Runner version : ${pkgs.github-runner.version}
-    Kernel source : nix-linux-xlnx
+    Kernel source : ${if isZcu104 then "canonical-zcu-5.15" else "nix-linux-xlnx"}
     Workflow name : ${cfg.workflowInfo.workflow}
     Workflow branch : ${cfg.workflowInfo.headRef}
     Workflow build commit : ${cfg.workflowInfo.workflowSha}
   '';
 
-  # Disable default serial-getty on ttyAMA0 because `startup-script.service` owns `/dev/ttyAMA0`
-  systemd.services."serial-getty@ttyAMA0".enable = false;
+  # Disable default serial-getty on the board's primary UART because `startup-script.service` owns it
+  systemd.services."serial-getty@${serialTty}".enable = false;
 
   # UART startup service for `fpga-boss`
   systemd.services.startup-script = {
@@ -379,7 +393,7 @@ in
       "time-sync.target"
       "network-online.target"
     ];
-    conflicts = [ "serial-getty@ttyAMA0.service" ];
+    conflicts = [ "serial-getty@${serialTty}.service" ];
     wantedBy = [ "multi-user.target" ];
     serviceConfig = {
       Type = "idle";
@@ -387,7 +401,7 @@ in
       StandardInput = "tty-force";
       StandardOutput = "tty";
       StandardError = "tty";
-      TTYPath = "/dev/ttyAMA0";
+      TTYPath = "/dev/${serialTty}";
       User = "root";
       WorkingDirectory = "/home/runner";
       ExecStart = "${startupScript}/bin/startup-script";

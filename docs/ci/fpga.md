@@ -30,7 +30,7 @@ This workflow runs on a schedule (Tuesday/Thursday) or when changes are made to 
 - **Key Steps:**
     - **Builds Boot Firmware (`nix/boot-firmware.nix`):** Fetches the variant `.xsa` archive, builds `bootgen`, `arm-trusted-firmware` (`bl31.elf`), `u-boot-xlnx` (`u-boot.elf`), and `system.dtb`, and packages `BOOT.BIN`.
     - **Builds Kernel & Modules (`nix/kernel.nix`, `nix/io-module.nix`):** Cross-compiles `linux-xlnx` (`6.6.40`), `boot.scr`, and the variant `io-module.ko` UIO driver.
-    - **Builds NixOS Rootfs & Disk Image (`nix/configuration.nix`, `nix/sd-image-vck190.nix`):** Assembles the partitioned `.img` file (with a read-only zstd SquashFS + tmpfs overlay for `ci` or mutable ext4 for `dev`).
+    - **Builds NixOS Rootfs & Disk Image (`nix/configuration.nix`, `nix/sd-image.nix`):** Assembles the partitioned `.img` file (with a read-only zstd SquashFS + tmpfs overlay for `ci` or mutable ext4 for `dev`).
     - **Artifacts:** Uploads the final SD card images (`caliptra-fpga-image-*` and `caliptra-fpga-image-*-dev`) as artifacts.
 
 ---
@@ -114,7 +114,7 @@ These workflows are triggered by pull requests or the nightly release process. T
 
 ## 3. The FPGA Startup Script
 
-The behavior of the FPGA image upon boot is defined in `ci-tools/fpga-image/nix/sd-image-vck190.nix` (`overlay-mount.sh`) and `ci-tools/fpga-image/nix/configuration.nix` (`startup-script.service`). This logic is crucial for setting up the environment for the GitHub Actions runner.
+The behavior of the FPGA image upon boot is defined in `ci-tools/fpga-image/nix/sd-image.nix` (`overlay-mount.sh`) and `ci-tools/fpga-image/nix/configuration.nix` (`startup-script.service`). This logic is crucial for setting up the environment for the GitHub Actions runner.
 
 ### Key Functions:
 

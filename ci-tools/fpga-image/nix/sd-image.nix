@@ -1,12 +1,10 @@
 # Licensed under the Apache-2.0 license
 #
-# Rootless VCK-190 SD Card Image Builder for NixOS.
+# Rootless FPGA SD Card Image Builder for NixOS (VCK-190 2.x & ZCU104 1.x).
 #
 # Produces an MBR-partitioned disk image matching the exact layout required by
-# the VCK-190 kernel command line (`root=/dev/mmcblk0p3 init=/usr/sbin/overlay-mount.sh`)
-# and `fpga-boss`:
-#   - p1: FAT32 bootable partition (320,000 sectors = ~156 MiB) containing
-#         BOOT.BIN, system.dtb, boot.scr, and Image (all built in Nix)
+# `fpga-boss` across VCK-190 (`core`, `subsystem`) and ZCU104 (`zcu104`):
+#   - p1: FAT32 bootable partition containing board boot firmware, kernel, and U-Boot script
 #   - p2: 8-sector partition containing the `CONFIG_PARTITION` sentinel
 #   - p3: Root filesystem:
 #         * `ci` mode: zstd-compressed read-only SquashFS + tmpfs overlay at boot
@@ -28,7 +26,9 @@
 }:
 
 let
-  cfg = config.vck190;
+  cfg = config.fpga;
+  isZcu104 = cfg.variant == "zcu104";
+  imagePrefix = if isZcu104 then "zcu104" else "vck190-${cfg.variant}";
   toplevel = config.system.build.toplevel;
 
   vck190BootFirmware = import ./boot-firmware.nix {
@@ -41,12 +41,17 @@ let
     inherit (targetPkgs) lib;
   };
 
-  bootBin = vck190BootFirmware.mkBootBin (
+  zcu104Boot = import ./zcu104-boot.nix {
+    inherit buildPkgs;
+    inherit (buildPkgs) lib;
+  };
+
+  vck190BootBin = vck190BootFirmware.mkBootBin (
     {
-      variant = cfg.variant;
+      inherit (cfg) variant;
     }
     // lib.optionalAttrs (cfg.xsa != null) {
-      xsa = cfg.xsa;
+      inherit (cfg) xsa;
     }
   );
 
@@ -131,7 +136,7 @@ let
   # Builds the partition 3 rootfs image (SquashFS for `ci`, ext4 for `dev`)
   # using native host tools (`buildPkgs`) for fast image creation.
   rootfsImage = buildPkgs.stdenv.mkDerivation {
-    name = "vck190-${cfg.variant}-${if cfg.isDev then "dev-ext4" else "ci-squashfs"}.img";
+    name = "${imagePrefix}-${if cfg.isDev then "dev-ext4" else "ci-squashfs"}.img";
 
     nativeBuildInputs = with buildPkgs; [
       coreutils
@@ -168,6 +173,12 @@ let
 
       # Link GitHub Actions runner entrypoint at /home/runner/run.sh
       ln -sf ${pkgs.github-runner}/bin/run.sh ./rootImage/home/runner/run.sh
+
+      ${lib.optionalString isZcu104 ''
+        mkdir -p ./rootImage/lib
+        cp -a ${zcu104Boot.kernelModules}/lib/modules ./rootImage/lib/
+        chmod -R u+w ./rootImage/lib/modules
+      ''}
 
       ${lib.optionalString cfg.isDev ''
         touch ./rootImage/etc/no_overlayfs
@@ -221,7 +232,7 @@ let
       mkdir -p $out
       img="$out/${if cfg.isDev then "dev-image.img" else "image.img"}"
 
-      bootfs_blocks=$((80000 * 4))
+      bootfs_blocks=$((80000 * ${if isZcu104 then "2" else "4"}))
       rootfs_bytes=$(stat --printf="%s" ${rootfsImage})
       rootfs_blocks=$(( (rootfs_bytes + 511) / 512 ))
       total_blocks=$((2048 + 8 + bootfs_blocks + rootfs_blocks))
@@ -267,14 +278,33 @@ let
       mkfs.vfat --invariant -i 4effe30a -n BOOT bootfs.img
 
       mkdir -p boot_files
-      cp ${bootBin} boot_files/BOOT.BIN
-      cp ${vck190BootFirmware.systemDtb} boot_files/system.dtb
-      cp ${vck190KernelBundle.bootScr} boot_files/boot.scr
-      cp ${vck190KernelBundle.linuxXlnx}/Image boot_files/Image
+      ${
+        if isZcu104 then
+          ''
+            tar -xzf ${zcu104Boot.systemBootTarball} -C boot_files
+            chmod -R u+w boot_files
+            cp -f ${
+              zcu104Boot.mkBootScrUimg {
+                inherit (cfg) isDev;
+                inherit toplevel;
+              }
+            } boot_files/boot.scr.uimg
+          ''
+        else
+          ''
+            cp ${vck190BootBin} boot_files/BOOT.BIN
+            cp ${vck190BootFirmware.systemDtb} boot_files/system.dtb
+            cp ${vck190KernelBundle.bootScr} boot_files/boot.scr
+            cp ${vck190KernelBundle.linuxXlnx}/Image boot_files/Image
+          ''
+      }
 
       find boot_files -exec touch --date=2000-01-01 {} +
       (
         cd boot_files
+        for d in $(find . -mindepth 1 -type d | sort); do
+          mmd -i ../bootfs.img "::/$d"
+        done
         for f in $(find . -type f | sort); do
           mcopy -pvm -i ../bootfs.img "$f" "::/$f"
         done
@@ -296,14 +326,15 @@ let
   };
 in
 {
-  options.vck190 = {
+  options.fpga = {
     variant = lib.mkOption {
       type = lib.types.enum [
         "core"
         "subsystem"
+        "zcu104"
       ];
       default = "subsystem";
-      description = "Caliptra FPGA bitstream/UIO variant (`core` or `subsystem`).";
+      description = "Caliptra FPGA image target (`core` or `subsystem` for VCK-190 2.x, or `zcu104` for ZCU104 1.x).";
     };
 
     isDev = lib.mkOption {
@@ -316,8 +347,8 @@ in
       type = lib.types.nullOr lib.types.path;
       default = null;
       description = ''
-        Optional override path to a custom Vivado `.xsa` archive for assembling `BOOT.BIN`.
-        When `null`, defaults to the pinned CI `.xsa` for `vck190.variant`.
+        Optional override path to a custom Vivado `.xsa` archive for assembling VCK-190 `BOOT.BIN`.
+        When `null`, defaults to the pinned CI `.xsa` for `fpga.variant`. Unused on `zcu104`.
       '';
     };
 
