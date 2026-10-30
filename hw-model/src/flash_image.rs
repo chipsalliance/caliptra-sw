@@ -79,8 +79,8 @@ pub fn build_flash_image_bytes(
     let header_size = core::mem::size_of::<FlashHeader>();
     let image_header_size = core::mem::size_of::<ImageHeader>();
 
-    // Calculate offsets for image data
-    let data_start = header_size + image_header_size * images.len();
+    // Calculate offsets for image data (256-byte aligned for flash page size)
+    let data_start = (header_size + image_header_size * images.len()).next_multiple_of(256);
     let mut current_offset = data_start as u32;
 
     // Build image headers
@@ -122,6 +122,7 @@ pub fn build_flash_image_bytes(
     for hdr in &image_headers {
         result.extend_from_slice(hdr.as_bytes());
     }
+    result.resize(data_start, 0);
     for (_, data) in &images {
         result.extend_from_slice(data);
     }
@@ -196,7 +197,10 @@ mod tests {
         assert_eq!(hdr0.identifier, CALIPTRA_FMC_RT_IDENTIFIER);
         assert_eq!(hdr1.identifier, SOC_MANIFEST_IDENTIFIER);
         assert_eq!(hdr2.identifier, MCU_RT_IDENTIFIER);
-        assert_eq!(hdr0.offset as usize, hdr_offset + 3 * hdr_size);
+        assert_eq!(
+            hdr0.offset as usize,
+            (hdr_offset + 3 * hdr_size).next_multiple_of(256)
+        );
         assert_eq!(hdr1.offset, hdr0.offset + hdr0.size);
         assert_eq!(hdr2.offset, hdr1.offset + hdr1.size);
 
