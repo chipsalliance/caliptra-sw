@@ -76,6 +76,26 @@ impl SetAuthManifestCmd {
         Array4x12::from(digest).into()
     }
 
+    /// SHA2-384 digest of the owner-signed preamble data
+    /// (see `AuthManifestPreamble::owner_signed_data_ranges`).
+    fn owner_signed_data_digest(
+        sha2: &mut Sha2_512_384,
+        auth_manifest_preamble: &AuthManifestPreamble,
+    ) -> CaliptraResult<ImageDigest384> {
+        let manifest_bytes = auth_manifest_preamble.as_bytes();
+        let mut digest_op = sha2.sha384_digest_init()?;
+        for range in AuthManifestPreamble::owner_signed_data_ranges().iter() {
+            digest_op.update(Self::offset_data(
+                manifest_bytes,
+                range.start,
+                range.len() as u32,
+            )?)?;
+        }
+        let mut digest = Array4x12::default();
+        digest_op.finalize(&mut digest)?;
+        Ok(digest.into())
+    }
+
     fn update_soc_manifest_dpe_contexts(
         drivers: &mut Drivers,
         auth_manifest_preamble: &AuthManifestPreamble,
@@ -104,12 +124,10 @@ impl SetAuthManifestCmd {
             vendor_range.start,
             vendor_range.len() as u32,
         )?);
-        let owner_range = AuthManifestPreamble::owner_pub_keys_range();
-        let owner_measurement = Self::digest_to_measurement(&Self::sha384_digest(
+        // SOMO measures everything the owner signed: policy fields + owner_pub_keys.
+        let owner_measurement = Self::digest_to_measurement(&Self::owner_signed_data_digest(
             &mut drivers.sha2_512_384,
-            manifest_bytes,
-            owner_range.start,
-            owner_range.len() as u32,
+            auth_manifest_preamble,
         )?);
         let pl0_pauser_locality = drivers
             .persistent_data
@@ -287,17 +305,7 @@ impl SetAuthManifestCmd {
         // hash / ML-DSA mu.
         let manifest_bytes = auth_manifest_preamble.as_bytes();
         let owner_ranges = AuthManifestPreamble::owner_signed_data_ranges();
-        let mut digest_op = sha2.sha384_digest_init()?;
-        for range in owner_ranges.iter() {
-            digest_op.update(Self::offset_data(
-                manifest_bytes,
-                range.start,
-                range.len() as u32,
-            )?)?;
-        }
-        let mut digest_owner = Array4x12::default();
-        digest_op.finalize(&mut digest_owner)?;
-        let digest_owner: ImageDigest384 = digest_owner.into();
+        let digest_owner = Self::owner_signed_data_digest(sha2, auth_manifest_preamble)?;
 
         // Verify the owner ECC signature.
         let owner_fw_ecc_key = &fw_preamble.owner_pub_keys.ecc_pub_key;

@@ -118,12 +118,14 @@ fn default_soc_manifest(pqc_key_type: FwVerificationPqcKeyType, svn: u32) -> Aut
 pub fn soc_manifest_measurements(manifest: &AuthorizationManifest) -> ([u8; 48], [u8; 48]) {
     let preamble = manifest.preamble.as_bytes();
     let vendor_range = AuthManifestPreamble::vendor_signed_data_range();
-    let owner_range = AuthManifestPreamble::owner_pub_keys_range();
+    let mut owner_hasher = Sha384Hasher::new();
+    for range in AuthManifestPreamble::owner_signed_data_ranges() {
+        owner_hasher.update(&preamble[range.start as usize..range.end as usize]);
+    }
     (
         Sha384Hasher::digest(&preamble[vendor_range.start as usize..vendor_range.end as usize])
             .into(),
-        Sha384Hasher::digest(&preamble[owner_range.start as usize..owner_range.end as usize])
-            .into(),
+        owner_hasher.finalize().into(),
     )
 }
 
