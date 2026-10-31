@@ -660,18 +660,9 @@ impl Drivers {
                 }
             }
         } else {
-            let _pl0_pauser = drivers
-                .persistent_data
-                .get()
-                .rom
-                .manifest1
-                .header
-                .pl0_pauser;
-            // check that DPE used context limits are not exceeded
-            let dpe_context_threshold_exceeded =
-                drivers.is_dpe_context_threshold_exceeded(drivers.caller_privilege_level());
-            cfi_check!(dpe_context_threshold_exceeded);
-            if let Err(e) = dpe_context_threshold_exceeded {
+            let context_limits_result = drivers.validate_dpe_context_limits();
+            cfi_check!(context_limits_result);
+            if let Err(e) = context_limits_result {
                 let result = DisableAttestationCmd::execute(drivers);
                 cfi_check!(result);
                 match result {
@@ -1128,6 +1119,20 @@ impl Drivers {
         Ok((used_pl0_dpe_context_count, used_pl1_dpe_context_count))
     }
 
+    /// Validate existing contexts in both pools during reset, allowing usage equal to the limit.
+    fn validate_dpe_context_limits(&self) -> CaliptraResult<()> {
+        let (used_pl0, used_pl1) = self.dpe_get_used_context_counts()?;
+        let dpe_data = &self.persistent_data.get().fw.dpe;
+        if used_pl0 > dpe_data.pl0_context_limit as usize {
+            return Err(CaliptraError::RUNTIME_PL0_USED_DPE_CONTEXT_THRESHOLD_EXCEEDED);
+        }
+        if used_pl1 > dpe_data.pl1_context_limit as usize {
+            return Err(CaliptraError::RUNTIME_PL1_USED_DPE_CONTEXT_THRESHOLD_EXCEEDED);
+        }
+        Ok(())
+    }
+
+    /// Check capacity before allocating a new context, not when validating existing state.
     /// Counts the number of non-inactive DPE contexts and returns an error
     /// if this number is greater than or equal to the active context threshold
     /// corresponding to the privilege level provided.

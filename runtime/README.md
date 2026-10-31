@@ -3218,6 +3218,10 @@ Command Code: '5243_5458` ("RCTX")
 
 This allows the user to reallocate the 64 DPE contexts between PL0 and PL1. By default, each gets 32 contexts.
 
+Each new limit must be at least the number of contexts currently used by that
+privilege level. Setting a limit equal to current usage is valid; further
+allocations to that pool fail until capacity becomes available.
+
 **Note**: 2 PL0 contexts are used by Caliptra itself during initialization.
 
 ### FE\_PROG
@@ -3478,6 +3482,15 @@ privilege level:
 If a DPE command were to activate a new context such that the total number of
 active contexts in a privilege level is above its active context limit, the
 InvokeDpe command should fail.
+
+Usage includes both active and retired contexts; inactive contexts do not count.
+During warm and update reset, runtime validates both PL0 and PL1 usage against
+their saved limits, independently of the mailbox caller. Usage equal to a limit
+is valid and does not by itself disable attestation. If either pool exceeds its
+limit, runtime disables attestation and reports the corresponding
+`RUNTIME_PL0_USED_DPE_CONTEXT_THRESHOLD_EXCEEDED` or
+`RUNTIME_PL1_USED_DPE_CONTEXT_THRESHOLD_EXCEEDED` error. Other reset-time
+attestation checks still apply.
 
 At boot Caliptra Runtime FW consumes part of the PL0 active contexts (initially 32) to DeriveContext for:
    - RTFW Journey (RTFJ) Measurement (1)

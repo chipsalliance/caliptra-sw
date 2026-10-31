@@ -21,7 +21,7 @@ use caliptra_dpe::{
     context::{Context, ContextHandle, ContextType},
     error::DpeErrorCode,
     tci::TciMeasurement,
-    validation::ValidationError,
+    validation::{DpeValidator, ValidationError},
     U8Bool, MAX_HANDLES, TCI_SIZE,
 };
 use caliptra_drivers::PcrResetCounter;
@@ -93,6 +93,7 @@ const OPCODE_READ_CACHED_DPE_CCIV_CONTEXT_MEASUREMENT: u32 = 0x6000_0006;
 const OPCODE_READ_CACHED_DPE_CCIV_CONTEXT_CUMULATIVE: u32 = 0x6000_0007;
 const OPCODE_READ_CACHED_DPE_MCU_RT_CONTEXT_MEASUREMENT: u32 = 0x6000_0008;
 const OPCODE_READ_CACHED_DPE_MCU_RT_CONTEXT_CUMULATIVE: u32 = 0x6000_0009;
+const OPCODE_READ_ATTESTATION_DISABLED: u32 = 0x6000_000A;
 const DISABLE_VENDOR_DEBUG_IMAGES: u32 = 1 << 31;
 
 fn rom_supports_vendor_debug_image_enforcement() -> bool {
@@ -616,87 +617,108 @@ fn test_dpe_validation_illegal_state() {
     assert_eq!(info.attestation_disabled, 1);
 }
 
+fn check_dpe_context_limit_exceeded(warm_reset: bool) {
+    for target_pauser in [1, 2] {
+        let image_options = ImageOptions {
+            fw_svn: 9,
+            ..Default::default()
+        };
+        let mut model = run_rt_test(RuntimeTestArgs {
+            test_fwid: Some(mbox_test_image()),
+            test_image_options: Some(image_options.clone()),
+            ..RuntimeTestArgs::test_productions_args()
+        });
+        let disabled = model
+            .mailbox_execute(OPCODE_READ_ATTESTATION_DISABLED, &[])
+            .unwrap()
+            .unwrap();
+        assert_eq!(disabled, 0u32.to_le_bytes());
+        let response = model.mailbox_execute(0xA000_0000, &[]).unwrap().unwrap();
+        let mut dpe = caliptra_dpe::State::try_read_from_bytes(&response).unwrap();
+        let mut used_contexts = dpe
+            .count_contexts(|context| {
+                context.state != ContextState::Inactive
+                    && (context.locality == target_pauser
+                        || (target_pauser == 1
+                            && context.locality == caliptra_runtime::CALIPTRA_LOCALITY))
+            })
+            .unwrap();
+        let limit = if target_pauser == 1 {
+            PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD
+        } else {
+            caliptra_runtime::PL1_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD
+        };
+        for (index, context) in dpe.contexts.iter_mut().enumerate() {
+            if context.state == ContextState::Active
+                && context.locality == target_pauser
+                && context.handle.is_default()
+            {
+                context.handle = ContextHandle([0xEE; ContextHandle::SIZE]);
+            }
+            if used_contexts > limit {
+                break;
+            }
+            if context.state == ContextState::Inactive {
+                context.state = ContextState::Active;
+                context.context_type = ContextType::Simulation;
+                context.locality = target_pauser;
+                context.tci.locality = target_pauser;
+                context.parent_idx = Context::ROOT_INDEX;
+                let mut handle = [0xAA; ContextHandle::SIZE];
+                handle[1] = index as u8;
+                context.handle = ContextHandle(handle);
+                used_contexts += 1;
+            }
+        }
+        assert_eq!(used_contexts, limit + 1);
+        DpeValidator { dpe: &mut dpe }.validate_dpe().unwrap();
+        model.set_axi_user(if target_pauser == 1 { 2 } else { 1 });
+        model
+            .mailbox_execute(0xB000_0000, dpe.as_bytes())
+            .unwrap()
+            .unwrap();
+        for _ in 0..10_000 {
+            model.step();
+        }
+
+        if warm_reset {
+            model.warm_reset_flow().unwrap();
+        } else {
+            update_fw(&mut model, app_test_image(), image_options);
+        }
+        let expected_error = if target_pauser == 1 {
+            CaliptraError::RUNTIME_PL0_USED_DPE_CONTEXT_THRESHOLD_EXCEEDED
+        } else {
+            CaliptraError::RUNTIME_PL1_USED_DPE_CONTEXT_THRESHOLD_EXCEEDED
+        };
+        model.step_until_or_timeout("DPE context limit rejection", 40_000_000, |model| {
+            model.soc_ifc().cptra_fw_error_non_fatal().read() == u32::from(expected_error)
+        });
+        if warm_reset {
+            let disabled = model
+                .mailbox_execute(OPCODE_READ_ATTESTATION_DISABLED, &[])
+                .unwrap()
+                .unwrap();
+            assert_eq!(disabled, 1u32.to_le_bytes());
+        } else {
+            assert_eq!(
+                get_fwinfo_allow_attestation_disabled(&mut model).attestation_disabled,
+                1
+            );
+        }
+        assert_eq!(model.soc_ifc().cptra_fw_error_fatal().read(), 0);
+    }
+}
+
 #[test]
 fn test_dpe_validation_used_context_threshold_exceeded() {
-    let image_options = ImageOptions::default();
-    let args = RuntimeTestArgs {
-        test_fwid: Some(mbox_test_image()),
-        test_image_options: Some(image_options.clone()),
-        ..Default::default()
-    };
-    let mut model = run_rt_test(args);
+    check_dpe_context_limit_exceeded(false);
+}
 
-    // read DPE after RT initialization
-    let dpe_resp = model.mailbox_execute(0xA000_0000, &[]).unwrap().unwrap();
-    let mut dpe = caliptra_dpe::State::try_read_from_bytes(dpe_resp.as_bytes()).unwrap();
-
-    let pl0_pauser = ImageOptions::default().vendor_config.pl0_pauser.unwrap();
-
-    // Count currently active PL0 contexts
-    let mut pl0_context_count = 0;
-    let mut last_pl0_idx = 0;
-    for (idx, context) in dpe.contexts.iter().enumerate() {
-        if context.state == ContextState::Active && context.locality == pl0_pauser {
-            pl0_context_count += 1;
-            last_pl0_idx = idx;
-        }
-    }
-
-    // Add more PL0 contexts until we hit the threshold
-    let mut current_idx = 0;
-    while pl0_context_count < PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD {
-        if dpe.contexts[current_idx].state == ContextState::Inactive {
-            let idx = current_idx;
-            dpe.contexts[idx].state = ContextState::Active;
-            dpe.contexts[idx].context_type = ContextType::Normal;
-            dpe.contexts[idx].locality = pl0_pauser;
-            dpe.contexts[idx].tci.locality = pl0_pauser;
-            dpe.contexts[idx].tci.tci_current = TciMeasurement([idx as u8; TCI_SIZE]);
-            dpe.contexts[idx].tci.tci_cumulative = TciMeasurement([idx as u8; TCI_SIZE]);
-
-            // Ensure the parent (which might have been the default) now has a non-default handle
-            if dpe.contexts[last_pl0_idx].handle.is_default() {
-                dpe.contexts[last_pl0_idx].handle = ContextHandle([0xEE; ContextHandle::SIZE]);
-            }
-
-            // Use a unique non-default handle
-            let mut handle = [0u8; ContextHandle::SIZE];
-            handle[0] = 0xFF; // Ensure non-default
-            handle[1] = idx as u8;
-            dpe.contexts[idx].handle = ContextHandle(handle);
-
-            // link to previous PL0 context
-            dpe.contexts[idx].parent_idx = last_pl0_idx as u8;
-            dpe.contexts[last_pl0_idx].children.add_child(idx).unwrap();
-
-            last_pl0_idx = idx;
-            pl0_context_count += 1;
-        }
-        current_idx += 1;
-        assert!(current_idx < caliptra_dpe::MAX_HANDLES);
-    }
-    let _ = model
-        .mailbox_execute(0xB000_0000, dpe.as_bytes())
-        .unwrap()
-        .unwrap();
-
-    // trigger update reset
-    update_fw(&mut model, &APP_WITH_UART, image_options);
-    model.step_until(|m| {
-        m.soc_ifc().cptra_fw_error_non_fatal().read()
-            == u32::from(CaliptraError::RUNTIME_PL0_USED_DPE_CONTEXT_THRESHOLD_EXCEEDED)
-    });
-
-    // check attestation disabled via FW_INFO
-    let payload = MailboxReqHeader {
-        chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::FW_INFO), &[]),
-    };
-    let resp = model
-        .mailbox_execute(u32::from(CommandId::FW_INFO), payload.as_bytes())
-        .unwrap()
-        .unwrap();
-    let info = FwInfoResp::read_from_bytes(resp.as_slice()).unwrap();
-    assert_eq!(info.attestation_disabled, 1);
+#[test]
+#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
+fn test_dpe_validation_used_context_threshold_exceeded_warm_reset() {
+    check_dpe_context_limit_exceeded(true);
 }
 
 #[test]
