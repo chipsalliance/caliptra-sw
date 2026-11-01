@@ -467,7 +467,7 @@ fn smoke_test() {
             hasher.update(&fuses.fuse_lms_revocation.to_le_bytes());
             hasher.update(&[fuses.fuse_mldsa_revocation as u8]);
             hasher.update(&[first_set_msbit(&fuses.fw_svn) as u8]);
-            hasher.update(&[first_set_msbit(&fuses.soc_manifest_svn) as u8]);
+            hasher.update(&[u8::try_from(fuses.soc_manifest_svn[0]).unwrap()]);
             hasher.update(&[fuses.soc_manifest_max_svn as u8]);
             let owner_info_hash = hasher.finish();
 
@@ -545,7 +545,7 @@ fn smoke_test() {
                     vendor_lms_pub_key_revocation: fuses.fuse_lms_revocation,
                     vendor_mldsa_pub_key_revocation: fuses.fuse_mldsa_revocation as u8,
                     fw_fuse_svn: first_set_msbit(&fuses.fw_svn) as u8,
-                    soc_manifest_fuse_svn: first_set_msbit(&fuses.soc_manifest_svn) as u8,
+                    soc_manifest_fuse_svn: u8::try_from(fuses.soc_manifest_svn[0]).unwrap(),
                     max_soc_manifest_fuse_svn: fuses.soc_manifest_max_svn,
                     vendor_pub_key_hash: vendor_pk_desc_hash_words,
                     pqc_key_type: fuses.fuse_pqc_key_type as u8,

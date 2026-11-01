@@ -91,8 +91,7 @@ fn test_derive_stable_key() {
             if *key_type == CmStableKeyType::OwnerKey && !subsystem_mode {
                 continue;
             }
-            // The FPGA wrapper does not expose SS_STRAP_GENERIC[3], so positive
-            // OwnerKey tests cannot enable the Stable Owner Key feature there.
+            // Positive subsystem FPGA coverage needs coordinated MCU feature provisioning.
             if cfg!(feature = "fpga_subsystem") && *key_type == CmStableKeyType::OwnerKey {
                 continue;
             }

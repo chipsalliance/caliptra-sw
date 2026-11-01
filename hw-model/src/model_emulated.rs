@@ -297,21 +297,6 @@ impl HwModel for ModelEmulated {
 
         root_bus.soc_reg.set_generic_input_wires(&[0, 0]);
 
-        let ss_strap_generic_reg_0 = ((params.otp_dai_idle_bit_offset & 0xFFFF) << 16)
-            | (params.otp_status_reg_offset & 0xFFFF);
-        let ss_strap_generic_reg_1 = params.otp_direct_access_cmd_reg_offset;
-        let ss_strap_generic_reg_3 = if params.stable_owner_key_en {
-            1u32
-        } else {
-            0u32
-        };
-        root_bus.soc_reg.set_strap_generic(&[
-            ss_strap_generic_reg_0,
-            ss_strap_generic_reg_1,
-            0,
-            ss_strap_generic_reg_3,
-        ]);
-
         {
             let mut iccm_ram = root_bus.iccm.ram().borrow_mut();
             let Some(iccm_dest) = iccm_ram.data_mut().get_mut(0..params.iccm.len()) else {
@@ -366,6 +351,16 @@ impl HwModel for ModelEmulated {
         };
         // Turn tracing on if the trace path was set
         m.tracing_hint(true);
+        m.soc_ifc().ss_otp_fc_status_cfg().write(|w| {
+            w.status_offset(params.otp_status_reg_offset)
+                .dai_idle_bit_num(params.otp_dai_idle_bit_offset)
+        });
+        m.soc_ifc()
+            .ss_otp_fc_cmd_cfg()
+            .write(|w| w.direct_access_cmd_offset(params.otp_direct_access_cmd_reg_offset));
+        m.soc_ifc()
+            .ss_fw_feature_cfg()
+            .write(|w| w.stable_owner_key_en(params.stable_owner_key_en));
 
         Ok(m)
     }

@@ -433,53 +433,54 @@ fn test_owner_and_vendor_auth_manifests_survive_update_reset() {
 }
 
 #[test]
-// On a subsystem MCU ROM owns SS_STRAP_GENERIC[3][15:8] and populates it from the
-// owner_soc_manifest_min_svn OTP fuse before CPTRA_FUSE_WR_DONE, so the floor seeded
-// here does not survive boot. Equivalent coverage lives in caliptra-mcu-sw's
-// test_increase_owner_soc_manifest_svn.
+// Subsystem OTP provisioning requires the corresponding MCU 2.2 migration.
 #[cfg(not(feature = "fpga_subsystem"))]
-fn test_set_owner_auth_manifest_svn_floor_uses_strap_bits_15_8() {
+fn test_set_owner_auth_manifest_numeric_svn_floors_are_independent() {
     use crate::test_info::get_fwinfo;
     use caliptra_hw_model::{DeviceLifecycle, SecurityState};
 
-    const MIN_SVN: u32 = 5;
-    const EXISTING_STRAP_FLAGS: u32 = 0x3;
+    const LEGACY_STRAP_MIN_SVN: u32 = 1;
 
-    let mut model = run_rt_test(RuntimeTestArgs {
-        security_state: Some(
-            *SecurityState::default().set_device_lifecycle(DeviceLifecycle::Manufacturing),
-        ),
-        subsystem_mode: true,
-        initial_ss_strap_generic_3: Some((MIN_SVN << 8) | EXISTING_STRAP_FLAGS),
-        ..Default::default()
-    });
-    model.step_until_ready_for_runtime();
-    let info = get_fwinfo(&mut model);
-    assert_eq!(info.owner_auth_manifest_current_svn, 0);
-    assert_eq!(info.owner_auth_manifest_min_svn, MIN_SVN);
+    for (soc_min_svn, owner_min_svn) in [(3, 8), (8, 3)] {
+        let mut model = run_rt_test(RuntimeTestArgs {
+            security_state: Some(
+                *SecurityState::default().set_device_lifecycle(DeviceLifecycle::Manufacturing),
+            ),
+            subsystem_mode: true,
+            soc_manifest_svn: Some(soc_min_svn),
+            owner_manifest_min_svn: Some(owner_min_svn),
+            initial_ss_strap_generic_3: Some(LEGACY_STRAP_MIN_SVN << 8),
+            ..Default::default()
+        });
+        model.step_until_ready_for_runtime();
+        let info = get_fwinfo(&mut model);
+        assert_eq!(info.soc_manifest_min_svn, soc_min_svn);
+        assert_eq!(info.owner_auth_manifest_current_svn, 0);
+        assert_eq!(info.owner_auth_manifest_min_svn, owner_min_svn);
 
-    let below_floor = build_owner_manifest(
-        vec![make_entry(OWNER_ONLY_FW_ID, OWNER_ONLY_DIGEST)],
-        MIN_SVN - 1,
-    );
-    let err = set_owner_auth_manifest(&mut model, &below_floor)
-        .expect_err("owner manifest SVN below the strap floor must be rejected");
-    let expected: u32 = CaliptraError::RUNTIME_OWNER_AUTH_MANIFEST_SVN_LESS_THAN_MIN.into();
-    assert!(
-        matches!(err, ModelError::MailboxCmdFailed(code) if code == expected),
-        "expected owner manifest SVN below minimum, got {err:?}",
-    );
-    assert_eq!(get_fwinfo(&mut model).owner_auth_manifest_current_svn, 0);
+        let below_floor = build_owner_manifest(
+            vec![make_entry(OWNER_ONLY_FW_ID, OWNER_ONLY_DIGEST)],
+            owner_min_svn - 1,
+        );
+        let err = set_owner_auth_manifest(&mut model, &below_floor)
+            .expect_err("owner manifest SVN below its numeric floor must be rejected");
+        let expected: u32 = CaliptraError::RUNTIME_OWNER_AUTH_MANIFEST_SVN_LESS_THAN_MIN.into();
+        assert!(
+            matches!(err, ModelError::MailboxCmdFailed(code) if code == expected),
+            "expected owner manifest SVN below minimum, got {err:?}",
+        );
+        assert_eq!(get_fwinfo(&mut model).owner_auth_manifest_current_svn, 0);
 
-    let at_floor = build_owner_manifest(
-        vec![make_entry(OWNER_ONLY_FW_ID, OWNER_ONLY_DIGEST)],
-        MIN_SVN,
-    );
-    send_set_owner_auth_manifest(&mut model, &at_floor);
-    assert_eq!(
-        get_fwinfo(&mut model).owner_auth_manifest_current_svn,
-        MIN_SVN
-    );
+        let at_floor = build_owner_manifest(
+            vec![make_entry(OWNER_ONLY_FW_ID, OWNER_ONLY_DIGEST)],
+            owner_min_svn,
+        );
+        send_set_owner_auth_manifest(&mut model, &at_floor);
+        assert_eq!(
+            get_fwinfo(&mut model).owner_auth_manifest_current_svn,
+            owner_min_svn
+        );
+    }
 }
 
 #[test]

@@ -24,11 +24,6 @@ use crate::{memory_layout, FuseBank};
 
 pub type Lifecycle = DeviceLifecycleE;
 
-const SS_STRAP_GENERIC_3_STABLE_OWNER_KEY_ENABLE: u32 = 1 << 0;
-const SS_STRAP_GENERIC_3_OWNER_MANIFEST_MIN_SVN_SHIFT: u32 = 8;
-const SS_STRAP_GENERIC_3_OWNER_MANIFEST_MIN_SVN_MASK: u32 = 0xFF;
-const SS_STRAP_GENERIC_3_DISABLE_VENDOR_DEBUG_IMAGES: u32 = 1 << 31;
-
 pub fn report_boot_status(val: u32) {
     let mut soc_ifc = unsafe { soc_ifc::SocIfcReg::new() };
 
@@ -91,9 +86,12 @@ impl SocIfc {
 
     /// Whether the platform permits vendor-authorized debug artifacts.
     pub fn vendor_debug_image_allowed(&self) -> bool {
-        let vendor_debug_images_disabled = self.soc_ifc.regs().ss_strap_generic().at(3).read()
-            & SS_STRAP_GENERIC_3_DISABLE_VENDOR_DEBUG_IMAGES
-            != 0;
+        let vendor_debug_images_disabled = self
+            .soc_ifc
+            .regs()
+            .ss_fw_feature_cfg()
+            .read()
+            .vendor_debug_images_dis();
         self.subsystem_mode() && self.ss_debug_intent() && !vendor_debug_images_disabled
     }
 
@@ -740,15 +738,17 @@ impl SocIfc {
         )
     }
 
-    /// Check if the Stable Owner Key feature is enabled via SS_STRAP_GENERIC[3] bit 0.
+    /// Check if the platform enabled the Stable Owner Key feature.
     pub fn stable_owner_key_enabled(&self) -> bool {
-        self.soc_ifc.regs().ss_strap_generic().at(3).read()
-            & SS_STRAP_GENERIC_3_STABLE_OWNER_KEY_ENABLE
-            != 0
+        self.soc_ifc
+            .regs()
+            .ss_fw_feature_cfg()
+            .read()
+            .stable_owner_key_en()
     }
 
     /// Check if the Stable Owner Key feature is available.
-    /// Requires subsystem mode, the strap bit to be set, and OCP LOCK
+    /// Requires subsystem mode, the feature to be enabled, and OCP LOCK
     /// to be disabled (both consume fuse_hek_seed via DOE and are
     /// mutually exclusive).
     ///
@@ -761,28 +761,35 @@ impl SocIfc {
     }
 
     pub fn otp_dai_idle_bit_num(&self) -> u32 {
-        (self.soc_ifc.regs().ss_strap_generic().at(0).read() >> 16) & 0xFFFF
+        self.soc_ifc
+            .regs()
+            .ss_otp_fc_status_cfg()
+            .read()
+            .dai_idle_bit_num()
     }
 
     pub fn otp_status_reg_offset(&self) -> u32 {
-        self.soc_ifc.regs().ss_strap_generic().at(0).read() & 0xFFFF
+        self.soc_ifc
+            .regs()
+            .ss_otp_fc_status_cfg()
+            .read()
+            .status_offset()
     }
 
     pub fn otp_direct_access_cmd_reg_offset(&self) -> u32 {
-        self.soc_ifc.regs().ss_strap_generic().at(1).read() & 0xFFFF
+        self.soc_ifc
+            .regs()
+            .ss_otp_fc_cmd_cfg()
+            .read()
+            .direct_access_cmd_offset()
     }
 
     /// Returns the Owner Authorization Manifest minimum-SVN floor as
-    /// populated by platform firmware into `SS_STRAP_GENERIC[3][15:8]`
-    /// during boot. Caliptra latches the strap at reset and the field is
-    /// hardware write-once-locked for the boot lifetime. Encoded as an
-    /// unsigned binary integer (not one-hot); conversion from platform
-    /// monotonic storage and monotonicity across cold resets are the
-    /// platform's responsibility.
+    /// provisioned into numeric `fuse_soc_manifest_svn[2]`. Conversion from
+    /// platform monotonic storage and monotonicity across cold resets are
+    /// the platform's responsibility.
     pub fn ss_owner_manifest_min_svn(&self) -> u32 {
-        (self.soc_ifc.regs().ss_strap_generic().at(3).read()
-            >> SS_STRAP_GENERIC_3_OWNER_MANIFEST_MIN_SVN_SHIFT)
-            & SS_STRAP_GENERIC_3_OWNER_MANIFEST_MIN_SVN_MASK
+        self.soc_ifc.regs().fuse_soc_manifest_svn().at(2).read()
     }
 
     pub fn get_timestamp(&self) -> u64 {

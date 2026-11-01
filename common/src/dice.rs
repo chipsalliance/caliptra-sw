@@ -200,6 +200,8 @@ pub fn gen_fmc_alias_owner_device_info_hash(
     data_vault: &DataVault,
     sha2_512_384: &mut Sha2_512_384,
 ) -> CaliptraResult<[u8; 48]> {
+    let (soc_manifest_min_svn, soc_manifest_max_svn) =
+        soc_ifc.fuse_bank().soc_manifest_svn_measurement()?;
     // NOTE: The contents of this TCB info and FMC PCR info must stay in sync.
     //       Ordering and grouping is irrelevant but both must contain the same info
 
@@ -233,8 +235,8 @@ pub fn gen_fmc_alias_owner_device_info_hash(
     hasher.update(&[
         soc_ifc.fuse_bank().vendor_mldsa_pub_key_revocation() as u8,
         soc_ifc.fuse_bank().fw_fuse_svn() as u8,
-        soc_ifc.fuse_bank().soc_manifest_fuse_svn() as u8,
-        soc_ifc.fuse_bank().max_soc_manifest_fuse_svn() as u8,
+        soc_manifest_min_svn,
+        soc_manifest_max_svn,
     ])?;
     hasher.finalize(&mut fuse_owner_info_digest)?;
 

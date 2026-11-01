@@ -2090,6 +2090,12 @@ impl HwModel for ModelFpgaSubsystem {
         if let Some(reg) = boot_params.initial_ss_strap_generic_3 {
             self.soc_ifc().ss_strap_generic().at(3).write(|_| reg);
         }
+        if let Some(reg) = boot_params.initial_ss_fw_feature_cfg {
+            self.soc_ifc().ss_fw_feature_cfg().write(|_| reg);
+            if u32::from(self.soc_ifc().ss_fw_feature_cfg().read()) != u32::from(reg) {
+                return Err("SS_FW_FEATURE_CFG boot override was not applied".into());
+            }
+        }
 
         let gpio = &self.wrapper.regs().mci_generic_input_wires[1];
         let current = gpio.extract().get();

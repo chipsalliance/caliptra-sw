@@ -262,7 +262,7 @@ The manifest begins with the Preamble section, which contains new manifest ECC a
 
 The IMC is a collection of Image Metadata entries (IME). Each IME has a hash that matches one of the multiple SoC images. The manifest vendor and owner private keys sign the IMC. The Preamble holds the IMC signatures. The manifest IMC vendor signatures are optional and are validated only if the Flags field Bit 0 is set to 1. Up to 127 image hashes will be supported.
 
-An authorization manifest may set the vendor-signed `DEBUG_IMAGE` flag to identify a vendor-authorized debug manifest. `DEBUG_IMAGE` requires `VENDOR_SIGNATURE_REQUIRED`, subsystem mode, asserted `SS_DEBUG_INTENT`, and clear `SS_STRAP_GENERIC[3][31]` (`DISABLE_VENDOR_DEBUG_IMAGES`). Runtime evaluates this policy only after authenticating the firmware-vendor-signed preamble fields. Existing owner endorsement and IMC signature verification remain required.
+An authorization manifest may set the vendor-signed `DEBUG_IMAGE` flag to identify a vendor-authorized debug manifest. `DEBUG_IMAGE` requires `VENDOR_SIGNATURE_REQUIRED`, subsystem mode, asserted `SS_DEBUG_INTENT`, and clear `SS_FW_FEATURE_CFG.VENDOR_DEBUG_IMAGES_DIS`. Runtime evaluates this policy only after authenticating the firmware-vendor-signed preamble fields. Existing owner endorsement and IMC signature verification remain required.
 
 #### Caliptra Measurement Manifest Keys Endorsement Verification Steps
 
@@ -1198,9 +1198,9 @@ Command Code: `0x494E_464F` ("INFO")
 | vendor_ecc384_pub_key_index | u32      | Index of the vendor ECC public key used for verification. **Only present in FW 2.0.2+ and 2.1.1+.**                                                 |
 | vendor_pqc_pub_key_index    | u32      | Index of the vendor PQC public key used for verification. **Only present in FW 2.0.2+ and 2.1.1+.**                                                 |
 | soc_manifest_current_svn    | u32      | SVN of the authorization manifest accepted by `SET_AUTH_MANIFEST`, or zero if none has been accepted.                                              |
-| soc_manifest_min_svn        | u32      | Minimum SoC manifest SVN encoded in `FUSE_SOC_MANIFEST_SVN` and enforced by `SET_AUTH_MANIFEST` when anti-rollback checks are enabled.               |
+| soc_manifest_min_svn        | u32      | Numeric minimum SoC manifest SVN in `FUSE_SOC_MANIFEST_SVN[0]`, enforced by `SET_AUTH_MANIFEST` when anti-rollback checks are enabled.               |
 | owner_auth_manifest_current_svn | u32   | SVN of the owner authorization manifest accepted by `SET_OWNER_AUTH_MANIFEST`, or zero if none has been accepted.                                  |
-| owner_auth_manifest_min_svn | u32      | Minimum owner authorization manifest SVN encoded in `SS_STRAP_GENERIC[3][15:8]` and enforced by `SET_OWNER_AUTH_MANIFEST` when anti-rollback checks are enabled. |
+| owner_auth_manifest_min_svn | u32      | Numeric minimum owner authorization manifest SVN in `FUSE_SOC_MANIFEST_SVN[2]`, enforced by `SET_OWNER_AUTH_MANIFEST` when anti-rollback checks are enabled. |
 | debug_policy                | u32      | Active vendor-authorized debug policy. Bit 0 (`DEBUG_FIRMWARE_ACTIVE`) indicates that the active firmware bundle is marked as debug. Bit 1 (`DEBUG_AUTH_MANIFEST_ACTIVE`) indicates that the installed SoC authorization manifest is marked as debug. Bits 31:2 are zero. |
 
 ### VERSION
@@ -1454,7 +1454,7 @@ Command Code: `0x4154_4D4E` ("ATMN")
 | VENDOR_SIGNATURE_REQUIRED | 1 << 0    |
 | DEBUG_IMAGE               | 1 << 1    |
 
-`DEBUG_IMAGE` is valid only when `VENDOR_SIGNATURE_REQUIRED` is also set. Runtime rejects an invalid combination with `RUNTIME_AUTH_MANIFEST_INVALID_FLAGS`. Runtime rejects a debug manifest unless it is running in subsystem mode with `SS_DEBUG_INTENT` asserted and `SS_STRAP_GENERIC[3][31]` clear, returning `RUNTIME_AUTH_MANIFEST_DEBUG_IMAGE_NOT_ALLOWED`. Existing vendor and owner authentication remain required.
+`DEBUG_IMAGE` is valid only when `VENDOR_SIGNATURE_REQUIRED` is also set. Runtime rejects an invalid combination with `RUNTIME_AUTH_MANIFEST_INVALID_FLAGS`. Runtime rejects a debug manifest unless it is running in subsystem mode with `SS_DEBUG_INTENT` asserted and `SS_FW_FEATURE_CFG.VENDOR_DEBUG_IMAGES_DIS` clear, returning `RUNTIME_AUTH_MANIFEST_DEBUG_IMAGE_NOT_ALLOWED`. Existing vendor and owner authentication remain required.
 
 After a successful `SET_AUTH_MANIFEST`, Runtime sets `FW_INFO.debug_policy[1]` for a debug manifest and clears it for a normal manifest. Failed installations and `VERIFY_AUTH_MANIFEST` do not change the active bit. The bit survives warm and update resets, is cleared on cold reset, and is not modified by `SET_OWNER_AUTH_MANIFEST`.
 
@@ -1494,13 +1494,18 @@ Verification chain:
 
 1. The manifest's `owner_pub_keys` are signed by the firmware-image owner key (latched from FMC at boot via `manifest1.preamble.owner_pub_keys`). This signature also covers the policy fields `version`, `svn`, `flags`, and `owner_pub_keys`.
 2. The manifest's IMC is signed by the manifest's own `owner_pub_keys`, which were just verified to chain to the firmware-image owner key.
-3. The manifest's `svn` is checked against the floor encoded in `SS_STRAP_GENERIC[3][15:8]`. The check is skipped when the lifecycle is `Unprovisioned` or anti-rollback is disabled.
+3. The manifest's `svn` is checked against numeric `FUSE_SOC_MANIFEST_SVN[2]`. The check is skipped when the lifecycle is `Unprovisioned` or anti-rollback is disabled.
 
 #### Owner Authorization Manifest Minimum SVN
 
-`SS_STRAP_GENERIC[3][15:8]` carries a binary value in the range `0..255`; it does not carry a fuse bitmap. Before Caliptra starts, platform firmware is responsible for deriving the owner-manifest minimum SVN from the platform's monotonic storage and programming the resulting integer into this strap. The strap is then locked by `CPTRA_FUSE_WR_DONE`.
+`FUSE_SOC_MANIFEST_SVN[2]` carries the numeric owner-manifest minimum, independent
+of the SoC-manifest minimum in word `[0]`. Owner manifest SVNs retain their existing
+`0..255` limit. Before fuse completion, platform firmware derives the minimum
+from its monotonic storage and programs the resulting integer into word `[2]`.
+`CPTRA_FUSE_WR_DONE` then locks it until a power cycle. The old strap field is ignored.
 
-This software interface does not define a new Caliptra fuse field. If a platform uses the same thermometer encoding as the existing SVN fuses, a 256-bit-aligned platform field can use bits 0 through 254 to encode SVN values 1 through 255, with all zeros encoding SVN 0 and bit 255 reserved. The authoritative physical fuse allocation belongs to the SoC/platform fuse-controller specification.
+Physical OTP allocation and encoding remain platform-defined. The corresponding
+MCU OTP conversion and MCU-runtime word `[1]` enforcement are separate work.
 
 The maximum IMC capacity is 32 entries. Every active `fw_id` must be unique within this manifest and must not appear in the installed vendor + owner manifest. A collision rejects the command without replacing either active collection. Each successful call replaces the existing owner-only collection.
 
@@ -1513,7 +1518,7 @@ The maximum IMC capacity is 32 entries. Every active `fw_id` must be unique with
 | preamble\_marker                      | u32          | Marker needs to be `0x4D4F_574F` ("OWOM" little-endian) for the preamble to be valid. |
 | preamble\_size                        | u32          | Size of the Owner Authorization Manifest Preamble. |
 | preamble\_version                     | u32          | Version of the preamble. |
-| preamble\_svn                         | u32          | Security version, range `[0, 255]`. Checked against `SS_STRAP_GENERIC[3][15:8]`. |
+| preamble\_svn                         | u32          | Security version, range `[0, 255]`. Checked against numeric `FUSE_SOC_MANIFEST_SVN[2]`. |
 | preamble\_flags                       | u32          | Reserved. Must be zero. |
 | preamble\_owner\_ecc384\_key          | u32[24]      | Owner ECC384 public key carried in the manifest. |
 | preamble\_owner\_pqc\_key             | u32[648]     | Owner MLDSA-87 or LMS-SHA192-H15 public key carried in the manifest. |
@@ -2841,7 +2846,7 @@ If a key usage other than HMAC is desired, then the KDF or HKDF
 mailbox functions can be used to derive a key from the returned CMK.
 
 `key_type = OwnerKey` is only available in subsystem mode when the Stable Owner
-Key strap is enabled (`SS_STRAP_GENERIC[3]` bit 0 set to 1) and OCP LOCK is not
+Key configuration is enabled (`SS_FW_FEATURE_CFG.STABLE_OWNER_KEY_EN`) and OCP LOCK is not
 enabled. If these requirements are not met, the command fails with
 `CMB_STABLE_OWNER_KEY_NOT_AVAILABLE`.
 

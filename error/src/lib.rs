@@ -2213,6 +2213,11 @@ impl CaliptraError {
             "SOC_IFC driver Error: ICCM boot region commit failed"
         ),
         (
+            DRIVER_SOC_IFC_INVALID_SOC_MANIFEST_SVN,
+            0x00100006,
+            "SOC_IFC driver Error: SoC manifest SVN cannot be represented in measurements"
+        ),
+        (
             ADDRESS_MISALIGNED,
             0x00110000,
             "Bounded address Error: Misaligned"

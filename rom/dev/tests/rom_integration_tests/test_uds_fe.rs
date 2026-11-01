@@ -145,8 +145,10 @@ fn test_uds_programming_configurable_status_reg_offset() {
     })
     .unwrap();
 
-    let status_reg_offset = hw.soc_ifc().ss_strap_generic().at(0).read() & 0xFFFF;
+    let status_reg_offset = hw.soc_ifc().ss_otp_fc_status_cfg().read().status_offset();
     assert_eq!(status_reg_offset, OTP_STATUS_REG_OFFSET);
+    hw.soc_ifc().ss_strap_generic().at(0).write(|_| 0);
+    hw.soc_ifc().ss_strap_generic().at(1).write(|_| 0);
 
     hw.boot(BootParams::default()).unwrap();
 

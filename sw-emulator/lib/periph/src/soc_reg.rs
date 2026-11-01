@@ -379,6 +379,12 @@ const FUSE_START_ADDR: u32 = 0x200;
 /// Caliptra Fuse end address
 const FUSE_END_ADDR: u32 = 0x340;
 
+const SOC_MANIFEST_FUSE_START_ADDR: u32 = 0x390;
+const SOC_MANIFEST_FUSE_END_ADDR: u32 = 0x3a3;
+
+const FW_CONFIG_START_ADDR: u32 = 0x550;
+const FW_CONFIG_END_ADDR: u32 = 0x55b;
+
 /// Stash measurement data start address
 const STASH_DATA_START_ADDR: u32 = STASH_DATA_START;
 /// Stash measurement data end address
@@ -462,9 +468,7 @@ impl SocRegistersInternal {
     }
 
     pub fn set_strap_generic(&mut self, val: &[u32; SS_STRAP_GENERIC_SIZE / 4]) {
-        let mut regs = self.regs.borrow_mut();
-        regs.ss_strap_generic = *val;
-        regs.update_boot_integrity_straps();
+        self.regs.borrow_mut().ss_strap_generic = *val;
     }
 
     pub fn external_regs(&self) -> SocRegistersExternal {
@@ -477,7 +481,7 @@ impl SocRegistersInternal {
         let mut regs = self.regs.borrow_mut();
         regs.boot_integrity = Some(state);
         regs.boot_key_vault = Some(vault);
-        regs.update_boot_integrity_straps();
+        regs.update_boot_integrity_config();
     }
 
     pub(crate) fn entered_firmware(&self) -> bool {
@@ -513,7 +517,9 @@ impl Bus for SocRegistersInternal {
             return result;
         }
         match addr {
-            FUSE_START_ADDR..=FUSE_END_ADDR => {
+            FUSE_START_ADDR..=FUSE_END_ADDR
+            | SOC_MANIFEST_FUSE_START_ADDR..=SOC_MANIFEST_FUSE_END_ADDR
+            | FW_CONFIG_START_ADDR..=FW_CONFIG_END_ADDR => {
                 // Microcontroller can't ever write to fuse registers
                 Err(StoreAccessFault)
             }
@@ -597,6 +603,15 @@ impl Bus for SocRegistersExternal {
             return result;
         }
         match addr {
+            SOC_MANIFEST_FUSE_START_ADDR..=SOC_MANIFEST_FUSE_END_ADDR
+            | FW_CONFIG_START_ADDR..=FW_CONFIG_END_ADDR => {
+                if self.regs.borrow().cptra_fuse_wr_done & 1 == 0 {
+                    self.regs.borrow_mut().write_register(size, addr, val)
+                } else {
+                    // Retained fuse values ignore writes after completion, including warm boot.
+                    Ok(())
+                }
+            }
             FUSE_START_ADDR..=FUSE_END_ADDR => {
                 if self.regs.borrow_mut().fuses_can_be_written {
                     self.regs.borrow_mut().write(size, addr, val)
@@ -896,6 +911,15 @@ struct SocRegistersImpl {
     #[register(offset = 0x54c, write_fn = on_write_ss_ocp_lock_ctrl)]
     ss_ocp_lock_ctrl: u32,
 
+    #[register(offset = 0x550)]
+    ss_otp_fc_status_cfg: u32,
+
+    #[register(offset = 0x554, write_fn = on_write_ss_otp_fc_cmd_cfg)]
+    ss_otp_fc_cmd_cfg: u32,
+
+    #[register(offset = 0x558, write_fn = on_write_ss_fw_feature_cfg)]
+    ss_fw_feature_cfg: u32,
+
     #[register_array(offset = 0x5a0, write_fn = on_write_ss_strap_generic)]
     ss_strap_generic: [u32; 4],
 
@@ -1148,6 +1172,9 @@ impl SocRegistersImpl {
             fuse_uds_seed: words_from_bytes_be(&Self::UDS),
             fuse_field_entropy: [0xffff_ffff; 8],
             ss_strap_generic: [0; 4],
+            ss_otp_fc_status_cfg: 0,
+            ss_otp_fc_cmd_cfg: 0,
+            ss_fw_feature_cfg: 0,
             fuse_vendor_pk_hash: [0; 12],
             fuse_ecc_revocation: Default::default(),
             fuse_fmc_svn: Default::default(),
@@ -1299,11 +1326,11 @@ impl SocRegistersImpl {
             .write(size, self.cptra_hw_error_non_fatal.reg.get() & !val)
     }
 
-    fn update_boot_integrity_straps(&mut self) {
+    fn update_boot_integrity_config(&mut self) {
         if let Some(state) = &self.boot_integrity {
             let mut state = state.borrow_mut();
             state.stable_owner =
-                state.measurement_enabled() && self.ss_strap_generic[3] & 1 != 0 && !state.ocp_lock;
+                state.measurement_enabled() && self.ss_fw_feature_cfg & 1 != 0 && !state.ocp_lock;
         }
     }
 
@@ -1643,7 +1670,17 @@ impl SocRegistersImpl {
         val: RvData,
     ) -> Result<(), BusError> {
         self.ss_strap_generic[index] = val;
-        self.update_boot_integrity_straps();
+        Ok(())
+    }
+
+    fn on_write_ss_otp_fc_cmd_cfg(&mut self, _size: RvSize, val: RvData) -> Result<(), BusError> {
+        self.ss_otp_fc_cmd_cfg = val & 0xffff;
+        Ok(())
+    }
+
+    fn on_write_ss_fw_feature_cfg(&mut self, _size: RvSize, val: RvData) -> Result<(), BusError> {
+        self.ss_fw_feature_cfg = val & 0x8000_0001;
+        self.update_boot_integrity_config();
         Ok(())
     }
 
@@ -1907,7 +1944,7 @@ mod tests {
     use zerocopy::IntoBytes;
 
     #[test]
-    fn test_boot_integrity_register_routing_and_strap_gating() {
+    fn test_boot_integrity_register_routing_and_feature_configuration() {
         for subsystem_mode in [false, true] {
             for ocp_lock_en in [false, true] {
                 let clock = Rc::new(Clock::new());
@@ -1930,10 +1967,14 @@ mod tests {
                 caliptra_reg.attach_boot_integrity(state.clone(), KeyVault::new());
                 let mut soc_reg = caliptra_reg.external_regs();
                 let stable_owner = subsystem_mode && !ocp_lock_en;
+                assert!(!state.borrow().stable_owner);
+                soc_reg.write(RvSize::Word, 0x558, 1).unwrap();
                 assert_eq!(state.borrow().stable_owner, stable_owner);
                 soc_reg.write(RvSize::Word, 0x5ac, 0).unwrap();
+                assert_eq!(state.borrow().stable_owner, stable_owner);
+                soc_reg.write(RvSize::Word, 0x558, 0).unwrap();
                 assert!(!state.borrow().stable_owner);
-                soc_reg.write(RvSize::Word, 0x5ac, 1).unwrap();
+                soc_reg.write(RvSize::Word, 0x558, 1).unwrap();
                 assert_eq!(state.borrow().stable_owner, stable_owner);
 
                 for _ in 0..2 {
@@ -1981,6 +2022,103 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn test_named_firmware_configuration_access_and_retention() {
+        let clock = Rc::new(Clock::new());
+        let mailbox = MailboxInternal::new(&clock, MailboxRam::default());
+        let args = CaliptraRootBusArgs {
+            clock: clock.clone(),
+            ..Default::default()
+        };
+        let mut caliptra_reg =
+            SocRegistersInternal::new(mailbox, Iccm::new(&clock), Mci::new(vec![]), args);
+        let mut soc_reg = caliptra_reg.external_regs();
+        let configuration = [
+            (0x550, 0x001e_0010, 0x001e_0010),
+            (0x554, 0xffff_0080, 0x80),
+            (0x558, u32::MAX, 0x8000_0001),
+        ];
+        for (addr, value, expected) in configuration {
+            assert_eq!(caliptra_reg.read(RvSize::Word, addr), Ok(0));
+            soc_reg.write(RvSize::Word, addr, value).unwrap();
+            assert_eq!(caliptra_reg.read(RvSize::Word, addr), Ok(expected));
+            assert_eq!(
+                caliptra_reg.write(RvSize::Word, addr, 0),
+                Err(StoreAccessFault)
+            );
+            assert_eq!(soc_reg.read(RvSize::Word, addr), Ok(expected));
+        }
+        soc_reg
+            .write(RvSize::Word, CPTRA_FUSE_WR_DONE_START, 1)
+            .unwrap();
+        for warm_reset in [false, true] {
+            if warm_reset {
+                caliptra_reg.warm_reset();
+            }
+            for (addr, _, expected) in configuration {
+                soc_reg.write(RvSize::Word, addr, 0).unwrap();
+                assert_eq!(caliptra_reg.read(RvSize::Word, addr), Ok(expected));
+            }
+        }
+
+        let mailbox = MailboxInternal::new(&clock, MailboxRam::default());
+        let args = CaliptraRootBusArgs {
+            clock: clock.clone(),
+            ..Default::default()
+        };
+        let mut power_cycled =
+            SocRegistersInternal::new(mailbox, Iccm::new(&clock), Mci::new(vec![]), args);
+        for (addr, _, _) in configuration {
+            assert_eq!(power_cycled.read(RvSize::Word, addr), Ok(0));
+        }
+    }
+
+    #[test]
+    fn test_soc_manifest_svn_fuses_are_read_only_and_retained() {
+        let clock = Rc::new(Clock::new());
+        let mailbox = MailboxInternal::new(&clock, MailboxRam::default());
+        let args = CaliptraRootBusArgs {
+            clock: clock.clone(),
+            ..Default::default()
+        };
+        let mut caliptra_reg =
+            SocRegistersInternal::new(mailbox, Iccm::new(&clock), Mci::new(vec![]), args);
+        let mut soc_reg = caliptra_reg.external_regs();
+        let values = [3, 17, 8, 99, 128];
+
+        for (index, value) in values.into_iter().enumerate() {
+            let addr = SOC_MANIFEST_FUSE_START_ADDR + index as u32 * 4;
+            soc_reg.write(RvSize::Word, addr, value).unwrap();
+            assert_eq!(caliptra_reg.read(RvSize::Word, addr), Ok(value));
+            assert_eq!(
+                caliptra_reg.write(RvSize::Word, addr, 0),
+                Err(StoreAccessFault)
+            );
+        }
+        soc_reg
+            .write(RvSize::Word, CPTRA_FUSE_WR_DONE_START, 1)
+            .unwrap();
+
+        for warm_reset in [false, true] {
+            if warm_reset {
+                caliptra_reg.warm_reset();
+            }
+            for (index, value) in values.into_iter().enumerate() {
+                let addr = SOC_MANIFEST_FUSE_START_ADDR + index as u32 * 4;
+                soc_reg.write(RvSize::Word, addr, u32::MAX).unwrap();
+                assert_eq!(caliptra_reg.read(RvSize::Word, addr), Ok(value));
+            }
+        }
+
+        soc_reg
+            .write(RvSize::Word, CPTRA_FUSE_WR_DONE_START, 1)
+            .unwrap();
+        assert_eq!(
+            soc_reg.read(RvSize::Word, CPTRA_FLOW_STATUS_START).unwrap() & (1 << 30),
+            0
+        );
     }
 
     #[test]

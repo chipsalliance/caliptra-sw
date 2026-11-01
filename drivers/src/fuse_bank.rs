@@ -12,7 +12,7 @@ Abstract:
 
 --*/
 
-use crate::{Array4x12, Array4x16, Array4x8};
+use crate::{Array4x12, Array4x16, Array4x8, CaliptraError, CaliptraResult};
 #[cfg(feature = "cfi")]
 use caliptra_cfi_derive::Launder;
 use caliptra_registers::soc_ifc::SocIfcReg;
@@ -276,14 +276,23 @@ impl FuseBank<'_> {
         first_set_msbit(&soc_ifc_regs.fuse_runtime_svn().read())
     }
 
-    /// Get the SoC manifest fuse security version number.
+    /// Get the numeric SoC manifest minimum SVN from fuse word zero.
     ///
     /// # Returns
     ///     SoC manifest security version number
     ///
     pub fn soc_manifest_fuse_svn(&self) -> u32 {
         let soc_ifc_regs = self.soc_ifc.regs();
-        first_set_msbit(&soc_ifc_regs.fuse_soc_manifest_svn().read())
+        soc_ifc_regs.fuse_soc_manifest_svn().at(0).read()
+    }
+
+    /// Get the SoC manifest bounds in the ROM's one-byte measurement format.
+    pub fn soc_manifest_svn_measurement(&self) -> CaliptraResult<(u8, u8)> {
+        let min_svn = u8::try_from(self.soc_manifest_fuse_svn())
+            .map_err(|_| CaliptraError::DRIVER_SOC_IFC_INVALID_SOC_MANIFEST_SVN)?;
+        let max_svn = u8::try_from(self.max_soc_manifest_fuse_svn())
+            .map_err(|_| CaliptraError::DRIVER_SOC_IFC_INVALID_SOC_MANIFEST_SVN)?;
+        Ok((min_svn, max_svn))
     }
 
     /// Get the maximum SoC manifest fuse security version number.

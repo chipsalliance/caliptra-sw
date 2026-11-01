@@ -367,7 +367,7 @@ fn test_rejected_debug_update_preserves_fw_info_policy() {
 
 #[cfg_attr(any(feature = "fpga_realtime", feature = "fpga_subsystem"), ignore)]
 #[test]
-fn test_debug_update_disabled_by_strap_preserves_fw_info_policy() {
+fn test_debug_update_disabled_by_fw_feature_cfg_preserves_fw_info_policy() {
     if !rom_supports_vendor_debug_image_enforcement() {
         return;
     }
@@ -388,7 +388,7 @@ fn test_debug_update_disabled_by_strap_preserves_fw_info_policy() {
         test_sram: Some(&debug_image),
         subsystem_mode: true,
         debug_intent: true,
-        initial_ss_strap_generic_3: Some(DISABLE_VENDOR_DEBUG_IMAGES),
+        initial_ss_fw_feature_cfg: Some(DISABLE_VENDOR_DEBUG_IMAGES),
         ..Default::default()
     });
 

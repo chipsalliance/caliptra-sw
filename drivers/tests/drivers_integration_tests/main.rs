@@ -827,6 +827,50 @@ fn test_status_reporter() {
 }
 
 #[test]
+#[cfg(not(any(
+    feature = "verilator",
+    feature = "fpga_realtime",
+    feature = "fpga_subsystem"
+)))]
+fn test_named_firmware_configuration_ignores_legacy_straps() {
+    let rom =
+        caliptra_builder::build_firmware_rom(&firmware::driver_tests::STATUS_REPORTER).unwrap();
+    for subsystem_mode in [false, true] {
+        for debug_intent in [false, true] {
+            for ocp_lock_en in [false, true] {
+                for features in [0u32, 1, 1 << 31, 0x8000_0001] {
+                    let mut model = caliptra_hw_model::new_unbooted(InitParams {
+                        rom: &rom,
+                        subsystem_mode,
+                        debug_intent,
+                        ocp_lock_en,
+                        otp_status_reg_offset: 0x24,
+                        otp_dai_idle_bit_offset: 7,
+                        otp_direct_access_cmd_reg_offset: 0x88,
+                        ..default_init_params()
+                    })
+                    .unwrap();
+                    model
+                        .soc_ifc()
+                        .ss_strap_generic()
+                        .at(0)
+                        .write(|_| 0x001e_0010);
+                    model.soc_ifc().ss_strap_generic().at(1).write(|_| 0x80);
+                    model
+                        .boot(BootParams {
+                            initial_ss_strap_generic_3: Some(!features & 0x8000_0001),
+                            initial_ss_fw_feature_cfg: Some(features.into()),
+                            ..Default::default()
+                        })
+                        .unwrap();
+                    model.step_until_exit_success().unwrap();
+                }
+            }
+        }
+    }
+}
+
+#[test]
 fn test_lms_24() {
     run_driver_test(&firmware::driver_tests::TEST_LMS_24);
 }

@@ -623,7 +623,7 @@ fn test_debug_auth_manifest_policy() {
             RuntimeTestArgs {
                 subsystem_mode: true,
                 debug_intent: true,
-                initial_ss_strap_generic_3: Some(DISABLE_VENDOR_DEBUG_IMAGES),
+                initial_ss_fw_feature_cfg: Some(DISABLE_VENDOR_DEBUG_IMAGES),
                 ..Default::default()
             },
             pqc_key_type,
@@ -1209,6 +1209,43 @@ fn test_set_auth_manifest_with_svn_unprovisioned() {
         ..Default::default()
     });
     model_set_manifest_command_execute(&mut model, manifest, None);
+}
+
+#[test]
+#[cfg(not(feature = "fpga_subsystem"))]
+fn test_set_auth_manifest_numeric_svn_floor() {
+    for minimum in [3, 8] {
+        let mut model = run_rt_test_pqc(
+            RuntimeTestArgs {
+                security_state: Some(
+                    *SecurityState::default().set_device_lifecycle(DeviceLifecycle::Manufacturing),
+                ),
+                soc_manifest_svn: Some(minimum),
+                ..Default::default()
+            },
+            FwVerificationPqcKeyType::default(),
+        );
+        model_set_manifest_command_execute(
+            &mut model,
+            create_auth_manifest(&AuthManifestBuilderCfg {
+                svn: minimum - 1,
+                ..Default::default()
+            }),
+            Some(CaliptraError::IMAGE_VERIFIER_ERR_FIRMWARE_SVN_LESS_THAN_FUSE),
+        );
+        model_set_manifest_command_execute(
+            &mut model,
+            create_auth_manifest(&AuthManifestBuilderCfg {
+                svn: minimum,
+                ..Default::default()
+            }),
+            None,
+        );
+        assert_eq!(
+            crate::test_info::get_fwinfo(&mut model).soc_manifest_min_svn,
+            minimum
+        );
+    }
 }
 
 #[test]

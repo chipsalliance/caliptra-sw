@@ -66,7 +66,7 @@ Following are the main FUSE & Architectural Registers used by the Caliptra ROM f
 | FUSE_MANUF_DEBUG_UNLOCK_TOKEN    | 512           | SHA-512 digest of secret value for manufacturing debug unlock authorization. Stored as `[u32; 16]` — see [Fuse value byte ordering](#fuse-value-byte-ordering). |
 | FUSE_PQC_KEY_TYPE                | 2             | One-hot encoded selection of PQC key type for firmware validation. <br> **Bit 0**: MLDSA <br> **Bit 1**: LMS |
 | FUSE_HEK_SEED                   | 256           | OCP HEK Seed. Stored as `[u32; 8]` — see [Fuse value byte ordering](#fuse-value-byte-ordering). |
-| FUSE_SOC_MANIFEST_SVN            | 128           | SoC Manifest Security Version Number. 128-bit bitmap — see [Fuse value byte ordering](#fuse-value-byte-ordering). |
+| FUSE_SOC_MANIFEST_SVN            | 4 x 32        | Independent numeric minimum SVNs: word 0 SoC manifest, word 1 MCU runtime, word 2 owner manifest, word 3 reserved/late-binding use. |
 | FUSE_SOC_MANIFEST_MAX_SVN        | 8             | Maximum SoC Manifest Security Version Number            |
 | FUSE_SOC_STEPPING_ID             | 16            | SoC Stepping Identifier                                 |
 | FUSE_IDEVID_MANUF_HSM_ID         | 128           | Manufacturer HSM Identifier. Stored as `[u32; 4]` — see [Fuse value byte ordering](#fuse-value-byte-ordering). |
@@ -76,26 +76,40 @@ Following are the main FUSE & Architectural Registers used by the Caliptra ROM f
 | :------------------------------ | :------------|  :----------------------------------------------------- |
 | CPTRA_OWNER_PK_HASH             | 384          | Owner ECC and LMS or MLDSA Public Key Hash. Stored as `[u32; 12]` — see [Public key hash byte ordering](#public-key-hash-byte-ordering-dword-reversal). |
 
+### Named Subsystem Firmware Configuration (2.2)
+
+Caliptra firmware reads the following SoC-owned configuration registers. The
+SoC/MCU provisioner supplies the platform values before `CPTRA_FUSE_WR_DONE`;
+Caliptra firmware does not write them. Values remain locked across warm reset
+and clear on `cptra_pwrgood`. Zero reset values are not OTP-controller defaults.
+
+| Register | Field | Consumer |
+| :------- | :---- | :------- |
+| `SS_OTP_FC_STATUS_CFG` | `STATUS_OFFSET` | OTP controller status-register offset for UDS/Field Entropy programming |
+| `SS_OTP_FC_STATUS_CFG` | `DAI_IDLE_BIT_NUM` | DAI idle bit index in the OTP status register |
+| `SS_OTP_FC_CMD_CFG` | `DIRECT_ACCESS_CMD_OFFSET` | OTP direct-access command-register offset |
+| `SS_FW_FEATURE_CFG` | `STABLE_OWNER_KEY_EN` | Stable Owner Key availability |
+| `SS_FW_FEATURE_CFG` | `VENDOR_DEBUG_IMAGES_DIS` | Active-high disable of vendor-authorized debug images |
+
+The former mappings in generic straps `[0]`, `[1]`, and `[3]` are ignored, even
+when their values conflict. MCU provisioning of the named registers is a
+coordinated MCU-side change; this Core change only consumes them. Entropy
+configuration and the fuse-completion/warm-reset handshake are unchanged.
+
 ### Subsystem Generic Strap Allocation
 
 The following table is the allocation registry for `SS_STRAP_GENERIC[0..3]` fields consumed by Caliptra firmware. New uses must be assigned to a reserved, non-overlapping range and added to this table. These subsystem straps are sampled at reset, may be overwritten by the SoC before `CPTRA_FUSE_WR_DONE`, and are locked when `CPTRA_FUSE_WR_DONE` is set.
 
 | Register | Field/Bits | Allocation | Consumer |
 | :------- | :--------- | :--------- | :------- |
-| `SS_STRAP_GENERIC[0]` | `[15:0]` | Offset of the OTP controller `STATUS` register from `SS_OTP_FC_BASE_ADDR`. | ROM UDS and Field Entropy programming |
-| `SS_STRAP_GENERIC[0]` | `[31:16]` | Bit index of the DAI idle indicator in the OTP controller `STATUS` register. | ROM UDS and Field Entropy programming |
-| `SS_STRAP_GENERIC[1]` | `[15:0]` | Offset of the OTP controller `DIRECT_ACCESS_CMD` register from `SS_OTP_FC_BASE_ADDR`. | ROM UDS and Field Entropy programming |
-| `SS_STRAP_GENERIC[1]` | `[31:16]` | Reserved. | — |
+| `SS_STRAP_GENERIC[0]` | `[31:0]` | Former OTP status configuration; no longer consumed. | Reserved |
+| `SS_STRAP_GENERIC[1]` | `[31:0]` | Former OTP command configuration; no longer consumed. | Reserved |
 | `SS_STRAP_GENERIC[2]` | `[15:0]` | Entropy-source health-test window size. Zero selects the default value of 1024. | ROM entropy-source initialization |
 | `SS_STRAP_GENERIC[2]` | `[16]` | Entropy-source single-bit mode enable. | ROM entropy-source initialization |
 | `SS_STRAP_GENERIC[2]` | `[18:17]` | Entropy-source single-bit lane selector. | ROM entropy-source initialization |
 | `SS_STRAP_GENERIC[2]` | `[30:19]` | Reserved. | — |
 | `SS_STRAP_GENERIC[2]` | `[31]` | Entropy-source conditioning bypass enable. | ROM entropy-source initialization |
-| `SS_STRAP_GENERIC[3]` | `[0]` | Stable Owner Key enable. | ROM stable-key derivation and Runtime cryptographic mailbox |
-| `SS_STRAP_GENERIC[3]` | `[7:1]` | Reserved. | — |
-| `SS_STRAP_GENERIC[3]` | `[15:8]` | Owner Authorization Manifest minimum SVN, encoded as an unsigned integer. | Runtime owner authorization manifest verification |
-| `SS_STRAP_GENERIC[3]` | `[30:16]` | Reserved. | — |
-| `SS_STRAP_GENERIC[3]` | `[31]` | Disable vendor-authorized debug images. | ROM firmware image and Runtime authorization manifest verification |
+| `SS_STRAP_GENERIC[3]` | `[31:0]` | Former firmware-feature and owner-manifest SVN allocation; no longer consumed. Owner SVN is numeric `FUSE_SOC_MANIFEST_SVN[2]`. | Reserved |
 
 ### Entropy Source Configuration Registers
 
@@ -121,11 +135,11 @@ The ROM configures the entropy source (CSRNG) during initialization using the fo
 
 ### Stable Owner Key Root Derivation
 
-The Stable Owner Key feature is only available in subsystem mode when OCP LOCK is disabled and the following subsystem strap is set:
+The Stable Owner Key feature is only available in subsystem mode when OCP LOCK is disabled and the following configuration field is set:
 
 | Register                         | Field/Bits | Description                                             |
 | :------------------------------- | :--------- | :------------------------------------------------------ |
-| SS_STRAP_GENERIC[3]              | [0]        | Stable Owner Key enable. When set to 1, ROM derives the Stable Owner Root Key from the HEK seed and allows `CM_DERIVE_STABLE_KEY` with `key_type = OwnerKey` when the other availability requirements are met. When clear, Stable Owner Key derivation is disabled. |
+| SS_FW_FEATURE_CFG              | [0]        | Stable Owner Key enable. When set to 1, ROM derives the Stable Owner Root Key from the HEK seed and allows `CM_DERIVE_STABLE_KEY` with `key_type = OwnerKey` when the other availability requirements are met. When clear, Stable Owner Key derivation is disabled. |
 
 When the feature is available, ROM derives the Stable Owner Root Key during the IDevID stage before clearing DOE secrets:
 
@@ -236,7 +250,7 @@ The header contains the security version and SHA2-384 hash of the table of conte
 | Vendor Data | 40 | Vendor Data. <br> **Not Before:** Vendor Start Date [ASN1 Time Format] For Alias FMC and Alias RT certificates (15 bytes) <br> **Not After:** Vendor End Date [ASN1 Time Format] For Alias FMC and Alias RT certificates (15 bytes) <br> **Reserved:** (10 bytes) |
 | Owner Data | 40 | Owner Data. <br> **Not Before:** Owner Start Date [ASN1 Time Format] For Alias FMC and Alias RT certificates. Takes preference over vendor start date (15 bytes) <br> **Not After:** Owner End Date [ASN1 Time Format] For Alias FMC and Alias RT certificates. Takes preference over vendor end date (15 bytes) <br> **Reserved:** (10 bytes) |
 
-ROM treats the debug-image flag as trusted only after the manufacturer ECC and selected PQC header signatures have been verified. A firmware bundle marked as a debug image can only be loaded in subsystem mode when `SS_DEBUG_INTENT` is asserted and the active-high `SS_STRAP_GENERIC[3][31]` (`DISABLE_VENDOR_DEBUG_IMAGES`) opt-out is clear. Otherwise, verification fails with `IMAGE_VERIFIER_ERR_DEBUG_IMAGE_NOT_ALLOWED`. A normal image is unaffected by Debug Intent and the opt-out strap, and debug images continue through the existing owner-signature and image-integrity checks.
+ROM treats the debug-image flag as trusted only after the manufacturer ECC and selected PQC header signatures have been verified. A firmware bundle marked as a debug image can only be loaded in subsystem mode when `SS_DEBUG_INTENT` is asserted and the active-high `SS_FW_FEATURE_CFG.VENDOR_DEBUG_IMAGES_DIS` opt-out is clear. Otherwise, verification fails with `IMAGE_VERIFIER_ERR_DEBUG_IMAGE_NOT_ALLOWED`. A normal image is unaffected by Debug Intent and the opt-out configuration, and debug images continue through the existing owner-signature and image-integrity checks.
 
 #### Table of contents
 
@@ -335,9 +349,9 @@ The following flows are conducted when the ROM is operating in the manufacturing
 3. ROM then retrieves the UDS granularity from `CPTRA_HW_CONFIG.FUSE_GRANULARITY`. If the bit is reset, it indicates 64-bit granularity; otherwise, it indicates 32-bit granularity.
 
 4. ROM computes the following values:
-    - `STATUS` register address: Fuse Controller's base address + ((`SS_STRAP_GENERIC` register0) & 0xFFFF).
-    - DAI_IDLE bit index within the `STATUS` register: (`SS_STRAP_GENERIC` register0 >> 16) & 0xFFFF.
-    - `DIRECT_ACCESS_CMD` register address: Fuse Controller's base address + ((`SS_STRAP_GENERIC` register1) & 0xFFFF).
+    - `STATUS` register address: Fuse Controller's base address + `SS_OTP_FC_STATUS_CFG.STATUS_OFFSET`.
+    - DAI_IDLE bit index within the `STATUS` register: `SS_OTP_FC_STATUS_CFG.DAI_IDLE_BIT_NUM`.
+    - `DIRECT_ACCESS_CMD` register address: Fuse Controller's base address + `SS_OTP_FC_CMD_CFG.DIRECT_ACCESS_CMD_OFFSET`.
 
 4. ROM then performs the following steps until all the 512 bits of the UDS seed are programmed:
     1. The ROM verifies the idle state of the DAI by reading the `STATUS` register `DAI_IDLE` bit using the offset retrieved above.
@@ -1334,7 +1348,7 @@ The basic flow for validating the firmware involves the following:
 - Validating the owner keys with the hash in the key descriptors.
 - Validating the active manufacturer keys against the key revocation fuses.
 - Validating the Manifest Header using the active manufacturer keys against the manufacturer signatures.
-- If the manufacturer-signed header marks the bundle as a debug image, requiring subsystem mode, asserted `SS_DEBUG_INTENT`, and clear `SS_STRAP_GENERIC[3][31]`.
+- If the manufacturer-signed header marks the bundle as a debug image, requiring subsystem mode, asserted `SS_DEBUG_INTENT`, and clear `SS_FW_FEATURE_CFG.VENDOR_DEBUG_IMAGES_DIS`.
 - Validating the Manifest Header using the owner keys against the owner signatures.
 - On the completion of these validations, it is assured that the header portion is authentic.
 - Reading the FMC and Runtime (RT) TOC entries from the protected manifest snapshot.
@@ -2103,9 +2117,10 @@ hash and the runtime verification hash are both computed over
 
 #### SVN fuses (little-endian 128-bit bitmap)
 
-**FUSE_FIRMWARE_SVN** and **FUSE_SOC_MANIFEST_SVN** are 128-bit one-hot encoded bitmaps stored
-as `[u32; 4]`. These are **not** cryptographic values — the security version
-number equals the bit position of the highest set bit.
+**FUSE_FIRMWARE_SVN** remains a 128-bit bitmap stored as `[u32; 4]`.
+It is **not** a cryptographic value: the security version number equals the bit
+position of the highest set bit. This encoding does not apply to
+`FUSE_SOC_MANIFEST_SVN` on 2.2.
 
 The four words form a little-endian 128-bit integer: word\[0\] contains bits
 0–31, word\[1\] contains bits 32–63, and so on.
@@ -2127,6 +2142,24 @@ FUSE_FIRMWARE_SVN[1] = 0x000000FF    (bits 32-39 set)
 FUSE_FIRMWARE_SVN[2] = 0x00000000
 FUSE_FIRMWARE_SVN[3] = 0x00000000
 ```
+
+#### SoC manifest SVN fuses (independent numeric values, 2.2)
+
+`FUSE_SOC_MANIFEST_SVN[0..3]` contains four independent numeric words, not one
+128-bit bitmap. Core consumes word `[0]` for the SoC manifest and word `[2]` for
+the owner manifest. SoC floor 3 and owner floor 8 are programmed as `[3, 0, 8, 0]`
+before `CPTRA_FUSE_WR_DONE`. Platform firmware converts its monotonic OTP storage
+to numeric register values; this interface does not redefine physical OTP encoding.
+
+The one-byte PCR DeviceStatus and FMC-alias device-info measurement formats are
+unchanged. A SoC minimum above 255 is explicitly rejected with
+`DRIVER_SOC_IFC_INVALID_SOC_MANIFEST_SVN` instead of being truncated.
+Existing accepted image-SVN limits remain unchanged.
+
+Word `[1]` is the MCU-runtime minimum and `[3]` is reserved/late-binding use.
+This change does not add enforcement for either word. The MCU OTP conversion
+and enforcement contract require coordinated integration before subsystem use.
+Named OTP/feature configuration and entropy-source migration remain separate work.
 
 #### Obfuscated seed fuses (big-endian words)
 

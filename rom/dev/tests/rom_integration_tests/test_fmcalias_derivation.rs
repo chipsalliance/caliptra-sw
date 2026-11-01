@@ -37,6 +37,55 @@ fn first_set_msbit(num_le: &[u32; 4]) -> u32 {
 }
 
 #[test]
+#[cfg(not(feature = "fpga_subsystem"))]
+fn test_soc_manifest_svn_must_fit_measurements() {
+    for minimum in [256, 0x103, u32::MAX] {
+        let (mut hw, image) = helpers::build_hw_model_and_image_bundle(
+            Fuses {
+                soc_manifest_svn: [minimum, 0, 0, 0],
+                ..Default::default()
+            },
+            ImageOptions::default(),
+        );
+        assert_fatal_fw_load(
+            &mut hw,
+            FwVerificationPqcKeyType::default(),
+            &image.to_bytes().unwrap(),
+            CaliptraError::DRIVER_SOC_IFC_INVALID_SOC_MANIFEST_SVN,
+        );
+    }
+}
+
+#[test]
+#[cfg(not(feature = "fpga_subsystem"))]
+fn test_soc_manifest_svn_byte_measurement() {
+    let image = caliptra_builder::build_and_sign_image(
+        &TEST_FMC_INTERACTIVE,
+        &APP_WITH_UART,
+        ImageOptions::default(),
+    )
+    .unwrap()
+    .to_bytes()
+    .unwrap();
+    for minimum in [3, 8, 255] {
+        let mut hw = helpers::build_hw_model(Fuses {
+            soc_manifest_svn: [minimum, 0, 8, 0],
+            ..Default::default()
+        });
+        helpers::test_upload_firmware(&mut hw, &image, FwVerificationPqcKeyType::default());
+        hw.step_until_boot_status(u32::from(ColdResetComplete), true);
+        let log = hw.mailbox_execute(0x1000_0000, &[]).unwrap().unwrap();
+        let (entry, _) = PcrLogEntry::ref_from_prefix(log.as_slice()).unwrap();
+        assert_eq!(entry.id, PcrLogEntryId::DeviceStatus as u16);
+        let status = entry.measured_data();
+        assert_eq!(status.len(), 18);
+        assert_eq!(status[9], u8::try_from(minimum).unwrap());
+        assert_eq!(status[10], 128);
+        assert_eq!(status[17], 0);
+    }
+}
+
+#[test]
 fn test_zero_firmware_size() {
     let (mut hw, _image_bundle) =
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
@@ -220,7 +269,7 @@ fn test_pcr_log() {
                 fuses.fuse_lms_revocation.to_le_bytes()[3],
                 fuses.fuse_mldsa_revocation as u8,
                 first_set_msbit(&fuses.fw_svn) as u8,
-                first_set_msbit(&fuses.soc_manifest_svn) as u8,
+                u8::try_from(fuses.soc_manifest_svn[0]).unwrap(),
                 fuses.soc_manifest_max_svn,
                 fuses.fuse_pqc_key_type as u8,
                 device_lifecycle as u8,
@@ -343,7 +392,7 @@ fn test_pcr_log_no_owner_key_digest_fuse() {
                 fuses.fuse_lms_revocation.to_le_bytes()[3],
                 fuses.fuse_mldsa_revocation as u8,
                 first_set_msbit(&fuses.fw_svn) as u8,
-                first_set_msbit(&fuses.soc_manifest_svn) as u8,
+                u8::try_from(fuses.soc_manifest_svn[0]).unwrap(),
                 fuses.soc_manifest_max_svn,
                 fuses.fuse_pqc_key_type as u8,
                 device_lifecycle as u8,
@@ -464,7 +513,7 @@ fn test_pcr_log_fmc_fuse_svn() {
                 fuses.fuse_lms_revocation.to_le_bytes()[3],
                 fuses.fuse_mldsa_revocation as u8,
                 first_set_msbit(&fuses.fw_svn) as u8,
-                first_set_msbit(&fuses.soc_manifest_svn) as u8,
+                u8::try_from(fuses.soc_manifest_svn[0]).unwrap(),
                 fuses.soc_manifest_max_svn,
                 fuses.fuse_pqc_key_type as u8,
                 device_lifecycle as u8,

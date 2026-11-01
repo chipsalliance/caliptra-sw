@@ -72,6 +72,8 @@ pub(crate) fn extend_pcrs(
     pcr_bank: &mut PcrBank,
     sha2_512_384: &mut Sha2_512_384,
 ) -> CaliptraResult<()> {
+    let (soc_manifest_min_svn, soc_manifest_max_svn) =
+        soc_ifc.fuse_bank().soc_manifest_svn_measurement()?;
     let data_vault = &persistent_data.rom.data_vault;
     let owner_pk_hash = <[u8; 48]>::from(&data_vault.owner_pk_hash());
     let fmc_tci = <[u8; 48]>::from(&data_vault.fmc_tci());
@@ -101,8 +103,8 @@ pub(crate) fn extend_pcrs(
         lms_revocation_bytes[3],
         soc_ifc.fuse_bank().vendor_mldsa_pub_key_revocation() as u8,
         soc_ifc.fuse_bank().fw_fuse_svn() as u8,
-        soc_ifc.fuse_bank().soc_manifest_fuse_svn() as u8,
-        soc_ifc.fuse_bank().max_soc_manifest_fuse_svn() as u8,
+        soc_manifest_min_svn,
+        soc_manifest_max_svn,
         soc_ifc.fuse_bank().pqc_key_type() as u8,
         soc_ifc.lifecycle() as u8,
         soc_ifc.debug_locked() as u8,

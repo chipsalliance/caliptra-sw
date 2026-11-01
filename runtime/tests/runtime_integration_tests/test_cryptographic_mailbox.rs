@@ -3073,10 +3073,8 @@ fn test_derive_stable_key_from_rom() {
         CmStableKeyType::OwnerKey,
     ];
 
-    // OwnerKey is not available when OCP LOCK is enabled (mutually exclusive
-    // with Stable Owner Key feature). The FPGA wrapper does not expose
-    // SS_STRAP_GENERIC[3], so positive OwnerKey tests cannot enable the Stable
-    // Owner Key feature there.
+    // OwnerKey is unavailable with OCP LOCK. Subsystem FPGA coverage also needs
+    // the coordinated MCU feature-provisioning update.
     let ocp_lock = cfg!(feature = "ocp-lock");
 
     for &subsystem_mode in &HW_MODEL_MODES_SUBSYSTEM {
@@ -3258,8 +3256,7 @@ fn test_derive_stable_key_from_rom() {
     }
 }
 
-// OwnerKey is not available when OCP LOCK is enabled or when the FPGA wrapper
-// cannot expose SS_STRAP_GENERIC[3].
+// OwnerKey is unavailable with OCP LOCK; subsystem FPGA coverage needs the MCU update.
 #[cfg_attr(any(feature = "ocp-lock", feature = "fpga_subsystem"), ignore)]
 #[test]
 fn test_derive_stable_owner_key_different_info() {

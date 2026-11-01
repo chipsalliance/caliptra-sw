@@ -233,6 +233,8 @@ pub struct Fuses {
     pub fuse_pqc_key_type: u32,
     pub manuf_dbg_unlock_token: [u32; 16],
     pub debug_locked: bool,
+    /// Numeric minima: SoC manifest, MCU runtime, owner manifest, and reserved use.
+    /// MCU-runtime enforcement and reserved-word policy require platform coordination.
     pub soc_manifest_svn: [u32; 4],
     pub soc_manifest_max_svn: u8,
 }

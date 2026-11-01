@@ -40,8 +40,8 @@ behavior or checks state/data without expecting a ROM error code.
 | Accept a vendor-authorized debug image in subsystem mode with `SS_DEBUG_INTENT` asserted | `test_debug_image_cold_boot_allowed` | N/A |
 | Reject a vendor-authorized debug image when `SS_DEBUG_INTENT` is clear | `test_debug_image_cold_boot_requires_debug_intent` | `IMAGE_VERIFIER_ERR_DEBUG_IMAGE_NOT_ALLOWED` |
 | Reject a vendor-authorized debug image in passive mode | `test_debug_image_cold_boot_rejected_in_passive_mode` | `IMAGE_VERIFIER_ERR_DEBUG_IMAGE_NOT_ALLOWED` |
-| Reject a vendor-authorized debug image when `SS_STRAP_GENERIC[3][31]` (`DISABLE_VENDOR_DEBUG_IMAGES`) is set | `test_debug_image_cold_boot_disabled_by_strap` | `IMAGE_VERIFIER_ERR_DEBUG_IMAGE_NOT_ALLOWED` |
-| Accept a normal image when `SS_STRAP_GENERIC[3][31]` (`DISABLE_VENDOR_DEBUG_IMAGES`) is set | `test_normal_image_cold_boot_allowed_when_vendor_debug_disabled` | N/A |
+| Reject a vendor-authorized debug image when `SS_FW_FEATURE_CFG.VENDOR_DEBUG_IMAGES_DIS` is set | `test_debug_image_cold_boot_disabled_by_fw_feature_cfg` | `IMAGE_VERIFIER_ERR_DEBUG_IMAGE_NOT_ALLOWED` |
+| Accept a normal image when `SS_FW_FEATURE_CFG.VENDOR_DEBUG_IMAGES_DIS` is set | `test_normal_image_cold_boot_allowed_when_vendor_debug_disabled` | N/A |
 | Map `IMAGE_VERIFIER_ERR_DEBUG_IMAGE_NOT_ALLOWED` to `RECOVERY_REASON_DEBUG_IMAGE_NOT_ALLOWED` | `test_debug_image_recovery_reason` | N/A |
 | Reject a manifest with an invalid marker | `test_invalid_manifest_marker` | `IMAGE_VERIFIER_ERR_MANIFEST_MARKER_MISMATCH` |
 | Reject a manifest with an invalid size | `test_invalid_manifest_size` | `IMAGE_VERIFIER_ERR_MANIFEST_SIZE_MISMATCH` |

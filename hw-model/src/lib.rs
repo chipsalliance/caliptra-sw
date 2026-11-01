@@ -440,6 +440,8 @@ pub type ItrngEntropyConfig0WriteVal =
     <caliptra_registers::soc_ifc::meta::CptraItrngEntropyConfig0 as caliptra_ureg::WritableReg>::WriteVal;
 pub type ItrngEntropyConfig1WriteVal =
     <caliptra_registers::soc_ifc::meta::CptraItrngEntropyConfig1 as caliptra_ureg::WritableReg>::WriteVal;
+pub type FwFeatureCfgWriteVal =
+    <caliptra_registers::soc_ifc::meta::SsFwFeatureCfg as caliptra_ureg::WritableReg>::WriteVal;
 
 #[derive(Clone)]
 pub struct BootParams<'a> {
@@ -449,6 +451,7 @@ pub struct BootParams<'a> {
     pub initial_adaptp_thresh_reg: Option<ItrngEntropyConfig0WriteVal>,
     pub initial_ss_strap_generic_2: Option<u32>,
     pub initial_ss_strap_generic_3: Option<u32>,
+    pub initial_ss_fw_feature_cfg: Option<FwFeatureCfgWriteVal>,
     pub valid_axi_user: Vec<u32>,
     pub wdt_timeout_cycles: u64,
     // SoC manifest passed via the recovery interface
@@ -469,6 +472,7 @@ impl Default for BootParams<'_> {
             initial_adaptp_thresh_reg: Default::default(),
             initial_ss_strap_generic_2: Default::default(),
             initial_ss_strap_generic_3: Default::default(),
+            initial_ss_fw_feature_cfg: None,
             valid_axi_user: vec![0, 1, 2, 3, 4],
             wdt_timeout_cycles: EXPECTED_CALIPTRA_BOOT_TIME_IN_CYCLES,
             soc_manifest: Default::default(),
@@ -920,6 +924,12 @@ pub trait HwModel: SocManager {
         }
         if let Some(reg) = boot_params.initial_ss_strap_generic_3 {
             self.soc_ifc().ss_strap_generic().at(3).write(|_| reg);
+        }
+        if let Some(reg) = boot_params.initial_ss_fw_feature_cfg {
+            self.soc_ifc().ss_fw_feature_cfg().write(|_| reg);
+            if u32::from(self.soc_ifc().ss_fw_feature_cfg().read()) != u32::from(reg) {
+                return Err("SS_FW_FEATURE_CFG boot override was not applied".into());
+            }
         }
 
         HwModel::init_fuses(self);

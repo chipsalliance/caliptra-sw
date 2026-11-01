@@ -78,8 +78,12 @@ fn build_debug_image_model(
             ..Default::default()
         },
         BootParams {
-            initial_ss_strap_generic_3: disable_vendor_debug_images
+            initial_ss_strap_generic_3: (!disable_vendor_debug_images)
                 .then_some(DISABLE_VENDOR_DEBUG_IMAGES),
+            initial_ss_fw_feature_cfg: Some(
+                caliptra_hw_model::FwFeatureCfgWriteVal::from(0)
+                    .vendor_debug_images_dis(disable_vendor_debug_images),
+            ),
             ..Default::default()
         },
     )
@@ -128,7 +132,7 @@ fn test_debug_image_cold_boot_rejected_in_passive_mode() {
 
 #[test]
 #[cfg(not(feature = "fpga_realtime"))]
-fn test_debug_image_cold_boot_disabled_by_strap() {
+fn test_debug_image_cold_boot_disabled_by_fw_feature_cfg() {
     for pqc_key_type in helpers::PQC_KEY_TYPE {
         let (mut model, image_bundle) = build_debug_image_model(pqc_key_type, true, true, true);
         helpers::assert_fatal_fw_load(
@@ -161,7 +165,7 @@ fn test_normal_image_cold_boot_allowed_when_vendor_debug_disabled() {
                 ..Default::default()
             },
             BootParams {
-                initial_ss_strap_generic_3: Some(DISABLE_VENDOR_DEBUG_IMAGES),
+                initial_ss_fw_feature_cfg: Some(DISABLE_VENDOR_DEBUG_IMAGES.into()),
                 ..Default::default()
             },
         )
