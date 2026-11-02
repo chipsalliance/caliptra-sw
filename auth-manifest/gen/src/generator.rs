@@ -139,9 +139,10 @@ impl<Crypto: ImageGeneratorCrypto> AuthManifestGenerator<Crypto> {
             auth_manifest.preamble.owner_pub_keys.pqc_pub_key.0[..pqc_pub_key.len()]
                 .copy_from_slice(pqc_pub_key);
 
-            let digest = self
-                .crypto
-                .sha384_digest(auth_manifest.preamble.owner_pub_keys.as_bytes())?;
+            // The owner signs version, svn, flags and owner_pub_keys.
+            let mut owner_data = [0u8; AUTH_MANIFEST_OWNER_SIGNED_DATA_SIZE];
+            auth_manifest.preamble.owner_signed_data(&mut owner_data);
+            let digest = self.crypto.sha384_digest(&owner_data)?;
 
             if let Some(owner_fw_priv_keys) = owner_fw_config.priv_keys {
                 let sig = self.crypto.ecdsa384_sign(
@@ -160,7 +161,7 @@ impl<Crypto: ImageGeneratorCrypto> AuthManifestGenerator<Crypto> {
                         .copy_from_slice(sig);
                 } else {
                     let mldsa_sig = self.crypto.mldsa_sign(
-                        auth_manifest.preamble.owner_pub_keys.as_bytes(),
+                        &owner_data,
                         &owner_fw_priv_keys.mldsa_priv_key,
                         &owner_fw_config.pub_keys.mldsa_pub_key,
                     )?;
