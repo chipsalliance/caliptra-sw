@@ -251,7 +251,7 @@ pub extern "C" fn rom_entry() -> ! {
 }
 
 fn handle_kat_error(err: CaliptraError, kat_failures_non_fatal: bool) -> CaliptraResult<()> {
-    if kat_failures_non_fatal {
+    if kat_failures_non_fatal && err != CaliptraError::KAT_CSRNG_RESTORE_FAILURE {
         handle_non_fatal_error(err.into());
         Ok(())
     } else {

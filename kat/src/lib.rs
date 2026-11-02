@@ -96,9 +96,11 @@ pub fn execute_kat_with_error_handler(
         .or_else(&mut handle_error)?;
 
     cprintln!("[kat] SHA2-512-ACC");
-    Sha2_512_384AccKat::default()
-        .execute(env.sha2_512_384_acc, env.sha_acc_lock_state)
-        .or_else(&mut handle_error)?;
+    Sha2_512_384AccKat::default().execute_with_error_handler(
+        env.sha2_512_384_acc,
+        env.sha_acc_lock_state,
+        &mut handle_error,
+    )?;
 
     cprintln!("[kat] CSRNG");
     CsrngKat::default()

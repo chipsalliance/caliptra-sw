@@ -423,10 +423,14 @@ KAT execution is described as two types:
 During ROM boot in the Unprovisioned lifecycle, each KAT failure is reported in
 `CPTRA_FW_ERROR_NON_FATAL`, the remaining KATs are executed, and boot continues.
 The register retains the most recent error when multiple KATs fail. This applies
-to all boot-time KATs, including the early CSRNG and SHA2-256 tests. KAT failures
-remain fatal in all other lifecycles. ROM integrity checks and errors from
-cryptographic operations retain their existing failure behavior. Explicit
-`SELF_TEST_START` requests in ROM and Runtime remain strict in every lifecycle.
+to all boot-time KATs, including the early CSRNG and SHA2-256 tests. Continuing
+after a SHA accelerator KAT failure releases the KAT-owned accelerator lock.
+CSRNG restoration from live entropy must succeed before a CSRNG KAT failure can
+be tolerated; restoration failures remain fatal in every lifecycle and take
+precedence over an earlier KAT failure. Other KAT failures remain fatal in all
+other lifecycles. ROM integrity checks and errors from cryptographic operations
+retain their existing failure behavior. Explicit `SELF_TEST_START` requests in
+ROM and Runtime remain strict in every lifecycle.
 
 ROM performs the following POST tests to ensure that needed cryptographic modules are functioning correctly and are operational before any cryptographic operations are performed:
 

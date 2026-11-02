@@ -42,6 +42,10 @@ fn boot_with_fips_hook(hook: u8, init_params: InitParams) -> DefaultHwModel {
 }
 
 #[test]
+#[cfg_attr(
+    feature = "fpga_subsystem",
+    ignore = "boot-time FIPS hook injection is unsupported"
+)]
 fn test_boot_kat_failures_non_fatal_unprovisioned() {
     for subsystem_mode in [false, true] {
         for (hook, error, trng_mode) in [
@@ -63,6 +67,16 @@ fn test_boot_kat_failures_non_fatal_unprovisioned() {
             (
                 FipsTestHook::SHA256_CORRUPT_DIGEST,
                 CaliptraError::KAT_SHA256_DIGEST_MISMATCH,
+                None,
+            ),
+            (
+                FipsTestHook::SHA2_512_384_ACC_DIGEST_512_FAILURE,
+                CaliptraError::KAT_SHA2_512_384_ACC_DIGEST_FAILURE,
+                None,
+            ),
+            (
+                FipsTestHook::SHA2_512_384_ACC_CORRUPT_DIGEST_512,
+                CaliptraError::KAT_SHA2_512_384_ACC_DIGEST_MISMATCH,
                 None,
             ),
             (
@@ -106,6 +120,10 @@ fn test_boot_kat_failures_non_fatal_unprovisioned() {
 }
 
 #[test]
+#[cfg_attr(
+    feature = "fpga_subsystem",
+    ignore = "boot-time FIPS hook injection is unsupported"
+)]
 fn test_boot_kat_failures_fatal_provisioned() {
     for lifecycle in [
         DeviceLifecycle::Manufacturing,
@@ -121,6 +139,16 @@ fn test_boot_kat_failures_fatal_provisioned() {
             (
                 FipsTestHook::SHA256_DIGEST_FAILURE,
                 CaliptraError::KAT_SHA256_DIGEST_FAILURE,
+                None,
+            ),
+            (
+                FipsTestHook::SHA2_512_384_ACC_DIGEST_512_FAILURE,
+                CaliptraError::KAT_SHA2_512_384_ACC_DIGEST_FAILURE,
+                None,
+            ),
+            (
+                FipsTestHook::SHA2_512_384_ACC_CORRUPT_DIGEST_512,
+                CaliptraError::KAT_SHA2_512_384_ACC_DIGEST_MISMATCH,
                 None,
             ),
             (
@@ -148,39 +176,134 @@ fn test_boot_kat_failures_fatal_provisioned() {
 }
 
 #[test]
+#[cfg(not(any(
+    feature = "verilator",
+    feature = "fpga_realtime",
+    feature = "fpga_subsystem"
+)))]
+fn test_boot_csrng_restore_failure_is_fatal() {
+    use std::sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    };
+
+    for hook in [
+        FipsTestHook::RSVD,
+        FipsTestHook::CSRNG_CORRUPT_OUTPUT,
+        FipsTestHook::CSRNG_GENERATE_FAILURE,
+        FipsTestHook::CSRNG_RESEED_FAILURE,
+    ] {
+        let bad_entropy = Arc::new(AtomicBool::new(false));
+        let inject_bad_entropy = bad_entropy.clone();
+        let mut nibbles = InitParams::default().itrng_nibbles;
+        let mut hw = boot_with_fips_hook(
+            FipsTestHook::HALT_SELF_TESTS,
+            InitParams {
+                trng_mode: Some(TrngMode::Internal),
+                itrng_nibbles: Box::new(std::iter::from_fn(move || {
+                    if inject_bad_entropy.load(Ordering::Relaxed) {
+                        Some(0b1111)
+                    } else {
+                        nibbles.next()
+                    }
+                })),
+                ..Default::default()
+            },
+        );
+
+        // Let the early CSRNG KAT restore normally before failing live entropy.
+        hw.step_until(|m| {
+            m.soc_ifc().cptra_dbg_manuf_service_reg().read() >> 16
+                == u32::from(FipsTestHook::COMPLETE)
+        });
+        hw.soc_ifc()
+            .cptra_dbg_manuf_service_reg()
+            .write(|_| u32::from(FipsTestHook::CONTINUE) << 16);
+        hw.step_until(|m| {
+            m.soc_ifc().cptra_dbg_manuf_service_reg().read() >> 16
+                == u32::from(FipsTestHook::COMPLETE)
+        });
+        bad_entropy.store(true, Ordering::Relaxed);
+        hw.soc_ifc()
+            .cptra_dbg_manuf_service_reg()
+            .write(|_| u32::from(hook) << 16);
+
+        hw.step_until_fatal_error(CaliptraError::KAT_CSRNG_RESTORE_FAILURE.into(), 30_000_000);
+        assert_eq!(hw.soc_ifc().cptra_fw_error_non_fatal().read(), 0);
+        assert!(!hw
+            .soc_ifc()
+            .cptra_flow_status()
+            .read()
+            .ready_for_mb_processing());
+    }
+}
+
+#[test]
+#[cfg_attr(
+    feature = "fpga_subsystem",
+    ignore = "boot-time FIPS hook injection is unsupported"
+)]
 fn test_boot_continues_after_kat_failure() {
     let image_options = ImageOptions::default();
     let pqc_key_type = image_options.pqc_key_type;
     let image_bundle = helpers::build_image_bundle(image_options);
     let image = image_bundle.to_bytes().unwrap();
 
-    for (hook, trng_mode) in [
-        (FipsTestHook::SHA1_CORRUPT_DIGEST, None),
-        (
-            FipsTestHook::CSRNG_GENERATE_FAILURE,
-            Some(TrngMode::Internal),
-        ),
-    ] {
-        let mut hw = boot_with_fips_hook(
-            hook,
-            InitParams {
-                fuses: Fuses {
-                    fuse_pqc_key_type: pqc_key_type as u32,
+    for subsystem_mode in [false, true] {
+        for (hook, error, trng_mode) in [
+            (
+                FipsTestHook::SHA1_CORRUPT_DIGEST,
+                CaliptraError::KAT_SHA1_DIGEST_MISMATCH,
+                None,
+            ),
+            (
+                FipsTestHook::SHA2_512_384_ACC_DIGEST_512_FAILURE,
+                CaliptraError::KAT_SHA2_512_384_ACC_DIGEST_FAILURE,
+                None,
+            ),
+            (
+                FipsTestHook::SHA2_512_384_ACC_CORRUPT_DIGEST_512,
+                CaliptraError::KAT_SHA2_512_384_ACC_DIGEST_MISMATCH,
+                None,
+            ),
+            (
+                FipsTestHook::CSRNG_GENERATE_FAILURE,
+                CaliptraError::KAT_CSRNG_GENERATE_FAILURE,
+                Some(TrngMode::Internal),
+            ),
+        ] {
+            let mut hw = boot_with_fips_hook(
+                hook,
+                InitParams {
+                    fuses: Fuses {
+                        fuse_pqc_key_type: pqc_key_type as u32,
+                        ..Default::default()
+                    },
+                    subsystem_mode,
+                    trng_mode,
                     ..Default::default()
                 },
-                trng_mode,
-                ..Default::default()
-            },
-        );
-        hw.upload_firmware(&image).unwrap();
-        hw.step_until_fatal_error(
-            CaliptraError::ROM_GLOBAL_FIPS_HOOKS_ROM_EXIT.into(),
-            30_000_000,
-        );
+            );
+            hw.step_until_boot_status(RomBootStatus::KatComplete.into(), true);
+            assert_eq!(hw.soc_ifc().cptra_fw_error_fatal().read(), 0);
+            assert_eq!(
+                hw.soc_ifc().cptra_fw_error_non_fatal().read(),
+                u32::from(error)
+            );
+            helpers::test_upload_firmware(&mut hw, &image, pqc_key_type);
+            hw.step_until_fatal_error(
+                CaliptraError::ROM_GLOBAL_FIPS_HOOKS_ROM_EXIT.into(),
+                30_000_000,
+            );
+        }
     }
 }
 
 #[test]
+#[cfg_attr(
+    feature = "fpga_subsystem",
+    ignore = "boot-time FIPS hook injection is unsupported"
+)]
 fn test_boot_kat_failure_does_not_ignore_fw_signature_failure() {
     let mut hw = boot_with_fips_hook(FipsTestHook::SHA1_CORRUPT_DIGEST, InitParams::default());
     hw.step_until(|m| {

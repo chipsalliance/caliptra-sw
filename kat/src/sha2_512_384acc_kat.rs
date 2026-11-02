@@ -43,42 +43,43 @@ impl Sha2_512_384AccKat {
         sha_acc: &mut Sha2_512_384Acc,
         lock_state: ShaAccLockState,
     ) -> CaliptraResult<()> {
-        self.kat_no_data(sha_acc, lock_state)?;
-        Ok(())
+        self.execute_with_error_handler(sha_acc, lock_state, Err)
     }
 
-    fn kat_no_data(
+    /// Release the KAT-owned lock on success or an accepted failure.
+    pub(crate) fn execute_with_error_handler(
         &self,
         sha_acc: &mut Sha2_512_384Acc,
         lock_state: ShaAccLockState,
+        mut handle_error: impl FnMut(CaliptraError) -> CaliptraResult<()>,
     ) -> CaliptraResult<()> {
         let mut digest = Array4x16::default();
 
-        if let Some(mut sha_acc_op) = sha_acc.try_start_operation(lock_state)? {
-            let result = || -> CaliptraResult<()> {
-                // SHA 512
-                sha_acc_op
-                    .digest_512(0, 0, false, &mut digest)
-                    .map_err(|_| CaliptraError::KAT_SHA2_512_384_ACC_DIGEST_FAILURE)?;
-                if digest != SHA512_EXPECTED_DIGEST {
-                    Err(CaliptraError::KAT_SHA2_512_384_ACC_DIGEST_MISMATCH)?;
-                }
-
-                Ok(())
-            }();
-
-            // If error, don't drop the operation since that will unlock the
-            // peripheral for SoC use, which we're not allowed to do if the
-            // KAT doesn't pass.
-            if result.is_err() {
-                caliptra_drivers::cprintln!("Dropping operation");
-                core::mem::forget(sha_acc_op);
+        let mut sha_acc_op = match sha_acc.try_start_operation(lock_state) {
+            Ok(Some(op)) => op,
+            Ok(None) => {
+                return handle_error(CaliptraError::KAT_SHA2_512_384_ACC_DIGEST_START_OP_FAILURE)
             }
-            result?;
-        } else {
-            Err(CaliptraError::KAT_SHA2_512_384_ACC_DIGEST_START_OP_FAILURE)?;
+            Err(err) => return handle_error(err),
         };
 
-        Ok(())
+        let result = (|| -> CaliptraResult<()> {
+            sha_acc_op
+                .digest_512(0, 0, false, &mut digest)
+                .map_err(|_| CaliptraError::KAT_SHA2_512_384_ACC_DIGEST_FAILURE)?;
+            if digest != SHA512_EXPECTED_DIGEST {
+                Err(CaliptraError::KAT_SHA2_512_384_ACC_DIGEST_MISMATCH)?;
+            }
+
+            Ok(())
+        })()
+        .or_else(handle_error);
+
+        // Strict failures must not unlock the peripheral for SoC use.
+        if result.is_err() {
+            caliptra_drivers::cprintln!("Retaining SHA accelerator lock");
+            core::mem::forget(sha_acc_op);
+        }
+        result
     }
 }

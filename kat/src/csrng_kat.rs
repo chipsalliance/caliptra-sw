@@ -12,11 +12,11 @@ Abstract:
     hardware engine, using published NIST CAVP test vectors.
 
     The DRBG is briefly placed into fully-deterministic mode (`flag0=true`)
-    with a fixed seed, exercised against the NIST vectors, and then restored
-    to its production entropy-sourced state before this routine returns. It
-    is therefore safe to invoke after the live `Trng` has been instantiated,
-    e.g. as part of the boot-time KAT suite or an on-demand
-    `FIPS_SELF_TEST` mailbox command.
+    with a fixed seed and exercised against the NIST vectors. Restoration to
+    its production entropy-sourced state is attempted before this routine
+    returns; a restoration failure must prevent further randomness use. It
+    can be invoked after the live `Trng` has been instantiated, e.g. as part
+    of the boot-time KAT suite or an on-demand `FIPS_SELF_TEST` mailbox command.
 
     FIPS 140-3 IG 10.3.A requires CAST coverage for SP 800-90A
     Instantiate, Generate, and Reseed. The no-reseed and reseed sweeps below
@@ -122,10 +122,9 @@ impl CsrngKat {
     ///
     /// On `Trng::Internal`, both the no-reseed and reseed sweeps are run.
     ///
-    /// The DRBG is always re-instantiated from `EntropySrc` before
-    /// returning, so production randomness is restored even if a KAT
-    /// fails. The KAT failure (if any) is returned in preference to a
-    /// restore failure so the caller sees the more meaningful diagnostic.
+    /// Restoring the DRBG from `EntropySrc` is always attempted, even if a
+    /// KAT fails. A restore failure takes precedence over a KAT failure;
+    /// callers must not consume randomness unless restoration succeeds.
     pub fn execute(&self, trng: &mut Trng) -> CaliptraResult<()> {
         match trng {
             Trng::Internal(csrng) => {
@@ -133,7 +132,8 @@ impl CsrngKat {
                 let restore_result = csrng
                     .reinstantiate(CsrngSeed::EntropySrc)
                     .map_err(|_| CaliptraError::KAT_CSRNG_RESTORE_FAILURE);
-                kat_result.and(restore_result)
+                restore_result?;
+                kat_result
             }
             _ => Ok(()),
         }
