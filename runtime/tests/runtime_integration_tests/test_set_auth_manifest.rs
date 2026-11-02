@@ -997,6 +997,30 @@ fn test_set_auth_manifest_invalid_owner_ecc_sig() {
 }
 
 #[test]
+fn test_set_auth_manifest_rejects_modified_owner_policy() {
+    for pqc_key_type in PQC_KEY_TYPE {
+        let original = create_auth_manifest(&AuthManifestBuilderCfg {
+            manifest_flags: AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED,
+            pqc_key_type,
+            ..Default::default()
+        });
+        let mut manifest = create_auth_manifest(&AuthManifestBuilderCfg {
+            manifest_flags: AuthManifestFlags::from(0),
+            pqc_key_type,
+            ..Default::default()
+        });
+        // Keep Vendor endorsements valid for the changed policy, but reuse
+        // the Owner signature that authorized the original policy.
+        manifest.preamble.owner_pub_keys_signatures = original.preamble.owner_pub_keys_signatures;
+        set_manifest_command_execute(
+            manifest,
+            pqc_key_type,
+            Some(CaliptraError::RUNTIME_AUTH_MANIFEST_OWNER_ECC_SIGNATURE_INVALID),
+        );
+    }
+}
+
+#[test]
 fn test_set_auth_manifest_invalid_owner_lms_sig() {
     let pqc_key_type = FwVerificationPqcKeyType::LMS;
     let mut auth_manifest = create_auth_manifest(&AuthManifestBuilderCfg {
