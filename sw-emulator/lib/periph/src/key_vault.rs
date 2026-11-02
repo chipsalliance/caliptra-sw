@@ -246,6 +246,12 @@ impl KeyVault {
         self.regs.borrow().read_key_as_data(key_id, desired_usage)
     }
 
+    /// Stored key length, matching the RTL entry_last_dword metadata.
+    pub(crate) fn key_len(&self, key_id: u32) -> usize {
+        (self.regs.borrow().key_control[key_id as usize].read(KV_CONTROL::LAST_DWORD) as usize + 1)
+            * 4
+    }
+
     /// Internal emulator interface to write key to key vault
     pub fn write_key(&mut self, key_id: u32, key: &[u8], key_usage: u32) -> Result<(), BusError> {
         self.regs.borrow_mut().write_key(key_id, key, key_usage)
