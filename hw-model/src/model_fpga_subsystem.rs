@@ -938,8 +938,10 @@ impl ModelFpgaSubsystem {
                     .read()
                     .dev_status();
 
-                if status != 3 && self.bmc_step_counter % 65536 == 0 {
-                    println!("Waiting for device status to be 3, currently: {}", status);
+                if status != 3 {
+                    if self.bmc_step_counter % 65536 == 0 {
+                        println!("Waiting for device status to be 3, currently: {}", status);
+                    }
                     return;
                 }
 
