@@ -7,6 +7,9 @@
 )))]
 
 use crate::common::{rom_for_fw_integration_tests, run_rt_test, RuntimeTestArgs};
+use crate::test_set_auth_manifest::{
+    create_auth_manifest, model_set_manifest_command_execute, AuthManifestBuilderCfg,
+};
 use caliptra_api::{
     mailbox::{
         CommandId, MailboxReqHeader, ZeroizeUdsFeReq, ZEROIZE_FE0_FLAG, ZEROIZE_FE1_FLAG,
@@ -14,6 +17,7 @@ use caliptra_api::{
     },
     SocManager,
 };
+use caliptra_auth_man_types::AuthManifestFlags;
 use caliptra_builder::{firmware::APP_WITH_UART, ImageOptions};
 use caliptra_common::checksum::calc_checksum;
 use caliptra_error::CaliptraError;
@@ -223,6 +227,37 @@ fn test_zeroize_uds_fe_rejects_passive_mode() {
         &request_bytes(&ALL_FLAGS.to_le_bytes()),
         CaliptraError::RUNTIME_ZEROIZE_UDS_FE_NOT_SUBSYSTEM_MODE,
     );
+}
+
+#[test]
+fn test_zeroize_uds_fe_rejected_when_otp_dai_locked() {
+    let mut model = runtime_model(true, true, Some(1));
+
+    // Lock the DAI by installing a DISABLE_OTP_ACCESS manifest.
+    model_set_manifest_command_execute(
+        &mut model,
+        create_auth_manifest(&AuthManifestBuilderCfg {
+            manifest_flags: AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED
+                | AuthManifestFlags::DISABLE_OTP_ACCESS,
+            ..Default::default()
+        }),
+        None,
+    );
+
+    let before = model.otp_fuse_bank().to_vec();
+    let response = model
+        .mailbox_execute_req(ZeroizeUdsFeReq {
+            flags: ALL_FLAGS,
+            ..Default::default()
+        })
+        .unwrap();
+    assert_eq!(response.dpe_result, 1);
+    assert_eq!(
+        model.soc_ifc().cptra_fw_error_non_fatal().read(),
+        u32::from(CaliptraError::UDS_FE_OTP_DAI_LOCKED)
+    );
+    assert_eq!(model.otp_fuse_bank(), before);
+    assert_shutdown(&mut model);
 }
 
 #[test]

@@ -16,6 +16,7 @@ use core::mem::offset_of;
 
 use crate::authorize_and_stash::{self, AuthorizeAndStashCmd};
 use crate::drivers::{CaliptraManagedDpeContext, McuFwStatus, McuResetReason};
+use crate::otp_lock::OtpLock;
 use crate::Drivers;
 use crate::{manifest::find_metadata_entry_by_type, mutrefbytes};
 use caliptra_api::mailbox::{ActivateFirmwareFlags, AuthorizeAndStashReq, ImageHashSource};
@@ -358,6 +359,12 @@ impl ActivateFirmwareCmd {
 
         for i in 0..4 {
             temp_bitmap[i] = go_bitmap[i] | activate_bitmap[i];
+        }
+
+        // Lock the OTP DAI before MCU is allowed to run the activated image.
+        // Covers both hitless updates and INITIAL_ACTIVATE (encrypted boot).
+        if mcu_activate_requested {
+            OtpLock::apply_if_required(drivers).map_err(|_| ())?;
         }
 
         // Caliptra sets FW_EXEC_CTRL. On INITIAL_ACTIVATE this is the only

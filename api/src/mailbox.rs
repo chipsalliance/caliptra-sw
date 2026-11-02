@@ -2050,11 +2050,18 @@ pub struct FwInfoResp {
     pub owner_auth_manifest_current_svn: u32,
     pub owner_auth_manifest_min_svn: u32,
     pub debug_policy: u32,
+    pub otp_lock_policy: u32,
 }
 
 impl FwInfoResp {
     pub const DEBUG_FIRMWARE_ACTIVE: u32 = 1 << 0;
     pub const DEBUG_AUTH_MANIFEST_ACTIVE: u32 = 1 << 1;
+
+    /// `otp_lock_policy` bit: the active SoC auth manifest sets DISABLE_OTP_ACCESS.
+    pub const OTP_ACCESS_DISABLED_BY_MANIFEST: u32 = 1 << 0;
+    /// `otp_lock_policy` bit: the fuse controller DAI is currently locked
+    /// (DIRECT_ACCESS_REGWEN reads 0) until the next subsystem reset.
+    pub const OTP_DAI_LOCKED: u32 = 1 << 1;
 }
 
 // CAPABILITIES

@@ -12,7 +12,7 @@ Abstract:
 
 --*/
 
-use crate::{handoff::RtHandoff, mutrefbytes, Drivers};
+use crate::{handoff::RtHandoff, mutrefbytes, otp_lock::OtpLock, Drivers};
 use caliptra_common::mailbox_api::{
     AlgorithmType, FwInfoResp, GetIdevEcc384InfoResp, GetIdevMldsa87InfoResp, MailboxRespHeader,
 };
@@ -65,6 +65,13 @@ impl FwInfoCmd {
         }
         if pdata.fw.auth_manifest_is_debug.get() {
             resp.debug_policy |= FwInfoResp::DEBUG_AUTH_MANIFEST_ACTIVE;
+        }
+        resp.otp_lock_policy = 0;
+        if pdata.fw.otp_access_disabled.get() {
+            resp.otp_lock_policy |= FwInfoResp::OTP_ACCESS_DISABLED_BY_MANIFEST;
+        }
+        if OtpLock::is_locked(&drivers.soc_ifc, &drivers.dma) {
+            resp.otp_lock_policy |= FwInfoResp::OTP_DAI_LOCKED;
         }
         resp.most_recent_fw_error = match get_fw_error_non_fatal() {
             0 => drivers.persistent_data.get().rom.cleared_non_fatal_fw_error,

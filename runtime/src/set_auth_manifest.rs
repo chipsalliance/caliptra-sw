@@ -15,7 +15,10 @@ Abstract:
 use core::cmp::min;
 use core::mem::size_of;
 
-use crate::{drivers::CaliptraManagedDpeContext, manifest::sorted_metadata_lists_overlap, Drivers};
+use crate::{
+    drivers::CaliptraManagedDpeContext, manifest::sorted_metadata_lists_overlap, otp_lock::OtpLock,
+    Drivers,
+};
 use caliptra_auth_man_types::{
     AuthManifestFlags, AuthManifestImageMetadata, AuthManifestImageMetadataCollection,
     AuthManifestPreamble, OwnerAuthManifestImageMetadataCollection,
@@ -838,6 +841,14 @@ impl SetAuthManifestCmd {
             verify_only,
             AuthManifestUpdateMode::UpdateExisting,
         )?;
+
+        // MCU Runtime firmware is already running when a manifest arrives over
+        // the mailbox, so a newly accepted DISABLE_OTP_ACCESS manifest locks
+        // the DAI immediately. A manifest without the flag cannot unlock it;
+        // the hardware lock holds until the next subsystem reset.
+        if !verify_only {
+            OtpLock::apply_if_required(drivers)?;
+        }
         Ok(0)
     }
 
@@ -919,6 +930,13 @@ impl SetAuthManifestCmd {
                         Err(CaliptraError::RUNTIME_AUTH_MANIFEST_DEBUG_IMAGE_NOT_ALLOWED)?;
                     }
                 }
+                if flags.contains(AuthManifestFlags::DISABLE_OTP_ACCESS)
+                    && !drivers.soc_ifc.subsystem_mode()
+                {
+                    Err(
+                        CaliptraError::RUNTIME_AUTH_MANIFEST_DISABLE_OTP_ACCESS_NOT_SUBSYSTEM_MODE,
+                    )?;
+                }
 
                 // Verify the owner signature over the policy fields and owner public keys.
                 Self::verify_owner_signed_data(
@@ -966,6 +984,10 @@ impl SetAuthManifestCmd {
             drivers.persistent_data.get_mut().fw.auth_manifest_is_debug = U8Bool::new(
                 AuthManifestFlags::from(auth_manifest_preamble.flags)
                     .contains(AuthManifestFlags::DEBUG_IMAGE),
+            );
+            drivers.persistent_data.get_mut().fw.otp_access_disabled = U8Bool::new(
+                AuthManifestFlags::from(auth_manifest_preamble.flags)
+                    .contains(AuthManifestFlags::DISABLE_OTP_ACCESS),
             );
         }
         Ok(())

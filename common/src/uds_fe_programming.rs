@@ -14,7 +14,9 @@ Abstract:
 --*/
 
 use crate::cprintln;
-use caliptra_drivers::{AxiAddr, CaliptraError, CaliptraResult, Dma, DmaOtpCtrl, SocIfc, Trng};
+use caliptra_drivers::{
+    AxiAddr, CaliptraError, CaliptraResult, Dma, DmaOtpCtrl, OtpDai, SocIfc, Trng,
+};
 
 /// UDS/FE Programming Flow
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -211,6 +213,11 @@ impl UdsFeProgrammingFlow {
         }
 
         let result = {
+            // A locked DAI drops every command without an error, which would
+            // make the flow below report success without programming anything.
+            OtpDai::new(soc_ifc, dma).ensure_unlocked()
+        }
+        .and_then(|()| {
             // Generate a 512-bit random value.
             let seed: [u32; 16] = trng.generate16()?.into();
             let config = self.init_otp_config(soc_ifc);
@@ -282,7 +289,7 @@ impl UdsFeProgrammingFlow {
             })?;
 
             Ok(())
-        };
+        });
 
         if self.is_uds() {
             // Set the programming result.
@@ -313,6 +320,10 @@ impl UdsFeProgrammingFlow {
 
         // Validate parameters first
         self.validate()?;
+
+        // A locked DAI drops every command without an error; the readback
+        // checks below would then compare against stale RDATA.
+        OtpDai::new(soc_ifc, dma).ensure_unlocked()?;
 
         cprintln!("[{}] ++ Zeroization", self.prefix());
 

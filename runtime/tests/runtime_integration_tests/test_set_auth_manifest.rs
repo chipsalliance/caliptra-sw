@@ -518,7 +518,7 @@ fn set_manifest_command_execute(
     model_set_manifest_command_execute(&mut model, manifest, expected_err);
 }
 
-fn model_set_manifest_command_execute(
+pub fn model_set_manifest_command_execute(
     model: &mut DefaultHwModel,
     manifest: AuthorizationManifest,
     expected_err: Option<CaliptraError>,
@@ -741,6 +741,95 @@ fn test_auth_manifest_debug_policy_reporting() {
         assert_eq!(
             get_fwinfo_allow_attestation_disabled(&mut model).debug_policy,
             0
+        );
+    }
+}
+
+// The subsystem FPGA always boots in subsystem mode, so the core-only
+// (passive) configuration this test needs is not available there.
+#[cfg_attr(feature = "fpga_subsystem", ignore)]
+#[test]
+fn test_disable_otp_access_requires_subsystem_mode() {
+    let flags =
+        AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED | AuthManifestFlags::DISABLE_OTP_ACCESS;
+    for pqc_key_type in PQC_KEY_TYPE {
+        let mut model = run_rt_test_pqc(
+            RuntimeTestArgs {
+                subsystem_mode: false,
+                ..Default::default()
+            },
+            pqc_key_type,
+        );
+        model_set_manifest_command_execute(
+            &mut model,
+            create_auth_manifest(&AuthManifestBuilderCfg {
+                manifest_flags: flags,
+                pqc_key_type,
+                ..Default::default()
+            }),
+            Some(CaliptraError::RUNTIME_AUTH_MANIFEST_DISABLE_OTP_ACCESS_NOT_SUBSYSTEM_MODE),
+        );
+        assert_eq!(get_fwinfo(&mut model).otp_lock_policy, 0);
+    }
+}
+
+#[test]
+#[cfg(not(feature = "fpga_realtime"))]
+fn test_disable_otp_access_mailbox_lock_is_sticky() {
+    let flags =
+        AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED | AuthManifestFlags::DISABLE_OTP_ACCESS;
+    for pqc_key_type in PQC_KEY_TYPE {
+        let mut model = run_rt_test_pqc(
+            RuntimeTestArgs {
+                subsystem_mode: true,
+                ..Default::default()
+            },
+            pqc_key_type,
+        );
+        assert_eq!(get_fwinfo(&mut model).otp_lock_policy, 0);
+
+        // VERIFY_AUTH_MANIFEST never locks.
+        model_manifest_command_execute(
+            &mut model,
+            create_auth_manifest(&AuthManifestBuilderCfg {
+                manifest_flags: flags,
+                pqc_key_type,
+                ..Default::default()
+            }),
+            CommandId::VERIFY_AUTH_MANIFEST,
+            None,
+        );
+        assert_eq!(get_fwinfo(&mut model).otp_lock_policy, 0);
+
+        // SET_AUTH_MANIFEST with the flag locks the DAI immediately.
+        model_set_manifest_command_execute(
+            &mut model,
+            create_auth_manifest(&AuthManifestBuilderCfg {
+                manifest_flags: flags,
+                pqc_key_type,
+                ..Default::default()
+            }),
+            None,
+        );
+        assert_eq!(
+            get_fwinfo(&mut model).otp_lock_policy,
+            FwInfoResp::OTP_ACCESS_DISABLED_BY_MANIFEST | FwInfoResp::OTP_DAI_LOCKED
+        );
+
+        // A later manifest without the flag is accepted, but the hardware
+        // lock holds until the next subsystem reset.
+        model_set_manifest_command_execute(
+            &mut model,
+            create_auth_manifest(&AuthManifestBuilderCfg {
+                manifest_flags: AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED,
+                pqc_key_type,
+                ..Default::default()
+            }),
+            None,
+        );
+        assert_eq!(
+            get_fwinfo(&mut model).otp_lock_policy,
+            FwInfoResp::OTP_DAI_LOCKED
         );
     }
 }
