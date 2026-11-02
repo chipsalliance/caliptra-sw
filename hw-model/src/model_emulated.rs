@@ -163,6 +163,37 @@ impl ModelEmulated {
 }
 
 impl ModelEmulated {
+    /// Drive the core's generic input pins without writing the read-only SoC registers.
+    pub fn set_generic_input_wires(&mut self, value: &[u32; 2]) {
+        self.cpu
+            .bus
+            .inner_mut()
+            .bus
+            .soc_reg
+            .set_generic_input_wires(value);
+    }
+
+    pub fn try_lock_sha_acc(&mut self) -> Result<bool, caliptra_emu_bus::BusError> {
+        self.cpu
+            .bus
+            .inner_mut()
+            .bus
+            .sha512_acc
+            .read(RvSize::Word, 0)
+            .map(|value| value == 0)
+    }
+
+    pub fn unlock_sha_acc(&mut self) -> Result<(), caliptra_emu_bus::BusError> {
+        self.cpu
+            .bus
+            .inner_mut()
+            .bus
+            .sha512_acc
+            .write(RvSize::Word, 0, 1)
+    }
+}
+
+impl ModelEmulated {
     /// Returns true when the emulated CPU is halted via the VeeR MPMC
     /// low-power CSR (not the RISC-V `wfi` instruction, which this emulator
     /// treats as a no-op).

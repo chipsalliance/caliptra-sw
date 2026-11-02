@@ -12,6 +12,293 @@ use zerocopy::{FromBytes, IntoBytes};
 
 const HW_REV_ID: u32 = 0x112;
 
+#[cfg(not(any(
+    feature = "verilator",
+    feature = "fpga_realtime",
+    feature = "fpga_subsystem"
+)))]
+mod autonomous {
+    use super::*;
+    use caliptra_builder::firmware::APP_WITH_UART_FIPS_TEST_HOOKS;
+    use caliptra_common::mailbox_api::{
+        CmShake256FinalReq, CmShake256InitReq, CmShake256InitResp, MailboxReq,
+    };
+    use caliptra_drivers::CaliptraError;
+    use caliptra_drivers::FipsTestHook;
+    use caliptra_hw_model::{DefaultHwModel, ModelError, SecurityState};
+    use caliptra_runtime::RtBootStatus;
+
+    const MAX_TEST_CYCLES: u32 = 20_000_000;
+
+    fn config(count: u32, scale: u32) -> u32 {
+        1 | (count << 1) | (scale << 17)
+    }
+
+    fn boot(config: u32) -> DefaultHwModel {
+        let mut model = run_rt_test(RuntimeTestArgs {
+            rom_callback: Some(Box::new(move |m| m.set_generic_input_wires(&[0, config]))),
+            security_state: Some(*SecurityState::default().set_debug_locked(true)),
+            ..Default::default()
+        });
+        model.step_until_or_timeout("runtime mailbox idle", MAX_TEST_CYCLES, |m| {
+            m.soc_mbox().status().read().mbox_fsm_ps().mbox_idle()
+        });
+        model.output().take(usize::MAX);
+        model
+    }
+
+    fn request(cmd: u32) -> MailboxReqHeader {
+        MailboxReqHeader {
+            chksum: caliptra_common::checksum::calc_checksum(cmd, &[]),
+        }
+    }
+
+    fn send(model: &mut DefaultHwModel, cmd: CommandId) {
+        let cmd = u32::from(cmd);
+        let bytes = model
+            .mailbox_execute(cmd, request(cmd).as_bytes())
+            .unwrap()
+            .unwrap();
+        let (header, _) = MailboxRespHeader::ref_from_prefix(bytes.as_slice()).unwrap();
+        assert_eq!(header.fips_status, MailboxRespHeader::FIPS_STATUS_APPROVED);
+        assert!(caliptra_common::checksum::verify_checksum(
+            header.chksum,
+            0,
+            &bytes[4..]
+        ));
+    }
+
+    fn step_idle(model: &mut DefaultHwModel) {
+        for _ in 0..10_000 {
+            model.step();
+        }
+        assert_eq!(model.soc_ifc().cptra_fw_error_fatal().read(), 0);
+    }
+
+    fn expect_no_test(model: &mut DefaultHwModel) {
+        step_idle(model);
+        assert!(!model.output().peek().contains("[kat] ++"));
+    }
+
+    fn wait_for_test(model: &mut DefaultHwModel) {
+        use caliptra_drivers::memory_layout::{BOOT_STATUS_ORG, DCCM_ORG};
+
+        model.step_until_or_timeout("autonomous self-test completion", MAX_TEST_CYCLES, |m| {
+            m.cpu_halted() && m.output().peek().contains("[kat] --")
+        });
+        // Debug-locked devices keep boot status in DCCM, not the SoC-visible register.
+        let status = model.dccm_read(BOOT_STATUS_ORG - DCCM_ORG, 4);
+        assert_eq!(
+            u32::from_le_bytes(status.try_into().unwrap()),
+            u32::from(RtBootStatus::RtFipSelfTestComplete)
+        );
+        assert!(model.soc_mbox().status().read().mbox_fsm_ps().mbox_idle());
+        assert_eq!(model.soc_ifc().cptra_fw_error_fatal().read(), 0);
+        model.output().take(usize::MAX);
+    }
+
+    #[test]
+    fn threshold_repeats_and_runtime_disable_is_ignored() {
+        let mut model = boot(config(3, 0));
+        model.set_generic_input_wires(&[0, 0]);
+
+        for _ in 0..2 {
+            for _ in 0..2 {
+                send(&mut model, CommandId::VERSION);
+                expect_no_test(&mut model);
+            }
+            send(&mut model, CommandId::VERSION);
+            wait_for_test(&mut model);
+            expect_no_test(&mut model);
+        }
+    }
+
+    #[test]
+    fn disabled_configuration_cannot_be_enabled_at_runtime() {
+        let mut model = boot(0);
+        model.set_generic_input_wires(&[0, config(1, 0)]);
+        for _ in 0..4 {
+            send(&mut model, CommandId::VERSION);
+            expect_no_test(&mut model);
+        }
+    }
+
+    #[test]
+    fn warm_reset_latches_the_new_configuration() {
+        let mut model = boot(config(3, 0));
+        model.set_generic_input_wires(&[0, config(1, 0)]);
+        send(&mut model, CommandId::VERSION);
+        expect_no_test(&mut model);
+
+        model.warm_reset_flow().unwrap();
+        model.step_until_ready_for_runtime();
+        model.output().take(usize::MAX);
+        send(&mut model, CommandId::VERSION);
+        wait_for_test(&mut model);
+    }
+
+    #[test]
+    fn multiplier_changes_the_command_threshold() {
+        let mut model = boot(config(1, 1));
+        model.set_generic_input_wires(&[0, config(1, 0)]);
+        for _ in 0..15 {
+            send(&mut model, CommandId::VERSION);
+            expect_no_test(&mut model);
+        }
+        send(&mut model, CommandId::VERSION);
+        wait_for_test(&mut model);
+    }
+
+    #[test]
+    fn failed_commands_count_and_autonomous_tests_do_not_create_manual_results() {
+        let mut model = boot(config(2, 0));
+        send(&mut model, CommandId::VERSION);
+        expect_no_test(&mut model);
+
+        let err = model
+            .mailbox_execute(CommandId::VERSION.into(), &[0; 4])
+            .unwrap_err();
+        assert!(matches!(err, ModelError::MailboxCmdFailed(_)));
+        wait_for_test(&mut model);
+
+        let cmd = u32::from(CommandId::SELF_TEST_GET_RESULTS);
+        assert_eq!(
+            model
+                .mailbox_execute(cmd, request(cmd).as_bytes())
+                .unwrap_err(),
+            ModelError::MailboxCmdFailed(CaliptraError::RUNTIME_SELF_TEST_NOT_STARTED.into())
+        );
+    }
+
+    #[test]
+    fn unread_manual_results_do_not_block_autonomous_tests() {
+        let mut model = boot(config(2, 0));
+        send(&mut model, CommandId::SELF_TEST_START);
+        wait_for_test(&mut model);
+
+        for _ in 0..2 {
+            send(&mut model, CommandId::VERSION);
+            expect_no_test(&mut model);
+            send(&mut model, CommandId::VERSION);
+            wait_for_test(&mut model);
+        }
+        send(&mut model, CommandId::SELF_TEST_GET_RESULTS);
+        let cmd = u32::from(CommandId::SELF_TEST_GET_RESULTS);
+        assert_eq!(
+            model
+                .mailbox_execute(cmd, request(cmd).as_bytes())
+                .unwrap_err(),
+            ModelError::MailboxCmdFailed(CaliptraError::RUNTIME_SELF_TEST_NOT_STARTED.into())
+        );
+        wait_for_test(&mut model);
+    }
+
+    #[test]
+    fn pending_test_waits_for_response_release_without_another_command() {
+        let mut model = boot(config(1, 0));
+        let cmd = u32::from(CommandId::VERSION);
+        model
+            .start_mailbox_exec(cmd, request(cmd).as_bytes())
+            .unwrap();
+        model.step_until_or_timeout("VERSION response", MAX_TEST_CYCLES, |m| {
+            m.soc_mbox().status().read().status().data_ready()
+        });
+        expect_no_test(&mut model);
+        assert!(model.soc_mbox().status().read().status().data_ready());
+
+        let mut response = [0; 64];
+        model.finish_mailbox_exec(&mut response).unwrap().unwrap();
+        wait_for_test(&mut model);
+    }
+
+    #[test]
+    fn pending_test_waits_for_sha_accelerator() {
+        let mut model = boot(config(1, 0));
+        assert!(model.try_lock_sha_acc().unwrap());
+        send(&mut model, CommandId::VERSION);
+        expect_no_test(&mut model);
+        model.unlock_sha_acc().unwrap();
+        wait_for_test(&mut model);
+    }
+
+    #[test]
+    fn self_test_failure_is_fatal_after_the_triggering_response() {
+        let mut model = run_rt_test(RuntimeTestArgs {
+            test_fwid: Some(&APP_WITH_UART_FIPS_TEST_HOOKS),
+            rom_callback: Some(Box::new(|m| m.set_generic_input_wires(&[0, config(1, 0)]))),
+            ..Default::default()
+        });
+        model
+            .soc_ifc()
+            .cptra_dbg_manuf_service_reg()
+            .write(|_| u32::from(FipsTestHook::SHA256_DIGEST_FAILURE) << 16);
+        send(&mut model, CommandId::VERSION);
+        model.step_until_fatal_error(
+            CaliptraError::KAT_SHA256_DIGEST_FAILURE.into(),
+            MAX_TEST_CYCLES,
+        );
+        let cmd = u32::from(CommandId::VERSION);
+        assert_eq!(
+            model
+                .mailbox_execute(cmd, request(cmd).as_bytes())
+                .unwrap_err(),
+            ModelError::MailboxCmdFailed(CaliptraError::KAT_SHA256_DIGEST_FAILURE.into())
+        );
+    }
+
+    #[test]
+    fn invalid_enabled_configuration_fails_startup() {
+        let mut model = run_rt_test(RuntimeTestArgs {
+            rom_callback: Some(Box::new(|m| m.set_generic_input_wires(&[0, 1]))),
+            successful_reach_rt: false,
+            ..Default::default()
+        });
+        model.step_until_fatal_error(
+            CaliptraError::RUNTIME_INVALID_SELF_TEST_CONFIG.into(),
+            MAX_TEST_CYCLES,
+        );
+        assert!(!model
+            .soc_ifc()
+            .cptra_flow_status()
+            .read()
+            .ready_for_runtime());
+    }
+
+    #[test]
+    fn self_test_invalidates_live_shake256_context() {
+        let mut model = boot(config(2, 0));
+        let mut init = MailboxReq::CmShake256Init(CmShake256InitReq::default());
+        init.populate_chksum().unwrap();
+        let bytes = model
+            .mailbox_execute(CommandId::CM_SHAKE256_INIT.into(), init.as_bytes().unwrap())
+            .unwrap()
+            .unwrap();
+        let context = CmShake256InitResp::ref_from_bytes(bytes.as_slice())
+            .unwrap()
+            .context;
+        expect_no_test(&mut model);
+        send(&mut model, CommandId::VERSION);
+        wait_for_test(&mut model);
+
+        let mut finish = MailboxReq::CmShake256Final(CmShake256FinalReq {
+            context,
+            ..Default::default()
+        });
+        finish.populate_chksum().unwrap();
+        assert_eq!(
+            model
+                .mailbox_execute(
+                    CommandId::CM_SHAKE256_FINAL.into(),
+                    finish.as_bytes().unwrap()
+                )
+                .unwrap_err(),
+            ModelError::MailboxCmdFailed(
+                CaliptraError::RUNTIME_CM_SHAKE256_CONTEXT_MISMATCH.into()
+            )
+        );
+    }
+}
+
 #[test]
 fn test_fips_version() {
     let args = RuntimeTestArgs {

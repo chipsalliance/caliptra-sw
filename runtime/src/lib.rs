@@ -179,20 +179,53 @@ pub(crate) fn mutrefbytes<R: FromBytes + IntoBytes + KnownLayout>(
 fn enter_idle(drivers: &mut Drivers) {
     // Run pending jobs before entering low power mode.
     #[cfg(feature = "fips_self_test")]
-    if let SelfTestStatus::InProgress(execute) = drivers.self_test_status {
+    if matches!(drivers.self_test_status, SelfTestStatus::InProgress(_))
+        || drivers.self_test_schedule.is_due()
+    {
         let lock = drivers.mbox.lock();
-        if !lock {
-            let result = execute(drivers);
-            drivers.mbox.unlock();
-            match result {
-                Ok(_) => drivers.self_test_status = SelfTestStatus::Done,
-                Err(e) => caliptra_common::handle_fatal_error(e.into()),
-            }
-        } else {
+        if lock {
             cfi_assert!(lock);
             // Don't enter low power mode when in progress
             return;
         }
+        let reserved = drivers
+            .sha2_512_384_acc
+            .try_reserve()
+            .unwrap_or_else(|e| caliptra_common::handle_fatal_error(e.into()));
+        if !reserved {
+            drivers.mbox.unlock();
+            return;
+        }
+
+        drivers.soc_ifc.flow_status_set_mailbox_flow_done(false);
+        drivers.persistent_data.get_mut().fw.dpe.runtime_cmd_active = U8Bool::new(true);
+        let timeout = command_wdt_timeout(drivers.soc_ifc.wdt1_timeout_cycle_count());
+        caliptra_common::wdt::start_wdt(&mut drivers.soc_ifc, timeout);
+
+        let manual = matches!(drivers.self_test_status, SelfTestStatus::InProgress(_));
+        let result = match drivers.self_test_status {
+            SelfTestStatus::InProgress(execute) => execute(drivers),
+            _ => fips_self_test_cmd::execute(drivers),
+        };
+        cfi_check!(result);
+        match result {
+            Ok(()) => {
+                if manual {
+                    drivers.self_test_status = SelfTestStatus::Done;
+                }
+                drivers.self_test_schedule.test_passed();
+            }
+            Err(e) => {
+                drivers.mbox.unlock();
+                caliptra_common::handle_fatal_error(e.into());
+            }
+        }
+
+        caliptra_common::wdt::stop_wdt(&mut drivers.soc_ifc);
+        drivers.sha2_512_384_acc.release_reservation();
+        drivers.mbox.unlock();
+        drivers.soc_ifc.flow_status_set_mailbox_flow_done(true);
+        drivers.persistent_data.get_mut().fw.dpe.runtime_cmd_active = U8Bool::new(false);
     }
 
     #[cfg(feature = "riscv")]
@@ -863,6 +896,8 @@ pub fn handle_mailbox_commands(drivers: &mut Drivers) -> CaliptraResult<()> {
             } else {
                 caliptra_common::wdt::stop_wdt(&mut drivers.soc_ifc);
             }
+            #[cfg(feature = "fips_self_test")]
+            drivers.self_test_schedule.command_completed();
         } else {
             cfi_assert!(!cmd_ready);
         }

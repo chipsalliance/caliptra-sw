@@ -1244,6 +1244,52 @@ Table: `VERSION` output arguments
 | fips_rev     | u32[3]    | [31:0] HW rev ID, [47:32] ROM version, [63:48] FMC version, [95:64] FW version
 | name         | u8[12]    | 12 character module name "Caliptra RTM"
 
+### Autonomous command-count self-tests
+
+RT can automatically run the existing FIPS self-test sequence after a configured
+number of completed RT mailbox commands. This is workload-based, not time-based:
+no additional commands means no additional tests.
+
+The proposed late-binding allocation uses core `generic_input_wires[63:32]`,
+exposed as `CPTRA_GENERIC_INPUT_WIRES[1]` (not the MCU's generic input wires or
+`SS_STRAP_GENERIC`). Bit positions below are relative to that 32-bit word:
+
+| Bits | Meaning |
+| ---- | ------- |
+| 0 | Enable autonomous self-tests. Zero preserves existing, manual-only behavior. |
+| 16:1 | Nonzero base command count, from 1 to 65535. |
+| 18:17 | Multiplier encoding: 0 = x1, 1 = x16, 2 = x256, 3 = x4096. |
+| 31:19 | Reserved; tie to zero. |
+
+The threshold is `base count * multiplier` (1 to 268431360 commands).
+For example, `0x000207d1` selects `1000 * 16 = 16000` commands.
+The input-wire binding requires corresponding integration-spec allocation.
+
+RT snapshots the configuration once during each RT startup, including cold,
+warm, and firmware-update resets. Subsequent input changes are ignored until the
+next RT startup. There is no runtime disable or reconfiguration command.
+An enabled configuration with a zero count, nonzero reserved bits, or a build
+without `fips_self_test` support fails startup with
+`RUNTIME_INVALID_SELF_TEST_CONFIG`; disabled configurations ignore the other fields.
+
+Each completed RT mailbox command counts once, including rejected or failed
+commands and manual self-test commands. ROM commands and internal self-test
+execution do not count. After the threshold command's response is posted, the
+test remains pending until RT can acquire the mailbox and SHA accelerator.
+Contention does not discard the trigger. RT reserves both resources for the
+entire suite, runs with watchdog protection, and resets the command counter only
+after a successful test. A self-test failure follows the existing fatal-error
+path. Shutdown and reset retain their normal behavior.
+
+Manual `SELF_TEST_START` / `SELF_TEST_GET_RESULTS` remain supported. A successful
+manual test also resets the autonomous counter. Autonomous execution neither
+creates nor consumes a manual result, so unread manual results cannot block
+future autonomous tests. No external start command or result polling is needed.
+
+As with a manual self-test, the suite uses the SHA3 engine and invalidates any
+live `CM_SHAKE256` streaming session. Callers must restart such a session if
+UPDATE or FINAL reports `RUNTIME_CM_SHAKE256_CONTEXT_MISMATCH`.
+
 ### SELF\_TEST\_START
 
 FIPS command to start the self tests

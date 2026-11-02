@@ -55,11 +55,38 @@ impl StreamEndianness {
 
 pub struct Sha2_512_384Acc {
     sha512_acc: Sha512AccCsr,
+    #[cfg(feature = "runtime")]
+    reserved: bool,
 }
 
 impl Sha2_512_384Acc {
     pub fn new(sha512_acc: Sha512AccCsr) -> Self {
-        Self { sha512_acc }
+        Self {
+            sha512_acc,
+            #[cfg(feature = "runtime")]
+            reserved: false,
+        }
+    }
+
+    /// Reserve the accelerator across multiple operations, such as a self-test suite.
+    /// Returns false while another requester owns the accelerator.
+    #[cfg(feature = "runtime")]
+    pub fn try_reserve(&mut self) -> CaliptraResult<bool> {
+        if self.reserved {
+            return Err(CaliptraError::DRIVER_SHA2_512_384ACC_UNEXPECTED_ACQUIRED_LOCK_STATE);
+        }
+        if self.sha512_acc.regs().lock().read().lock() {
+            return Ok(false);
+        }
+        self.reserved = true;
+        Ok(true)
+    }
+
+    /// Release a reservation after all operations have succeeded.
+    #[cfg(feature = "runtime")]
+    pub fn release_reservation(&mut self) {
+        self.reserved = false;
+        self.sha512_acc.regs_mut().lock().write(|w| w.lock(true));
     }
     /// Acquire the SHA384 Accelerator lock.
     ///
@@ -90,6 +117,12 @@ impl Sha2_512_384Acc {
             return Ok(None);
         }
 
+        #[cfg(feature = "runtime")]
+        let assumed_lock_state = if self.reserved {
+            ShaAccLockState::AssumedLocked
+        } else {
+            assumed_lock_state
+        };
         match assumed_lock_state {
             ShaAccLockState::NotAcquired => {
                 if sha_acc.lock().read().lock() {
@@ -100,6 +133,8 @@ impl Sha2_512_384Acc {
                     // The uC acquired the lock just now.
                     Ok(Some(Sha2_512_384AccOp {
                         sha512_acc: &mut self.sha512_acc,
+                        #[cfg(feature = "runtime")]
+                        release_lock: !self.reserved,
                     }))
                 }
             }
@@ -108,6 +143,8 @@ impl Sha2_512_384Acc {
                     // SHA Acc is locked and the caller is assuming that the uC has it.
                     Ok(Some(Sha2_512_384AccOp {
                         sha512_acc: &mut self.sha512_acc,
+                        #[cfg(feature = "runtime")]
+                        release_lock: !self.reserved,
                     }))
                 } else {
                     // Caller expected uC to already have the lock, but uC actually didn't (bug)
@@ -167,6 +204,8 @@ impl Sha2_512_384Acc {
 
 pub struct Sha2_512_384AccOp<'a> {
     sha512_acc: &'a mut Sha512AccCsr,
+    #[cfg(feature = "runtime")]
+    release_lock: bool,
 }
 
 impl Drop for Sha2_512_384AccOp<'_> {
@@ -176,6 +215,10 @@ impl Drop for Sha2_512_384AccOp<'_> {
     ///
     /// * None
     fn drop(&mut self) {
+        #[cfg(feature = "runtime")]
+        if !self.release_lock {
+            return;
+        }
         let sha_acc = self.sha512_acc.regs_mut();
         sha_acc.lock().write(|w| w.lock(true));
     }

@@ -30,6 +30,48 @@ use crate::Drivers;
 
 pub struct FipsModule;
 
+pub(crate) struct SelfTestSchedule {
+    threshold: u32,
+    completed_commands: u32,
+}
+
+impl SelfTestSchedule {
+    pub(crate) fn new(config: u32) -> CaliptraResult<Self> {
+        const ENABLE: u32 = 1;
+        const COUNT_MASK: u32 = 0xffff;
+        const RESERVED_MASK: u32 = !0x7_ffff;
+
+        let threshold = if config & ENABLE == 0 {
+            0
+        } else {
+            let count = (config >> 1) & COUNT_MASK;
+            if !cfg!(feature = "fips_self_test") || count == 0 || config & RESERVED_MASK != 0 {
+                return Err(CaliptraError::RUNTIME_INVALID_SELF_TEST_CONFIG);
+            }
+            let scale = (config >> 17) & 3;
+            count << (4 * scale)
+        };
+        Ok(Self {
+            threshold,
+            completed_commands: 0,
+        })
+    }
+
+    pub(crate) fn command_completed(&mut self) {
+        if self.completed_commands < self.threshold {
+            self.completed_commands += 1;
+        }
+    }
+
+    pub(crate) fn is_due(&self) -> bool {
+        self.threshold != 0 && self.completed_commands == self.threshold
+    }
+
+    pub(crate) fn test_passed(&mut self) {
+        self.completed_commands = 0;
+    }
+}
+
 /// Fips command handler.
 impl FipsModule {
     /// Clear data structures in DCCM.
@@ -240,5 +282,87 @@ impl FipsShutdownCmd {
         env.is_shutdown = true;
 
         Ok(0)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn autonomous_self_test_disabled_by_default() {
+        for config in [0, !1] {
+            let mut schedule = SelfTestSchedule::new(config).unwrap();
+            for _ in 0..100 {
+                schedule.command_completed();
+                assert!(!schedule.is_due());
+            }
+        }
+    }
+
+    #[cfg(feature = "fips_self_test")]
+    #[test]
+    fn autonomous_self_test_threshold_and_reset() {
+        let mut schedule = SelfTestSchedule::new(1 | (3 << 1)).unwrap();
+        for _ in 0..2 {
+            schedule.command_completed();
+            assert!(!schedule.is_due());
+        }
+        schedule.command_completed();
+        assert!(schedule.is_due());
+        for _ in 0..100 {
+            schedule.command_completed();
+            assert!(schedule.is_due());
+        }
+        assert_eq!(schedule.completed_commands, 3);
+        schedule.test_passed();
+        assert!(!schedule.is_due());
+        assert_eq!(schedule.completed_commands, 0);
+    }
+
+    #[cfg(feature = "fips_self_test")]
+    #[test]
+    fn autonomous_self_test_multiplier_encoding() {
+        for (encoding, multiplier) in [(0, 1), (1, 16), (2, 256), (3, 4096)] {
+            let mut schedule = SelfTestSchedule::new(1 | (2 << 1) | (encoding << 17)).unwrap();
+            assert_eq!(schedule.threshold, 2 * multiplier);
+            for _ in 0..(2 * multiplier - 1) {
+                schedule.command_completed();
+                assert!(!schedule.is_due());
+            }
+            schedule.command_completed();
+            assert!(schedule.is_due());
+        }
+    }
+
+    #[cfg(feature = "fips_self_test")]
+    #[test]
+    fn autonomous_self_test_maximum_threshold() {
+        let mut schedule = SelfTestSchedule::new(0x7_ffff).unwrap();
+        assert_eq!(schedule.threshold, 268_431_360);
+        schedule.completed_commands = schedule.threshold - 1;
+        schedule.command_completed();
+        schedule.command_completed();
+        assert!(schedule.is_due());
+        assert_eq!(schedule.completed_commands, 268_431_360);
+    }
+
+    #[test]
+    fn autonomous_self_test_rejects_invalid_configuration() {
+        for config in [1, 1 | (3 << 17), 3 | (1 << 19), u32::MAX] {
+            assert!(matches!(
+                SelfTestSchedule::new(config),
+                Err(CaliptraError::RUNTIME_INVALID_SELF_TEST_CONFIG)
+            ));
+        }
+    }
+
+    #[cfg(not(feature = "fips_self_test"))]
+    #[test]
+    fn autonomous_self_test_rejects_unsupported_enable() {
+        assert!(matches!(
+            SelfTestSchedule::new(3),
+            Err(CaliptraError::RUNTIME_INVALID_SELF_TEST_CONFIG)
+        ));
     }
 }
