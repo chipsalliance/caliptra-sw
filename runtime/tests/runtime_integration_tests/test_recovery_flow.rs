@@ -126,10 +126,12 @@ fn somv_measurement(manifest: &AuthorizationManifest) -> [u8; 48] {
 }
 
 fn somo_measurement(manifest: &AuthorizationManifest) -> [u8; 48] {
-    preamble_range_digest(
-        &manifest.preamble,
-        AuthManifestPreamble::owner_pub_keys_range(),
-    )
+    let preamble_bytes = manifest.preamble.as_bytes();
+    let mut hasher = Sha384::new();
+    for range in AuthManifestPreamble::owner_signed_data_ranges() {
+        hasher.update(&preamble_bytes[range.start as usize..range.end as usize]);
+    }
+    hasher.finalize().into()
 }
 
 fn create_auth_manifest_with_alt_owner_keys(
@@ -636,7 +638,11 @@ fn test_set_auth_manifest_updates_soc_manifest_dpe_contexts() {
     assert_ne!(updated_somv.digest, initial_somv.digest);
     let updated_somo = find_tcb_snapshot(&updated_snapshots, b"SOMO");
     assert_eq!(updated_somo.svn, Some(0));
-    assert_eq!(updated_somo.digest, initial_somo.digest);
+    assert_eq!(
+        updated_somo.digest,
+        Some(somo_measurement(&soc_manifest_v6))
+    );
+    assert_ne!(updated_somo.digest, initial_somo.digest);
     assert_ne!(quote_pcr31(&mut model), initial_pcr31);
 
     let pcr31_after_somv_update = quote_pcr31(&mut model);
@@ -661,6 +667,6 @@ fn test_set_auth_manifest_updates_soc_manifest_dpe_contexts() {
         owner_updated_somo.digest,
         Some(somo_measurement(&soc_manifest_alt_owner))
     );
-    assert_ne!(owner_updated_somo.digest, initial_somo.digest);
+    assert_ne!(owner_updated_somo.digest, updated_somo.digest);
     assert_ne!(quote_pcr31(&mut model), pcr31_after_somv_update);
 }
