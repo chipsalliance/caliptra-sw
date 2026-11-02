@@ -14,7 +14,9 @@ statemachine! {
 
         // start by reading ProtCap to see if the device supports recovery
         *ReadProtCap + ProtCap(ProtCapBlock) [check_device_status_support] = ReadDeviceStatus,
-        ReadProtCap + ProtCap(ProtCapBlock) [check_no_device_status_support] = Done,
+        // Capabilities reset to zero and are published by Core later. Keep
+        // probing until publication; absence is not successful recovery.
+        ReadProtCap + ProtCap(ProtCapBlock) [check_no_device_status_support] = ReadProtCap,
 
         // read the device status to see if it needs recovery
         ReadDeviceStatus + DeviceStatus(DeviceStatusBlock) [check_device_status_healthy] = Done,
@@ -246,13 +248,38 @@ impl StateMachineContext for Context {
 mod tests {
     use super::*;
     #[test]
-    fn test_no_prot_cap() {
-        let (tx, _) = mpsc::channel();
-        let context = Context::new(tx);
+    fn test_delayed_capabilities_eventually_send_recovery_image() {
+        let (tx, rx) = mpsc::channel();
+        let mut context = Context::new(tx);
+        context.recovery_images.push(vec![1, 2, 3, 4]);
         let mut sm = StateMachine::new(context);
-        assert_eq!(*sm.state(), States::ReadProtCap);
-        // we will go straight to Done if the ProtCap isn't valid
-        assert!(sm.process_event(Events::ProtCap(0u32.into())).is_ok());
-        assert_eq!(*sm.state(), States::Done);
+        for _ in 0..3 {
+            sm.process_event(Events::ProtCap(0u32.into())).unwrap();
+            assert_eq!(*sm.state(), States::ReadProtCap);
+            assert!(state_to_read_request(*sm.state()).is_some());
+        }
+        sm.process_event(Events::ProtCap(
+            ProtCap2::AgentCapabilities::DeviceStatus.value.into(),
+        ))
+        .unwrap();
+        assert_eq!(*sm.state(), States::ReadDeviceStatus);
+        sm.process_event(Events::DeviceStatus(
+            DeviceStatus::Status::RecoveryMode.value.into(),
+        ))
+        .unwrap();
+        assert_eq!(*sm.state(), States::WaitForRecoveryStatus);
+        sm.process_event(Events::RecoveryStatus(
+            RecoveryStatus::DEVICE_RECOVERY::AwaitingRecoveryImage
+                .value
+                .into(),
+        ))
+        .unwrap();
+        assert_eq!(*sm.state(), States::WaitForRecoveryPending);
+        let events: Vec<_> = rx.try_iter().collect();
+        assert!(events.iter().any(|event| matches!(
+            &event.event,
+            EventData::RecoveryImageAvailable { image_id: 0, image }
+                if image == &[1, 2, 3, 4]
+        )));
     }
 }
