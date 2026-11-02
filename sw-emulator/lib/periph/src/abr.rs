@@ -198,6 +198,7 @@ register_bitfields! [
             SUCCESS = 0,
             KV_READ_FAIL = 1,
             KV_WRITE_FAIL = 2,
+            KV_RD_LEN_MISMATCH = 3,
         ],
     ],
 
@@ -1129,6 +1130,11 @@ impl Abr {
         };
 
         if let Some(seed) = seed {
+            if self.key_vault.key_len(key_id) < 2 * ML_KEM_1024_SEED_SIZE {
+                self.mlkem_seed_d.fill(0);
+                self.mlkem_seed_z.fill(0);
+                return KvStatus::ERROR::Value::KV_RD_LEN_MISMATCH as u32;
+            }
             // Split the 64-byte seed into two 32-byte parts
             let seed_d_bytes =
                 <[u8; ML_KEM_1024_SEED_SIZE]>::try_from(&seed[..ML_KEM_1024_SEED_SIZE]).unwrap();
@@ -1139,6 +1145,9 @@ impl Abr {
 
             self.mlkem_seed_d = words_from_bytes_le(&seed_d_bytes);
             self.mlkem_seed_z = words_from_bytes_le(&seed_z_bytes);
+            // RTL stores incoming KV words at descending indices in each seed.
+            self.mlkem_seed_d.reverse();
+            self.mlkem_seed_z.reverse();
         }
 
         seed_read_result
@@ -1164,11 +1173,17 @@ impl Abr {
         };
 
         if let Some(msg) = msg {
+            if self.key_vault.key_len(key_id) < ML_KEM_1024_MESSAGE_SIZE {
+                self.mlkem_msg.fill(0);
+                return KvStatus::ERROR::Value::KV_RD_LEN_MISMATCH as u32;
+            }
             let temp = words_from_bytes_le(
                 &<[u8; ML_KEM_1024_MESSAGE_SIZE]>::try_from(&msg[..ML_KEM_1024_MESSAGE_SIZE])
                     .unwrap(),
             );
             self.mlkem_msg = temp;
+            // Match abr_ctrl's reversed KV message write-address mapping.
+            self.mlkem_msg.reverse();
         }
 
         msg_read_result
@@ -1195,7 +1210,10 @@ impl Abr {
         let seed_read_result = self.mlkem_read_seed_from_keyvault(key_id, false);
 
         self.kv_mlkem_seed_rd_status.reg.modify(
-            KvStatus::READY::SET + KvStatus::VALID::SET + KvStatus::ERROR.val(seed_read_result),
+            KvStatus::READY.val(u32::from(
+                seed_read_result == KvStatus::ERROR::SUCCESS.value,
+            )) + KvStatus::VALID::SET
+                + KvStatus::ERROR.val(seed_read_result),
         );
     }
 
@@ -1204,7 +1222,9 @@ impl Abr {
         let msg_read_result = self.mlkem_read_msg_from_keyvault(key_id, false);
 
         self.kv_mlkem_msg_rd_status.reg.modify(
-            KvStatus::READY::SET + KvStatus::VALID::SET + KvStatus::ERROR.val(msg_read_result),
+            KvStatus::READY.val(u32::from(msg_read_result == KvStatus::ERROR::SUCCESS.value))
+                + KvStatus::VALID::SET
+                + KvStatus::ERROR.val(msg_read_result),
         );
     }
 
@@ -2493,6 +2513,54 @@ mod tests {
 
         let result = bytes_from_words_le(&ml_dsa87.mldsa_verify_res);
         assert_eq!(result, &sig_for_hw[..ML_DSA87_VERIFICATION_SIZE_BYTES]);
+    }
+
+    #[test]
+    fn test_mlkem_kv_seed_length_and_word_order() {
+        let clock = Clock::new();
+        let mut key_vault = KeyVault::new();
+        let sha512 = HashSha512::new(&clock, key_vault.clone());
+        let mut abr = Abr::new(&clock, key_vault.clone(), sha512);
+        let mut usage = KeyUsage::default();
+        usage.set_mlkem_seed(true);
+        let seed: [u8; 64] = std::array::from_fn(|i| i as u8);
+        for length in [4, 32, 48, 60] {
+            key_vault
+                .write_key(0, &seed[..length], usage.into())
+                .unwrap();
+            assert_eq!(abr.mlkem_read_seed_from_keyvault(0, false), 3);
+            assert_eq!(abr.mlkem_seed_d, [0; 8]);
+            assert_eq!(abr.mlkem_seed_z, [0; 8]);
+        }
+        key_vault.write_key(0, &seed, usage.into()).unwrap();
+        assert_eq!(abr.mlkem_read_seed_from_keyvault(0, false), 0);
+        assert_eq!(abr.mlkem_seed_d[0], 0x1f1e1d1c);
+        assert_eq!(abr.mlkem_seed_d[7], 0x03020100);
+        assert_eq!(abr.mlkem_seed_z[0], 0x3f3e3d3c);
+        assert_eq!(abr.mlkem_seed_z[7], 0x23222120);
+    }
+
+    #[test]
+    fn test_mlkem_kv_message_length_and_word_order() {
+        let clock = Clock::new();
+        let mut key_vault = KeyVault::new();
+        let sha512 = HashSha512::new(&clock, key_vault.clone());
+        let mut abr = Abr::new(&clock, key_vault.clone(), sha512);
+        let mut usage = KeyUsage::default();
+        usage.set_mlkem_msg(true);
+        let message: [u8; 48] = std::array::from_fn(|i| i as u8);
+        key_vault
+            .write_key(0, &message[..28], usage.into())
+            .unwrap();
+        assert_eq!(abr.mlkem_read_msg_from_keyvault(0, false), 3);
+        for length in [32, 48] {
+            key_vault
+                .write_key(0, &message[..length], usage.into())
+                .unwrap();
+            assert_eq!(abr.mlkem_read_msg_from_keyvault(0, false), 0);
+            assert_eq!(abr.mlkem_msg[0], 0x1f1e1d1c);
+            assert_eq!(abr.mlkem_msg[7], 0x03020100);
+        }
     }
 
     #[test]
