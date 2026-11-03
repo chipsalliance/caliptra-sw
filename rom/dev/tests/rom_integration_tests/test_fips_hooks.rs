@@ -18,6 +18,15 @@ use caliptra_hw_model::{
 };
 use zerocopy::IntoBytes;
 
+const SUPPORTS_INTERNAL_TRNG: bool = cfg!(any(
+    feature = "itrng",
+    not(any(
+        feature = "verilator",
+        feature = "fpga_realtime",
+        feature = "fpga_subsystem"
+    ))
+));
+
 fn boot_with_fips_hook(hook: u8, init_params: InitParams) -> DefaultHwModel {
     let rom = caliptra_builder::build_firmware_rom(
         if cfg!(any(feature = "fpga_realtime", feature = "fpga_subsystem")) {
@@ -80,6 +89,11 @@ fn test_boot_kat_failures_non_fatal_unprovisioned() {
                 None,
             ),
             (
+                FipsTestHook::SHA2_512_384_ACC_START_OP_FAILURE,
+                CaliptraError::KAT_SHA2_512_384_ACC_DIGEST_START_OP_FAILURE,
+                None,
+            ),
+            (
                 FipsTestHook::CSRNG_GENERATE_FAILURE,
                 CaliptraError::KAT_CSRNG_GENERATE_FAILURE,
                 Some(TrngMode::Internal),
@@ -95,6 +109,9 @@ fn test_boot_kat_failures_non_fatal_unprovisioned() {
                 Some(TrngMode::Internal),
             ),
         ] {
+            if trng_mode == Some(TrngMode::Internal) && !SUPPORTS_INTERNAL_TRNG {
+                continue;
+            }
             let mut hw = boot_with_fips_hook(
                 hook,
                 InitParams {
@@ -152,11 +169,19 @@ fn test_boot_kat_failures_fatal_provisioned() {
                 None,
             ),
             (
+                FipsTestHook::SHA2_512_384_ACC_START_OP_FAILURE,
+                CaliptraError::KAT_SHA2_512_384_ACC_DIGEST_START_OP_FAILURE,
+                None,
+            ),
+            (
                 FipsTestHook::CSRNG_GENERATE_FAILURE,
                 CaliptraError::KAT_CSRNG_GENERATE_FAILURE,
                 Some(TrngMode::Internal),
             ),
         ] {
+            if trng_mode == Some(TrngMode::Internal) && !SUPPORTS_INTERNAL_TRNG {
+                continue;
+            }
             let mut hw = boot_with_fips_hook(
                 hook,
                 InitParams {
@@ -267,11 +292,19 @@ fn test_boot_continues_after_kat_failure() {
                 None,
             ),
             (
+                FipsTestHook::SHA2_512_384_ACC_START_OP_FAILURE,
+                CaliptraError::KAT_SHA2_512_384_ACC_DIGEST_START_OP_FAILURE,
+                None,
+            ),
+            (
                 FipsTestHook::CSRNG_GENERATE_FAILURE,
                 CaliptraError::KAT_CSRNG_GENERATE_FAILURE,
                 Some(TrngMode::Internal),
             ),
         ] {
+            if trng_mode == Some(TrngMode::Internal) && !SUPPORTS_INTERNAL_TRNG {
+                continue;
+            }
             let mut hw = boot_with_fips_hook(
                 hook,
                 InitParams {
@@ -290,6 +323,9 @@ fn test_boot_continues_after_kat_failure() {
                 hw.soc_ifc().cptra_fw_error_non_fatal().read(),
                 u32::from(error)
             );
+            hw.soc_ifc()
+                .cptra_dbg_manuf_service_reg()
+                .write(|_| u32::from(FipsTestHook::RSVD) << 16);
             helpers::test_upload_firmware(&mut hw, &image, pqc_key_type);
             hw.step_until_fatal_error(
                 CaliptraError::ROM_GLOBAL_FIPS_HOOKS_ROM_EXIT.into(),

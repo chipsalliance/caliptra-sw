@@ -424,7 +424,8 @@ During ROM boot in the Unprovisioned lifecycle, each KAT failure is reported in
 `CPTRA_FW_ERROR_NON_FATAL`, the remaining KATs are executed, and boot continues.
 The register retains the most recent error when multiple KATs fail. This applies
 to all boot-time KATs, including the early CSRNG and SHA2-256 tests. Continuing
-after a SHA accelerator KAT failure releases the KAT-owned accelerator lock.
+after a SHA accelerator KAT failure releases the KAT-owned accelerator lock,
+including startup failures where ROM owns the lock. SoC-owned locks are preserved.
 CSRNG restoration from live entropy must succeed before a CSRNG KAT failure can
 be tolerated; restoration failures remain fatal in every lifecycle and take
 precedence over an earlier KAT failure. Other KAT failures remain fatal in all

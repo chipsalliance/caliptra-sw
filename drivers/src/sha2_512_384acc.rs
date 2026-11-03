@@ -97,6 +97,17 @@ impl Sha2_512_384Acc {
         }
     }
 
+    /// Release a lock known to be held by the microcontroller.
+    ///
+    /// The caller must have acquired the lock or assumed ownership after reset.
+    /// A SoC-owned lock is left unchanged.
+    pub fn release_lock(&mut self) {
+        let sha_acc = self.sha512_acc.regs_mut();
+        if !sha_acc.status().read().soc_has_lock() {
+            sha_acc.lock().write(|w| w.lock(true));
+        }
+    }
+
     /// Zeroize the hardware registers.
     ///
     /// This is useful to call from a fatal-error-handling routine.

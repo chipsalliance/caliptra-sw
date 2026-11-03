@@ -16,7 +16,7 @@ Abstract:
 #![no_main]
 
 use caliptra_drivers::{
-    memory_layout, Array4x12, Array4x16, Mailbox, Sha2_512_384Acc, ShaAccLockState,
+    memory_layout, Array4x12, Array4x16, CaliptraError, Mailbox, Sha2_512_384Acc, ShaAccLockState,
 };
 use caliptra_kat::Sha2_512_384AccKat;
 use caliptra_registers::mbox::MboxCsr;
@@ -381,8 +381,57 @@ fn test_kat() {
     );
 }
 
+fn test_kat_start_failure_lock_ownership() {
+    let mut sha_acc = unsafe { Sha2_512_384Acc::new(Sha512AccCsr::new()) };
+    let kat = Sha2_512_384AccKat::default();
+    let mut error = None;
+
+    kat.execute_with_error_handler(&mut sha_acc, ShaAccLockState::AssumedLocked, |err| {
+        error = Some(err);
+        Ok(())
+    })
+    .unwrap();
+    assert_eq!(
+        error,
+        Some(CaliptraError::DRIVER_SHA2_512_384ACC_UNEXPECTED_ACQUIRED_LOCK_STATE)
+    );
+
+    let op = sha_acc
+        .try_start_operation(ShaAccLockState::NotAcquired)
+        .unwrap()
+        .expect("accepted startup failure must release the acquired lock");
+    core::mem::forget(op);
+
+    error = None;
+    kat.execute_with_error_handler(&mut sha_acc, ShaAccLockState::NotAcquired, |err| {
+        error = Some(err);
+        Ok(())
+    })
+    .unwrap();
+    assert_eq!(
+        error,
+        Some(CaliptraError::KAT_SHA2_512_384_ACC_DIGEST_START_OP_FAILURE)
+    );
+    assert!(sha_acc
+        .try_start_operation(ShaAccLockState::NotAcquired)
+        .unwrap()
+        .is_none());
+    sha_acc.release_lock();
+
+    assert_eq!(
+        kat.execute(&mut sha_acc, ShaAccLockState::AssumedLocked),
+        Err(CaliptraError::DRIVER_SHA2_512_384ACC_UNEXPECTED_ACQUIRED_LOCK_STATE)
+    );
+    assert!(sha_acc
+        .try_start_operation(ShaAccLockState::NotAcquired)
+        .unwrap()
+        .is_none());
+    sha_acc.release_lock();
+}
+
 test_suite! {
     test_kat,
+    test_kat_start_failure_lock_ownership,
     test_digest_max_mailbox_size,
     test_digest_offset,
     test_digest0,
