@@ -1875,3 +1875,43 @@ bool caliptra_is_idevid_csr_ready() {
 
     return false;
 }
+
+
+// CM_SHA_INIT
+int caliptra_cm_sha_init(struct caliptra_cm_sha_init_req *req, struct caliptra_cm_sha_init_resp *resp, bool async)
+{
+    if (!req || !resp)
+    {
+        return INVALID_PARAMS;
+    }
+
+    CREATE_PARCEL(p, OP_CM_SHA_INIT, req, resp);
+
+    return pack_and_execute_command(&p, async);
+}
+
+// CM_SHA_UPDATE
+int caliptra_cm_sha_update(struct caliptra_cm_sha_update_req *req, struct caliptra_cm_sha_update_resp *resp, bool async)
+{
+    if (!req || !resp)
+    {
+        return INVALID_PARAMS;
+    }
+
+    CREATE_PARCEL(p, OP_CM_SHA_UPDATE, req, resp);
+
+    return pack_and_execute_command(&p, async);
+}
+
+// CM_SHA_FINAL
+int caliptra_cm_sha_final(struct caliptra_cm_sha_final_req *req, struct caliptra_cm_sha_final_resp *resp, bool async)
+{
+    if (!req || !resp)
+    {
+        return INVALID_PARAMS;
+    }
+
+    CREATE_PARCEL(p, OP_CM_SHA_FINAL, req, resp);
+
+    return pack_and_execute_command(&p, async);
+}

@@ -89,6 +89,9 @@ enum mailbox_command {
     OP_OCP_LOCK_GET_STATUS                = 0x47535441, // "GSTA"
     OP_OCP_LOCK_UNLOAD_MEK                = 0x554D454B, // "UMEK"
     OP_OCP_LOCK_LOAD_MEK                  = 0x4C4D454B, // "LMEK"
+    OP_CM_SHA_INIT                  = 0x434D5349, // CMSI
+    OP_CM_SHA_UPDATE                = 0x434D5355, // CMSU
+    OP_CM_SHA_FINAL                 = 0x434D5346, // CMSF
 };
 
 struct parcel {
