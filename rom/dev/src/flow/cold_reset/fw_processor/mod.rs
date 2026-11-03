@@ -289,6 +289,22 @@ impl FirmwareProcessor {
         let mut self_test_in_progress = false;
         let subsystem_mode = soc_ifc.subsystem_mode();
 
+        // Publish PROT_CAP before the command loop, so a Recovery Agent that
+        // reads PROT_CAP before the MCU sends RI_DOWNLOAD_FIRMWARE reads
+        // protocol version 1.1.
+        // TODO: drop the cfg once the Caliptra TAC approves a frozen ROM that
+        // calls DmaRecovery::set_prot_cap.
+        #[cfg(feature = "rom-early-prot-cap")]
+        if subsystem_mode {
+            let dma_recovery = DmaRecovery::new(
+                soc_ifc.recovery_interface_base_addr().into(),
+                soc_ifc.caliptra_base_axi_addr().into(),
+                soc_ifc.mci_base_addr().into(),
+                dma,
+            );
+            dma_recovery.set_prot_cap()?;
+        }
+
         cprintln!("[fwproc] Wait for Commands...");
         soc_ifc.flow_status_set_ready_for_mb_processing();
         loop {
