@@ -21,6 +21,8 @@ use caliptra_drivers::DmaRecovery;
 #[cfg(not(feature = "fpga_subsystem"))]
 use caliptra_emu_bus::{Device, EventData};
 use caliptra_error::CaliptraError;
+#[cfg(not(feature = "fpga_subsystem"))]
+use caliptra_hw_model::BootParams;
 use caliptra_hw_model::{DefaultHwModel, HwModel, InitParams};
 use caliptra_image_crypto::OsslCrypto as Crypto;
 use caliptra_image_fake_keys::*;
@@ -721,4 +723,64 @@ fn test_set_auth_manifest_updates_soc_manifest_dpe_contexts() {
     );
     assert_ne!(owner_updated_somo.digest, updated_somo.digest);
     assert_ne!(quote_pcr31(&mut model), pcr31_after_somv_update);
+}
+
+/// OCP Recovery 1.1 Table 1 scopes PROT_CAP as available anytime the
+/// recovery interface is available. A ROM built with `rom-early-prot-cap`
+/// publishes PROT_CAP when the command loop starts, so a Recovery Agent
+/// that reads PROT_CAP before the MCU sends RI_DOWNLOAD_FIRMWARE reads
+/// protocol version 1.1.
+///
+/// The test boots `ROM_WITH_EARLY_PROT_CAP`, because the default ROM writes
+/// PROT_CAP only in `request_image`.
+///
+/// Only the emulator runs the test. On Verilator, `events_to_caliptra`
+/// drops the receiver, so the send in `read_recovery_register` panics. On
+/// fpga_realtime, `events_to_caliptra` is `todo!()`, and an fpga_subsystem
+/// build compiles without `read_recovery_register`.
+#[cfg(not(feature = "fpga_subsystem"))]
+#[cfg_attr(any(feature = "verilator", feature = "fpga_realtime"), ignore)]
+#[test]
+fn test_rom_publishes_prot_cap_before_first_image_request() {
+    use crate::test_encrypted_firmware::read_recovery_register;
+    use caliptra_emu_bus::RecoveryCommandCode;
+
+    // TODO: once the Caliptra TAC approves a frozen ROM that calls
+    // set_prot_cap, boot the default ROM and drop the doc comment paragraph
+    // about `ROM_WITH_EARLY_PROT_CAP`.
+    // Until then the default ROM compiles without the early write, so its
+    // image keeps matching the frozen ROM hashes.
+    let rom =
+        caliptra_builder::build_firmware_rom(&caliptra_builder::firmware::ROM_WITH_EARLY_PROT_CAP)
+            .unwrap();
+    let mut model = caliptra_hw_model::new(
+        InitParams {
+            rom: &rom,
+            subsystem_mode: true,
+            ..Default::default()
+        },
+        BootParams::default(),
+    )
+    .unwrap();
+    model
+        .step_until_output_contains("[fwproc] Wait for Commands...")
+        .unwrap();
+
+    // The test sends no RI_DOWNLOAD_FIRMWARE, so request_image has not run.
+    // The emulator resets PROT_CAP2 to 0, so only the set_prot_cap write
+    // makes the register read 1.1.
+    let payload = read_recovery_register(&mut model, RecoveryCommandCode::ProtCap);
+
+    // PROT_CAP2 occupies payload bytes 8-11: the protocol version in bytes
+    // 8-9 and the agent capabilities in bytes 10-11.
+    const REC_PROT_VERSION_1_1: u16 = 0x0101;
+    const AGENT_CAPS_DEVICE_STATUS_SUPPORT: u16 = 1 << 4;
+    const AGENT_CAPS_FLASHLESS_BOOT: u16 = 1 << 11;
+    assert_eq!(
+        u16::from_le_bytes(payload[8..10].try_into().unwrap()),
+        REC_PROT_VERSION_1_1
+    );
+    let agent_caps = u16::from_le_bytes(payload[10..12].try_into().unwrap());
+    assert_ne!(agent_caps & AGENT_CAPS_DEVICE_STATUS_SUPPORT, 0);
+    assert_ne!(agent_caps & AGENT_CAPS_FLASHLESS_BOOT, 0);
 }

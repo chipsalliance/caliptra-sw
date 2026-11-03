@@ -38,6 +38,9 @@ std = []
 emu = []
 riscv = []
 rom = []
+# TODO: remove rom-early-prot-cap once the Caliptra TAC approves a frozen ROM
+# that calls DmaRecovery::set_prot_cap.
+rom-early-prot-cap = []
 runtime = ["dep:caliptra-dpe", "dep:caliptra-dpe-crypto"]
 fmc = []
 fpga_realtime = ["caliptra-hw-model/fpga_realtime"]
