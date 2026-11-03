@@ -289,6 +289,19 @@ impl FirmwareProcessor {
         let mut self_test_in_progress = false;
         let subsystem_mode = soc_ifc.subsystem_mode();
 
+        // Publish PROT_CAP before the command loop: a Recovery Agent that
+        // checks the capabilities before set_prot_cap runs reads protocol
+        // version 0 and can abort recovery.
+        if subsystem_mode {
+            let dma_recovery = DmaRecovery::new(
+                soc_ifc.recovery_interface_base_addr().into(),
+                soc_ifc.caliptra_base_axi_addr().into(),
+                soc_ifc.mci_base_addr().into(),
+                dma,
+            );
+            dma_recovery.set_prot_cap()?;
+        }
+
         cprintln!("[fwproc] Wait for Commands...");
         loop {
             // Random delay for CFI glitch protection.
