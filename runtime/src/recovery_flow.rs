@@ -73,16 +73,16 @@ impl RecoveryFlow {
     /// 0x1 with the next image index, the sequence the recovery flow uses
     /// between images.
     fn set_recovery_successful(dma_recovery: &DmaRecovery) -> CaliptraResult<()> {
-        dma_recovery.set_recovery_status(DmaRecovery::RECOVERY_STATUS_SUCCESSFUL, 0)?;
+        dma_recovery.set_recovery_status(
+            DmaRecovery::RECOVERY_STATUS_SUCCESSFUL,
+            DmaRecovery::MCU_FIRMWARE_IMAGE_INDEX,
+        )?;
         dma_recovery.set_device_status_with_recovery_reason(DmaRecovery::DEVICE_STATUS_HEALTHY, 0)
     }
 
     /// Load the SoC Manifest and MCU firwmare
     #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     pub(crate) fn recovery_flow(drivers: &mut Drivers) -> CaliptraResult<()> {
-        const SOC_MANIFEST_INDEX: u32 = 1;
-        const MCU_FIRMWARE_INDEX: u32 = 2;
-
         // use different scopes since we need to borrow drivers mutably and immutably
         let mut buffer = [0; size_of::<AuthorizationManifest>() / 4];
         let source = {
@@ -93,7 +93,8 @@ impl RecoveryFlow {
             )?;
 
             // download SoC manifest
-            dma_recovery.download_image_to_caliptra(SOC_MANIFEST_INDEX, &mut buffer)?;
+            dma_recovery
+                .download_image_to_caliptra(DmaRecovery::SOC_MANIFEST_IMAGE_INDEX, &mut buffer)?;
             buffer.as_bytes()
         };
 
@@ -104,7 +105,11 @@ impl RecoveryFlow {
             AuthManifestUpdateMode::CreateMissingDpeContexts,
         ) {
             let recovery_reason = DmaRecovery::recovery_reason_from_auth_manifest_error(err);
-            Self::set_recovery_boot_failure(drivers, SOC_MANIFEST_INDEX, recovery_reason)?;
+            Self::set_recovery_boot_failure(
+                drivers,
+                DmaRecovery::SOC_MANIFEST_IMAGE_INDEX,
+                recovery_reason,
+            )?;
             return Err(err);
         }
 
@@ -126,12 +131,12 @@ impl RecoveryFlow {
             // to clear REC_PAYLOAD_DONE.
             dma_recovery.set_recovery_status(
                 DmaRecovery::RECOVERY_STATUS_AWAITING_RECOVERY_IMAGE,
-                MCU_FIRMWARE_INDEX,
+                DmaRecovery::MCU_FIRMWARE_IMAGE_INDEX,
             )?;
             dma_recovery.wait_for_payload_not_available();
 
-            let mcu_size_bytes =
-                dma_recovery.download_image_to_mcu(MCU_FIRMWARE_INDEX, AesDmaMode::None)?;
+            let mcu_size_bytes = dma_recovery
+                .download_image_to_mcu(DmaRecovery::MCU_FIRMWARE_IMAGE_INDEX, AesDmaMode::None)?;
             let digest = dma_recovery.sha384_mcu_sram(
                 &mut drivers.sha2_512_384_acc,
                 0,
@@ -172,7 +177,7 @@ impl RecoveryFlow {
             Err(err) => {
                 Self::set_recovery_boot_failure(
                     drivers,
-                    MCU_FIRMWARE_INDEX,
+                    DmaRecovery::MCU_FIRMWARE_IMAGE_INDEX,
                     DmaRecovery::RECOVERY_REASON_MAIN_FIRMWARE_AUTHENTICATION_FAILURE,
                 )?;
                 return Err(err);
@@ -189,7 +194,7 @@ impl RecoveryFlow {
             {
                 Self::set_recovery_boot_failure(
                     drivers,
-                    MCU_FIRMWARE_INDEX,
+                    DmaRecovery::MCU_FIRMWARE_IMAGE_INDEX,
                     DmaRecovery::RECOVERY_REASON_MAIN_FIRMWARE_AUTHENTICATION_FAILURE,
                 )?;
                 return Err(CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_DIGEST_MISMATCH);

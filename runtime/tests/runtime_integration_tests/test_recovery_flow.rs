@@ -339,19 +339,19 @@ fn test_loads_mcu_fw() {
         assert!(found);
 
         // The flow reports the terminal codes: DEVICE_STATUS 0x1 'Device
-        // healthy' and RECOVERY_STATUS 0x3 'Recovery successful'.
+        // healthy' and RECOVERY_STATUS 0x3 'Recovery successful' carrying
+        // the MCU firmware image index in bits 4-7.
         let device_status =
             crate::common::read_recovery_register(&mut model, RecoveryCommandCode::DeviceStatus);
         assert_eq!(
-            u32::from_le_bytes(device_status[..4].try_into().unwrap()),
+            u32::from(device_status[0]),
             DmaRecovery::DEVICE_STATUS_HEALTHY
         );
         let recovery_status =
             crate::common::read_recovery_register(&mut model, RecoveryCommandCode::RecoveryStatus);
-        assert_eq!(
-            u32::from(u16::from_le_bytes(recovery_status[..2].try_into().unwrap())),
-            DmaRecovery::RECOVERY_STATUS_SUCCESSFUL
-        );
+        let status_byte = u32::from(recovery_status[0]);
+        assert_eq!(status_byte & 0xF, DmaRecovery::RECOVERY_STATUS_SUCCESSFUL);
+        assert_eq!(status_byte >> 4, DmaRecovery::MCU_FIRMWARE_IMAGE_INDEX);
     }
 }
 

@@ -563,6 +563,13 @@ impl<'a> DmaRecovery<'a> {
     pub const DEVICE_STATUS_BOOT_FAILURE: u32 = 0xE;
     pub const DEVICE_STATUS_FATAL_ERROR: u32 = 0xF;
 
+    /// Recovery image indices of the flashless boot flow: the ROM pulls the
+    /// Caliptra firmware at index 0, the runtime pulls the SoC manifest at
+    /// index 1 and the MCU firmware at index 2.
+    pub const CALIPTRA_FW_IMAGE_INDEX: u32 = 0;
+    pub const SOC_MANIFEST_IMAGE_INDEX: u32 = 1;
+    pub const MCU_FIRMWARE_IMAGE_INDEX: u32 = 2;
+
     const ACTIVATE_RECOVERY_IMAGE_CMD: u32 = 0xF;
 
     const RESET_VAL: u32 = 0x1;
@@ -930,8 +937,9 @@ impl<'a> DmaRecovery<'a> {
 
         cprintln!("[dma-recovery] Waiting for activation");
         self.wait_for_activation()?;
-        // Set the RECOVERY_STATUS register 'Device Recovery Status' field to 0x2 ('Booting recovery image').
-        self.set_recovery_status(Self::RECOVERY_STATUS_BOOTING_RECOVERY_IMAGE, 0)?;
+        // Set the RECOVERY_STATUS register 'Device Recovery Status' field to
+        // 0x2 ('Booting recovery image') and the recovery image index.
+        self.set_recovery_status(Self::RECOVERY_STATUS_BOOTING_RECOVERY_IMAGE, fw_image_index)?;
         Ok(image_size_bytes)
     }
 

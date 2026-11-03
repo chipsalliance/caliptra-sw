@@ -9,7 +9,7 @@ use crate::test_set_auth_manifest::create_auth_manifest_with_metadata;
 use aes_gcm::{aead::AeadMutInPlace, Key, KeyInit};
 use caliptra_api::mailbox::{CmAesGcmDecryptDmaReq, CommandId, MailboxReq};
 use caliptra_auth_man_types::{AuthManifestImageMetadata, ImageMetadataFlags};
-use caliptra_drivers::CaliptraError;
+use caliptra_drivers::{CaliptraError, DmaRecovery};
 #[cfg(not(feature = "fpga_subsystem"))]
 use caliptra_emu_bus::RecoveryCommandCode;
 use caliptra_hw_model::{HwModel, InitParams, SubsystemInitParams, MCU_TEST_AES_KEY, MCU_TEST_IV};
@@ -106,16 +106,15 @@ fn test_encrypted_firmware_decrypt_dma() {
     {
         let device_status = read_recovery_register(&mut model, RecoveryCommandCode::DeviceStatus);
         assert_eq!(
-            u32::from_le_bytes(device_status[..4].try_into().unwrap()),
-            0x1
+            u32::from(device_status[0]),
+            DmaRecovery::DEVICE_STATUS_HEALTHY
         );
 
         let recovery_status =
             read_recovery_register(&mut model, RecoveryCommandCode::RecoveryStatus);
-        assert_eq!(
-            u16::from_le_bytes(recovery_status[..2].try_into().unwrap()),
-            0x3
-        );
+        let status_byte = u32::from(recovery_status[0]);
+        assert_eq!(status_byte & 0xF, DmaRecovery::RECOVERY_STATUS_SUCCESSFUL);
+        assert_eq!(status_byte >> 4, DmaRecovery::MCU_FIRMWARE_IMAGE_INDEX);
     }
 }
 
