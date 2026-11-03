@@ -19,7 +19,7 @@ use caliptra_common::mailbox_api::{
 };
 use caliptra_drivers::DmaRecovery;
 #[cfg(not(feature = "fpga_subsystem"))]
-use caliptra_emu_bus::{Device, EventData};
+use caliptra_emu_bus::{Device, EventData, RecoveryCommandCode};
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{DefaultHwModel, HwModel, InitParams};
 use caliptra_image_crypto::OsslCrypto as Crypto;
@@ -337,6 +337,21 @@ fn test_loads_mcu_fw() {
             }
         }
         assert!(found);
+
+        // The flow reports the terminal codes: DEVICE_STATUS 0x1 'Device
+        // healthy' and RECOVERY_STATUS 0x3 'Recovery successful'.
+        let device_status =
+            crate::common::read_recovery_register(&mut model, RecoveryCommandCode::DeviceStatus);
+        assert_eq!(
+            u32::from_le_bytes(device_status[..4].try_into().unwrap()),
+            DmaRecovery::DEVICE_STATUS_HEALTHY
+        );
+        let recovery_status =
+            crate::common::read_recovery_register(&mut model, RecoveryCommandCode::RecoveryStatus);
+        assert_eq!(
+            u32::from(u16::from_le_bytes(recovery_status[..2].try_into().unwrap())),
+            DmaRecovery::RECOVERY_STATUS_SUCCESSFUL
+        );
     }
 }
 
