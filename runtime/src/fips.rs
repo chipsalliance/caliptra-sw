@@ -37,19 +37,27 @@ pub(crate) struct SelfTestSchedule {
 
 impl SelfTestSchedule {
     pub(crate) fn new(config: u32) -> CaliptraResult<Self> {
-        const ENABLE: u32 = 1;
+        // Core CPTRA_GENERIC_INPUT_WIRES[1]: enable[0], count[16:1], scale[18:17].
+        const ENABLE_MASK: u32 = 1;
+        const COUNT_SHIFT: u32 = 1;
         const COUNT_MASK: u32 = 0xffff;
-        const RESERVED_MASK: u32 = !0x7_ffff;
+        const SCALE_SHIFT: u32 = 17;
+        const SCALE_MASK: u32 = 0x3;
+        const MULTIPLIER_LOG2_STEP: u32 = 4;
+        const RESERVED_MASK: u32 =
+            !(ENABLE_MASK | (COUNT_MASK << COUNT_SHIFT) | (SCALE_MASK << SCALE_SHIFT));
 
-        let threshold = if config & ENABLE == 0 {
+        let threshold = if config & ENABLE_MASK == 0 {
+            // Disabled configurations ignore all other fields.
             0
         } else {
-            let count = (config >> 1) & COUNT_MASK;
+            let count = (config >> COUNT_SHIFT) & COUNT_MASK;
             if !cfg!(feature = "fips_self_test") || count == 0 || config & RESERVED_MASK != 0 {
                 return Err(CaliptraError::RUNTIME_INVALID_SELF_TEST_CONFIG);
             }
-            let scale = (config >> 17) & 3;
-            count << (4 * scale)
+            let scale = (config >> SCALE_SHIFT) & SCALE_MASK;
+            // Multiply by 16^scale: x1, x16, x256, or x4096.
+            count << (MULTIPLIER_LOG2_STEP * scale)
         };
         Ok(Self {
             threshold,
