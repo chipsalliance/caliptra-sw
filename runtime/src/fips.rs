@@ -30,14 +30,18 @@ use crate::Drivers;
 
 pub struct FipsModule;
 
+/// Command-count scheduling state; a zero threshold disables autonomous tests.
 pub(crate) struct SelfTestSchedule {
     threshold: u32,
     completed_commands: u32,
 }
 
 impl SelfTestSchedule {
+    /// Decode the input-wire snapshot supplied at RT startup.
+    /// Later input changes cannot alter this schedule; RT must restart to resample them.
     pub(crate) fn new(config: u32) -> CaliptraResult<Self> {
         // Core CPTRA_GENERIC_INPUT_WIRES[1]: enable[0], count[16:1], scale[18:17].
+        // Bits [31:19] are reserved and must be zero when enabled.
         const ENABLE_MASK: u32 = 1;
         const COUNT_SHIFT: u32 = 1;
         const COUNT_MASK: u32 = 0xffff;
@@ -52,11 +56,15 @@ impl SelfTestSchedule {
             0
         } else {
             let count = (config >> COUNT_SHIFT) & COUNT_MASK;
+            // An enabled policy must be enforceable: reject unsupported builds,
+            // a zero command count, or undefined configuration bits.
             if !cfg!(feature = "fips_self_test") || count == 0 || config & RESERVED_MASK != 0 {
                 return Err(CaliptraError::RUNTIME_INVALID_SELF_TEST_CONFIG);
             }
             let scale = (config >> SCALE_SHIFT) & SCALE_MASK;
-            // Multiply by 16^scale: x1, x16, x256, or x4096.
+            // Scale is a base-16 exponent: 0/1/2/3 select x1/x16/x256/x4096.
+            // Shifting by 4 * scale computes count * 16^scale.
+            // Even the maximum 65535 * 4096 fits in u32.
             count << (MULTIPLIER_LOG2_STEP * scale)
         };
         Ok(Self {
@@ -66,6 +74,8 @@ impl SelfTestSchedule {
     }
 
     pub(crate) fn command_completed(&mut self) {
+        // Saturate while a due test waits for an idle mailbox; further commands
+        // must not wrap the count or clear the pending trigger.
         if self.completed_commands < self.threshold {
             self.completed_commands += 1;
         }
@@ -75,6 +85,7 @@ impl SelfTestSchedule {
         self.threshold != 0 && self.completed_commands == self.threshold
     }
 
+    /// A successful manual or autonomous suite starts a new command-count window.
     pub(crate) fn test_passed(&mut self) {
         self.completed_commands = 0;
     }
