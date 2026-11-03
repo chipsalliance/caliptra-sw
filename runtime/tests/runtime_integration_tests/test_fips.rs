@@ -21,12 +21,15 @@ mod autonomous {
     use super::*;
     use caliptra_builder::firmware::APP_WITH_UART_FIPS_TEST_HOOKS;
     use caliptra_common::mailbox_api::{
-        CmShake256FinalReq, CmShake256InitReq, CmShake256InitResp, MailboxReq,
+        populate_checksum, CmHashAlgorithm, CmShaFinalReq, CmShaFinalResp, CmShaInitReq,
+        CmShaInitResp, CmShake256FinalReq, CmShake256InitReq, CmShake256InitResp, MailboxReq,
+        ResponseVarSize, MAX_CMB_DATA_SIZE,
     };
     use caliptra_drivers::CaliptraError;
     use caliptra_drivers::FipsTestHook;
     use caliptra_hw_model::{DefaultHwModel, ModelError, SecurityState};
     use caliptra_runtime::RtBootStatus;
+    use sha2::{Digest, Sha512};
 
     const MAX_TEST_CYCLES: u32 = 20_000_000;
 
@@ -212,12 +215,51 @@ mod autonomous {
     }
 
     #[test]
-    fn pending_test_waits_for_sha_accelerator() {
-        let mut model = boot(config(1, 0));
-        assert!(model.try_lock_sha_acc().unwrap());
-        send(&mut model, CommandId::VERSION);
+    fn pending_sha_command_finishes_before_due_self_test() {
+        let mut model = boot(config(2, 0));
+        let mut init = MailboxReq::CmShaInit(CmShaInitReq {
+            hash_algorithm: u32::from(CmHashAlgorithm::Sha512),
+            ..Default::default()
+        });
+        init.populate_chksum().unwrap();
+        let bytes = model
+            .mailbox_execute(CommandId::CM_SHA_INIT.into(), init.as_bytes().unwrap())
+            .unwrap()
+            .unwrap();
+        let context = CmShaInitResp::ref_from_bytes(bytes.as_slice())
+            .unwrap()
+            .context;
         expect_no_test(&mut model);
-        model.unlock_sha_acc().unwrap();
+
+        let input = [0x5a; MAX_CMB_DATA_SIZE];
+        let mut finish = MailboxReq::CmShaFinal(CmShaFinalReq {
+            context,
+            input_size: input.len() as u32,
+            input,
+            ..Default::default()
+        });
+        finish.populate_chksum().unwrap();
+
+        send(&mut model, CommandId::VERSION);
+        // Queue the SHA command before RT can enter idle after the threshold response.
+        model
+            .start_mailbox_exec(CommandId::CM_SHA_FINAL.into(), finish.as_bytes().unwrap())
+            .unwrap();
+        assert!(model.soc_mbox().status().read().status().cmd_busy());
+        model.step_until_or_timeout("SHA command response", MAX_TEST_CYCLES, |m| {
+            assert!(!m.output().peek().contains("[kat] ++"));
+            m.soc_mbox().status().read().status().data_ready()
+        });
+        expect_no_test(&mut model);
+
+        let mut response = [0; core::mem::size_of::<CmShaFinalResp>()];
+        let bytes = model.finish_mailbox_exec(&mut response).unwrap().unwrap();
+        let mut expected = CmShaFinalResp::default();
+        expected.hdr.data_len = 64;
+        expected.hash.copy_from_slice(&Sha512::digest(input));
+        populate_checksum(expected.as_bytes_partial_mut().unwrap());
+        assert_eq!(bytes, expected.as_bytes_partial().unwrap());
+
         wait_for_test(&mut model);
     }
 

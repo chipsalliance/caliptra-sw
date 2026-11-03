@@ -185,15 +185,8 @@ fn enter_idle(drivers: &mut Drivers) {
         let lock = drivers.mbox.lock();
         if lock {
             cfi_assert!(lock);
-            // Don't enter low power mode when in progress
-            return;
-        }
-        let reserved = drivers
-            .sha2_512_384_acc
-            .try_reserve()
-            .unwrap_or_else(|e| caliptra_common::handle_fatal_error(e.into()));
-        if !reserved {
-            drivers.mbox.unlock();
+            // Pending commands and unread responses retain mailbox ownership.
+            // Keep the test due and return to the command dispatcher.
             return;
         }
 
@@ -222,7 +215,6 @@ fn enter_idle(drivers: &mut Drivers) {
         }
 
         caliptra_common::wdt::stop_wdt(&mut drivers.soc_ifc);
-        drivers.sha2_512_384_acc.release_reservation();
         drivers.mbox.unlock();
         drivers.soc_ifc.flow_status_set_mailbox_flow_done(true);
         drivers.persistent_data.get_mut().fw.dpe.runtime_cmd_active = U8Bool::new(false);

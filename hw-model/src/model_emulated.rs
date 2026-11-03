@@ -172,25 +172,6 @@ impl ModelEmulated {
             .soc_reg
             .set_generic_input_wires(value);
     }
-
-    pub fn try_lock_sha_acc(&mut self) -> Result<bool, caliptra_emu_bus::BusError> {
-        self.cpu
-            .bus
-            .inner_mut()
-            .bus
-            .sha512_acc
-            .read(RvSize::Word, 0)
-            .map(|value| value == 0)
-    }
-
-    pub fn unlock_sha_acc(&mut self) -> Result<(), caliptra_emu_bus::BusError> {
-        self.cpu
-            .bus
-            .inner_mut()
-            .bus
-            .sha512_acc
-            .write(RvSize::Word, 0, 1)
-    }
 }
 
 impl ModelEmulated {

@@ -1274,12 +1274,20 @@ without `fips_self_test` support fails startup with
 
 Each completed RT mailbox command counts once, including rejected or failed
 commands and manual self-test commands. ROM commands and internal self-test
-execution do not count. After the threshold command's response is posted, the
-test remains pending until RT can acquire the mailbox and SHA accelerator.
-Contention does not discard the trigger. RT reserves both resources for the
-entire suite, runs with watchdog protection, and resets the command counter only
-after a successful test. A self-test failure follows the existing fatal-error
-path. Shutdown and reset retain their normal behavior.
+execution do not count. RT finishes the active command and posts its response
+before checking whether a self-test is due. This includes command-scoped long
+SHA/DMA operations; a self-test never preempts their command handler.
+
+The test remains due while the mailbox has a pending command or an unread
+response. RT services pending commands first and starts the test only after
+acquiring mailbox ownership, preventing new requests from racing with execution.
+Continued mailbox activity can postpone the test indefinitely: the configured
+count is a trigger threshold, not an upper bound on commands between tests.
+
+The suite uses the existing SHA accelerator locking behavior, runs with watchdog
+protection, and resets the command counter only after a successful test.
+A self-test failure follows the existing fatal-error path. Shutdown and reset
+retain their normal behavior.
 
 Manual `SELF_TEST_START` / `SELF_TEST_GET_RESULTS` remain supported. A successful
 manual test also resets the autonomous counter. Autonomous execution neither
