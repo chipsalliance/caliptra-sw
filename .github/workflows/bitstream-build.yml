@@ -13,12 +13,35 @@ on:
   workflow_dispatch:
 
 jobs:
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+      variants: ${{ steps.set-matrix.outputs.variants }}
+    steps:
+      - name: Define build matrix
+        id: set-matrix
+        run: |
+          MATRIX=$(cat <<'EOF'
+          {
+            "include": [
+              { "variant": "core-latest-segmented",  "rtl_version": "latest",  "hw_major_version": "latest", "segmented": true  },
+              { "variant": "core-latest-standard",   "rtl_version": "latest",  "hw_major_version": "latest", "segmented": false },
+              { "variant": "core-rev-2_1-segmented", "rtl_version": "rev-2_1", "hw_major_version": "2.1",    "segmented": true  },
+              { "variant": "core-rev-2_1-standard",  "rtl_version": "rev-2_1", "hw_major_version": "2.1",    "segmented": false }
+            ]
+          }
+          EOF
+          )
+          echo "matrix=$(echo "$MATRIX" | jq -c .)" >> $GITHUB_OUTPUT
+          echo "variants=$(echo "$MATRIX" | jq -c '[.include[] | select(.segmented) | .variant]')" >> $GITHUB_OUTPUT
+
   build-bitstream:
+    needs: setup
     runs-on: [bitstream-builder]
     timeout-minutes: 1440 
     strategy:
-      matrix:
-        segmented: [true, false]
+      matrix: ${{ fromJson(needs.setup.outputs.matrix) }}
     steps:
       - name: Checkout repo
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
@@ -32,14 +55,15 @@ jobs:
           source /vck190-tools/Vivado/2024.2/settings64.sh
           mkdir -p "$STAGING_DIR"
           cd hw/fpga/
-          /vck190-tools/Vivado/2024.2/bin/vivado -mode batch -source fpga_configuration.tcl -tclargs BUILD=TRUE SEGMENTED=${{ matrix.segmented }}
+          /vck190-tools/Vivado/2024.2/bin/vivado -mode batch -source fpga_configuration.tcl \
+            -tclargs BUILD=TRUE SEGMENTED=${{ matrix.segmented }} RTL_VERSION=${{ matrix.rtl_version }}
           cp caliptra_build/*.xsa "$STAGING_DIR/" || true
           cp caliptra_build/*.pdi "$STAGING_DIR/" || true
 
       - name: 'Upload bitstream'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a #v7.0.1
         with:
-          name: caliptra-bitstream-${{ matrix.segmented }}
+          name: caliptra-bitstream-${{ matrix.variant }}
           path: |
             ${{ runner.temp }}/bitstream/*.xsa
             ${{ runner.temp }}/bitstream/*.pdi
@@ -74,9 +98,9 @@ jobs:
           
           caliptra-bitstream-downloader bundle-manifest \
             --repository "${{ github.repository }}" \
-            --hw-major-version "2.1" \
+            --hw-major-version "${{ matrix.hw_major_version }}" \
             --target-branch "${{ github.base_ref || github.ref_name }}" \
-            --caliptra-variant "core" \
+            --caliptra-variant "${{ matrix.variant }}" \
             --commit-hash "${{ github.sha }}" \
             --job-id "${{ github.run_id }}-${{ github.job }}" \
             $SEGMENTED_ARG \
@@ -88,18 +112,17 @@ jobs:
       - name: 'Upload bitstream bundle'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a #v7.0.1
         with:
-          name: caliptra-bitstream-bundle-${{ matrix.segmented && 'segmented' || 'standard' }}
+          name: caliptra-bitstream-bundle-${{ matrix.variant }}
           path: manifest-bundle/caliptra-bitstream.tar.gz
           retention-days: 7
 
-      # Both matrix jobs would otherwise upload a manifest to the same GCS path
-      # (v1/<sha>/manifest.toml); only the segmented build is used by the FPGA CI.
+      # Only the segmented build is used by the FPGA CI.
       - name: Clean up bundle for non-segmented build
         if: matrix.segmented == false
         run: rm -rf manifest-bundle
 
   open-pr:
-    needs: build-bitstream
+    needs: [setup, build-bitstream]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -112,24 +135,28 @@ jobs:
 
       - name: Download updated manifest from GCS
         run: |
-          URL="https://storage.googleapis.com/caliptra-github-ci-bitstreams/v1/${{ github.sha }}/manifest.toml"
-          TARGET_PATH="hw/fpga/bitstream_manifests/core.toml"
-          echo "Downloading manifest from $URL to $TARGET_PATH"
-          
-          # Retry for up to 5 minutes (30 * 10s)
-          for i in {1..30}; do
-            if curl -s -f -o "$TARGET_PATH" "$URL"; then
-              echo "Successfully downloaded manifest!"
-              break
-            fi
-            echo "Waiting for manifest to be uploaded... (attempt $i)"
-            sleep 10
+          BASE_URL="https://storage.googleapis.com/caliptra-github-ci-bitstreams/v1/${{ github.sha }}"
+
+          download_manifest() {
+            local VARIANT="$1"
+            local URL="${BASE_URL}/${VARIANT}/manifest.toml"
+            local TARGET_PATH="hw/fpga/bitstream_manifests/${VARIANT}.toml"
+            echo "Downloading manifest from $URL to $TARGET_PATH"
+            for i in {1..30}; do
+              if curl -s -f -o "$TARGET_PATH" "$URL"; then
+                echo "Successfully downloaded $TARGET_PATH!"
+                return 0
+              fi
+              echo "Waiting for manifest to be uploaded... (attempt $i)"
+              sleep 10
+            done
+            echo "Error: Failed to download $TARGET_PATH after 5 minutes."
+            return 1
+          }
+
+          for VARIANT in $(echo '${{ needs.setup.outputs.variants }}' | jq -r '.[]'); do
+            download_manifest "$VARIANT"
           done
-          
-          if [ ! -f "$TARGET_PATH" ]; then
-            echo "Error: Failed to download manifest after 5 minutes."
-            exit 1
-          fi
 
       - name: Commit and Push changes
         run: |
@@ -137,9 +164,11 @@ jobs:
           git checkout -b "$BRANCH_NAME"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          
-          git add hw/fpga/bitstream_manifests/core.toml
-          git commit -m "Update bitstream manifest for run ${{ github.run_id }}"
+
+          for VARIANT in $(echo '${{ needs.setup.outputs.variants }}' | jq -r '.[]'); do
+            git add "hw/fpga/bitstream_manifests/${VARIANT}.toml"
+          done
+          git commit -m "Update bitstream manifests for run ${{ github.run_id }}"
           git push origin "$BRANCH_NAME"
           echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_ENV
 

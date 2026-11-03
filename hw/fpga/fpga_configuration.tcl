@@ -60,6 +60,14 @@ if {$ITRNG} {
   # Add option to use Caliptra's internal TRNG instead of ETRNG
   lappend VERILOG_OPTIONS CALIPTRA_INTERNAL_TRNG
 }
+# Newer RTL has one TRNG interface per entropy source (etrng0_req, ...) instead of
+# a single one (etrng_req, ...). Select the matching wrapper connections.
+set caliptra_top_fp [open $rtlDir/src/integration/rtl/caliptra_top.sv r]
+set caliptra_top_src [read $caliptra_top_fp]
+close $caliptra_top_fp
+if {[string first "etrng0_req" $caliptra_top_src] >= 0} {
+  lappend VERILOG_OPTIONS CALIPTRA_MULTI_ENTROPY_SRC
+}
 lappend VERILOG_OPTIONS FPGA_VERSION=32'h$VERSION
 # Set CALIPTRA to ABR knows it is being used in Caliptra
 lappend VERILOG_OPTIONS CALIPTRA
