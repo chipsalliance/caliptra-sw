@@ -1036,13 +1036,12 @@ impl<'a> DmaRecovery<'a> {
         Ok(())
     }
 
-    // Request the recovery interface load an image.
-    pub fn request_image(&self, fw_image_index: u32) -> CaliptraResult<u32> {
-        cprintln!(
-            "[dma-recovery] Requesting recovery image {}",
-            fw_image_index
-        );
-
+    /// Publishes the protocol version and the agent capabilities in
+    /// PROT_CAP. OCP Recovery 1.1 Table 1 scopes PROT_CAP as available
+    /// anytime the recovery interface is available, so the ROM calls
+    /// set_prot_cap when the interface comes up; request_image repeats the
+    /// write before each image.
+    pub fn set_prot_cap(&self) -> CaliptraResult<()> {
         self.with_regs_mut(|regs_mut| {
             let recovery = regs_mut.sec_fw_recovery_if();
             // Set PROT_CAP2.AGENT_CAPS
@@ -1066,7 +1065,20 @@ impl<'a> DmaRecovery<'a> {
                 )
                 .rec_prot_version(0x101) // 1.1
             });
+        })
+    }
 
+    // Request the recovery interface load an image.
+    pub fn request_image(&self, fw_image_index: u32) -> CaliptraResult<u32> {
+        cprintln!(
+            "[dma-recovery] Requesting recovery image {}",
+            fw_image_index
+        );
+
+        self.set_prot_cap()?;
+
+        self.with_regs_mut(|regs_mut| {
+            let recovery = regs_mut.sec_fw_recovery_if();
             // Set DEVICE_STATUS:Byte0 to 0x3 ('Recovery mode - ready to accept recovery image').
             // Set DEVICE_STATUS:Byte[2:3] to 0x12 ('Recovery Reason Codes' 0x12 - Flashless/Streaming Boot (FSB)).
             cprintln!(
