@@ -347,6 +347,79 @@ fn test_sha384_simple() {
 }
 
 #[test]
+fn test_sha_context_length_limits() {
+    let mut model = run_rt_test(RuntimeTestArgs::default());
+    model.step_until_ready_for_runtime();
+
+    for hash_algorithm in [CmHashAlgorithm::Sha384, CmHashAlgorithm::Sha512] {
+        let init = model
+            .mailbox_execute_req(CmShaInitReq {
+                hash_algorithm: hash_algorithm.into(),
+                ..Default::default()
+            })
+            .unwrap();
+
+        for (length, input_size) in [
+            (u32::MAX, 0),
+            (u32::MAX - 1, 1),
+            (u32::MAX, 1),
+            (u32::MAX - 128, 128),
+            (u32::MAX - 127, 128),
+            (
+                u32::MAX - MAX_CMB_DATA_SIZE as u32,
+                MAX_CMB_DATA_SIZE as u32,
+            ),
+            (
+                u32::MAX - MAX_CMB_DATA_SIZE as u32 + 1,
+                MAX_CMB_DATA_SIZE as u32,
+            ),
+        ] {
+            let mut context = init.context;
+            context[..size_of::<u32>()].copy_from_slice(&length.to_le_bytes());
+
+            for (command_id, mut req) in [
+                (
+                    CommandId::CM_SHA_UPDATE,
+                    MailboxReq::CmShaUpdate(CmShaUpdateReq {
+                        context,
+                        input_size,
+                        ..Default::default()
+                    }),
+                ),
+                (
+                    CommandId::CM_SHA_FINAL,
+                    MailboxReq::CmShaFinal(CmShaFinalReq {
+                        context,
+                        input_size,
+                        ..Default::default()
+                    }),
+                ),
+            ] {
+                req.populate_chksum().unwrap();
+                let is_update = command_id == CommandId::CM_SHA_UPDATE;
+                let result = model.mailbox_execute(command_id.into(), req.as_bytes().unwrap());
+                if let Some(total_length) = length.checked_add(input_size) {
+                    let response = result.unwrap().unwrap();
+                    if is_update {
+                        let response = CmShaInitResp::ref_from_bytes(&response).unwrap();
+                        assert_eq!(
+                            response.context[..size_of::<u32>()],
+                            total_length.to_le_bytes()
+                        );
+                    }
+                } else {
+                    assert_error(
+                        &mut model,
+                        caliptra_drivers::CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS,
+                        result.unwrap_err(),
+                    );
+                }
+            }
+        }
+    }
+}
+
+#[test]
 fn test_sha_partial_update() {
     let mut model = run_rt_test(RuntimeTestArgs::default());
     model.step_until_ready_for_runtime();
@@ -659,6 +732,25 @@ fn test_random_stir_itrng() {
         caliptra_drivers::CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE
     );
 
+    for input_size in [MAX_CMB_DATA_SIZE as u32 + 1, u32::MAX - 1, u32::MAX] {
+        let mut req = CmRandomStirReq {
+            input_size,
+            ..Default::default()
+        };
+        req.hdr.chksum = caliptra_common::checksum::calc_checksum(
+            CommandId::CM_RANDOM_STIR.into(),
+            &req.as_bytes()[size_of::<MailboxReqHeader>()..],
+        );
+        let err = model
+            .mailbox_execute(CommandId::CM_RANDOM_STIR.into(), req.as_bytes())
+            .unwrap_err();
+        assert_error(
+            &mut model,
+            caliptra_drivers::CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS,
+            err,
+        );
+    }
+
     // 0 bytes
     let mut cm_random_stir = MailboxReq::CmRandomStir(CmRandomStirReq {
         hdr: MailboxReqHeader::default(),
@@ -699,7 +791,14 @@ fn test_random_stir_itrng() {
     let _ =
         MailboxRespHeader::read_from_bytes(&resp_bytes[..size_of::<MailboxRespHeader>()]).unwrap();
 
-    for req_len in [47usize, 48, 1044] {
+    for req_len in [
+        47usize,
+        48,
+        49,
+        1044,
+        MAX_CMB_DATA_SIZE - 1,
+        MAX_CMB_DATA_SIZE,
+    ] {
         let mut cm_random_stir = MailboxReq::CmRandomStir(CmRandomStirReq {
             hdr: MailboxReqHeader::default(),
             input_size: req_len as u32,
