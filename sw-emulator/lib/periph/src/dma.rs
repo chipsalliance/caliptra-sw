@@ -384,7 +384,9 @@ impl Dma {
             return false;
         }
 
-        let block = self.read_axi_block(xfer);
+        let Some(block) = self.read_axi_block(xfer) else {
+            return false;
+        };
         self.write_mailbox(&block);
         true
     }
@@ -411,7 +413,9 @@ impl Dma {
             return false;
         }
 
-        let block = self.read_axi_block(xfer);
+        let Some(block) = self.read_axi_block(xfer) else {
+            return false;
+        };
         self.write_fifo_block(&block);
         true
     }
@@ -442,19 +446,29 @@ impl Dma {
                 .unwrap();
             return false;
         }
-        let data = self.read_axi_block(read_xfer);
+        let Some(data) = self.read_axi_block(read_xfer) else {
+            return false;
+        };
         self.write_axi_block(&data, write_xfer);
         true
     }
 
-    fn read_axi_block(&mut self, read_xfer: ReadXfer) -> Vec<u32> {
+    fn read_axi_block(&mut self, read_xfer: ReadXfer) -> Option<Vec<u32>> {
         let mut block = vec![];
         for i in (0..read_xfer.len).step_by(Self::AXI_DATA_WIDTH) {
             let src = read_xfer.src + if read_xfer.fixed { 0 } else { i as AxiAddr };
-            let data = self.axi.read(Self::AXI_DATA_WIDTH.into(), src).unwrap();
+            let data = match self.axi.read(Self::AXI_DATA_WIDTH.into(), src) {
+                Ok(data) => data,
+                Err(_) => {
+                    self.status0
+                        .reg
+                        .modify(Status0::ERROR::SET + Status0::DMA_FSM_PRESENT_STATE::ERROR);
+                    return None;
+                }
+            };
             block.push(data);
         }
-        block
+        Some(block)
     }
 
     fn write_axi_block(&mut self, block: &[u32], write_xfer: WriteXfer) {

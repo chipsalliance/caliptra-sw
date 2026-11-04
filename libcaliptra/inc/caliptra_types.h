@@ -238,10 +238,18 @@ struct caliptra_fw_info_resp
     uint32_t owner_auth_manifest_current_svn;
     uint32_t owner_auth_manifest_min_svn;
     uint32_t debug_policy;
+    // Partition i occupies bits [2*i+1:2*i]; bits 31:8 are zero.
+    // All partitions report error outside subsystem mode.
+    uint32_t fe_status;
 };
 
 #define CALIPTRA_FW_INFO_DEBUG_FIRMWARE_ACTIVE (1U << 0)
 #define CALIPTRA_FW_INFO_DEBUG_AUTH_MANIFEST_ACTIVE (1U << 1)
+#define CALIPTRA_FW_INFO_FE_UNPROVISIONED 0U
+#define CALIPTRA_FW_INFO_FE_PROVISIONED 1U
+#define CALIPTRA_FW_INFO_FE_ZEROIZED 2U
+#define CALIPTRA_FW_INFO_FE_ERROR 3U
+#define CALIPTRA_FW_INFO_FE_STATUS_ERROR_ALL 0xFFU
 
 struct caliptra_dpe_tag_tci_req
 {
