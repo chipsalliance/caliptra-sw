@@ -160,7 +160,7 @@ fn test_derive_stable_key() {
             seeded_rng.fill_bytes(&mut data);
 
             let mut cm_hmac: CmHmacReq = CmHmacReq {
-                cmk: resp.cmk.clone(),
+                cmk: resp.cmk,
                 hash_algorithm: CmHashAlgorithm::Sha512.into(),
                 data_size: MAX_CMB_DATA_SIZE as u32,
                 ..Default::default()
@@ -269,7 +269,7 @@ fn test_derive_stable_owner_key_different_info() {
 
         // HMAC with key_a
         let mut cm_hmac_a: CmHmacReq = CmHmacReq {
-            cmk: resp_a.cmk.clone(),
+            cmk: resp_a.cmk,
             hash_algorithm: CmHashAlgorithm::Sha512.into(),
             data_size: 9,
             ..Default::default()
@@ -303,7 +303,7 @@ fn test_derive_stable_owner_key_different_info() {
 
         // HMAC with key_b
         let mut cm_hmac_b: CmHmacReq = CmHmacReq {
-            cmk: resp_b.cmk.clone(),
+            cmk: resp_b.cmk,
             hash_algorithm: CmHashAlgorithm::Sha512.into(),
             data_size: 9,
             ..Default::default()

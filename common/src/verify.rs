@@ -12,7 +12,13 @@ Abstract:
 
 --*/
 
-use caliptra_api::mailbox::{EcdsaVerifyReq, MldsaVerifyReq, MAX_CMB_DATA_SIZE};
+use caliptra_api::mailbox::{EcdsaVerifyReq, MAX_CMB_DATA_SIZE};
+
+// Default-sized alias for the const-generic `MldsaVerifyReq`, binding the generic buffer
+// size to this component's mailbox limit (`MAX_CMB_DATA_SIZE`). Components with a different
+// mailbox size (e.g. caliptra-mcu-sw in passive mode) can declare their own alias with an
+// adjusted size while reusing the same wire-layout definition.
+type MldsaVerifyReq = caliptra_api::mailbox::MldsaVerifyReq<MAX_CMB_DATA_SIZE>;
 #[cfg(feature = "cfi")]
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_drivers::{
@@ -58,18 +64,18 @@ impl MldsaVerifyCmd {
     #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub fn execute(mldsa87: &mut Mldsa87, cmd_args: &[u8]) -> CaliptraResult<usize> {
-        let pubkey_bytes = MldsaVerifyReq::<MAX_CMB_DATA_SIZE>::pub_key(cmd_args)
+        let pubkey_bytes = MldsaVerifyReq::pub_key(cmd_args)
             .ok_or(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
         let pubkey = &Mldsa87PubKey::from(pubkey_bytes);
 
-        let signature_bytes = MldsaVerifyReq::<MAX_CMB_DATA_SIZE>::signature(cmd_args)
+        let signature_bytes = MldsaVerifyReq::signature(cmd_args)
             .ok_or(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
         if signature_bytes.last() != Some(&0) {
             return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
         }
         let signature = Mldsa87Signature::from(*signature_bytes);
 
-        let message = MldsaVerifyReq::<MAX_CMB_DATA_SIZE>::message(cmd_args)
+        let message = MldsaVerifyReq::message(cmd_args)
             .ok_or(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
 
         let success = mldsa87.verify_var(pubkey, message, &signature)?;

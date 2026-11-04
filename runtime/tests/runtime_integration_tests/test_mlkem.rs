@@ -40,7 +40,7 @@ fn import_mlkem_seed(model: &mut DefaultHwModel, seed: &[u8]) -> Cmk {
         resp.hdr.fips_status,
         MailboxRespHeader::FIPS_STATUS_APPROVED
     );
-    resp.cmk.clone()
+    resp.cmk
 }
 
 fn decrypt_with_cmk(
@@ -51,7 +51,7 @@ fn decrypt_with_cmk(
     tag: [u8; 16],
 ) -> (bool, Vec<u8>) {
     let mut req = MailboxReq::CmAesGcmDecryptInit(CmAesGcmDecryptInitReq {
-        cmk: cmk.clone(),
+        cmk: *cmk,
         iv: transmute!(iv),
         ..Default::default()
     });
@@ -90,7 +90,7 @@ fn decrypt_with_cmk(
     let plaintext_size = header.plaintext_size as usize;
     assert!(plaintext_size <= MAX_CMB_DATA_SIZE);
 
-    let mut final_resp = CmAesGcmDecryptFinalResp {
+    let mut final_resp: CmAesGcmDecryptFinalResp = CmAesGcmDecryptFinalResp {
         hdr: header,
         ..Default::default()
     };

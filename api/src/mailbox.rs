@@ -2937,6 +2937,7 @@ impl Request for ExternalMailboxCmdReq {
 pub const CMK_MAX_KEY_SIZE_BITS: usize = 512;
 pub const CMK_SIZE_BYTES: usize = 128;
 /// CMK is an opaque (encrypted) wrapper around a key.
+#[repr(transparent)]
 #[derive(Clone, Copy, Debug, FromBytes, Immutable, IntoBytes, KnownLayout, PartialEq, Eq)]
 pub struct Cmk(pub [u8; CMK_SIZE_BYTES]);
 
@@ -5603,7 +5604,7 @@ pub struct OcpLockDeriveMekResp {
 impl Response for OcpLockDeriveMekResp {}
 
 // OCP_LOCK_ENUMERATE_HPKE_HANDLES
-
+#[repr(C)]
 #[derive(Clone, Debug, Default, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
 pub struct HpkeHandle {
     pub handle: u32,
