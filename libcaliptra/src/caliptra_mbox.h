@@ -43,6 +43,7 @@ enum mailbox_command {
     OP_GET_RT_ALIAS_MLDSA87_CERT     = 0x434D4352, // "CMCR"
     OP_GET_IDEV_MLDSA87_CSR          = 0x49444D52, // "IDMR"
     OP_ECDSA384_VERIFY               = 0x45435632, // "ECV2"
+    OP_MLDSA87_VERIFY                = 0x4D4C5632, // "MLV2"
     OP_LMS_VERIFY                    = 0x4C4D5632, // "LMV2"
     OP_STASH_MEASUREMENT             = 0x4D454153, // "MEAS"
     OP_INVOKE_DPE_COMMAND            = 0x44504543, // "DPEC"
