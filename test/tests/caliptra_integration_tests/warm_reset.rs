@@ -67,7 +67,7 @@ fn warm_reset_basic() {
     .unwrap();
 
     // Wait for boot
-    while !hw.soc_ifc().cptra_flow_status().read().ready_for_runtime() {
+    while !hw.boot_complete() {
         hw.step();
     }
 
@@ -75,7 +75,7 @@ fn warm_reset_basic() {
     hw.warm_reset_flow().unwrap();
 
     // Wait for boot
-    while !hw.soc_ifc().cptra_flow_status().read().ready_for_runtime() {
+    while !hw.boot_complete() {
         hw.step();
     }
 }

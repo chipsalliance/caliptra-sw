@@ -39,7 +39,7 @@ pub const LIFECYCLES_ALL: [DeviceLifecycle; 3] = [
 ];
 
 pub fn wait_until_runtime(model: &mut DefaultHwModel) {
-    model.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_runtime());
+    model.step_until(|m| m.boot_complete());
 }
 
 pub fn assert_fatal_fw_load(
