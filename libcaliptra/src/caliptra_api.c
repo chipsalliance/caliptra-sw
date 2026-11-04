@@ -1180,6 +1180,19 @@ int caliptra_ecdsa384_verify(struct caliptra_ecdsa_verify_v2_req *req, bool asyn
     return pack_and_execute_command(&p, async);
 }
 
+// MLDSA87 Verify
+int caliptra_mldsa87_verify(struct caliptra_mldsa_verify_req *req, bool async)
+{
+    if (!req)
+    {
+        return INVALID_PARAMS;
+    }
+
+    CREATE_PARCEL(p, OP_MLDSA87_VERIFY, req, &g_resp_hdr);
+
+    return pack_and_execute_command(&p, async);
+}
+
 // LMS Verify
 int caliptra_lms_verify(struct caliptra_lms_verify_v2_req *req, bool async)
 {

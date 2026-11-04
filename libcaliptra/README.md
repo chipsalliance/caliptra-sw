@@ -14,6 +14,13 @@ Specified in caliptra_api.h and defined in caliptra_api.c
 
 Provides abstract APIs and functionality to SoC applications, independent of hardware details.
 
+The API includes helpers for the existing Caliptra 2.0 owner-key-hash,
+owner authorization manifest, streaming SHA, and ML-DSA verification mailbox
+commands. Their request and response layouts are defined in
+[caliptra_types.h](inc/caliptra_types.h), with entry points in
+[caliptra_api.h](inc/caliptra_api.h). These helpers use the same synchronous or
+asynchronous dispatch convention as the other mailbox APIs.
+
 ### IF
 
 Specified in caliptra_if.h and used by caliptra_api.c

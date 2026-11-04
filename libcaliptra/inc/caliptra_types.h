@@ -172,6 +172,18 @@ struct caliptra_get_rt_alias_mldsa87_cert_resp
     uint8_t data[9216];
 };
 
+#define MLDSA87_PUB_KEY_BYTE_SIZE 2592u
+#define MLDSA87_SIGNATURE_BYTE_SIZE 4628u
+
+struct caliptra_mldsa_verify_req
+{
+    struct caliptra_req_header hdr;
+    uint8_t pub_key[MLDSA87_PUB_KEY_BYTE_SIZE];
+    uint8_t signature[MLDSA87_SIGNATURE_BYTE_SIZE];
+    uint32_t message_size;
+    uint8_t message[MAX_CMB_DATA_SIZE];
+};
+
 struct caliptra_lms_verify_v2_req
 {
     struct caliptra_req_header hdr;
