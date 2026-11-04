@@ -52,6 +52,29 @@ permissions:
   contents: read
 
 jobs:
+  # setup:
+  #   runs-on: ubuntu-latest
+  #   outputs:
+  #     matrix: ${{ steps.set-matrix.outputs.matrix }}
+  #     variants: ${{ steps.set-matrix.outputs.variants }}
+  #   steps:
+  #     - name: Define build matrix
+  #       id: set-matrix
+  #       run: |
+  #         MATRIX=$(cat <<'EOF'
+  #         {
+  #           "include": [
+  #             { "variant": "core-latest-segmented",  "rtl_version": "latest",  "segmented": true  },
+  #             { "variant": "core-latest-standard",   "rtl_version": "latest",  "segmented": false },
+  #             { "variant": "core-rev-2_1-segmented", "rtl_version": "rev-2_1", "segmented": true  },
+  #             { "variant": "core-rev-2_1-standard",  "rtl_version": "rev-2_1", "segmented": false }
+  #           ]
+  #         }
+  #         EOF
+  #         )
+  #         echo "matrix=$(echo "$MATRIX" | jq -c .)" >> $GITHUB_OUTPUT
+  #         echo "variants=$(echo "$MATRIX" | jq -c '[.include[] | select(.segmented) | .variant]')" >> $GITHUB_OUTPUT
+
   check_cache:
     runs-on: ubuntu-22.04
 
