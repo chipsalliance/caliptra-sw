@@ -386,7 +386,7 @@ impl FirmwareProcessor {
                             txn.complete(false)?;
                         } else {
                             #[cfg(not(feature = "fake-rom"))]
-                            run_fips_tests(env)?;
+                            run_fips_tests(env, false)?;
                             #[cfg(feature = "fake-rom")]
                             let _ = env;
                             let mut resp = MailboxRespHeader::default();

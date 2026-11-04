@@ -10,9 +10,14 @@ use caliptra_builder::ImageOptions;
 use caliptra_common::mailbox_api::*;
 use caliptra_drivers::CaliptraError;
 use caliptra_drivers::FipsTestHook;
-use caliptra_hw_model::{BootParams, HwModel, InitParams, ModelError, TrngMode};
+use caliptra_hw_model::{
+    BootParams, DeviceLifecycle, Fuses, HwModel, InitParams, ModelError, SecurityState, TrngMode,
+};
+use caliptra_image_crypto::OsslCrypto as Crypto;
+use caliptra_image_gen::ImageGenerator;
+use caliptra_image_types::ImageManifest;
 use common::*;
-use zerocopy::IntoBytes;
+use zerocopy::{FromBytes, IntoBytes};
 
 #[test]
 //TODO: https://github.com/chipsalliance/caliptra-sw/issues/2070
@@ -89,10 +94,23 @@ fn self_test_failure_flow_rom_inner(
     trng_mode: Option<TrngMode>,
 ) {
     let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_FIPS_TEST_HOOKS).unwrap();
+    let fw_image = fips_fw_image();
+    let (manifest, _) = ImageManifest::read_from_prefix(&fw_image).unwrap();
+    let fuses = Fuses {
+        vendor_pk_hash: ImageGenerator::new(Crypto::default())
+            .vendor_pubkey_info_digest(&manifest.preamble)
+            .unwrap(),
+        fuse_pqc_key_type: u32::from(manifest.pqc_key_type),
+        ..Default::default()
+    };
+    let security_state =
+        *SecurityState::default().set_device_lifecycle(DeviceLifecycle::Manufacturing);
 
     let mut hw = fips_test_init_to_boot_start(
         Some(InitParams {
+            fuses: fuses.clone(),
             rom: &rom,
+            security_state,
             trng_mode,
             ..Default::default()
         }),
@@ -117,7 +135,6 @@ fn self_test_failure_flow_rom_inner(
     // We can't directly call this algorithm, so check that Caliptra will not process messages
     //     Using the Load FW message since that is what uses most of the crypto anyway
     // Check that the SHA engine is not usable
-    let fw_image = fips_fw_image();
     match hw.upload_firmware(&fw_image) {
         Ok(_) => panic!("FW Load should fail at this point"),
         Err(act_error) => {
@@ -144,7 +161,9 @@ fn self_test_failure_flow_rom_inner(
         hw.cold_reset();
     } else {
         hw = fips_test_init_model(Some(InitParams {
+            fuses,
             rom: &rom,
+            security_state,
             trng_mode,
             ..Default::default()
         }))

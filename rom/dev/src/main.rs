@@ -74,9 +74,15 @@ pub extern "C" fn rom_entry() -> ! {
         Err(e) => handle_fatal_error(e.into()),
     };
 
+    let kat_failures_non_fatal =
+        env.soc_ifc.lifecycle() == caliptra_drivers::Lifecycle::Unprovisioned;
+
     // Run CSRNG KAT before any CSRNG output is consumed
     #[cfg(not(feature = "fake-rom"))]
-    if let Err(e) = CsrngKat::default().execute(&mut env.trng) {
+    if let Err(e) = CsrngKat::default()
+        .execute(&mut env.trng)
+        .or_else(|err| handle_kat_error(err, kat_failures_non_fatal))
+    {
         handle_fatal_error(e.into());
     }
 
@@ -201,13 +207,13 @@ pub extern "C" fn rom_entry() -> ! {
                 ShaAccLockState::AssumedLocked
             },
         };
-        let result = run_fips_tests(&mut kats_env);
+        let result = run_fips_tests(&mut kats_env, kat_failures_non_fatal);
         if let Err(err) = result {
             handle_fatal_error(err.into());
         }
     }
 
-    // Only run DBG unlock after KAT succeed since we use the sha acc peripherals
+    // Run DBG unlock after KATs since we use the SHA accelerator.
     if let Err(err) = crate::flow::debug_unlock::debug_unlock(&mut env) {
         handle_fatal_error(err.into());
     }
@@ -244,11 +250,22 @@ pub extern "C" fn rom_entry() -> ! {
     caliptra_drivers::ExitCtrl::exit(0);
 }
 
-fn run_fips_tests(env: &mut KatsEnv) -> CaliptraResult<()> {
+fn handle_kat_error(err: CaliptraError, kat_failures_non_fatal: bool) -> CaliptraResult<()> {
+    if kat_failures_non_fatal && err != CaliptraError::KAT_CSRNG_RESTORE_FAILURE {
+        handle_non_fatal_error(err.into());
+        Ok(())
+    } else {
+        Err(err)
+    }
+}
+
+fn run_fips_tests(env: &mut KatsEnv, kat_failures_non_fatal: bool) -> CaliptraResult<()> {
     report_boot_status(KatStarted.into());
 
     cprintln!("[kat] SHA2-256");
-    Sha256Kat::default().execute(env.sha256)?;
+    Sha256Kat::default()
+        .execute(env.sha256)
+        .or_else(|err| handle_kat_error(err, kat_failures_non_fatal))?;
 
     #[cfg(feature = "fips-test-hooks")]
     unsafe {
@@ -261,7 +278,9 @@ fn run_fips_tests(env: &mut KatsEnv) -> CaliptraResult<()> {
     let rom_info = unsafe { &CALIPTRA_ROM_INFO };
     rom_integrity_test(env, &rom_info.sha256_digest)?;
 
-    caliptra_kat::execute_kat(env)?;
+    caliptra_kat::execute_kat_with_error_handler(env, |err| {
+        handle_kat_error(err, kat_failures_non_fatal)
+    })?;
 
     report_boot_status(KatComplete.into());
 

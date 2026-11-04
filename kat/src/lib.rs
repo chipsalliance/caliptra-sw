@@ -63,67 +63,119 @@ use caliptra_drivers::cprintln;
 ///
 /// * `env` - ROM Environment
 pub fn execute_kat(env: &mut KatsEnv) -> CaliptraResult<()> {
+    execute_kat_with_error_handler(env, Err)
+}
+
+/// Execute KATs, allowing the error handler to continue with the remaining tests.
+///
+/// Returning an error from `handle_error` stops the suite.
+pub fn execute_kat_with_error_handler(
+    env: &mut KatsEnv,
+    mut handle_error: impl FnMut(CaliptraError) -> CaliptraResult<()>,
+) -> CaliptraResult<()> {
     cprintln!("[kat] ++");
 
     cprintln!("[kat] sha1");
-    Sha1Kat::default().execute(env.sha1)?;
+    Sha1Kat::default()
+        .execute(env.sha1)
+        .or_else(&mut handle_error)?;
 
     cprintln!("[kat] SHA2-256");
-    Sha256Kat::default().execute(env.sha256)?;
+    Sha256Kat::default()
+        .execute(env.sha256)
+        .or_else(&mut handle_error)?;
 
     cprintln!("[kat] SHA2-384");
-    Sha384Kat::default().execute(env.sha2_512_384)?;
+    Sha384Kat::default()
+        .execute(env.sha2_512_384)
+        .or_else(&mut handle_error)?;
 
     cprintln!("[kat] SHA2-512");
-    Sha512Kat::default().execute(env.sha2_512_384)?;
+    Sha512Kat::default()
+        .execute(env.sha2_512_384)
+        .or_else(&mut handle_error)?;
 
     cprintln!("[kat] SHA2-512-ACC");
-    Sha2_512_384AccKat::default().execute(env.sha2_512_384_acc, env.sha_acc_lock_state)?;
+    Sha2_512_384AccKat::default().execute_with_error_handler(
+        env.sha2_512_384_acc,
+        env.sha_acc_lock_state,
+        &mut handle_error,
+    )?;
 
     cprintln!("[kat] CSRNG");
-    CsrngKat::default().execute(env.trng)?;
+    CsrngKat::default()
+        .execute(env.trng)
+        .or_else(&mut handle_error)?;
 
     cprintln!("[kat] ECC-384");
-    Ecc384Kat::default().execute(env.ecc384, env.sha2_512_384, env.trng)?;
+    Ecc384Kat::default()
+        .execute(env.ecc384, env.sha2_512_384, env.trng)
+        .or_else(&mut handle_error)?;
 
     cprintln!("[kat] ECDH");
-    EcdhKat::default().execute(env.ecc384, env.trng)?;
+    EcdhKat::default()
+        .execute(env.ecc384, env.trng)
+        .or_else(&mut handle_error)?;
 
     cprintln!("[kat] HMAC-384Kdf");
-    Hmac384KdfKat::default().execute(env.hmac, env.trng)?;
+    Hmac384KdfKat::default()
+        .execute(env.hmac, env.trng)
+        .or_else(&mut handle_error)?;
 
     cprintln!("[kat] HMAC-512Kdf");
-    Hmac512KdfKat::default().execute(env.hmac, env.trng)?;
+    Hmac512KdfKat::default()
+        .execute(env.hmac, env.trng)
+        .or_else(&mut handle_error)?;
 
     cprintln!("[kat] HKDF-384");
-    Hkdf384Kat::default().execute(env.hmac, env.trng)?;
+    Hkdf384Kat::default()
+        .execute(env.hmac, env.trng)
+        .or_else(&mut handle_error)?;
 
     cprintln!("[kat] HKDF-512");
-    Hkdf512Kat::default().execute(env.hmac, env.trng)?;
+    Hkdf512Kat::default()
+        .execute(env.hmac, env.trng)
+        .or_else(&mut handle_error)?;
 
     cprintln!("[kat] KDF-CMAC");
-    CmacKdfKat::default().execute(env.aes)?;
+    CmacKdfKat::default()
+        .execute(env.aes)
+        .or_else(&mut handle_error)?;
 
     cprintln!("[kat] LMS");
-    LmsKat::default().execute(env.sha256, env.lms)?;
+    LmsKat::default()
+        .execute(env.sha256, env.lms)
+        .or_else(&mut handle_error)?;
 
     cprintln!("[kat] MLDSA87");
-    Mldsa87Kat::default().execute(env.mldsa87, env.trng)?;
+    Mldsa87Kat::default()
+        .execute(env.mldsa87, env.trng)
+        .or_else(&mut handle_error)?;
 
     cprintln!("[kat] AES-256-ECB");
-    Aes256EcbKat::default().execute(env.aes)?;
+    Aes256EcbKat::default()
+        .execute(env.aes)
+        .or_else(&mut handle_error)?;
 
     cprintln!("[kat] AES-256-CBC");
-    Aes256CbcKat::default().execute(env.aes)?;
+    Aes256CbcKat::default()
+        .execute(env.aes)
+        .or_else(&mut handle_error)?;
 
     cprintln!("[kat] AES-256-CMAC");
-    Aes256CmacKat::default().execute(env.aes)?;
+    Aes256CmacKat::default()
+        .execute(env.aes)
+        .or_else(&mut handle_error)?;
 
     cprintln!("[kat] AES-256-CTR");
-    Aes256CtrKat::default().execute(env.aes)?;
+    Aes256CtrKat::default()
+        .execute(env.aes)
+        .or_else(&mut handle_error)?;
 
     cprintln!("[kat] AES-256-GCM");
-    Aes256GcmKat::default().execute(env.aes, env.trng)?;
+    Aes256GcmKat::default()
+        .execute(env.aes, env.trng)
+        .or_else(&mut handle_error)?;
 
     cprintln!("[kat] --");
 
