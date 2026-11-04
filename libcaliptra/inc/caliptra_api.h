@@ -315,6 +315,12 @@ int caliptra_ocp_lock_unload_mek(struct caliptra_ocp_lock_unload_mek_req *req, s
 int caliptra_ocp_lock_load_mek(struct caliptra_ocp_lock_load_mek_req *req, struct caliptra_ocp_lock_load_mek_resp *resp, bool async);
 
 
+// CM_SHA_INIT, CM_SHA_UPDATE, CM_SHA_FINAL
+int caliptra_cm_sha_init(struct caliptra_cm_sha_init_req *req, struct caliptra_cm_sha_init_resp *resp, bool async);
+int caliptra_cm_sha_update(struct caliptra_cm_sha_update_req *req, struct caliptra_cm_sha_update_resp *resp, bool async);
+int caliptra_cm_sha_final(struct caliptra_cm_sha_final_req *req, struct caliptra_cm_sha_final_resp *resp, bool async);
+
+
 // Query if IDevID CSR is ready.
 bool caliptra_is_idevid_csr_ready();
 

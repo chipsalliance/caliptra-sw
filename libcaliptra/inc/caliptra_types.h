@@ -983,3 +983,52 @@ struct caliptra_ocp_lock_load_mek_resp
     uint32_t reserved;
 };
 
+
+
+// Structs and constants can be found in caliptra-sw/api/src/mailbox.rs
+#define MAX_CMB_DATA_SIZE       4096
+#define CMB_SHA_CONTEXT_SIZE    200
+#define SHA512_DIGEST_BYTE_SIZE 64
+
+struct caliptra_cm_sha_init_req
+{
+    struct caliptra_req_header hdr;
+    uint32_t hash_algorithm;
+    uint32_t data_size;
+    uint8_t data[MAX_CMB_DATA_SIZE];
+};
+
+struct caliptra_cm_sha_init_resp
+{
+    struct caliptra_resp_header hdr;
+    uint8_t context[CMB_SHA_CONTEXT_SIZE];
+};
+
+struct caliptra_cm_sha_update_req
+{
+    struct caliptra_req_header hdr;
+    uint8_t context[CMB_SHA_CONTEXT_SIZE];
+    uint32_t data_size;
+    uint8_t data[MAX_CMB_DATA_SIZE];
+};
+
+struct caliptra_cm_sha_update_resp
+{
+    struct caliptra_resp_header hdr;
+    uint8_t context[CMB_SHA_CONTEXT_SIZE];
+};
+
+struct caliptra_cm_sha_final_req
+{
+    struct caliptra_req_header hdr;
+    uint8_t context[CMB_SHA_CONTEXT_SIZE];
+    uint32_t data_size;
+    uint8_t data[MAX_CMB_DATA_SIZE];
+};
+
+struct caliptra_cm_sha_final_resp
+{
+    struct caliptra_resp_header hdr;
+    uint32_t hash_size;
+    uint8_t hash[SHA512_DIGEST_BYTE_SIZE];
+};
