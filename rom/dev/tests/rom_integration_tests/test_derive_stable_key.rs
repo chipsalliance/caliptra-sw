@@ -159,7 +159,7 @@ fn test_derive_stable_key() {
             let mut data = vec![0u8; MAX_CMB_DATA_SIZE];
             seeded_rng.fill_bytes(&mut data);
 
-            let mut cm_hmac = CmHmacReq {
+            let mut cm_hmac: CmHmacReq = CmHmacReq {
                 cmk: resp.cmk.clone(),
                 hash_algorithm: CmHashAlgorithm::Sha512.into(),
                 data_size: MAX_CMB_DATA_SIZE as u32,
@@ -168,7 +168,7 @@ fn test_derive_stable_key() {
             cm_hmac.data[..MAX_CMB_DATA_SIZE].copy_from_slice(&data);
             cm_hmac.hdr.chksum = caliptra_common::checksum::calc_checksum(
                 u32::from(CommandId::CM_HMAC),
-                &cm_hmac.as_bytes()[core::mem::size_of_val(&cm_hmac.hdr.chksum)..],
+                &cm_hmac.as_bytes()[core::mem::size_of::<u32>()..],
             );
 
             let response = hw
@@ -268,7 +268,7 @@ fn test_derive_stable_owner_key_different_info() {
         let resp_a = CmDeriveStableKeyResp::ref_from_bytes(response_a.as_bytes()).unwrap();
 
         // HMAC with key_a
-        let mut cm_hmac_a = CmHmacReq {
+        let mut cm_hmac_a: CmHmacReq = CmHmacReq {
             cmk: resp_a.cmk.clone(),
             hash_algorithm: CmHashAlgorithm::Sha512.into(),
             data_size: 9,
@@ -277,7 +277,7 @@ fn test_derive_stable_owner_key_different_info() {
         cm_hmac_a.data[..9].copy_from_slice(b"test data");
         cm_hmac_a.hdr.chksum = caliptra_common::checksum::calc_checksum(
             u32::from(CommandId::CM_HMAC),
-            &cm_hmac_a.as_bytes()[core::mem::size_of_val(&cm_hmac_a.hdr.chksum)..],
+            &cm_hmac_a.as_bytes()[core::mem::size_of::<u32>()..],
         );
         let hmac_resp_a = hw
             .mailbox_execute(CommandId::CM_HMAC.into(), cm_hmac_a.as_bytes())
@@ -302,7 +302,7 @@ fn test_derive_stable_owner_key_different_info() {
         let resp_b = CmDeriveStableKeyResp::ref_from_bytes(response_b.as_bytes()).unwrap();
 
         // HMAC with key_b
-        let mut cm_hmac_b = CmHmacReq {
+        let mut cm_hmac_b: CmHmacReq = CmHmacReq {
             cmk: resp_b.cmk.clone(),
             hash_algorithm: CmHashAlgorithm::Sha512.into(),
             data_size: 9,
@@ -311,7 +311,7 @@ fn test_derive_stable_owner_key_different_info() {
         cm_hmac_b.data[..9].copy_from_slice(b"test data");
         cm_hmac_b.hdr.chksum = caliptra_common::checksum::calc_checksum(
             u32::from(CommandId::CM_HMAC),
-            &cm_hmac_b.as_bytes()[core::mem::size_of_val(&cm_hmac_b.hdr.chksum)..],
+            &cm_hmac_b.as_bytes()[core::mem::size_of::<u32>()..],
         );
         let hmac_resp_b = hw
             .mailbox_execute(CommandId::CM_HMAC.into(), cm_hmac_b.as_bytes())
@@ -392,10 +392,13 @@ fn test_random_generate() {
         .unwrap()
         .expect("We should have received a response");
 
-    let mut resp = CmRandomGenerateResp::default();
+    let mut resp = CmRandomGenerateResp::<MAX_CMB_DATA_SIZE>::default();
     const VAR_HEADER_SIZE: usize = size_of::<MailboxRespHeaderVarSize>();
     resp.hdr = MailboxRespHeaderVarSize::read_from_bytes(&resp_bytes[..VAR_HEADER_SIZE]).unwrap();
-    assert_eq!(resp.hdr.data_len, 0);
+    // Copy out of the packed struct before comparing to avoid taking a
+    // reference to an unaligned field (E0793).
+    let data_len = resp.hdr.data_len;
+    assert_eq!(data_len, 0);
     assert!(resp_bytes[VAR_HEADER_SIZE..].iter().all(|&x| x == 0));
 
     // 1 byte
@@ -413,7 +416,7 @@ fn test_random_generate() {
         .unwrap()
         .expect("We should have received a response");
 
-    let mut resp = CmRandomGenerateResp {
+    let mut resp: CmRandomGenerateResp = CmRandomGenerateResp {
         hdr: MailboxRespHeaderVarSize::read_from_bytes(&resp_bytes[..VAR_HEADER_SIZE]).unwrap(),
         ..Default::default()
     };
@@ -437,7 +440,7 @@ fn test_random_generate() {
             .unwrap()
             .expect("We should have received a response");
 
-        let mut resp = CmRandomGenerateResp {
+        let mut resp: CmRandomGenerateResp = CmRandomGenerateResp {
             hdr: MailboxRespHeaderVarSize::read_from_bytes(&resp_bytes[..VAR_HEADER_SIZE]).unwrap(),
             ..Default::default()
         };
