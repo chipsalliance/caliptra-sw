@@ -3448,40 +3448,51 @@ impl Default for CmShake256FinalResp {
 impl Response for CmShake256FinalResp {}
 
 // CM_SHA (one-shot SHA384/SHA512 hash)
-#[repr(C)]
+//
+// Generic over the input buffer size `IS` so the same wire layout can be
+// reused by components with a different mailbox size (and therefore a
+// different maximum CM_SHA input size). The default `MAX_CM_SHA_INPUT_SIZE`
+// is derived from `MAILBOX_SIZE`; other callers (e.g. `caliptra-mcu-sw` in
+// passive mode) can instantiate `CmShaReq<MAX_CM_SHA_INPUT_SIZE_PASSIVE>`.
+//
+// `repr(C, packed)` matches the other variable-size CM request structs
+// (e.g. `CmShaInitReq`) and is required for the `zerocopy::IntoBytes` derive
+// to accept a `repr(C)` struct that is generic over the trailing array size
+// (packing guarantees there is no trailing padding).
+#[repr(C, packed)]
 #[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
-pub struct CmShaReq {
+pub struct CmShaReq<const IS: usize = MAX_CM_SHA_INPUT_SIZE> {
     pub hdr: MailboxReqHeader,
     pub hash_algorithm: u32,
     pub input_size: u32,
-    pub input: [u8; MAX_CM_SHA_INPUT_SIZE],
+    pub input: [u8; IS],
 }
 
-impl Default for CmShaReq {
+impl<const IS: usize> Default for CmShaReq<IS> {
     fn default() -> Self {
         Self {
             hdr: MailboxReqHeader::default(),
             hash_algorithm: 0,
             input_size: 0,
-            input: [0u8; MAX_CM_SHA_INPUT_SIZE],
+            input: [0u8; IS],
         }
     }
 }
 
-impl CmShaReq {
+impl<const IS: usize> CmShaReq<IS> {
     pub fn as_bytes_partial(&self) -> CaliptraResult<&[u8]> {
-        if self.input_size as usize > MAX_CM_SHA_INPUT_SIZE {
+        if self.input_size as usize > IS {
             return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
         }
-        let unused_byte_count = MAX_CM_SHA_INPUT_SIZE - self.input_size as usize;
+        let unused_byte_count = IS - self.input_size as usize;
         Ok(&self.as_bytes()[..size_of::<Self>() - unused_byte_count])
     }
 
     pub fn as_bytes_partial_mut(&mut self) -> CaliptraResult<&mut [u8]> {
-        if self.input_size as usize > MAX_CM_SHA_INPUT_SIZE {
+        if self.input_size as usize > IS {
             return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
         }
-        let unused_byte_count = MAX_CM_SHA_INPUT_SIZE - self.input_size as usize;
+        let unused_byte_count = IS - self.input_size as usize;
         Ok(&mut self.as_mut_bytes()[..size_of::<Self>() - unused_byte_count])
     }
 }
