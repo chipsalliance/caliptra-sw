@@ -15,7 +15,7 @@ Abstract:
 use crate::crypto::{Crypto, EncryptedCmk, UnencryptedCmk};
 use caliptra_api::mailbox::{
     CmHashAlgorithm, CmHmacReq, CmHmacResp, CmKeyUsage, Cmk, MailboxRespHeaderVarSize,
-    ResponseVarSize,
+    ResponseVarSize, MAX_CMB_DATA_SIZE,
 };
 use caliptra_drivers::{
     AesGcmOp, Array4x12, Array4x16, Hmac, HmacData, HmacMode, LEArray4x8, Trng,
@@ -62,7 +62,7 @@ pub fn hmac<G: AesGcmOp>(
     if cmd_bytes.len() > core::mem::size_of::<CmHmacReq>() {
         Err(CaliptraError::CMB_HMAC_INVALID_REQ_SIZE)?;
     }
-    let mut cmd = CmHmacReq::default();
+    let mut cmd = CmHmacReq::<MAX_CMB_DATA_SIZE>::default();
     cmd.as_mut_bytes()[..cmd_bytes.len()].copy_from_slice(cmd_bytes);
 
     let cm_hash_algorithm = CmHashAlgorithm::from(cmd.hash_algorithm);

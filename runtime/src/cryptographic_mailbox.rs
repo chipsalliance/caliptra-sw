@@ -672,7 +672,7 @@ impl Commands {
         if cmd_bytes.len() > core::mem::size_of::<CmShaInitReq>() {
             Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
         }
-        let mut cmd = CmShaInitReq::default();
+        let mut cmd: CmShaInitReq<MAX_CMB_DATA_SIZE> = CmShaInitReq::default();
         cmd.as_mut_bytes()[..cmd_bytes.len()].copy_from_slice(cmd_bytes);
 
         let cm_hash_algorithm = CmHashAlgorithm::from(cmd.hash_algorithm);
@@ -742,7 +742,7 @@ impl Commands {
         if cmd_bytes.len() > core::mem::size_of::<CmShaUpdateReq>() {
             Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
         }
-        let mut cmd = CmShaUpdateReq::default();
+        let mut cmd = CmShaUpdateReq::<MAX_CMB_DATA_SIZE>::default();
         cmd.as_mut_bytes()[..cmd_bytes.len()].copy_from_slice(cmd_bytes);
 
         if cmd.input_size as usize > cmd.input.len() {
@@ -817,7 +817,7 @@ impl Commands {
         if cmd_bytes.len() > core::mem::size_of::<CmShaUpdateReq>() {
             Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
         }
-        let mut cmd = CmShaUpdateReq::default();
+        let mut cmd = CmShaUpdateReq::<MAX_CMB_DATA_SIZE>::default();
         cmd.as_mut_bytes()[..cmd_bytes.len()].copy_from_slice(cmd_bytes);
 
         if cmd.input_size as usize > cmd.input.len() {
@@ -888,7 +888,7 @@ impl Commands {
         if cmd_bytes.len() > core::mem::size_of::<CmShake256InitReq>() {
             Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
         }
-        let mut cmd = CmShake256InitReq::default();
+        let mut cmd = CmShake256InitReq::<MAX_CMB_DATA_SIZE>::default();
         cmd.as_mut_bytes()[..cmd_bytes.len()].copy_from_slice(cmd_bytes);
 
         if cmd.input_size as usize > cmd.input.len() {
@@ -934,7 +934,7 @@ impl Commands {
         if cmd_bytes.len() > core::mem::size_of::<CmShake256UpdateReq>() {
             Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
         }
-        let mut cmd = CmShake256UpdateReq::default();
+        let mut cmd = CmShake256UpdateReq::<MAX_CMB_DATA_SIZE>::default();
         cmd.as_mut_bytes()[..cmd_bytes.len()].copy_from_slice(cmd_bytes);
 
         if cmd.input_size as usize > cmd.input.len() {
@@ -984,7 +984,7 @@ impl Commands {
         if cmd_bytes.len() > core::mem::size_of::<CmShake256FinalReq>() {
             Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
         }
-        let mut cmd = CmShake256FinalReq::default();
+        let mut cmd = CmShake256FinalReq::<MAX_CMB_DATA_SIZE>::default();
         cmd.as_mut_bytes()[..cmd_bytes.len()].copy_from_slice(cmd_bytes);
 
         if cmd.input_size as usize > cmd.input.len() {
@@ -1060,7 +1060,7 @@ impl Commands {
         if cmd_bytes.len() > core::mem::size_of::<CmRandomStirReq>() {
             Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
         }
-        let mut cmd = CmRandomStirReq::default();
+        let mut cmd = CmRandomStirReq::<MAX_CMB_DATA_SIZE>::default();
         cmd.as_mut_bytes()[..cmd_bytes.len()].copy_from_slice(cmd_bytes);
         let size = (cmd.input_size as usize).next_multiple_of(MAX_SEED_WORDS * 4);
         if size > MAX_CMB_DATA_SIZE {
@@ -1080,7 +1080,7 @@ impl Commands {
         if cmd_bytes.len() > core::mem::size_of::<CmAesEncryptInitReq>() {
             Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
         }
-        let mut cmd = CmAesEncryptInitReq::default();
+        let mut cmd = CmAesEncryptInitReq::<MAX_CMB_DATA_SIZE>::default();
         cmd.as_mut_bytes()[..cmd_bytes.len()].copy_from_slice(cmd_bytes);
 
         if cmd.plaintext_size as usize > MAX_CMB_DATA_SIZE {
@@ -1146,7 +1146,7 @@ impl Commands {
         if cmd_bytes.len() > core::mem::size_of::<CmAesEncryptUpdateReq>() {
             Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
         }
-        let mut cmd = CmAesEncryptUpdateReq::default();
+        let mut cmd = CmAesEncryptUpdateReq::<MAX_CMB_DATA_SIZE>::default();
         cmd.as_mut_bytes()[..cmd_bytes.len()].copy_from_slice(cmd_bytes);
 
         if cmd.plaintext_size as usize > MAX_CMB_DATA_SIZE {
@@ -1188,7 +1188,7 @@ impl Commands {
         if cmd_bytes.len() > core::mem::size_of::<CmAesDecryptInitReq>() {
             Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
         }
-        let mut cmd = CmAesDecryptInitReq::default();
+        let mut cmd = CmAesDecryptInitReq::<MAX_CMB_DATA_SIZE>::default();
         cmd.as_mut_bytes()[..cmd_bytes.len()].copy_from_slice(cmd_bytes);
 
         if cmd.ciphertext_size as usize > MAX_CMB_DATA_SIZE {
@@ -1244,7 +1244,7 @@ impl Commands {
         if cmd_bytes.len() > core::mem::size_of::<CmAesDecryptUpdateReq>() {
             Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
         }
-        let mut cmd = CmAesDecryptUpdateReq::default();
+        let mut cmd = CmAesDecryptUpdateReq::<MAX_CMB_DATA_SIZE>::default();
         cmd.as_mut_bytes()[..cmd_bytes.len()].copy_from_slice(cmd_bytes);
 
         if cmd.ciphertext_size as usize > MAX_CMB_DATA_SIZE {
@@ -1411,7 +1411,7 @@ impl Commands {
         if cmd_bytes.len() > core::mem::size_of::<CmAesGcmEncryptInitReq>() {
             Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
         }
-        let mut cmd = CmAesGcmEncryptInitReq::default();
+        let mut cmd = CmAesGcmEncryptInitReq::<MAX_CMB_DATA_SIZE>::default();
         cmd.as_mut_bytes()[..cmd_bytes.len()].copy_from_slice(cmd_bytes);
 
         if cmd.aad_size as usize > MAX_CMB_DATA_SIZE {
@@ -1505,7 +1505,7 @@ impl Commands {
         if cmd_bytes.len() > core::mem::size_of::<CmAesGcmSpdmEncryptInitReq>() {
             Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
         }
-        let mut cmd = CmAesGcmSpdmEncryptInitReq::default();
+        let mut cmd = CmAesGcmSpdmEncryptInitReq::<MAX_CMB_DATA_SIZE>::default();
         cmd.as_mut_bytes()[..cmd_bytes.len()].copy_from_slice(cmd_bytes);
 
         if cmd.aad_size as usize > MAX_CMB_DATA_SIZE {
@@ -1537,7 +1537,7 @@ impl Commands {
         if cmd_bytes.len() > core::mem::size_of::<CmAesGcmEncryptUpdateReq>() {
             Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
         }
-        let mut cmd = CmAesGcmEncryptUpdateReq::default();
+        let mut cmd = CmAesGcmEncryptUpdateReq::<MAX_CMB_DATA_SIZE>::default();
         cmd.as_mut_bytes()[..cmd_bytes.len()].copy_from_slice(cmd_bytes);
 
         if cmd.plaintext_size as usize > MAX_CMB_DATA_SIZE {
@@ -1582,7 +1582,7 @@ impl Commands {
         if cmd_bytes.len() > core::mem::size_of::<CmAesGcmEncryptFinalReq>() {
             Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
         }
-        let mut cmd = CmAesGcmEncryptFinalReq::default();
+        let mut cmd = CmAesGcmEncryptFinalReq::<MAX_CMB_DATA_SIZE>::default();
         cmd.as_mut_bytes()[..cmd_bytes.len()].copy_from_slice(cmd_bytes);
 
         if cmd.plaintext_size as usize > MAX_CMB_DATA_SIZE {
@@ -1621,7 +1621,7 @@ impl Commands {
         if cmd_bytes.len() > core::mem::size_of::<CmAesGcmDecryptInitReq>() {
             Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
         }
-        let mut cmd = CmAesGcmDecryptInitReq::default();
+        let mut cmd = CmAesGcmDecryptInitReq::<MAX_CMB_DATA_SIZE>::default();
         cmd.as_mut_bytes()[..cmd_bytes.len()].copy_from_slice(cmd_bytes);
 
         if cmd.aad_size as usize > MAX_CMB_DATA_SIZE {
@@ -1651,7 +1651,7 @@ impl Commands {
         if cmd_bytes.len() > core::mem::size_of::<CmAesGcmSpdmDecryptInitReq>() {
             Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
         }
-        let mut cmd = CmAesGcmSpdmDecryptInitReq::default();
+        let mut cmd = CmAesGcmSpdmDecryptInitReq::<MAX_CMB_DATA_SIZE>::default();
         cmd.as_mut_bytes()[..cmd_bytes.len()].copy_from_slice(cmd_bytes);
 
         if cmd.aad_size as usize > MAX_CMB_DATA_SIZE {
@@ -1684,7 +1684,7 @@ impl Commands {
         if cmd_bytes.len() > core::mem::size_of::<CmAesGcmDecryptUpdateReq>() {
             Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
         }
-        let mut cmd = CmAesGcmDecryptUpdateReq::default();
+        let mut cmd = CmAesGcmDecryptUpdateReq::<MAX_CMB_DATA_SIZE>::default();
         cmd.as_mut_bytes()[..cmd_bytes.len()].copy_from_slice(cmd_bytes);
 
         if cmd.ciphertext_size as usize > MAX_CMB_DATA_SIZE {
@@ -1729,7 +1729,7 @@ impl Commands {
         if cmd_bytes.len() > core::mem::size_of::<CmAesGcmDecryptFinalReq>() {
             Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
         }
-        let mut cmd = CmAesGcmDecryptFinalReq::default();
+        let mut cmd = CmAesGcmDecryptFinalReq::<MAX_CMB_DATA_SIZE>::default();
         cmd.as_mut_bytes()[..cmd_bytes.len()].copy_from_slice(cmd_bytes);
 
         if cmd.ciphertext_size as usize > MAX_CMB_DATA_SIZE {
@@ -1953,7 +1953,7 @@ impl Commands {
         if cmd_bytes.len() > core::mem::size_of::<CmHmacKdfCounterReq>() {
             Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
         }
-        let mut cmd = CmHmacKdfCounterReq::default();
+        let mut cmd = CmHmacKdfCounterReq::<MAX_CMB_DATA_SIZE>::default();
         cmd.as_mut_bytes()[..cmd_bytes.len()].copy_from_slice(cmd_bytes);
 
         let cm_hash_algorithm = CmHashAlgorithm::from(cmd.hash_algorithm);
@@ -2149,7 +2149,7 @@ impl Commands {
         if cmd_bytes.len() > core::mem::size_of::<CmHkdfExpandReq>() {
             Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
         }
-        let mut cmd = CmHkdfExpandReq::default();
+        let mut cmd = CmHkdfExpandReq::<MAX_CMB_DATA_SIZE>::default();
         cmd.as_mut_bytes()[..cmd_bytes.len()].copy_from_slice(cmd_bytes);
 
         let cm_hash_algorithm = CmHashAlgorithm::from(cmd.hash_algorithm);
@@ -2261,7 +2261,7 @@ impl Commands {
         if cmd_bytes.len() > core::mem::size_of::<CmMldsaSignReq>() {
             Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
         }
-        let mut cmd = CmMldsaSignReq::default();
+        let mut cmd = CmMldsaSignReq::<MAX_CMB_DATA_SIZE>::default();
         cmd.as_mut_bytes()[..cmd_bytes.len()].copy_from_slice(cmd_bytes);
 
         if cmd.message_size as usize > cmd.message.len() {
@@ -2294,7 +2294,7 @@ impl Commands {
         if cmd_bytes.len() > core::mem::size_of::<CmMldsaVerifyReq>() {
             Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
         }
-        let mut cmd = CmMldsaVerifyReq::default();
+        let mut cmd = CmMldsaVerifyReq::<MAX_CMB_DATA_SIZE>::default();
         cmd.as_mut_bytes()[..cmd_bytes.len()].copy_from_slice(cmd_bytes);
 
         if cmd.message_size as usize > cmd.message.len() {
@@ -2385,7 +2385,7 @@ impl Commands {
         if cmd_bytes.len() > core::mem::size_of::<CmEcdsaSignReq>() {
             Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
         }
-        let mut cmd = CmEcdsaSignReq::default();
+        let mut cmd = CmEcdsaSignReq::<MAX_CMB_DATA_SIZE>::default();
         cmd.as_mut_bytes()[..cmd_bytes.len()].copy_from_slice(cmd_bytes);
 
         if cmd.message_size as usize > cmd.message.len() {
@@ -2428,7 +2428,7 @@ impl Commands {
         if cmd_bytes.len() > core::mem::size_of::<CmEcdsaVerifyReq>() {
             Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
         }
-        let mut cmd = CmEcdsaVerifyReq::default();
+        let mut cmd = CmEcdsaVerifyReq::<MAX_CMB_DATA_SIZE>::default();
         cmd.as_mut_bytes()[..cmd_bytes.len()].copy_from_slice(cmd_bytes);
 
         if cmd.message_size as usize > cmd.message.len() {

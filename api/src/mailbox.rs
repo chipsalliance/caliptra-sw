@@ -13,6 +13,11 @@ use core::mem::size_of;
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
 
 /// Maximum input data size for cryptographic mailbox commands.
+///
+/// # Note
+/// In `caliptra-sw`, this is the default size for buffers contained in mailbox messages.
+/// This is kept generically const-generic, to easily adjust this size when using
+/// the mailbox struct definitions in other caliptra components, such as `caliptra-mcu-sw`.
 pub const MAX_CMB_DATA_SIZE: usize = 4096;
 /// Mailbox size in bytes when subsystem mode is enabled.
 pub const SUBSYSTEM_MAILBOX_SIZE_LIMIT: usize = 16 * 1024;
@@ -325,7 +330,9 @@ where
 }
 
 #[repr(C)]
-#[derive(Debug, IntoBytes, Default, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+#[derive(
+    Debug, IntoBytes, Default, FromBytes, Immutable, KnownLayout, PartialEq, Eq, Clone, Copy,
+)]
 pub struct MailboxRespHeaderVarSize {
     pub hdr: MailboxRespHeader,
     pub data_len: u32,
@@ -1164,13 +1171,15 @@ impl MailboxReq {
 
 // HEADER
 #[repr(C)]
-#[derive(Default, Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+#[derive(
+    Default, Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq, Clone, Copy,
+)]
 pub struct MailboxReqHeader {
     pub chksum: u32,
 }
 
 #[repr(C)]
-#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq, Clone)]
+#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq, Clone, Copy)]
 pub struct MailboxRespHeader {
     pub chksum: u32,
     pub fips_status: u32,
@@ -1542,30 +1551,30 @@ impl Request for LmsVerifyReq {
 // No command-specific output args
 
 // MLDSA87_SIGNATURE_VERIFY
-#[repr(C)]
+#[repr(C, packed)]
 #[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
-pub struct MldsaVerifyReq {
+pub struct MldsaVerifyReq<const DS: usize = MAX_CMB_DATA_SIZE> {
     pub hdr: MailboxReqHeader,
     pub pub_key: [u8; MLDSA87_PUB_KEY_BYTE_SIZE],
     pub signature: [u8; MLDSA87_SIGNATURE_BYTE_SIZE],
     pub message_size: u32,
-    pub message: [u8; MAX_CMB_DATA_SIZE],
+    pub message: [u8; DS],
 }
 
-impl MldsaVerifyReq {
+impl<const DS: usize> MldsaVerifyReq<DS> {
     pub fn as_bytes_partial(&self) -> CaliptraResult<&[u8]> {
-        if self.message_size as usize > MAX_CMB_DATA_SIZE {
+        if self.message_size as usize > DS {
             return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
         }
-        let unused_byte_count = MAX_CMB_DATA_SIZE - self.message_size as usize;
+        let unused_byte_count = DS - self.message_size as usize;
         Ok(&self.as_bytes()[..size_of::<Self>() - unused_byte_count])
     }
 
     pub fn as_bytes_partial_mut(&mut self) -> CaliptraResult<&mut [u8]> {
-        if self.message_size as usize > MAX_CMB_DATA_SIZE {
+        if self.message_size as usize > DS {
             return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
         }
-        let unused_byte_count = MAX_CMB_DATA_SIZE - self.message_size as usize;
+        let unused_byte_count = DS - self.message_size as usize;
         Ok(&mut self.as_mut_bytes()[..size_of::<Self>() - unused_byte_count])
     }
 
@@ -1608,7 +1617,7 @@ impl MldsaVerifyReq {
     /// Extract the message from a byte slice, using the decoded message_size for proper length
     pub fn message(bytes: &[u8]) -> Option<&[u8]> {
         let msg_size = Self::message_size(bytes)? as usize;
-        if msg_size > MAX_CMB_DATA_SIZE {
+        if msg_size > DS {
             return None;
         }
         let offset = core::mem::offset_of!(Self, message);
@@ -1617,14 +1626,14 @@ impl MldsaVerifyReq {
     }
 }
 
-impl Default for MldsaVerifyReq {
+impl<const DS: usize> Default for MldsaVerifyReq<DS> {
     fn default() -> Self {
         Self {
             hdr: MailboxReqHeader::default(),
             pub_key: [0u8; MLDSA87_PUB_KEY_BYTE_SIZE],
             signature: [0u8; MLDSA87_SIGNATURE_BYTE_SIZE],
             message_size: 0,
-            message: [0u8; MAX_CMB_DATA_SIZE],
+            message: [0u8; DS],
         }
     }
 }
@@ -2928,7 +2937,7 @@ impl Request for ExternalMailboxCmdReq {
 pub const CMK_MAX_KEY_SIZE_BITS: usize = 512;
 pub const CMK_SIZE_BYTES: usize = 128;
 /// CMK is an opaque (encrypted) wrapper around a key.
-#[derive(Clone, Debug, FromBytes, Immutable, IntoBytes, KnownLayout, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, FromBytes, Immutable, IntoBytes, KnownLayout, PartialEq, Eq)]
 pub struct Cmk(pub [u8; CMK_SIZE_BYTES]);
 
 impl Default for Cmk {
@@ -3103,40 +3112,40 @@ impl From<CmHashAlgorithm> for u32 {
 }
 
 // CM_SHA_INIT
-#[repr(C)]
-#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
-pub struct CmShaInitReq {
+#[repr(C, packed)]
+#[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+pub struct CmShaInitReq<const DS: usize = MAX_CMB_DATA_SIZE> {
     pub hdr: MailboxReqHeader,
     pub hash_algorithm: u32,
     pub input_size: u32,
-    pub input: [u8; MAX_CMB_DATA_SIZE],
+    pub input: [u8; DS],
 }
 
-impl Default for CmShaInitReq {
+impl<const DS: usize> Default for CmShaInitReq<DS> {
     fn default() -> Self {
         Self {
             hdr: MailboxReqHeader::default(),
             hash_algorithm: 0,
             input_size: 0,
-            input: [0u8; MAX_CMB_DATA_SIZE],
+            input: [0u8; DS],
         }
     }
 }
 
-impl CmShaInitReq {
+impl<const DS: usize> CmShaInitReq<DS> {
     pub fn as_bytes_partial(&self) -> CaliptraResult<&[u8]> {
-        if self.input_size as usize > MAX_CMB_DATA_SIZE {
+        if self.input_size as usize > DS {
             return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
         }
-        let unused_byte_count = MAX_CMB_DATA_SIZE - self.input_size as usize;
+        let unused_byte_count = DS - self.input_size as usize;
         Ok(&self.as_bytes()[..size_of::<Self>() - unused_byte_count])
     }
 
     pub fn as_bytes_partial_mut(&mut self) -> CaliptraResult<&mut [u8]> {
-        if self.input_size as usize > MAX_CMB_DATA_SIZE {
+        if self.input_size as usize > DS {
             return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
         }
-        let unused_byte_count = MAX_CMB_DATA_SIZE - self.input_size as usize;
+        let unused_byte_count = DS - self.input_size as usize;
         Ok(&mut self.as_mut_bytes()[..size_of::<Self>() - unused_byte_count])
     }
 }
@@ -3165,40 +3174,40 @@ impl Default for CmShaInitResp {
 impl Response for CmShaInitResp {}
 
 // CM_SHA_UPDATE
-#[repr(C)]
+#[repr(C, packed)]
 #[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
-pub struct CmShaUpdateReq {
+pub struct CmShaUpdateReq<const DS: usize = MAX_CMB_DATA_SIZE> {
     pub hdr: MailboxReqHeader,
     pub context: [u8; CMB_SHA_CONTEXT_SIZE],
     pub input_size: u32,
-    pub input: [u8; MAX_CMB_DATA_SIZE],
+    pub input: [u8; DS],
 }
 
-impl Default for CmShaUpdateReq {
+impl<const DS: usize> Default for CmShaUpdateReq<DS> {
     fn default() -> Self {
         Self {
             hdr: MailboxReqHeader::default(),
             context: [0u8; CMB_SHA_CONTEXT_SIZE],
             input_size: 0,
-            input: [0u8; MAX_CMB_DATA_SIZE],
+            input: [0u8; DS],
         }
     }
 }
 
-impl CmShaUpdateReq {
+impl<const DS: usize> CmShaUpdateReq<DS> {
     pub fn as_bytes_partial(&self) -> CaliptraResult<&[u8]> {
-        if self.input_size as usize > MAX_CMB_DATA_SIZE {
+        if self.input_size as usize > DS {
             return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
         }
-        let unused_byte_count = MAX_CMB_DATA_SIZE - self.input_size as usize;
+        let unused_byte_count = DS - self.input_size as usize;
         Ok(&self.as_bytes()[..size_of::<Self>() - unused_byte_count])
     }
 
     pub fn as_bytes_partial_mut(&mut self) -> CaliptraResult<&mut [u8]> {
-        if self.input_size as usize > MAX_CMB_DATA_SIZE {
+        if self.input_size as usize > DS {
             return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
         }
-        let unused_byte_count = MAX_CMB_DATA_SIZE - self.input_size as usize;
+        let unused_byte_count = DS - self.input_size as usize;
         Ok(&mut self.as_mut_bytes()[..size_of::<Self>() - unused_byte_count])
     }
 }
@@ -3209,40 +3218,40 @@ impl Request for CmShaUpdateReq {
 }
 
 // CM_SHA_FINAL
-#[repr(C)]
+#[repr(C, packed)]
 #[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
-pub struct CmShaFinalReq {
+pub struct CmShaFinalReq<const DS: usize = MAX_CMB_DATA_SIZE> {
     pub hdr: MailboxReqHeader,
     pub context: [u8; CMB_SHA_CONTEXT_SIZE],
     pub input_size: u32,
-    pub input: [u8; MAX_CMB_DATA_SIZE],
+    pub input: [u8; DS],
 }
 
-impl Default for CmShaFinalReq {
+impl<const DS: usize> Default for CmShaFinalReq<DS> {
     fn default() -> Self {
         Self {
             hdr: MailboxReqHeader::default(),
             context: [0u8; CMB_SHA_CONTEXT_SIZE],
             input_size: 0,
-            input: [0u8; MAX_CMB_DATA_SIZE],
+            input: [0u8; DS],
         }
     }
 }
 
-impl CmShaFinalReq {
+impl<const DS: usize> CmShaFinalReq<DS> {
     pub fn as_bytes_partial(&self) -> CaliptraResult<&[u8]> {
-        if self.input_size as usize > MAX_CMB_DATA_SIZE {
+        if self.input_size as usize > DS {
             return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
         }
-        let unused_byte_count = MAX_CMB_DATA_SIZE - self.input_size as usize;
+        let unused_byte_count = DS - self.input_size as usize;
         Ok(&self.as_bytes()[..size_of::<Self>() - unused_byte_count])
     }
 
     pub fn as_bytes_partial_mut(&mut self) -> CaliptraResult<&mut [u8]> {
-        if self.input_size as usize > MAX_CMB_DATA_SIZE {
+        if self.input_size as usize > DS {
             return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
         }
-        let unused_byte_count = MAX_CMB_DATA_SIZE - self.input_size as usize;
+        let unused_byte_count = DS - self.input_size as usize;
         Ok(&mut self.as_mut_bytes()[..size_of::<Self>() - unused_byte_count])
     }
 }
@@ -3271,38 +3280,38 @@ impl Default for CmShaFinalResp {
 impl ResponseVarSize for CmShaFinalResp {}
 
 // CM_SHAKE256_INIT
-#[repr(C)]
+#[repr(C, packed)]
 #[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
-pub struct CmShake256InitReq {
+pub struct CmShake256InitReq<const DS: usize = MAX_CMB_DATA_SIZE> {
     pub hdr: MailboxReqHeader,
     pub input_size: u32,
-    pub input: [u8; MAX_CMB_DATA_SIZE],
+    pub input: [u8; DS],
 }
 
-impl Default for CmShake256InitReq {
+impl<const DS: usize> Default for CmShake256InitReq<DS> {
     fn default() -> Self {
         Self {
             hdr: MailboxReqHeader::default(),
             input_size: 0,
-            input: [0u8; MAX_CMB_DATA_SIZE],
+            input: [0u8; DS],
         }
     }
 }
 
-impl CmShake256InitReq {
+impl<const DS: usize> CmShake256InitReq<DS> {
     pub fn as_bytes_partial(&self) -> CaliptraResult<&[u8]> {
-        if self.input_size as usize > MAX_CMB_DATA_SIZE {
+        if self.input_size as usize > DS {
             return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
         }
-        let unused_byte_count = MAX_CMB_DATA_SIZE - self.input_size as usize;
+        let unused_byte_count = DS - self.input_size as usize;
         Ok(&self.as_bytes()[..size_of::<Self>() - unused_byte_count])
     }
 
     pub fn as_bytes_partial_mut(&mut self) -> CaliptraResult<&mut [u8]> {
-        if self.input_size as usize > MAX_CMB_DATA_SIZE {
+        if self.input_size as usize > DS {
             return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
         }
-        let unused_byte_count = MAX_CMB_DATA_SIZE - self.input_size as usize;
+        let unused_byte_count = DS - self.input_size as usize;
         Ok(&mut self.as_mut_bytes()[..size_of::<Self>() - unused_byte_count])
     }
 }
@@ -3333,40 +3342,40 @@ impl Default for CmShake256InitResp {
 impl Response for CmShake256InitResp {}
 
 // CM_SHAKE256_UPDATE
-#[repr(C)]
+#[repr(C, packed)]
 #[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
-pub struct CmShake256UpdateReq {
+pub struct CmShake256UpdateReq<const DS: usize = MAX_CMB_DATA_SIZE> {
     pub hdr: MailboxReqHeader,
     pub context: [u8; CMB_SHAKE256_CONTEXT_SIZE],
     pub input_size: u32,
-    pub input: [u8; MAX_CMB_DATA_SIZE],
+    pub input: [u8; DS],
 }
 
-impl Default for CmShake256UpdateReq {
+impl<const DS: usize> Default for CmShake256UpdateReq<DS> {
     fn default() -> Self {
         Self {
             hdr: MailboxReqHeader::default(),
             context: [0u8; CMB_SHAKE256_CONTEXT_SIZE],
             input_size: 0,
-            input: [0u8; MAX_CMB_DATA_SIZE],
+            input: [0u8; DS],
         }
     }
 }
 
-impl CmShake256UpdateReq {
+impl<const DS: usize> CmShake256UpdateReq<DS> {
     pub fn as_bytes_partial(&self) -> CaliptraResult<&[u8]> {
-        if self.input_size as usize > MAX_CMB_DATA_SIZE {
+        if self.input_size as usize > DS {
             return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
         }
-        let unused_byte_count = MAX_CMB_DATA_SIZE - self.input_size as usize;
+        let unused_byte_count = DS - self.input_size as usize;
         Ok(&self.as_bytes()[..size_of::<Self>() - unused_byte_count])
     }
 
     pub fn as_bytes_partial_mut(&mut self) -> CaliptraResult<&mut [u8]> {
-        if self.input_size as usize > MAX_CMB_DATA_SIZE {
+        if self.input_size as usize > DS {
             return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
         }
-        let unused_byte_count = MAX_CMB_DATA_SIZE - self.input_size as usize;
+        let unused_byte_count = DS - self.input_size as usize;
         Ok(&mut self.as_mut_bytes()[..size_of::<Self>() - unused_byte_count])
     }
 }
@@ -3377,40 +3386,40 @@ impl Request for CmShake256UpdateReq {
 }
 
 // CM_SHAKE256_FINAL
-#[repr(C)]
+#[repr(C, packed)]
 #[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
-pub struct CmShake256FinalReq {
+pub struct CmShake256FinalReq<const DS: usize = MAX_CMB_DATA_SIZE> {
     pub hdr: MailboxReqHeader,
     pub context: [u8; CMB_SHAKE256_CONTEXT_SIZE],
     pub input_size: u32,
-    pub input: [u8; MAX_CMB_DATA_SIZE],
+    pub input: [u8; DS],
 }
 
-impl Default for CmShake256FinalReq {
+impl<const DS: usize> Default for CmShake256FinalReq<DS> {
     fn default() -> Self {
         Self {
             hdr: MailboxReqHeader::default(),
             context: [0u8; CMB_SHAKE256_CONTEXT_SIZE],
             input_size: 0,
-            input: [0u8; MAX_CMB_DATA_SIZE],
+            input: [0u8; DS],
         }
     }
 }
 
-impl CmShake256FinalReq {
+impl<const DS: usize> CmShake256FinalReq<DS> {
     pub fn as_bytes_partial(&self) -> CaliptraResult<&[u8]> {
-        if self.input_size as usize > MAX_CMB_DATA_SIZE {
+        if self.input_size as usize > DS {
             return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
         }
-        let unused_byte_count = MAX_CMB_DATA_SIZE - self.input_size as usize;
+        let unused_byte_count = DS - self.input_size as usize;
         Ok(&self.as_bytes()[..size_of::<Self>() - unused_byte_count])
     }
 
     pub fn as_bytes_partial_mut(&mut self) -> CaliptraResult<&mut [u8]> {
-        if self.input_size as usize > MAX_CMB_DATA_SIZE {
+        if self.input_size as usize > DS {
             return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
         }
-        let unused_byte_count = MAX_CMB_DATA_SIZE - self.input_size as usize;
+        let unused_byte_count = DS - self.input_size as usize;
         Ok(&mut self.as_mut_bytes()[..size_of::<Self>() - unused_byte_count])
     }
 }
@@ -3526,18 +3535,18 @@ impl Request for CmRandomGenerateReq {
     type Resp = CmRandomGenerateResp;
 }
 
-#[repr(C)]
+#[repr(C, packed)]
 #[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
-pub struct CmRandomGenerateResp {
+pub struct CmRandomGenerateResp<const DS: usize = MAX_CMB_DATA_SIZE> {
     pub hdr: MailboxRespHeaderVarSize,
-    pub data: [u8; MAX_CMB_DATA_SIZE],
+    pub data: [u8; DS],
 }
 
-impl Default for CmRandomGenerateResp {
+impl<const DS: usize> Default for CmRandomGenerateResp<DS> {
     fn default() -> Self {
         Self {
             hdr: MailboxRespHeaderVarSize::default(),
-            data: [0u8; MAX_CMB_DATA_SIZE],
+            data: [0u8; DS],
         }
     }
 }
@@ -3545,38 +3554,38 @@ impl Default for CmRandomGenerateResp {
 impl ResponseVarSize for CmRandomGenerateResp {}
 
 // CM_RANDOM_STIR
-#[repr(C)]
+#[repr(C, packed)]
 #[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
-pub struct CmRandomStirReq {
+pub struct CmRandomStirReq<const DS: usize = MAX_CMB_DATA_SIZE> {
     pub hdr: MailboxReqHeader,
     pub input_size: u32,
-    pub input: [u8; MAX_CMB_DATA_SIZE],
+    pub input: [u8; DS],
 }
 
-impl Default for CmRandomStirReq {
+impl<const DS: usize> Default for CmRandomStirReq<DS> {
     fn default() -> Self {
         Self {
             hdr: MailboxReqHeader::default(),
             input_size: 0,
-            input: [0u8; MAX_CMB_DATA_SIZE],
+            input: [0u8; DS],
         }
     }
 }
 
-impl CmRandomStirReq {
+impl<const DS: usize> CmRandomStirReq<DS> {
     pub fn as_bytes_partial(&self) -> CaliptraResult<&[u8]> {
-        if self.input_size as usize > MAX_CMB_DATA_SIZE {
+        if self.input_size as usize > DS {
             return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
         }
-        let unused_byte_count = MAX_CMB_DATA_SIZE - self.input_size as usize;
+        let unused_byte_count = DS - self.input_size as usize;
         Ok(&self.as_bytes()[..size_of::<Self>() - unused_byte_count])
     }
 
     pub fn as_bytes_partial_mut(&mut self) -> CaliptraResult<&mut [u8]> {
-        if self.input_size as usize > MAX_CMB_DATA_SIZE {
+        if self.input_size as usize > DS {
             return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
         }
-        let unused_byte_count = MAX_CMB_DATA_SIZE - self.input_size as usize;
+        let unused_byte_count = DS - self.input_size as usize;
         Ok(&mut self.as_mut_bytes()[..size_of::<Self>() - unused_byte_count])
     }
 }
@@ -3663,42 +3672,42 @@ impl From<CmAesMode> for u32 {
 }
 
 // CM_AES_ENCRYPT_INIT
-#[repr(C)]
+#[repr(C, packed)]
 #[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
-pub struct CmAesEncryptInitReq {
+pub struct CmAesEncryptInitReq<const DS: usize = MAX_CMB_DATA_SIZE> {
     pub hdr: MailboxReqHeader,
     pub cmk: Cmk,
     pub mode: u32,
     pub plaintext_size: u32,
-    pub plaintext: [u8; MAX_CMB_DATA_SIZE],
+    pub plaintext: [u8; DS],
 }
 
-impl Default for CmAesEncryptInitReq {
+impl<const DS: usize> Default for CmAesEncryptInitReq<DS> {
     fn default() -> Self {
         Self {
             hdr: MailboxReqHeader::default(),
             cmk: Cmk::default(),
             mode: CmAesMode::Reserved as u32,
             plaintext_size: 0,
-            plaintext: [0u8; MAX_CMB_DATA_SIZE],
+            plaintext: [0u8; DS],
         }
     }
 }
 
-impl CmAesEncryptInitReq {
+impl<const DS: usize> CmAesEncryptInitReq<DS> {
     pub fn as_bytes_partial(&self) -> CaliptraResult<&[u8]> {
-        if self.plaintext_size as usize > MAX_CMB_DATA_SIZE {
+        if self.plaintext_size as usize > DS {
             return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
         }
-        let unused_byte_count = MAX_CMB_DATA_SIZE - self.plaintext_size as usize;
+        let unused_byte_count = DS - self.plaintext_size as usize;
         Ok(&self.as_bytes()[..size_of::<Self>() - unused_byte_count])
     }
 
     pub fn as_bytes_partial_mut(&mut self) -> CaliptraResult<&mut [u8]> {
-        if self.plaintext_size as usize > MAX_CMB_DATA_SIZE {
+        if self.plaintext_size as usize > DS {
             return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
         }
-        let unused_byte_count = MAX_CMB_DATA_SIZE - self.plaintext_size as usize;
+        let unused_byte_count = DS - self.plaintext_size as usize;
         Ok(&mut self.as_mut_bytes()[..size_of::<Self>() - unused_byte_count])
     }
 }
@@ -3708,15 +3717,15 @@ impl Request for CmAesEncryptInitReq {
     type Resp = CmAesEncryptInitResp;
 }
 
-#[repr(C)]
+#[repr(C, packed)]
 #[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
-pub struct CmAesEncryptInitResp {
+pub struct CmAesEncryptInitResp<const DS: usize = MAX_CMB_DATA_SIZE> {
     pub hdr: CmAesEncryptInitRespHeader,
-    pub ciphertext: [u8; MAX_CMB_DATA_SIZE],
+    pub ciphertext: [u8; DS],
 }
 
 #[repr(C)]
-#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq, Clone, Copy)]
 pub struct CmAesEncryptInitRespHeader {
     pub hdr: MailboxRespHeader,
     pub context: [u8; CMB_AES_ENCRYPTED_CONTEXT_SIZE],
@@ -3724,11 +3733,11 @@ pub struct CmAesEncryptInitRespHeader {
     pub ciphertext_size: u32,
 }
 
-impl Default for CmAesEncryptInitResp {
+impl<const DS: usize> Default for CmAesEncryptInitResp<DS> {
     fn default() -> Self {
         Self {
             hdr: CmAesEncryptInitRespHeader::default(),
-            ciphertext: [0u8; MAX_CMB_DATA_SIZE],
+            ciphertext: [0u8; DS],
         }
     }
 }
@@ -3763,40 +3772,40 @@ impl ResponseVarSize for CmAesEncryptInitResp {
 }
 
 // CM_AES_ENCRYPT_UPDATE
-#[repr(C)]
+#[repr(C, packed)]
 #[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
-pub struct CmAesEncryptUpdateReq {
+pub struct CmAesEncryptUpdateReq<const DS: usize = MAX_CMB_DATA_SIZE> {
     pub hdr: MailboxReqHeader,
     pub context: [u8; CMB_AES_ENCRYPTED_CONTEXT_SIZE],
     pub plaintext_size: u32,
-    pub plaintext: [u8; MAX_CMB_DATA_SIZE],
+    pub plaintext: [u8; DS],
 }
 
-impl Default for CmAesEncryptUpdateReq {
+impl<const DS: usize> Default for CmAesEncryptUpdateReq<DS> {
     fn default() -> Self {
         Self {
             hdr: MailboxReqHeader::default(),
             context: [0u8; CMB_AES_ENCRYPTED_CONTEXT_SIZE],
             plaintext_size: 0,
-            plaintext: [0u8; MAX_CMB_DATA_SIZE],
+            plaintext: [0u8; DS],
         }
     }
 }
 
-impl CmAesEncryptUpdateReq {
+impl<const DS: usize> CmAesEncryptUpdateReq<DS> {
     pub fn as_bytes_partial(&self) -> CaliptraResult<&[u8]> {
-        if self.plaintext_size as usize > MAX_CMB_DATA_SIZE {
+        if self.plaintext_size as usize > DS {
             return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
         }
-        let unused_byte_count = MAX_CMB_DATA_SIZE - self.plaintext_size as usize;
+        let unused_byte_count = DS - self.plaintext_size as usize;
         Ok(&self.as_bytes()[..size_of::<Self>() - unused_byte_count])
     }
 
     pub fn as_bytes_partial_mut(&mut self) -> CaliptraResult<&mut [u8]> {
-        if self.plaintext_size as usize > MAX_CMB_DATA_SIZE {
+        if self.plaintext_size as usize > DS {
             return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
         }
-        let unused_byte_count = MAX_CMB_DATA_SIZE - self.plaintext_size as usize;
+        let unused_byte_count = DS - self.plaintext_size as usize;
         Ok(&mut self.as_mut_bytes()[..size_of::<Self>() - unused_byte_count])
     }
 }
@@ -3807,18 +3816,18 @@ impl Request for CmAesEncryptUpdateReq {
 }
 
 // CM_AES_DECRYPT_INIT
-#[repr(C)]
+#[repr(C, packed)]
 #[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
-pub struct CmAesDecryptInitReq {
+pub struct CmAesDecryptInitReq<const DS: usize = MAX_CMB_DATA_SIZE> {
     pub hdr: MailboxReqHeader,
     pub cmk: Cmk,
     pub mode: u32,
     pub iv: [u8; 16],
     pub ciphertext_size: u32,
-    pub ciphertext: [u8; MAX_CMB_DATA_SIZE],
+    pub ciphertext: [u8; DS],
 }
 
-impl Default for CmAesDecryptInitReq {
+impl<const DS: usize> Default for CmAesDecryptInitReq<DS> {
     fn default() -> Self {
         Self {
             hdr: MailboxReqHeader::default(),
@@ -3826,25 +3835,25 @@ impl Default for CmAesDecryptInitReq {
             mode: CmAesMode::Reserved as u32,
             iv: [0u8; 16],
             ciphertext_size: 0,
-            ciphertext: [0u8; MAX_CMB_DATA_SIZE],
+            ciphertext: [0u8; DS],
         }
     }
 }
 
-impl CmAesDecryptInitReq {
+impl<const DS: usize> CmAesDecryptInitReq<DS> {
     pub fn as_bytes_partial(&self) -> CaliptraResult<&[u8]> {
-        if self.ciphertext_size as usize > MAX_CMB_DATA_SIZE {
+        if self.ciphertext_size as usize > DS {
             return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
         }
-        let unused_byte_count = MAX_CMB_DATA_SIZE - self.ciphertext_size as usize;
+        let unused_byte_count = DS - self.ciphertext_size as usize;
         Ok(&self.as_bytes()[..size_of::<Self>() - unused_byte_count])
     }
 
     pub fn as_bytes_partial_mut(&mut self) -> CaliptraResult<&mut [u8]> {
-        if self.ciphertext_size as usize > MAX_CMB_DATA_SIZE {
+        if self.ciphertext_size as usize > DS {
             return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
         }
-        let unused_byte_count = MAX_CMB_DATA_SIZE - self.ciphertext_size as usize;
+        let unused_byte_count = DS - self.ciphertext_size as usize;
         Ok(&mut self.as_mut_bytes()[..size_of::<Self>() - unused_byte_count])
     }
 }
@@ -3855,40 +3864,40 @@ impl Request for CmAesDecryptInitReq {
 }
 
 // CM_AES_DECRYPT_UPDATE
-#[repr(C)]
+#[repr(C, packed)]
 #[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
-pub struct CmAesDecryptUpdateReq {
+pub struct CmAesDecryptUpdateReq<const DS: usize = MAX_CMB_DATA_SIZE> {
     pub hdr: MailboxReqHeader,
     pub context: [u8; CMB_AES_ENCRYPTED_CONTEXT_SIZE],
     pub ciphertext_size: u32,
-    pub ciphertext: [u8; MAX_CMB_DATA_SIZE],
+    pub ciphertext: [u8; DS],
 }
 
-impl Default for CmAesDecryptUpdateReq {
+impl<const DS: usize> Default for CmAesDecryptUpdateReq<DS> {
     fn default() -> Self {
         Self {
             hdr: MailboxReqHeader::default(),
             context: [0u8; CMB_AES_ENCRYPTED_CONTEXT_SIZE],
             ciphertext_size: 0,
-            ciphertext: [0u8; MAX_CMB_DATA_SIZE],
+            ciphertext: [0u8; DS],
         }
     }
 }
 
-impl CmAesDecryptUpdateReq {
+impl<const DS: usize> CmAesDecryptUpdateReq<DS> {
     pub fn as_bytes_partial(&self) -> CaliptraResult<&[u8]> {
-        if self.ciphertext_size as usize > MAX_CMB_DATA_SIZE {
+        if self.ciphertext_size as usize > DS {
             return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
         }
-        let unused_byte_count = MAX_CMB_DATA_SIZE - self.ciphertext_size as usize;
+        let unused_byte_count = DS - self.ciphertext_size as usize;
         Ok(&self.as_bytes()[..size_of::<Self>() - unused_byte_count])
     }
 
     pub fn as_bytes_partial_mut(&mut self) -> CaliptraResult<&mut [u8]> {
-        if self.ciphertext_size as usize > MAX_CMB_DATA_SIZE {
+        if self.ciphertext_size as usize > DS {
             return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
         }
-        let unused_byte_count = MAX_CMB_DATA_SIZE - self.ciphertext_size as usize;
+        let unused_byte_count = DS - self.ciphertext_size as usize;
         Ok(&mut self.as_mut_bytes()[..size_of::<Self>() - unused_byte_count])
     }
 }
@@ -3899,26 +3908,26 @@ impl Request for CmAesDecryptUpdateReq {
 }
 
 // Generic response for AES operations that only return a context and data.
-#[repr(C)]
+#[repr(C, packed)]
 #[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
-pub struct CmAesResp {
+pub struct CmAesResp<const DS: usize = MAX_CMB_DATA_SIZE> {
     pub hdr: CmAesRespHeader,
-    pub output: [u8; MAX_CMB_DATA_SIZE],
+    pub output: [u8; DS],
 }
 
 #[repr(C)]
-#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq, Clone, Copy)]
 pub struct CmAesRespHeader {
     pub hdr: MailboxRespHeader,
     pub context: [u8; CMB_AES_ENCRYPTED_CONTEXT_SIZE],
     pub output_size: u32,
 }
 
-impl Default for CmAesResp {
+impl<const DS: usize> Default for CmAesResp<DS> {
     fn default() -> Self {
         Self {
             hdr: CmAesRespHeader::default(),
-            output: [0u8; MAX_CMB_DATA_SIZE],
+            output: [0u8; DS],
         }
     }
 }
@@ -3952,42 +3961,42 @@ impl ResponseVarSize for CmAesResp {
 }
 
 // CM_AES_GCM_ENCRYPT_INIT
-#[repr(C)]
+#[repr(C, packed)]
 #[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
-pub struct CmAesGcmEncryptInitReq {
+pub struct CmAesGcmEncryptInitReq<const DS: usize = MAX_CMB_DATA_SIZE> {
     pub hdr: MailboxReqHeader,
     pub flags: u32,
     pub cmk: Cmk,
     pub aad_size: u32,
-    pub aad: [u8; MAX_CMB_DATA_SIZE],
+    pub aad: [u8; DS],
 }
 
-impl Default for CmAesGcmEncryptInitReq {
+impl<const DS: usize> Default for CmAesGcmEncryptInitReq<DS> {
     fn default() -> Self {
         Self {
             hdr: MailboxReqHeader::default(),
             flags: 0,
             cmk: Cmk::default(),
             aad_size: 0,
-            aad: [0u8; MAX_CMB_DATA_SIZE],
+            aad: [0u8; DS],
         }
     }
 }
 
-impl CmAesGcmEncryptInitReq {
+impl<const DS: usize> CmAesGcmEncryptInitReq<DS> {
     pub fn as_bytes_partial(&self) -> CaliptraResult<&[u8]> {
-        if self.aad_size as usize > MAX_CMB_DATA_SIZE {
+        if self.aad_size as usize > DS {
             return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
         }
-        let unused_byte_count = MAX_CMB_DATA_SIZE - self.aad_size as usize;
+        let unused_byte_count = DS - self.aad_size as usize;
         Ok(&self.as_bytes()[..size_of::<Self>() - unused_byte_count])
     }
 
     pub fn as_bytes_partial_mut(&mut self) -> CaliptraResult<&mut [u8]> {
-        if self.aad_size as usize > MAX_CMB_DATA_SIZE {
+        if self.aad_size as usize > DS {
             return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
         }
-        let unused_byte_count = MAX_CMB_DATA_SIZE - self.aad_size as usize;
+        let unused_byte_count = DS - self.aad_size as usize;
         Ok(&mut self.as_mut_bytes()[..size_of::<Self>() - unused_byte_count])
     }
 }
@@ -4018,18 +4027,18 @@ impl Default for CmAesGcmEncryptInitResp {
 impl Response for CmAesGcmEncryptInitResp {}
 
 // CM_AES_GCM_SPDM_ENCRYPT_INIT
-#[repr(C)]
+#[repr(C, packed)]
 #[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
-pub struct CmAesGcmSpdmEncryptInitReq {
+pub struct CmAesGcmSpdmEncryptInitReq<const DS: usize = MAX_CMB_DATA_SIZE> {
     pub hdr: MailboxReqHeader,
     pub spdm_flags: u32,
     pub spdm_counter: [u8; 8],
     pub cmk: Cmk,
     pub aad_size: u32,
-    pub aad: [u8; MAX_CMB_DATA_SIZE],
+    pub aad: [u8; DS],
 }
 
-impl Default for CmAesGcmSpdmEncryptInitReq {
+impl<const DS: usize> Default for CmAesGcmSpdmEncryptInitReq<DS> {
     fn default() -> Self {
         Self {
             hdr: MailboxReqHeader::default(),
@@ -4037,25 +4046,25 @@ impl Default for CmAesGcmSpdmEncryptInitReq {
             spdm_counter: [0u8; 8],
             cmk: Cmk::default(),
             aad_size: 0,
-            aad: [0u8; MAX_CMB_DATA_SIZE],
+            aad: [0u8; DS],
         }
     }
 }
 
-impl CmAesGcmSpdmEncryptInitReq {
+impl<const DS: usize> CmAesGcmSpdmEncryptInitReq<DS> {
     pub fn as_bytes_partial(&self) -> CaliptraResult<&[u8]> {
-        if self.aad_size as usize > MAX_CMB_DATA_SIZE {
+        if self.aad_size as usize > DS {
             return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
         }
-        let unused_byte_count = MAX_CMB_DATA_SIZE - self.aad_size as usize;
+        let unused_byte_count = DS - self.aad_size as usize;
         Ok(&self.as_bytes()[..size_of::<Self>() - unused_byte_count])
     }
 
     pub fn as_bytes_partial_mut(&mut self) -> CaliptraResult<&mut [u8]> {
-        if self.aad_size as usize > MAX_CMB_DATA_SIZE {
+        if self.aad_size as usize > DS {
             return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
         }
-        let unused_byte_count = MAX_CMB_DATA_SIZE - self.aad_size as usize;
+        let unused_byte_count = DS - self.aad_size as usize;
         Ok(&mut self.as_mut_bytes()[..size_of::<Self>() - unused_byte_count])
     }
 }
@@ -4084,40 +4093,40 @@ impl Default for CmAesGcmSpdmEncryptInitResp {
 impl Response for CmAesGcmSpdmEncryptInitResp {}
 
 // CM_AES_GCM_ENCRYPT_UPDATE
-#[repr(C)]
+#[repr(C, packed)]
 #[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
-pub struct CmAesGcmEncryptUpdateReq {
+pub struct CmAesGcmEncryptUpdateReq<const DS: usize = MAX_CMB_DATA_SIZE> {
     pub hdr: MailboxReqHeader,
     pub context: [u8; CMB_AES_GCM_ENCRYPTED_CONTEXT_SIZE],
     pub plaintext_size: u32,
-    pub plaintext: [u8; MAX_CMB_DATA_SIZE],
+    pub plaintext: [u8; DS],
 }
 
-impl Default for CmAesGcmEncryptUpdateReq {
+impl<const DS: usize> Default for CmAesGcmEncryptUpdateReq<DS> {
     fn default() -> Self {
         Self {
             hdr: MailboxReqHeader::default(),
             context: [0u8; CMB_AES_GCM_ENCRYPTED_CONTEXT_SIZE],
             plaintext_size: 0,
-            plaintext: [0u8; MAX_CMB_DATA_SIZE],
+            plaintext: [0u8; DS],
         }
     }
 }
 
-impl CmAesGcmEncryptUpdateReq {
+impl<const DS: usize> CmAesGcmEncryptUpdateReq<DS> {
     pub fn as_bytes_partial(&self) -> CaliptraResult<&[u8]> {
-        if self.plaintext_size as usize > MAX_CMB_DATA_SIZE {
+        if self.plaintext_size as usize > DS {
             return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
         }
-        let unused_byte_count = MAX_CMB_DATA_SIZE - self.plaintext_size as usize;
+        let unused_byte_count = DS - self.plaintext_size as usize;
         Ok(&self.as_bytes()[..size_of::<Self>() - unused_byte_count])
     }
 
     pub fn as_bytes_partial_mut(&mut self) -> CaliptraResult<&mut [u8]> {
-        if self.plaintext_size as usize > MAX_CMB_DATA_SIZE {
+        if self.plaintext_size as usize > DS {
             return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
         }
-        let unused_byte_count = MAX_CMB_DATA_SIZE - self.plaintext_size as usize;
+        let unused_byte_count = DS - self.plaintext_size as usize;
         Ok(&mut self.as_mut_bytes()[..size_of::<Self>() - unused_byte_count])
     }
 }
@@ -4127,26 +4136,26 @@ impl Request for CmAesGcmEncryptUpdateReq {
     type Resp = CmAesGcmEncryptUpdateResp;
 }
 
-#[repr(C)]
+#[repr(C, packed)]
 #[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
-pub struct CmAesGcmEncryptUpdateResp {
+pub struct CmAesGcmEncryptUpdateResp<const OS: usize = MAX_CMB_AES_GCM_OUTPUT_SIZE> {
     pub hdr: CmAesGcmEncryptUpdateRespHeader,
-    pub ciphertext: [u8; MAX_CMB_AES_GCM_OUTPUT_SIZE],
+    pub ciphertext: [u8; OS],
 }
 
 #[repr(C)]
-#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq, Clone, Copy)]
 pub struct CmAesGcmEncryptUpdateRespHeader {
     pub hdr: MailboxRespHeader,
     pub context: [u8; CMB_AES_GCM_ENCRYPTED_CONTEXT_SIZE],
     pub ciphertext_size: u32,
 }
 
-impl Default for CmAesGcmEncryptUpdateResp {
+impl<const OS: usize> Default for CmAesGcmEncryptUpdateResp<OS> {
     fn default() -> Self {
         Self {
             hdr: CmAesGcmEncryptUpdateRespHeader::default(),
-            ciphertext: [0u8; MAX_CMB_AES_GCM_OUTPUT_SIZE],
+            ciphertext: [0u8; OS],
         }
     }
 }
@@ -4180,40 +4189,40 @@ impl ResponseVarSize for CmAesGcmEncryptUpdateResp {
 }
 
 // CM_AES_GCM_ENCRYPT_FINAL
-#[repr(C)]
+#[repr(C, packed)]
 #[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
-pub struct CmAesGcmEncryptFinalReq {
+pub struct CmAesGcmEncryptFinalReq<const DS: usize = MAX_CMB_DATA_SIZE> {
     pub hdr: MailboxReqHeader,
     pub context: [u8; CMB_AES_GCM_ENCRYPTED_CONTEXT_SIZE],
     pub plaintext_size: u32,
-    pub plaintext: [u8; MAX_CMB_DATA_SIZE],
+    pub plaintext: [u8; DS],
 }
 
-impl Default for CmAesGcmEncryptFinalReq {
+impl<const DS: usize> Default for CmAesGcmEncryptFinalReq<DS> {
     fn default() -> Self {
         Self {
             hdr: MailboxReqHeader::default(),
             context: [0u8; CMB_AES_GCM_ENCRYPTED_CONTEXT_SIZE],
             plaintext_size: 0,
-            plaintext: [0u8; MAX_CMB_DATA_SIZE],
+            plaintext: [0u8; DS],
         }
     }
 }
 
-impl CmAesGcmEncryptFinalReq {
+impl<const DS: usize> CmAesGcmEncryptFinalReq<DS> {
     pub fn as_bytes_partial(&self) -> CaliptraResult<&[u8]> {
-        if self.plaintext_size as usize > MAX_CMB_DATA_SIZE {
+        if self.plaintext_size as usize > DS {
             return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
         }
-        let unused_byte_count = MAX_CMB_DATA_SIZE - self.plaintext_size as usize;
+        let unused_byte_count = DS - self.plaintext_size as usize;
         Ok(&self.as_bytes()[..size_of::<Self>() - unused_byte_count])
     }
 
     pub fn as_bytes_partial_mut(&mut self) -> CaliptraResult<&mut [u8]> {
-        if self.plaintext_size as usize > MAX_CMB_DATA_SIZE {
+        if self.plaintext_size as usize > DS {
             return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
         }
-        let unused_byte_count = MAX_CMB_DATA_SIZE - self.plaintext_size as usize;
+        let unused_byte_count = DS - self.plaintext_size as usize;
         Ok(&mut self.as_mut_bytes()[..size_of::<Self>() - unused_byte_count])
     }
 }
@@ -4223,26 +4232,28 @@ impl Request for CmAesGcmEncryptFinalReq {
     type Resp = CmAesGcmEncryptFinalResp;
 }
 
-#[repr(C)]
+#[repr(C, packed)]
 #[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
-pub struct CmAesGcmEncryptFinalResp {
+pub struct CmAesGcmEncryptFinalResp<const OS: usize = MAX_CMB_AES_GCM_OUTPUT_SIZE> {
     pub hdr: CmAesGcmEncryptFinalRespHeader,
-    pub ciphertext: [u8; MAX_CMB_AES_GCM_OUTPUT_SIZE],
+    pub ciphertext: [u8; OS],
 }
 
 #[repr(C)]
-#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq, Default)]
+#[derive(
+    Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq, Default, Clone, Copy,
+)]
 pub struct CmAesGcmEncryptFinalRespHeader {
     pub hdr: MailboxRespHeader,
     pub tag: [u32; 4],
     pub ciphertext_size: u32,
 }
 
-impl Default for CmAesGcmEncryptFinalResp {
+impl<const OS: usize> Default for CmAesGcmEncryptFinalResp<OS> {
     fn default() -> Self {
         Self {
             hdr: CmAesGcmEncryptFinalRespHeader::default(),
-            ciphertext: [0u8; MAX_CMB_AES_GCM_OUTPUT_SIZE],
+            ciphertext: [0u8; OS],
         }
     }
 }
@@ -4266,18 +4277,18 @@ impl ResponseVarSize for CmAesGcmEncryptFinalResp {
 }
 
 // CM_AES_GCM_DECRYPT_INIT
-#[repr(C)]
+#[repr(C, packed)]
 #[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
-pub struct CmAesGcmDecryptInitReq {
+pub struct CmAesGcmDecryptInitReq<const DS: usize = MAX_CMB_DATA_SIZE> {
     pub hdr: MailboxReqHeader,
     pub flags: u32,
     pub cmk: Cmk,
     pub iv: [u32; 3],
     pub aad_size: u32,
-    pub aad: [u8; MAX_CMB_DATA_SIZE],
+    pub aad: [u8; DS],
 }
 
-impl Default for CmAesGcmDecryptInitReq {
+impl<const DS: usize> Default for CmAesGcmDecryptInitReq<DS> {
     fn default() -> Self {
         Self {
             hdr: MailboxReqHeader::default(),
@@ -4285,25 +4296,25 @@ impl Default for CmAesGcmDecryptInitReq {
             cmk: Cmk::default(),
             iv: [0u32; 3],
             aad_size: 0,
-            aad: [0u8; MAX_CMB_DATA_SIZE],
+            aad: [0u8; DS],
         }
     }
 }
 
-impl CmAesGcmDecryptInitReq {
+impl<const DS: usize> CmAesGcmDecryptInitReq<DS> {
     pub fn as_bytes_partial(&self) -> CaliptraResult<&[u8]> {
-        if self.aad_size as usize > MAX_CMB_DATA_SIZE {
+        if self.aad_size as usize > DS {
             return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
         }
-        let unused_byte_count = MAX_CMB_DATA_SIZE - self.aad_size as usize;
+        let unused_byte_count = DS - self.aad_size as usize;
         Ok(&self.as_bytes()[..size_of::<Self>() - unused_byte_count])
     }
 
     pub fn as_bytes_partial_mut(&mut self) -> CaliptraResult<&mut [u8]> {
-        if self.aad_size as usize > MAX_CMB_DATA_SIZE {
+        if self.aad_size as usize > DS {
             return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
         }
-        let unused_byte_count = MAX_CMB_DATA_SIZE - self.aad_size as usize;
+        let unused_byte_count = DS - self.aad_size as usize;
         Ok(&mut self.as_mut_bytes()[..size_of::<Self>() - unused_byte_count])
     }
 }
@@ -4334,18 +4345,18 @@ impl Default for CmAesGcmDecryptInitResp {
 impl Response for CmAesGcmDecryptInitResp {}
 
 // CM_AES_GCM_SPDM_DECRYPT_INIT
-#[repr(C)]
+#[repr(C, packed)]
 #[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
-pub struct CmAesGcmSpdmDecryptInitReq {
+pub struct CmAesGcmSpdmDecryptInitReq<const DS: usize = MAX_CMB_DATA_SIZE> {
     pub hdr: MailboxReqHeader,
     pub spdm_flags: u32,
     pub spdm_counter: [u8; 8],
     pub cmk: Cmk,
     pub aad_size: u32,
-    pub aad: [u8; MAX_CMB_DATA_SIZE],
+    pub aad: [u8; DS],
 }
 
-impl Default for CmAesGcmSpdmDecryptInitReq {
+impl<const DS: usize> Default for CmAesGcmSpdmDecryptInitReq<DS> {
     fn default() -> Self {
         Self {
             hdr: MailboxReqHeader::default(),
@@ -4353,25 +4364,25 @@ impl Default for CmAesGcmSpdmDecryptInitReq {
             spdm_counter: [0u8; 8],
             cmk: Cmk::default(),
             aad_size: 0,
-            aad: [0u8; MAX_CMB_DATA_SIZE],
+            aad: [0u8; DS],
         }
     }
 }
 
-impl CmAesGcmSpdmDecryptInitReq {
+impl<const DS: usize> CmAesGcmSpdmDecryptInitReq<DS> {
     pub fn as_bytes_partial(&self) -> CaliptraResult<&[u8]> {
-        if self.aad_size as usize > MAX_CMB_DATA_SIZE {
+        if self.aad_size as usize > DS {
             return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
         }
-        let unused_byte_count = MAX_CMB_DATA_SIZE - self.aad_size as usize;
+        let unused_byte_count = DS - self.aad_size as usize;
         Ok(&self.as_bytes()[..size_of::<Self>() - unused_byte_count])
     }
 
     pub fn as_bytes_partial_mut(&mut self) -> CaliptraResult<&mut [u8]> {
-        if self.aad_size as usize > MAX_CMB_DATA_SIZE {
+        if self.aad_size as usize > DS {
             return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
         }
-        let unused_byte_count = MAX_CMB_DATA_SIZE - self.aad_size as usize;
+        let unused_byte_count = DS - self.aad_size as usize;
         Ok(&mut self.as_mut_bytes()[..size_of::<Self>() - unused_byte_count])
     }
 }
@@ -4400,40 +4411,40 @@ impl Default for CmAesGcmSpdmDecryptInitResp {
 impl Response for CmAesGcmSpdmDecryptInitResp {}
 
 // CM_AES_GCM_DECRYPT_UPDATE
-#[repr(C)]
+#[repr(C, packed)]
 #[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
-pub struct CmAesGcmDecryptUpdateReq {
+pub struct CmAesGcmDecryptUpdateReq<const DS: usize = MAX_CMB_DATA_SIZE> {
     pub hdr: MailboxReqHeader,
     pub context: [u8; CMB_AES_GCM_ENCRYPTED_CONTEXT_SIZE],
     pub ciphertext_size: u32,
-    pub ciphertext: [u8; MAX_CMB_DATA_SIZE],
+    pub ciphertext: [u8; DS],
 }
 
-impl Default for CmAesGcmDecryptUpdateReq {
+impl<const DS: usize> Default for CmAesGcmDecryptUpdateReq<DS> {
     fn default() -> Self {
         Self {
             hdr: MailboxReqHeader::default(),
             context: [0u8; CMB_AES_GCM_ENCRYPTED_CONTEXT_SIZE],
             ciphertext_size: 0,
-            ciphertext: [0u8; MAX_CMB_DATA_SIZE],
+            ciphertext: [0u8; DS],
         }
     }
 }
 
-impl CmAesGcmDecryptUpdateReq {
+impl<const DS: usize> CmAesGcmDecryptUpdateReq<DS> {
     pub fn as_bytes_partial(&self) -> CaliptraResult<&[u8]> {
-        if self.ciphertext_size as usize > MAX_CMB_DATA_SIZE {
+        if self.ciphertext_size as usize > DS {
             return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
         }
-        let unused_byte_count = MAX_CMB_DATA_SIZE - self.ciphertext_size as usize;
+        let unused_byte_count = DS - self.ciphertext_size as usize;
         Ok(&self.as_bytes()[..size_of::<Self>() - unused_byte_count])
     }
 
     pub fn as_bytes_partial_mut(&mut self) -> CaliptraResult<&mut [u8]> {
-        if self.ciphertext_size as usize > MAX_CMB_DATA_SIZE {
+        if self.ciphertext_size as usize > DS {
             return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
         }
-        let unused_byte_count = MAX_CMB_DATA_SIZE - self.ciphertext_size as usize;
+        let unused_byte_count = DS - self.ciphertext_size as usize;
         Ok(&mut self.as_mut_bytes()[..size_of::<Self>() - unused_byte_count])
     }
 }
@@ -4443,26 +4454,26 @@ impl Request for CmAesGcmDecryptUpdateReq {
     type Resp = CmAesGcmDecryptUpdateResp;
 }
 
-#[repr(C)]
+#[repr(C, packed)]
 #[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
-pub struct CmAesGcmDecryptUpdateResp {
+pub struct CmAesGcmDecryptUpdateResp<const OS: usize = MAX_CMB_AES_GCM_OUTPUT_SIZE> {
     pub hdr: CmAesGcmDecryptUpdateRespHeader,
-    pub plaintext: [u8; MAX_CMB_AES_GCM_OUTPUT_SIZE],
+    pub plaintext: [u8; OS],
 }
 
 #[repr(C)]
-#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq, Clone, Copy)]
 pub struct CmAesGcmDecryptUpdateRespHeader {
     pub hdr: MailboxRespHeader,
     pub context: [u8; CMB_AES_GCM_ENCRYPTED_CONTEXT_SIZE],
     pub plaintext_size: u32,
 }
 
-impl Default for CmAesGcmDecryptUpdateResp {
+impl<const OS: usize> Default for CmAesGcmDecryptUpdateResp<OS> {
     fn default() -> Self {
         Self {
             hdr: CmAesGcmDecryptUpdateRespHeader::default(),
-            plaintext: [0u8; MAX_CMB_AES_GCM_OUTPUT_SIZE],
+            plaintext: [0u8; OS],
         }
     }
 }
@@ -4496,18 +4507,18 @@ impl ResponseVarSize for CmAesGcmDecryptUpdateResp {
 }
 
 // CM_AES_GCM_DECRYPT_FINAL
-#[repr(C)]
+#[repr(C, packed)]
 #[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
-pub struct CmAesGcmDecryptFinalReq {
+pub struct CmAesGcmDecryptFinalReq<const DS: usize = MAX_CMB_DATA_SIZE> {
     pub hdr: MailboxReqHeader,
     pub context: [u8; CMB_AES_GCM_ENCRYPTED_CONTEXT_SIZE],
     pub tag_len: u32,
     pub tag: [u32; 4],
     pub ciphertext_size: u32,
-    pub ciphertext: [u8; MAX_CMB_DATA_SIZE],
+    pub ciphertext: [u8; DS],
 }
 
-impl Default for CmAesGcmDecryptFinalReq {
+impl<const DS: usize> Default for CmAesGcmDecryptFinalReq<DS> {
     fn default() -> Self {
         Self {
             hdr: MailboxReqHeader::default(),
@@ -4515,25 +4526,25 @@ impl Default for CmAesGcmDecryptFinalReq {
             tag_len: 0,
             tag: [0u32; 4],
             ciphertext_size: 0,
-            ciphertext: [0u8; MAX_CMB_DATA_SIZE],
+            ciphertext: [0u8; DS],
         }
     }
 }
 
-impl CmAesGcmDecryptFinalReq {
+impl<const DS: usize> CmAesGcmDecryptFinalReq<DS> {
     pub fn as_bytes_partial(&self) -> CaliptraResult<&[u8]> {
-        if self.ciphertext_size as usize > MAX_CMB_DATA_SIZE {
+        if self.ciphertext_size as usize > DS {
             return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
         }
-        let unused_byte_count = MAX_CMB_DATA_SIZE - self.ciphertext_size as usize;
+        let unused_byte_count = DS - self.ciphertext_size as usize;
         Ok(&self.as_bytes()[..size_of::<Self>() - unused_byte_count])
     }
 
     pub fn as_bytes_partial_mut(&mut self) -> CaliptraResult<&mut [u8]> {
-        if self.ciphertext_size as usize > MAX_CMB_DATA_SIZE {
+        if self.ciphertext_size as usize > DS {
             return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
         }
-        let unused_byte_count = MAX_CMB_DATA_SIZE - self.ciphertext_size as usize;
+        let unused_byte_count = DS - self.ciphertext_size as usize;
         Ok(&mut self.as_mut_bytes()[..size_of::<Self>() - unused_byte_count])
     }
 }
@@ -4543,26 +4554,28 @@ impl Request for CmAesGcmDecryptFinalReq {
     type Resp = CmAesGcmDecryptFinalResp;
 }
 
-#[repr(C)]
+#[repr(C, packed)]
 #[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
-pub struct CmAesGcmDecryptFinalResp {
+pub struct CmAesGcmDecryptFinalResp<const OS: usize = MAX_CMB_AES_GCM_OUTPUT_SIZE> {
     pub hdr: CmAesGcmDecryptFinalRespHeader,
-    pub plaintext: [u8; MAX_CMB_AES_GCM_OUTPUT_SIZE],
+    pub plaintext: [u8; OS],
 }
 
 #[repr(C)]
-#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq, Default)]
+#[derive(
+    Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq, Default, Clone, Copy,
+)]
 pub struct CmAesGcmDecryptFinalRespHeader {
     pub hdr: MailboxRespHeader,
     pub tag_verified: u32,
     pub plaintext_size: u32,
 }
 
-impl Default for CmAesGcmDecryptFinalResp {
+impl<const OS: usize> Default for CmAesGcmDecryptFinalResp<OS> {
     fn default() -> Self {
         Self {
             hdr: CmAesGcmDecryptFinalRespHeader::default(),
-            plaintext: [0u8; MAX_CMB_AES_GCM_OUTPUT_SIZE],
+            plaintext: [0u8; OS],
         }
     }
 }
@@ -4652,42 +4665,42 @@ pub struct CmEcdhFinishResp {
 impl Response for CmEcdhFinishResp {}
 
 // CM_HMAC
-#[repr(C)]
+#[repr(C, packed)]
 #[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
-pub struct CmHmacReq {
+pub struct CmHmacReq<const DS: usize = MAX_CMB_DATA_SIZE> {
     pub hdr: MailboxReqHeader,
     pub cmk: Cmk,
     pub hash_algorithm: u32,
     pub data_size: u32,
-    pub data: [u8; MAX_CMB_DATA_SIZE],
+    pub data: [u8; DS],
 }
 
-impl Default for CmHmacReq {
+impl<const DS: usize> Default for CmHmacReq<DS> {
     fn default() -> Self {
         Self {
             hdr: MailboxReqHeader::default(),
             cmk: Cmk::default(),
             hash_algorithm: 0,
             data_size: 0,
-            data: [0u8; MAX_CMB_DATA_SIZE],
+            data: [0u8; DS],
         }
     }
 }
 
-impl CmHmacReq {
+impl<const DS: usize> CmHmacReq<DS> {
     pub fn as_bytes_partial(&self) -> CaliptraResult<&[u8]> {
-        if self.data_size as usize > MAX_CMB_DATA_SIZE {
+        if self.data_size as usize > DS {
             return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
         }
-        let unused_byte_count = MAX_CMB_DATA_SIZE - self.data_size as usize;
+        let unused_byte_count = DS - self.data_size as usize;
         Ok(&self.as_bytes()[..size_of::<Self>() - unused_byte_count])
     }
 
     pub fn as_bytes_partial_mut(&mut self) -> CaliptraResult<&mut [u8]> {
-        if self.data_size as usize > MAX_CMB_DATA_SIZE {
+        if self.data_size as usize > DS {
             return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
         }
-        let unused_byte_count = MAX_CMB_DATA_SIZE - self.data_size as usize;
+        let unused_byte_count = DS - self.data_size as usize;
         Ok(&mut self.as_mut_bytes()[..size_of::<Self>() - unused_byte_count])
     }
 }
@@ -4716,19 +4729,19 @@ impl Default for CmHmacResp {
 impl ResponseVarSize for CmHmacResp {}
 
 // CM_HMAC_KDF_COUNTER
-#[repr(C)]
+#[repr(C, packed)]
 #[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
-pub struct CmHmacKdfCounterReq {
+pub struct CmHmacKdfCounterReq<const DS: usize = MAX_CMB_DATA_SIZE> {
     pub hdr: MailboxReqHeader,
     pub kin: Cmk,
     pub hash_algorithm: u32,
     pub key_usage: u32,
     pub key_size: u32,
     pub label_size: u32,
-    pub label: [u8; MAX_CMB_DATA_SIZE],
+    pub label: [u8; DS],
 }
 
-impl Default for CmHmacKdfCounterReq {
+impl<const DS: usize> Default for CmHmacKdfCounterReq<DS> {
     fn default() -> Self {
         Self {
             hdr: MailboxReqHeader::default(),
@@ -4737,25 +4750,25 @@ impl Default for CmHmacKdfCounterReq {
             key_size: 0,
             key_usage: 0,
             label_size: 0,
-            label: [0u8; MAX_CMB_DATA_SIZE],
+            label: [0u8; DS],
         }
     }
 }
 
-impl CmHmacKdfCounterReq {
+impl<const DS: usize> CmHmacKdfCounterReq<DS> {
     pub fn as_bytes_partial(&self) -> CaliptraResult<&[u8]> {
-        if self.label_size as usize > MAX_CMB_DATA_SIZE {
+        if self.label_size as usize > DS {
             return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
         }
-        let unused_byte_count = MAX_CMB_DATA_SIZE - self.label_size as usize;
+        let unused_byte_count = DS - self.label_size as usize;
         Ok(&self.as_bytes()[..size_of::<Self>() - unused_byte_count])
     }
 
     pub fn as_bytes_partial_mut(&mut self) -> CaliptraResult<&mut [u8]> {
-        if self.label_size as usize > MAX_CMB_DATA_SIZE {
+        if self.label_size as usize > DS {
             return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
         }
-        let unused_byte_count = MAX_CMB_DATA_SIZE - self.label_size as usize;
+        let unused_byte_count = DS - self.label_size as usize;
         Ok(&mut self.as_mut_bytes()[..size_of::<Self>() - unused_byte_count])
     }
 }
@@ -4799,19 +4812,19 @@ pub struct CmHkdfExtractResp {
 impl Response for CmHkdfExtractResp {}
 
 // CM_HKDF_EXPAND
-#[repr(C)]
+#[repr(C, packed)]
 #[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
-pub struct CmHkdfExpandReq {
+pub struct CmHkdfExpandReq<const DS: usize = MAX_CMB_DATA_SIZE> {
     pub hdr: MailboxReqHeader,
     pub prk: Cmk,
     pub hash_algorithm: u32,
     pub key_usage: u32,
     pub key_size: u32,
     pub info_size: u32,
-    pub info: [u8; MAX_CMB_DATA_SIZE],
+    pub info: [u8; DS],
 }
 
-impl Default for CmHkdfExpandReq {
+impl<const DS: usize> Default for CmHkdfExpandReq<DS> {
     fn default() -> Self {
         Self {
             hdr: MailboxReqHeader::default(),
@@ -4820,25 +4833,25 @@ impl Default for CmHkdfExpandReq {
             key_size: 0,
             key_usage: 0,
             info_size: 0,
-            info: [0u8; MAX_CMB_DATA_SIZE],
+            info: [0u8; DS],
         }
     }
 }
 
-impl CmHkdfExpandReq {
+impl<const DS: usize> CmHkdfExpandReq<DS> {
     pub fn as_bytes_partial(&self) -> CaliptraResult<&[u8]> {
-        if self.info_size as usize > MAX_CMB_DATA_SIZE {
+        if self.info_size as usize > DS {
             return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
         }
-        let unused_byte_count = MAX_CMB_DATA_SIZE - self.info_size as usize;
+        let unused_byte_count = DS - self.info_size as usize;
         Ok(&self.as_bytes()[..size_of::<Self>() - unused_byte_count])
     }
 
     pub fn as_bytes_partial_mut(&mut self) -> CaliptraResult<&mut [u8]> {
-        if self.info_size as usize > MAX_CMB_DATA_SIZE {
+        if self.info_size as usize > DS {
             return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
         }
-        let unused_byte_count = MAX_CMB_DATA_SIZE - self.info_size as usize;
+        let unused_byte_count = DS - self.info_size as usize;
         Ok(&mut self.as_mut_bytes()[..size_of::<Self>() - unused_byte_count])
     }
 }
@@ -4889,40 +4902,40 @@ impl Default for CmMldsaPublicKeyResp {
 impl Response for CmMldsaPublicKeyResp {}
 
 // CM_MLDSA_SIGN
-#[repr(C)]
+#[repr(C, packed)]
 #[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
-pub struct CmMldsaSignReq {
+pub struct CmMldsaSignReq<const DS: usize = MAX_CMB_DATA_SIZE> {
     pub hdr: MailboxReqHeader,
     pub cmk: Cmk,
     pub message_size: u32,
-    pub message: [u8; MAX_CMB_DATA_SIZE],
+    pub message: [u8; DS],
 }
 
-impl Default for CmMldsaSignReq {
+impl<const DS: usize> Default for CmMldsaSignReq<DS> {
     fn default() -> Self {
         Self {
             hdr: MailboxReqHeader::default(),
             cmk: Cmk::default(),
             message_size: 0,
-            message: [0u8; MAX_CMB_DATA_SIZE],
+            message: [0u8; DS],
         }
     }
 }
 
-impl CmMldsaSignReq {
+impl<const DS: usize> CmMldsaSignReq<DS> {
     pub fn as_bytes_partial(&self) -> CaliptraResult<&[u8]> {
-        if self.message_size as usize > MAX_CMB_DATA_SIZE {
+        if self.message_size as usize > DS {
             return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
         }
-        let unused_byte_count = MAX_CMB_DATA_SIZE - self.message_size as usize;
+        let unused_byte_count = DS - self.message_size as usize;
         Ok(&self.as_bytes()[..size_of::<Self>() - unused_byte_count])
     }
 
     pub fn as_bytes_partial_mut(&mut self) -> CaliptraResult<&mut [u8]> {
-        if self.message_size as usize > MAX_CMB_DATA_SIZE {
+        if self.message_size as usize > DS {
             return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
         }
-        let unused_byte_count = MAX_CMB_DATA_SIZE - self.message_size as usize;
+        let unused_byte_count = DS - self.message_size as usize;
         Ok(&mut self.as_mut_bytes()[..size_of::<Self>() - unused_byte_count])
     }
 }
@@ -4951,42 +4964,42 @@ impl Default for CmMldsaSignResp {
 impl Response for CmMldsaSignResp {}
 
 // CM_MLDSA_VERIFY
-#[repr(C)]
+#[repr(C, packed)]
 #[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
-pub struct CmMldsaVerifyReq {
+pub struct CmMldsaVerifyReq<const DS: usize = MAX_CMB_DATA_SIZE> {
     pub hdr: MailboxReqHeader,
     pub cmk: Cmk,
     pub signature: [u8; MLDSA87_SIGNATURE_BYTE_SIZE],
     pub message_size: u32,
-    pub message: [u8; MAX_CMB_DATA_SIZE],
+    pub message: [u8; DS],
 }
 
-impl Default for CmMldsaVerifyReq {
+impl<const DS: usize> Default for CmMldsaVerifyReq<DS> {
     fn default() -> Self {
         Self {
             hdr: MailboxReqHeader::default(),
             cmk: Cmk::default(),
             signature: [0u8; MLDSA87_SIGNATURE_BYTE_SIZE],
             message_size: 0,
-            message: [0u8; MAX_CMB_DATA_SIZE],
+            message: [0u8; DS],
         }
     }
 }
 
-impl CmMldsaVerifyReq {
+impl<const DS: usize> CmMldsaVerifyReq<DS> {
     pub fn as_bytes_partial(&self) -> CaliptraResult<&[u8]> {
-        if self.message_size as usize > MAX_CMB_DATA_SIZE {
+        if self.message_size as usize > DS {
             return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
         }
-        let unused_byte_count = MAX_CMB_DATA_SIZE - self.message_size as usize;
+        let unused_byte_count = DS - self.message_size as usize;
         Ok(&self.as_bytes()[..size_of::<Self>() - unused_byte_count])
     }
 
     pub fn as_bytes_partial_mut(&mut self) -> CaliptraResult<&mut [u8]> {
-        if self.message_size as usize > MAX_CMB_DATA_SIZE {
+        if self.message_size as usize > DS {
             return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
         }
-        let unused_byte_count = MAX_CMB_DATA_SIZE - self.message_size as usize;
+        let unused_byte_count = DS - self.message_size as usize;
         Ok(&mut self.as_mut_bytes()[..size_of::<Self>() - unused_byte_count])
     }
 }
@@ -5030,40 +5043,40 @@ impl Default for CmEcdsaPublicKeyResp {
 impl Response for CmEcdsaPublicKeyResp {}
 
 // CM_ECDSA_SIGN
-#[repr(C)]
+#[repr(C, packed)]
 #[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
-pub struct CmEcdsaSignReq {
+pub struct CmEcdsaSignReq<const DS: usize = MAX_CMB_DATA_SIZE> {
     pub hdr: MailboxReqHeader,
     pub cmk: Cmk,
     pub message_size: u32,
-    pub message: [u8; MAX_CMB_DATA_SIZE],
+    pub message: [u8; DS],
 }
 
-impl Default for CmEcdsaSignReq {
+impl<const DS: usize> Default for CmEcdsaSignReq<DS> {
     fn default() -> Self {
         Self {
             hdr: MailboxReqHeader::default(),
             cmk: Cmk::default(),
             message_size: 0,
-            message: [0u8; MAX_CMB_DATA_SIZE],
+            message: [0u8; DS],
         }
     }
 }
 
-impl CmEcdsaSignReq {
+impl<const DS: usize> CmEcdsaSignReq<DS> {
     pub fn as_bytes_partial(&self) -> CaliptraResult<&[u8]> {
-        if self.message_size as usize > MAX_CMB_DATA_SIZE {
+        if self.message_size as usize > DS {
             return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
         }
-        let unused_byte_count = MAX_CMB_DATA_SIZE - self.message_size as usize;
+        let unused_byte_count = DS - self.message_size as usize;
         Ok(&self.as_bytes()[..size_of::<Self>() - unused_byte_count])
     }
 
     pub fn as_bytes_partial_mut(&mut self) -> CaliptraResult<&mut [u8]> {
-        if self.message_size as usize > MAX_CMB_DATA_SIZE {
+        if self.message_size as usize > DS {
             return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
         }
-        let unused_byte_count = MAX_CMB_DATA_SIZE - self.message_size as usize;
+        let unused_byte_count = DS - self.message_size as usize;
         Ok(&mut self.as_mut_bytes()[..size_of::<Self>() - unused_byte_count])
     }
 }
@@ -5105,18 +5118,18 @@ pub struct FeProgReq {
 }
 
 // CM_ECDSA_VERIFY
-#[repr(C)]
+#[repr(C, packed)]
 #[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
-pub struct CmEcdsaVerifyReq {
+pub struct CmEcdsaVerifyReq<const DS: usize = MAX_CMB_DATA_SIZE> {
     pub hdr: MailboxReqHeader,
     pub cmk: Cmk,
     pub signature_r: [u8; ECC384_SCALAR_BYTE_SIZE],
     pub signature_s: [u8; ECC384_SCALAR_BYTE_SIZE],
     pub message_size: u32,
-    pub message: [u8; MAX_CMB_DATA_SIZE],
+    pub message: [u8; DS],
 }
 
-impl Default for CmEcdsaVerifyReq {
+impl<const DS: usize> Default for CmEcdsaVerifyReq<DS> {
     fn default() -> Self {
         Self {
             hdr: MailboxReqHeader::default(),
@@ -5124,25 +5137,25 @@ impl Default for CmEcdsaVerifyReq {
             signature_r: [0u8; ECC384_SCALAR_BYTE_SIZE],
             signature_s: [0u8; ECC384_SCALAR_BYTE_SIZE],
             message_size: 0,
-            message: [0u8; MAX_CMB_DATA_SIZE],
+            message: [0u8; DS],
         }
     }
 }
 
-impl CmEcdsaVerifyReq {
+impl<const DS: usize> CmEcdsaVerifyReq<DS> {
     pub fn as_bytes_partial(&self) -> CaliptraResult<&[u8]> {
-        if self.message_size as usize > MAX_CMB_DATA_SIZE {
+        if self.message_size as usize > DS {
             return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
         }
-        let unused_byte_count = MAX_CMB_DATA_SIZE - self.message_size as usize;
+        let unused_byte_count = DS - self.message_size as usize;
         Ok(&self.as_bytes()[..size_of::<Self>() - unused_byte_count])
     }
 
     pub fn as_bytes_partial_mut(&mut self) -> CaliptraResult<&mut [u8]> {
-        if self.message_size as usize > MAX_CMB_DATA_SIZE {
+        if self.message_size as usize > DS {
             return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
         }
-        let unused_byte_count = MAX_CMB_DATA_SIZE - self.message_size as usize;
+        let unused_byte_count = DS - self.message_size as usize;
         Ok(&mut self.as_mut_bytes()[..size_of::<Self>() - unused_byte_count])
     }
 }
