@@ -2461,15 +2461,35 @@ impl HwModel for ModelFpgaSubsystem {
         self.bmc_step_counter = 0;
         self.blocks_sent = 0;
 
+        // If Caliptra has already enabled MCU SRAM execution (FW_EXEC_CTRL[2]),
+        // wait for the MCU to finish its boot flow and halt in DEFAULT_MCU_FW
+        // before pausing the realtime thread or asserting warm reset.
+        // Calling mci().reset_request().write(|w| w.mcu_req(true)) while
+        // FW_EXEC_CTRL[2] is set only holds mcu_rst_b low for 16 clock cycles
+        // before mci_boot_seqr immediately reboots the MCU, which can leave the
+        // MCU mid-fetch when cptra_ss_rst_b is asserted.
+        if (self.soc_ifc().ss_generic_fw_exec_ctrl().at(0).read() & (1 << 2)) != 0 {
+            while !self
+                .wrapper
+                .regs()
+                .status
+                .is_set(crate::fpga_regs::Status::CptraSsMcuHaltStatusO)
+                && self.mci().fw_error_fatal().read() == 0
+                && self.soc_ifc().cptra_fw_error_fatal().read() == 0
+            {
+                self.step();
+            }
+        }
+
         {
             // Pause the TRNG thread so it doesn't access the AXI bus during reset
             let wrapper = self.wrapper.clone();
             let _pause = wrapper.pause_realtime();
 
-            // If the MCU is not already halted, trigger an MCU reset request via
-            // MCI first so mci_boot_seqr cleanly halts VeeR EL2 and drains any
-            // in-flight 64-to-32-bit split AXI bursts in axi_interconnect_0
-            // before asserting cptra_ss_rst_b.
+            // If the MCU is not already halted (e.g. warm reset during early boot
+            // before FW_EXEC_CTRL[2] is set), trigger an MCU reset request via
+            // MCI first so mci_boot_seqr cleanly halts VeeR EL2 and holds it in
+            // BOOT_RST_MCU (mcu_rst_b = 0) before asserting cptra_ss_rst_b.
             if !wrapper
                 .regs()
                 .status
