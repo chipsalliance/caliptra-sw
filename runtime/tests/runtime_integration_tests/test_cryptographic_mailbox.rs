@@ -41,7 +41,7 @@ use rand::prelude::*;
 use rand::rngs::StdRng;
 use rand::{CryptoRng, RngCore};
 use sha2::{Digest, Sha384, Sha512};
-use zerocopy::{FromBytes, IntoBytes};
+use zerocopy::{transmute, FromBytes, IntoBytes};
 
 #[cfg(feature = "fpga_subsystem")]
 const HW_MODEL_MODES_SUBSYSTEM: [bool; 1] = [true];
@@ -49,6 +49,232 @@ const HW_MODEL_MODES_SUBSYSTEM: [bool; 1] = [true];
 const HW_MODEL_MODES_SUBSYSTEM: [bool; 1] = [false];
 #[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
 const HW_MODEL_MODES_SUBSYSTEM: [bool; 2] = [false, true];
+
+const CONTEXT_TAG_OFFSET: usize = size_of::<[u8; 12]>();
+
+fn context_production_args(subsystem_mode: bool) -> RuntimeTestArgs<'static> {
+    let mut security_state = caliptra_hw_model::SecurityState::default();
+    security_state.set_debug_locked(true);
+    security_state.set_device_lifecycle(caliptra_hw_model::DeviceLifecycle::Production);
+    RuntimeTestArgs {
+        subsystem_mode,
+        security_state: Some(security_state),
+        ..Default::default()
+    }
+}
+
+fn assert_context_tag_rejected(model: &mut DefaultHwModel, mut request: MailboxReq) {
+    request.populate_chksum().unwrap();
+    let error = model
+        .mailbox_execute(request.cmd_code().into(), request.as_bytes().unwrap())
+        .unwrap_err();
+    assert_error(
+        model,
+        caliptra_drivers::CaliptraError::RUNTIME_DRIVER_AES_INVALID_TAG,
+        error,
+    );
+}
+
+#[test]
+fn test_aes_context_authentication_failure() {
+    let key = [0x3c; 32];
+    let plaintext = [0x5a; 32];
+
+    for subsystem_mode in HW_MODEL_MODES_SUBSYSTEM {
+        let mut model = run_rt_test(context_production_args(subsystem_mode));
+        let cmk = import_key(&mut model, &key, CmKeyUsage::Aes);
+
+        for mode in [CmAesMode::Cbc, CmAesMode::Ctr] {
+            let mut init = CmAesEncryptInitReq {
+                cmk: cmk.clone(),
+                mode: mode as u32,
+                plaintext_size: AES_BLOCK_SIZE_BYTES as u32,
+                ..Default::default()
+            };
+            init.plaintext[..AES_BLOCK_SIZE_BYTES]
+                .copy_from_slice(&plaintext[..AES_BLOCK_SIZE_BYTES]);
+            let mut init = MailboxReq::CmAesEncryptInit(init);
+            init.populate_chksum().unwrap();
+            let response = model
+                .mailbox_execute(init.cmd_code().into(), init.as_bytes().unwrap())
+                .unwrap()
+                .unwrap();
+            let header_size = size_of::<CmAesEncryptInitRespHeader>();
+            let header =
+                CmAesEncryptInitRespHeader::read_from_bytes(&response[..header_size]).unwrap();
+            assert_eq!(header.ciphertext_size as usize, AES_BLOCK_SIZE_BYTES);
+            let mut ciphertext = response[header_size..].to_vec();
+
+            let mut context = header.context;
+            context[CONTEXT_TAG_OFFSET] ^= 1;
+            let mut update = CmAesEncryptUpdateReq {
+                context,
+                plaintext_size: AES_BLOCK_SIZE_BYTES as u32,
+                ..Default::default()
+            };
+            update.plaintext[..AES_BLOCK_SIZE_BYTES]
+                .copy_from_slice(&plaintext[AES_BLOCK_SIZE_BYTES..]);
+            assert_context_tag_rejected(&mut model, MailboxReq::CmAesEncryptUpdate(update));
+
+            let mut update = CmAesEncryptUpdateReq {
+                context: header.context,
+                plaintext_size: AES_BLOCK_SIZE_BYTES as u32,
+                ..Default::default()
+            };
+            update.plaintext[..AES_BLOCK_SIZE_BYTES]
+                .copy_from_slice(&plaintext[AES_BLOCK_SIZE_BYTES..]);
+            let mut update = MailboxReq::CmAesEncryptUpdate(update);
+            update.populate_chksum().unwrap();
+            let response = model
+                .mailbox_execute(update.cmd_code().into(), update.as_bytes().unwrap())
+                .unwrap()
+                .unwrap();
+            let header_size = size_of::<CmAesRespHeader>();
+            let update_header = CmAesRespHeader::read_from_bytes(&response[..header_size]).unwrap();
+            assert_eq!(update_header.output_size as usize, AES_BLOCK_SIZE_BYTES);
+            ciphertext.extend_from_slice(&response[header_size..]);
+
+            let expected = match mode {
+                CmAesMode::Cbc => rustcrypto_cbc_encrypt(&key, &header.iv, &plaintext),
+                CmAesMode::Ctr => rustcrypto_ctr_crypt(&key, &header.iv, &plaintext),
+                _ => unreachable!(),
+            };
+            assert_eq!(ciphertext, expected);
+        }
+    }
+}
+
+#[test]
+fn test_aes_gcm_context_authentication_failure() {
+    let key = [0x3c; 32];
+    let plaintext = [0x5a; AES_BLOCK_SIZE_BYTES];
+
+    for subsystem_mode in HW_MODEL_MODES_SUBSYSTEM {
+        let mut model = run_rt_test(context_production_args(subsystem_mode));
+        let cmk = import_key(&mut model, &key, CmKeyUsage::Aes);
+        let mut init = MailboxReq::CmAesGcmEncryptInit(CmAesGcmEncryptInitReq {
+            cmk,
+            ..Default::default()
+        });
+        init.populate_chksum().unwrap();
+        let response = model
+            .mailbox_execute(init.cmd_code().into(), init.as_bytes().unwrap())
+            .unwrap()
+            .unwrap();
+        let response = CmAesGcmEncryptInitResp::read_from_bytes(&response).unwrap();
+
+        let mut context = response.context;
+        context[CONTEXT_TAG_OFFSET] ^= 1;
+        let mut finish = CmAesGcmEncryptFinalReq {
+            context,
+            plaintext_size: plaintext.len() as u32,
+            ..Default::default()
+        };
+        finish.plaintext[..plaintext.len()].copy_from_slice(&plaintext);
+        assert_context_tag_rejected(&mut model, MailboxReq::CmAesGcmEncryptFinal(finish));
+
+        let mut finish = CmAesGcmEncryptFinalReq {
+            context: response.context,
+            plaintext_size: plaintext.len() as u32,
+            ..Default::default()
+        };
+        finish.plaintext[..plaintext.len()].copy_from_slice(&plaintext);
+        let mut finish = MailboxReq::CmAesGcmEncryptFinal(finish);
+        finish.populate_chksum().unwrap();
+        let final_response = model
+            .mailbox_execute(finish.cmd_code().into(), finish.as_bytes().unwrap())
+            .unwrap()
+            .unwrap();
+        let header_size = size_of::<CmAesGcmEncryptFinalRespHeader>();
+        let header =
+            CmAesGcmEncryptFinalRespHeader::read_from_bytes(&final_response[..header_size])
+                .unwrap();
+        let iv: [u8; 12] = transmute!(response.iv);
+        let (expected_tag, expected_ciphertext) =
+            rustcrypto_gcm_encrypt(&key, &iv, &[], &plaintext);
+        assert_eq!(header.ciphertext_size as usize, plaintext.len());
+        assert_eq!(&final_response[header_size..], expected_ciphertext);
+        assert_eq!(header.tag.as_bytes(), expected_tag);
+    }
+}
+
+#[test]
+fn test_ecdh_context_authentication_failure() {
+    for subsystem_mode in HW_MODEL_MODES_SUBSYSTEM {
+        let mut model = run_rt_test(context_production_args(subsystem_mode));
+        let mut generate = MailboxReq::CmEcdhGenerate(CmEcdhGenerateReq::default());
+        generate.populate_chksum().unwrap();
+        let response = model
+            .mailbox_execute(generate.cmd_code().into(), generate.as_bytes().unwrap())
+            .unwrap()
+            .unwrap();
+        let response = CmEcdhGenerateResp::read_from_bytes(&response).unwrap();
+
+        let curve = openssl::ec::EcGroup::from_curve_name(openssl::nid::Nid::SECP384R1).unwrap();
+        let mut bn_context = openssl::bn::BigNumContext::new().unwrap();
+        let peer_key = openssl::ec::EcKey::generate(&curve).unwrap();
+        let peer_public = peer_key
+            .public_key()
+            .to_bytes(
+                &curve,
+                openssl::ec::PointConversionForm::UNCOMPRESSED,
+                &mut bn_context,
+            )
+            .unwrap();
+        let mut incoming_exchange_data = [0u8; CMB_ECDH_EXCHANGE_DATA_MAX_SIZE];
+        incoming_exchange_data[..peer_public.len() - 1].copy_from_slice(&peer_public[1..]);
+
+        let mut context = response.context;
+        context[CONTEXT_TAG_OFFSET] ^= 1;
+        assert_context_tag_rejected(
+            &mut model,
+            MailboxReq::CmEcdhFinish(CmEcdhFinishReq {
+                context,
+                key_usage: CmKeyUsage::Aes.into(),
+                incoming_exchange_data,
+                ..Default::default()
+            }),
+        );
+
+        let mut finish = MailboxReq::CmEcdhFinish(CmEcdhFinishReq {
+            context: response.context,
+            key_usage: CmKeyUsage::Aes.into(),
+            incoming_exchange_data,
+            ..Default::default()
+        });
+        finish.populate_chksum().unwrap();
+        let finish_response = model
+            .mailbox_execute(finish.cmd_code().into(), finish.as_bytes().unwrap())
+            .unwrap()
+            .unwrap();
+        let finish_response = CmEcdhFinishResp::read_from_bytes(&finish_response).unwrap();
+
+        let mut public_bytes = vec![4];
+        public_bytes.extend_from_slice(&response.exchange_data);
+        let public_point =
+            openssl::ec::EcPoint::from_bytes(&curve, &public_bytes, &mut bn_context).unwrap();
+        let public_key = openssl::ec::EcKey::from_public_key(&curve, &public_point).unwrap();
+        let public_key = openssl::pkey::PKey::from_ec_key(public_key).unwrap();
+        let peer_key = openssl::pkey::PKey::from_ec_key(peer_key).unwrap();
+        let mut deriver = openssl::derive::Deriver::new(&peer_key).unwrap();
+        deriver.set_peer(&public_key).unwrap();
+        let shared_secret = deriver.derive_to_vec().unwrap();
+
+        let plaintext = [0x5a; AES_BLOCK_SIZE_BYTES];
+        let (iv, tag, ciphertext) = mailbox_gcm_encrypt(
+            &mut model,
+            &finish_response.output,
+            &[],
+            &plaintext,
+            MAX_CMB_DATA_SIZE,
+            MailboxRespHeader::FIPS_STATUS_APPROVED,
+        );
+        let (expected_tag, expected_ciphertext) =
+            rustcrypto_gcm_encrypt(&shared_secret[..32], &iv, &[], &plaintext);
+        assert_eq!(ciphertext, expected_ciphertext);
+        assert_eq!(tag, expected_tag);
+    }
+}
 
 #[test]
 fn test_status() {

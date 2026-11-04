@@ -57,6 +57,7 @@ use caliptra_image_types::{
     ECC384_SCALAR_BYTE_SIZE, SHA384_DIGEST_BYTE_SIZE, SHA512_DIGEST_BYTE_SIZE,
 };
 use zerocopy::{transmute, FromBytes, Immutable, IntoBytes, KnownLayout};
+use zeroize::Zeroizing;
 
 pub const GCM_MAX_KEY_USES: u64 = (1 << 32) - 1;
 pub const KEY_USAGE_MAX: usize = 256;
@@ -231,17 +232,17 @@ impl CmStorage {
         encrypted_context: &EncryptedAesContext,
     ) -> CaliptraResult<AesContext> {
         let ciphertext = &encrypted_context.ciphertext;
-        let mut plaintext = [0u8; AES_CONTEXT_SIZE_BYTES];
+        let mut plaintext = Zeroizing::new([0u8; AES_CONTEXT_SIZE_BYTES]);
         aes.aes_256_gcm_decrypt(
             trng,
             &encrypted_context.iv,
             AesKey::Split(&self.context_key.0, &self.context_key.1),
             &[],
             ciphertext,
-            &mut plaintext,
+            &mut plaintext[..],
             &encrypted_context.tag,
         )?;
-        Ok(transmute!(plaintext))
+        Ok(transmute!(*plaintext))
     }
 
     fn encrypt_aes_gcm_context(
@@ -278,17 +279,17 @@ impl CmStorage {
         encrypted_context: &EncryptedAesGcmContext,
     ) -> CaliptraResult<AesGcmContext> {
         let ciphertext = &encrypted_context.ciphertext;
-        let mut plaintext = [0u8; AES_GCM_CONTEXT_SIZE_BYTES];
+        let mut plaintext = Zeroizing::new([0u8; AES_GCM_CONTEXT_SIZE_BYTES]);
         aes.aes_256_gcm_decrypt(
             trng,
             &encrypted_context.iv,
             AesKey::Split(&self.context_key.0, &self.context_key.1),
             &[],
             ciphertext,
-            &mut plaintext,
+            &mut plaintext[..],
             &encrypted_context.tag,
         )?;
-        Ok(transmute!(plaintext))
+        Ok(transmute!(*plaintext))
     }
 
     fn encrypt_ecdh_context(
@@ -325,17 +326,17 @@ impl CmStorage {
         encrypted_context: &EncryptedEcdhContext,
     ) -> CaliptraResult<[u8; CMB_ECDH_CONTEXT_SIZE]> {
         let ciphertext = &encrypted_context.ciphertext;
-        let mut plaintext = [0u8; CMB_ECDH_CONTEXT_SIZE];
+        let mut plaintext = Zeroizing::new([0u8; CMB_ECDH_CONTEXT_SIZE]);
         aes.aes_256_gcm_decrypt(
             trng,
             &encrypted_context.iv,
             AesKey::Split(&self.context_key.0, &self.context_key.1),
             &[],
             ciphertext,
-            &mut plaintext,
+            &mut plaintext[..],
             &encrypted_context.tag,
         )?;
-        Ok(plaintext)
+        Ok(*plaintext)
     }
 }
 

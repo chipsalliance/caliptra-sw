@@ -112,6 +112,10 @@ The contexts contain the internal structures necessary to resume operations to s
 
 These contexts are intended to be opaque to the user, and SHALL be encrypted and authenticated if they contain sensitive internal data.
 
+Runtime decrypts AES, AES-GCM, and ECDH contexts into temporary plaintext buffers guarded by `Zeroizing`. These guards wipe the buffers when the decryption helper returns, including on authentication failure.
+
+This cleanup does not change mailbox formats or command results. It covers only the temporary decryption buffers, not returned working contexts or other copies, and requires normal scope exit; it does not guarantee cleanup on an abort or reset.
+
 ### Keys
 
 Cryptographic Mailbox Key (CMKs) are used to store keys. Certain commands generate and return a new CMK. Most commands that use CMKs will also return a new CMK, as it is necessary to track CMKs so that they are not used beyond any relevant limits for their key type.
