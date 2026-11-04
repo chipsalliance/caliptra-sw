@@ -113,7 +113,11 @@ impl FmcAliasLayer {
     /// * `measurements` - Array containing the FMC measurements
     /// * `cdi` - Key Slot to store the generated CDI
     #[cfg_attr(feature = "cfi", cfi_impl_fn)]
-    fn derive_cdi(env: &mut RomEnv, measurements: &Array4x12, cdi: KeyId) -> CaliptraResult<()> {
+    pub(crate) fn derive_cdi(
+        env: &mut RomEnv,
+        measurements: &Array4x12,
+        cdi: KeyId,
+    ) -> CaliptraResult<()> {
         let mut measurements: [u8; 48] = measurements.into();
 
         let result = Crypto::hmac_kdf(
@@ -148,7 +152,7 @@ impl FmcAliasLayer {
     ///
     /// * `Ecc384KeyPair` - Derive DICE Layer Key Pair
     #[cfg_attr(feature = "cfi", cfi_impl_fn)]
-    fn derive_key_pair(
+    pub(crate) fn derive_key_pair(
         env: &mut RomEnv,
         cdi: KeyId,
         ecc_priv_key: KeyId,

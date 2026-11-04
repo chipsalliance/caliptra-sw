@@ -160,7 +160,7 @@ impl InitDevIdLayer {
     /// * `env` - ROM Environment
     /// * `uds` - Key Vault slot to store the decrypted UDS in
     #[cfg_attr(feature = "cfi", cfi_impl_fn)]
-    fn decrypt_uds(env: &mut RomEnvFips, uds: KeyId) -> CaliptraResult<()> {
+    pub(crate) fn decrypt_uds(env: &mut RomEnv, uds: KeyId) -> CaliptraResult<()> {
         // Engage the Deobfuscation Engine to decrypt the UDS
         env.doe.decrypt_uds(&DOE_IV, uds)?;
         report_boot_status(IDevIdDecryptUdsComplete.into());
@@ -174,7 +174,7 @@ impl InitDevIdLayer {
     /// * `env` - ROM Environment
     /// * `slot` - Key Vault slot to store the decrypted UDS in
     #[cfg_attr(feature = "cfi", cfi_impl_fn)]
-    fn decrypt_field_entropy(env: &mut RomEnvFips, fe: KeyId) -> CaliptraResult<()> {
+    pub(crate) fn decrypt_field_entropy(env: &mut RomEnv, fe: KeyId) -> CaliptraResult<()> {
         // Engage the Deobfuscation Engine to decrypt the UDS
         env.doe.decrypt_field_entropy(&DOE_IV, fe)?;
         report_boot_status(IDevIdDecryptFeComplete.into());
@@ -187,7 +187,7 @@ impl InitDevIdLayer {
     /// via HKDF. No-op if the feature is not available (checks subsystem
     /// mode, strap enable bit, and OCP LOCK exclusivity).
     #[cfg_attr(feature = "cfi", cfi_impl_fn)]
-    fn derive_stable_owner_root_key(env: &mut RomEnvFips) -> CaliptraResult<()> {
+    pub(crate) fn derive_stable_owner_root_key(env: &mut RomEnv) -> CaliptraResult<()> {
         if !env.soc_ifc.stable_owner_key_available() {
             return Ok(());
         }
@@ -202,7 +202,7 @@ impl InitDevIdLayer {
     /// * `env` - ROM Environment
     /// * `key_id` - Key Vault slot to store the decrypted HEK seed in
     #[cfg_attr(feature = "cfi", cfi_impl_fn)]
-    fn decrypt_hek_seed(env: &mut RomEnvFips, key_id: KeyId) -> CaliptraResult<()> {
+    pub(crate) fn decrypt_hek_seed(env: &mut RomEnv, key_id: KeyId) -> CaliptraResult<()> {
         env.doe.decrypt_hek_seed(&DOE_IV, key_id)?;
         report_boot_status(IDevIdDecryptHekSeedComplete.into());
         Ok(())
@@ -297,7 +297,7 @@ impl InitDevIdLayer {
     ///
     /// * `env` - ROM Environment
     #[cfg_attr(feature = "cfi", cfi_impl_fn)]
-    fn clear_doe_secrets(env: &mut RomEnv) -> CaliptraResult<()> {
+    pub(crate) fn clear_doe_secrets(env: &mut RomEnv) -> CaliptraResult<()> {
         let result = env.doe.clear_secrets();
         if result.is_ok() {
             report_boot_status(IDevIdClearDoeSecretsComplete.into());
@@ -313,7 +313,7 @@ impl InitDevIdLayer {
     /// * `uds` - Key slot holding the UDS
     /// * `cdi` - Key Slot to store the generated CDI
     #[cfg_attr(feature = "cfi", cfi_impl_fn)]
-    fn derive_cdi(env: &mut RomEnv, uds: KeyId, cdi: KeyId) -> CaliptraResult<()> {
+    pub(crate) fn derive_cdi(env: &mut RomEnv, uds: KeyId, cdi: KeyId) -> CaliptraResult<()> {
         Crypto::hmac_kdf(
             &mut env.hmac,
             &mut env.trng,

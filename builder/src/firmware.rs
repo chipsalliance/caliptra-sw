@@ -10,6 +10,7 @@ pub fn rom_from_env() -> &'static FwId<'static> {
         Ok("ROM") => &ROM,
         Ok("ROM_WITHOUT_UART") => &ROM,
         Ok("ROM_WITH_UART") => &ROM_WITH_UART,
+        Ok("ROM_FAKE_WITH_UART") => &ROM_FAKE_WITH_UART,
         Ok(s) => panic!("unexpected CPRTA_TEST_ROM env-var value: {s:?}"),
         Err(_) => &ROM_WITH_UART,
     }
@@ -25,6 +26,8 @@ pub fn rom_from_env_fpga(fpga: bool) -> &'static FwId<'static> {
         (Ok("ROM_WITHOUT_UART"), false) => &ROM,
         (Ok("ROM_WITH_UART"), true) => &ROM_FPGA_WITH_UART,
         (Ok("ROM_WITH_UART"), false) => &ROM_WITH_UART,
+        (Ok("ROM_FAKE_WITH_UART"), true) => &ROM_FAKE_WITH_UART_FPGA,
+        (Ok("ROM_FAKE_WITH_UART"), false) => &ROM_FAKE_WITH_UART,
         (Ok(s), _) => panic!("unexpected CPRTA_TEST_ROM env-var value: {s:?}"),
         (Err(_), true) => &ROM_FPGA_WITH_UART,
         (Err(_), false) => &ROM_WITH_UART,

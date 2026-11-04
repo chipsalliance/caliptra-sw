@@ -13,10 +13,10 @@ Abstract:
 --*/
 
 mod dice;
-mod fmc_alias;
+pub(crate) mod fmc_alias;
 pub mod fw_processor;
-mod idev_id;
-mod ldev_id;
+pub(crate) mod idev_id;
+pub(crate) mod ldev_id;
 pub mod ocp_lock;
 mod x509;
 
@@ -114,7 +114,7 @@ impl ColdResetFlow {
 }
 
 /// Generates the cryptographic mailbox AES key.
-fn generate_cmb_aes_key(env: &mut RomEnv) -> CaliptraResult<()> {
+pub(crate) fn generate_cmb_aes_key(env: &mut RomEnv) -> CaliptraResult<()> {
     let key_share0: [u32; 8] = env.trng.generate()?.0[..8].try_into().unwrap();
     let key_share1: [u32; 8] = env.trng.generate()?.0[..8].try_into().unwrap();
     env.persistent_data.get_mut().rom.cmb_aes_key_share0 = transmute!(key_share0);
