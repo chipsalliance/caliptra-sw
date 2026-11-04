@@ -50,11 +50,28 @@ exec sed -i {1i `include \"config_defines.svh\"} $outputDir/ahb_lite_address_dec
 remove_files [ glob $rtlDir/src/ahb_lite_bus/rtl/ahb_lite_address_decoder.sv ]
 add_files $outputDir/ahb_lite_address_decoder.sv
 
-# Workaround for 2.2 onwards: the included files are placed in a flat directory.
+# Workaround for 2.2 onwards: el2_mubi_pkg.sv `include`s lib/el2_assert.sv, a macro-only
+# file that no module references. The IP packager drops unreferenced files, so the include
+# cannot be resolved when the packaged IP is synthesized. Inline the macros instead.
 set mubi $rtlDir/src/riscv_core/veer_el2/rtl/el2_mubi_pkg.sv
+set mubi_assert $rtlDir/src/riscv_core/veer_el2/rtl/lib/el2_assert.sv
 if {[file exists $mubi]} {
-  file copy -force $mubi $outputDir/el2_mubi_pkg.sv
-  exec sed -i {s|lib/el2_assert.sv|el2_assert.sv|} $outputDir/el2_mubi_pkg.sv
+  set fp [open $mubi r]
+  set mubi_src [read $fp]
+  close $fp
+  set fp [open $mubi_assert r]
+  set assert_src [read $fp]
+  close $fp
+
+  set include_line "`include \"lib/el2_assert.sv\""
+  if { [string first $include_line $mubi_src] < 0 } {
+    puts "ERROR: $include_line not found in $mubi"
+    exit
+  }
+
+  set fp [open $outputDir/el2_mubi_pkg.sv w]
+  puts -nonewline $fp [string map [list $include_line $assert_src] $mubi_src]
+  close $fp
   remove_files $mubi
   add_files $outputDir/el2_mubi_pkg.sv
 }

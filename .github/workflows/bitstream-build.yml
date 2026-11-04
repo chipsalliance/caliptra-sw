@@ -120,8 +120,7 @@ jobs:
           path: manifest-bundle/caliptra-bitstream.tar.gz
           retention-days: 7
 
-      # Both matrix jobs would otherwise upload a manifest to the same GCS path
-      # (v1/<sha>/manifest.toml); only the segmented build is used by the FPGA CI.
+      # Only the segmented build is used by the FPGA CI.
       - name: Clean up bundle for non-segmented build
         if: matrix.segmented == false
         run: rm -rf manifest-bundle
@@ -170,7 +169,6 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          git rm --ignore-unmatch hw/fpga/bitstream_manifests/core.toml
           for VARIANT in $(echo '${{ needs.setup.outputs.variants }}' | jq -r '.[]'); do
             git add "hw/fpga/bitstream_manifests/${VARIANT}.toml"
           done
