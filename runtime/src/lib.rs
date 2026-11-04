@@ -180,7 +180,7 @@ fn enter_idle(drivers: &mut Drivers) {
     // Run pending jobs before entering low power mode.
     #[cfg(feature = "fips_self_test")]
     if matches!(drivers.self_test_status, SelfTestStatus::InProgress(_))
-        || drivers.self_test_schedule.is_due()
+        || (drivers.self_test_schedule.is_due() && !drivers.sha3.has_active_streaming_session())
     {
         let lock = drivers.mbox.lock();
         if lock {
@@ -220,6 +220,7 @@ fn enter_idle(drivers: &mut Drivers) {
         drivers.persistent_data.get_mut().fw.dpe.runtime_cmd_active = U8Bool::new(false);
     }
 
+    // A due autonomous test must not prevent FINAL from arriving for a live SHAKE session.
     #[cfg(feature = "riscv")]
     caliptra_cpu::csr::mpmc_halt_and_enable_interrupts();
 }

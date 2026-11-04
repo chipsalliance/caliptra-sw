@@ -22,14 +22,15 @@ mod autonomous {
     use caliptra_builder::firmware::APP_WITH_UART_FIPS_TEST_HOOKS;
     use caliptra_common::mailbox_api::{
         populate_checksum, CmHashAlgorithm, CmShaFinalReq, CmShaFinalResp, CmShaInitReq,
-        CmShaInitResp, CmShake256FinalReq, CmShake256InitReq, CmShake256InitResp, MailboxReq,
-        ResponseVarSize, MAX_CMB_DATA_SIZE,
+        CmShaInitResp, CmShake256FinalReq, CmShake256FinalResp, CmShake256InitReq,
+        CmShake256InitResp, CmShake256UpdateReq, MailboxReq, ResponseVarSize, MAX_CMB_DATA_SIZE,
     };
     use caliptra_drivers::CaliptraError;
     use caliptra_drivers::FipsTestHook;
     use caliptra_hw_model::{DefaultHwModel, ModelError, SecurityState};
     use caliptra_runtime::RtBootStatus;
     use sha2::{Digest, Sha512};
+    use sha3::{digest::ExtendableOutput, Shake256};
 
     const MAX_TEST_CYCLES: u32 = 20_000_000;
 
@@ -307,8 +308,82 @@ mod autonomous {
     }
 
     #[test]
-    fn self_test_invalidates_live_shake256_context() {
-        let mut model = boot(config(2, 0));
+    fn autonomous_self_test_waits_for_shake256_final() {
+        let mut model = boot(config(1, 0));
+        let chunks = [[0x11; 136], [0x22; 136], [0x33; 136], [0x44; 136]];
+        let mut expected = CmShake256FinalResp::default();
+        let mut hasher = Shake256::default();
+        for chunk in &chunks {
+            sha3::digest::Update::update(&mut hasher, chunk);
+        }
+        hasher.finalize_xof_into(&mut expected.hash);
+        populate_checksum(expected.as_mut_bytes());
+
+        for _ in 0..2 {
+            let mut req = CmShake256InitReq {
+                input_size: chunks[0].len() as u32,
+                ..Default::default()
+            };
+            req.input[..chunks[0].len()].copy_from_slice(&chunks[0]);
+            let mut init = MailboxReq::CmShake256Init(req);
+            init.populate_chksum().unwrap();
+            let bytes = model
+                .mailbox_execute(CommandId::CM_SHAKE256_INIT.into(), init.as_bytes().unwrap())
+                .unwrap()
+                .unwrap();
+            let mut context = CmShake256InitResp::ref_from_bytes(bytes.as_slice())
+                .unwrap()
+                .context;
+            expect_no_test(&mut model);
+            assert!(model.cpu_halted(), "Deferred self-tests must not busy-wait");
+
+            for chunk in &chunks[1..3] {
+                let mut req = CmShake256UpdateReq {
+                    context,
+                    input_size: chunk.len() as u32,
+                    ..Default::default()
+                };
+                req.input[..chunk.len()].copy_from_slice(chunk);
+                let mut update = MailboxReq::CmShake256Update(req);
+                update.populate_chksum().unwrap();
+                let bytes = model
+                    .mailbox_execute(
+                        CommandId::CM_SHAKE256_UPDATE.into(),
+                        update.as_bytes().unwrap(),
+                    )
+                    .unwrap()
+                    .unwrap();
+                context = CmShake256InitResp::ref_from_bytes(bytes.as_slice())
+                    .unwrap()
+                    .context;
+                expect_no_test(&mut model);
+                assert!(model.cpu_halted(), "Deferred self-tests must not busy-wait");
+            }
+
+            let mut req = CmShake256FinalReq {
+                context,
+                input_size: chunks[3].len() as u32,
+                ..Default::default()
+            };
+            req.input[..chunks[3].len()].copy_from_slice(&chunks[3]);
+            let mut finish = MailboxReq::CmShake256Final(req);
+            finish.populate_chksum().unwrap();
+            let bytes = model
+                .mailbox_execute(
+                    CommandId::CM_SHAKE256_FINAL.into(),
+                    finish.as_bytes().unwrap(),
+                )
+                .unwrap()
+                .unwrap();
+            assert_eq!(bytes, expected.as_bytes());
+            wait_for_test(&mut model);
+            expect_no_test(&mut model);
+        }
+    }
+
+    #[test]
+    fn manual_self_test_invalidates_live_shake256_context() {
+        let mut model = boot(config(1, 0));
         let mut init = MailboxReq::CmShake256Init(CmShake256InitReq::default());
         init.populate_chksum().unwrap();
         let bytes = model
@@ -319,7 +394,7 @@ mod autonomous {
             .unwrap()
             .context;
         expect_no_test(&mut model);
-        send(&mut model, CommandId::VERSION);
+        send(&mut model, CommandId::SELF_TEST_START);
         wait_for_test(&mut model);
 
         let mut finish = MailboxReq::CmShake256Final(CmShake256FinalReq {

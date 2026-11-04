@@ -111,6 +111,11 @@ impl Sha3 {
         }
     }
 
+    /// Whether a SHAKE256 streaming session retains hardware state between calls.
+    pub fn has_active_streaming_session(&self) -> bool {
+        self.active_session_token.is_some()
+    }
+
     /// Start a SHAKE256 streaming operation (for use across mailbox calls).
     /// Stores the provided random token to identify this session.
     pub fn shake256_streaming_start(&mut self, token: u128) -> CaliptraResult<()> {
