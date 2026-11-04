@@ -71,6 +71,9 @@ enum mailbox_command {
     OP_REVOKE_EXPORTED_CDI_HANDLE    = 0x52564348, // "RVCH"
     OP_REALLOCATE_DPE_CONTEXT_LIMITS = 0x52435458, // "RCTX"
     OP_INSTALL_OWNER_PK_HASH         = 0x4F574E50, // "OWNP"
+    OP_CM_SHA_INIT                   = 0x434D5349, // "CMSI"
+    OP_CM_SHA_UPDATE                 = 0x434D5355, // "CMSU"
+    OP_CM_SHA_FINAL                  = 0x434D5346, // "CMSF"
 };
 
 struct parcel {

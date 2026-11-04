@@ -292,6 +292,11 @@ int caliptra_reallocate_dpe_context_limits(struct caliptra_reallocate_dpe_contex
 // Install Owner PK Hash
 int caliptra_install_owner_pk_hash(struct caliptra_install_owner_pk_hash_req *req, struct caliptra_install_owner_pk_hash_resp *resp, bool async);
 
+// CM_SHA_INIT, CM_SHA_UPDATE, CM_SHA_FINAL
+int caliptra_cm_sha_init(struct caliptra_cm_sha_init_req *req, struct caliptra_cm_sha_init_resp *resp, bool async);
+int caliptra_cm_sha_update(struct caliptra_cm_sha_update_req *req, struct caliptra_cm_sha_update_resp *resp, bool async);
+int caliptra_cm_sha_final(struct caliptra_cm_sha_final_req *req, struct caliptra_cm_sha_final_resp *resp, bool async);
+
 // Query if IDevID CSR is ready.
 bool caliptra_is_idevid_csr_ready();
 

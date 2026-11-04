@@ -6,6 +6,10 @@
 
 #include "caliptra_enums.h"
 
+#define MAX_CMB_DATA_SIZE 4096u
+#define CMB_SHA_CONTEXT_SIZE 200u
+#define SHA512_DIGEST_BYTE_SIZE 64u
+
 typedef uint32_t caliptra_checksum;
 
 /**
@@ -416,6 +420,49 @@ struct caliptra_reallocate_dpe_context_limits_resp
     struct caliptra_resp_header hdr;
     uint32_t new_pl0_context_limit;
     uint32_t new_pl1_context_limit;
+};
+
+struct caliptra_cm_sha_init_req
+{
+    struct caliptra_req_header hdr;
+    uint32_t hash_algorithm;
+    uint32_t data_size;
+    uint8_t data[MAX_CMB_DATA_SIZE];
+};
+
+struct caliptra_cm_sha_init_resp
+{
+    struct caliptra_resp_header hdr;
+    uint8_t context[CMB_SHA_CONTEXT_SIZE];
+};
+
+struct caliptra_cm_sha_update_req
+{
+    struct caliptra_req_header hdr;
+    uint8_t context[CMB_SHA_CONTEXT_SIZE];
+    uint32_t data_size;
+    uint8_t data[MAX_CMB_DATA_SIZE];
+};
+
+struct caliptra_cm_sha_update_resp
+{
+    struct caliptra_resp_header hdr;
+    uint8_t context[CMB_SHA_CONTEXT_SIZE];
+};
+
+struct caliptra_cm_sha_final_req
+{
+    struct caliptra_req_header hdr;
+    uint8_t context[CMB_SHA_CONTEXT_SIZE];
+    uint32_t data_size;
+    uint8_t data[MAX_CMB_DATA_SIZE];
+};
+
+struct caliptra_cm_sha_final_resp
+{
+    struct caliptra_resp_header hdr;
+    uint32_t hash_size;
+    uint8_t hash[SHA512_DIGEST_BYTE_SIZE];
 };
 
 struct caliptra_install_owner_pk_hash_req
