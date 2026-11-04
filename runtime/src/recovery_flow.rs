@@ -18,6 +18,7 @@ use crate::{
         AuthorizeAndStashCmd, IMAGE_AUTHORIZED_OWNER_ONLY, IMAGE_AUTHORIZED_VENDOR_OWNER,
     },
     drivers::{McuFwStatus, McuResetReason},
+    otp_lock::OtpLock,
     set_auth_manifest::AuthManifestUpdateMode,
     stash_measurement::MCU_RT_RESERVED_FW_ID,
     Drivers, SetAuthManifestCmd,
@@ -224,6 +225,20 @@ impl RecoveryFlow {
                     FW_BOOT_UPD_RESET,
                 )
             };
+
+            // Lock the OTP DAI before MCU is told it can boot its firmware.
+            // NOTE: MCU ROM's cold-boot flow keeps using the DAI after it
+            // observes firmware-ready (pk_hash_volatile_lock, verify_header,
+            // field entropy programming); with DISABLE_OTP_ACCESS set those
+            // operations are silently dropped by the fuse controller.
+            if let Err(err) = OtpLock::apply_if_required(drivers) {
+                Self::set_recovery_boot_failure(
+                    drivers,
+                    MCU_FIRMWARE_INDEX,
+                    DmaRecovery::RECOVERY_REASON_OTP_LOCK_FAILED,
+                )?;
+                return Err(err);
+            }
 
             // notify MCU that it can boot its firmware
             drivers.soc_ifc.set_mcu_firmware_ready();

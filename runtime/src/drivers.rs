@@ -21,6 +21,7 @@ use crate::dpe_crypto::DpeCrypto;
 pub use crate::fips::fips_self_test_cmd::SelfTestStatus;
 use crate::invoke_dpe::invoke_dpe_cmd;
 use crate::ocp_lock::OcpLockContext;
+use crate::otp_lock::OtpLock;
 use crate::recovery_flow::RecoveryFlow;
 use crate::CaliptraDpeEnv;
 use crate::{
@@ -313,6 +314,9 @@ impl Drivers {
                 self.init_dpe_index_cache()?;
                 Self::update_dpe_rt_tci(self)?;
                 Self::update_dpe_cciv(self)?;
+                // Update resets do not reset the fuse controller, so the lock
+                // normally still holds; re-apply as defense in depth.
+                OtpLock::apply_if_required(self)?;
             }
             ResetReason::WarmReset => {
                 cfi_assert_eq(self.soc_ifc.reset_reason(), ResetReason::WarmReset);
@@ -744,6 +748,9 @@ impl Drivers {
         let mcu_firmware_loaded = drivers.persistent_data.get().fw.mcu_firmware_loaded;
 
         cfi_assert_eq(mcu_firmware_loaded, McuFwStatus::Loaded.into());
+        // A subsystem warm reset resets the fuse controller, which sets
+        // DIRECT_ACCESS_REGWEN back to 1. Re-lock before MCU boots.
+        OtpLock::apply_if_required(drivers)?;
         Self::request_mcu_reset(drivers, McuResetReason::FwBoot);
 
         Ok(())

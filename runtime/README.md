@@ -1225,6 +1225,7 @@ Command Code: `0x494E_464F` ("INFO")
 | owner_auth_manifest_current_svn | u32   | SVN of the owner authorization manifest accepted by `SET_OWNER_AUTH_MANIFEST`, or zero if none has been accepted.                                  |
 | owner_auth_manifest_min_svn | u32      | Minimum owner authorization manifest SVN encoded in `SS_STRAP_GENERIC[3][15:8]` and enforced by `SET_OWNER_AUTH_MANIFEST` when anti-rollback checks are enabled. |
 | debug_policy                | u32      | Active vendor-authorized debug policy. Bit 0 (`DEBUG_FIRMWARE_ACTIVE`) indicates that the active firmware bundle is marked as debug. Bit 1 (`DEBUG_AUTH_MANIFEST_ACTIVE`) indicates that the installed SoC authorization manifest is marked as debug. Bits 31:2 are zero. |
+| otp_lock_policy             | u32      | OTP Direct Access Interface lock state. Bit 0 (`OTP_ACCESS_DISABLED_BY_MANIFEST`) indicates that the installed SoC authorization manifest sets `DISABLE_OTP_ACCESS`. Bit 1 (`OTP_DAI_LOCKED`) indicates that the fuse controller `DIRECT_ACCESS_REGWEN` currently reads 0 (locked until the next subsystem reset). Bits 31:2 are zero. |
 
 ### VERSION
 
@@ -1476,10 +1477,16 @@ Command Code: `0x4154_4D4E` ("ATMN")
 | ------------------------- | --------- |
 | VENDOR_SIGNATURE_REQUIRED | 1 << 0    |
 | DEBUG_IMAGE               | 1 << 1    |
+| DISABLE_OTP_ACCESS        | 1 << 2    |
 
 `DEBUG_IMAGE` is valid only when `VENDOR_SIGNATURE_REQUIRED` is also set. Runtime rejects an invalid combination with `RUNTIME_AUTH_MANIFEST_INVALID_FLAGS`. Runtime rejects a debug manifest unless it is running in subsystem mode with `SS_DEBUG_INTENT` asserted and `SS_STRAP_GENERIC[3][31]` clear, returning `RUNTIME_AUTH_MANIFEST_DEBUG_IMAGE_NOT_ALLOWED`. Existing vendor and owner authentication remain required.
 
 After a successful `SET_AUTH_MANIFEST`, Runtime sets `FW_INFO.debug_policy[1]` for a debug manifest and clears it for a normal manifest. Failed installations and `VERIFY_AUTH_MANIFEST` do not change the active bit. The bit survives warm and update resets, is cleared on cold reset, and is not modified by `SET_OWNER_AUTH_MANIFEST`.
+
+`DISABLE_OTP_ACCESS` requests that Runtime lock the fuse controller Direct Access Interface (DAI) by clearing `DIRECT_ACCESS_REGWEN`. It is valid only in subsystem mode; otherwise Runtime returns `RUNTIME_AUTH_MANIFEST_DISABLE_OTP_ACCESS_NOT_SUBSYSTEM_MODE`. Runtime applies the lock immediately before every point where MCU Runtime firmware can start: before `FW_EXEC_CTRL[MCU]` is published in the recovery flow, on `ACTIVATE_FIRMWARE` (hitless update and `INITIAL_ACTIVATE`), on warm reset before MCU SRAM is released, and on update reset. A `SET_AUTH_MANIFEST` that installs a manifest with the flag locks the DAI immediately. The lock lasts until the next subsystem reset; installing a later manifest without the flag does not unlock it. If the lock cannot be confirmed (readback of `DIRECT_ACCESS_REGWEN` with the DAI idle is not 0), Runtime fails with `RUNTIME_OTP_LOCK_FAILED`.
+
+> [!WARNING]
+> MCU ROM's cold-boot flow keeps using the DAI after Caliptra publishes `FW_EXEC_CTRL[MCU]` (owner/vendor PK hash volatile lock, image header verification, field entropy programming). With `DISABLE_OTP_ACCESS` set, those operations are silently dropped by the fuse controller.
 
 *Table: `AUTH_MANIFEST_METADATA_ENTRY` digest entries*
 

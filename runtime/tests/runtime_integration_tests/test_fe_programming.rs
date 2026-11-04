@@ -1,10 +1,14 @@
 // Licensed under the Apache-2.0 license.
 
 use crate::common::{run_rt_test, RuntimeTestArgs};
+use crate::test_set_auth_manifest::{
+    create_auth_manifest, model_set_manifest_command_execute, AuthManifestBuilderCfg,
+};
 use caliptra_api::{
     mailbox::{FeProgReq, MailboxReq, MailboxReqHeader},
     SocManager,
 };
+use caliptra_auth_man_types::AuthManifestFlags;
 use caliptra_builder::ImageOptions;
 use caliptra_common::mailbox_api::CommandId;
 use caliptra_error::CaliptraError;
@@ -55,6 +59,61 @@ fn test_fe_programming_cmd() {
 
     // Verify no fatal errors occurred
     assert_eq!(model.soc_ifc().cptra_fw_error_non_fatal().read(), 0);
+}
+
+#[cfg_attr(feature = "fpga_realtime", ignore)] // FE programming is not supported on core FPGA
+#[test]
+fn test_fe_programming_rejected_when_otp_dai_locked() {
+    let rom = crate::common::rom_for_fw_integration_tests().unwrap();
+    let init_params = InitParams {
+        rom: &rom,
+        security_state: *SecurityState::default().set_device_lifecycle(DeviceLifecycle::Production),
+        subsystem_mode: true,
+        ..Default::default()
+    };
+
+    let mut model = run_rt_test(RuntimeTestArgs {
+        init_params: Some(init_params),
+        subsystem_mode: true,
+        ..Default::default()
+    });
+
+    // Lock the DAI by installing a DISABLE_OTP_ACCESS manifest.
+    model_set_manifest_command_execute(
+        &mut model,
+        create_auth_manifest(&AuthManifestBuilderCfg {
+            manifest_flags: AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED
+                | AuthManifestFlags::DISABLE_OTP_ACCESS,
+            ..Default::default()
+        }),
+        None,
+    );
+
+    // `otp_fuse_bank()` is only available on the software emulator model.
+    #[cfg(not(any(
+        feature = "verilator",
+        feature = "fpga_realtime",
+        feature = "fpga_subsystem"
+    )))]
+    let before = model.otp_fuse_bank().to_vec();
+    let mut cmd = MailboxReq::FeProg(FeProgReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        partition: 1,
+    });
+    cmd.populate_chksum().unwrap();
+
+    assert_eq!(
+        model.mailbox_execute(u32::from(CommandId::FE_PROG), cmd.as_bytes().unwrap()),
+        Err(ModelError::MailboxCmdFailed(
+            CaliptraError::UDS_FE_OTP_DAI_LOCKED.into()
+        ))
+    );
+    #[cfg(not(any(
+        feature = "verilator",
+        feature = "fpga_realtime",
+        feature = "fpga_subsystem"
+    )))]
+    assert_eq!(model.otp_fuse_bank(), before);
 }
 
 #[test]

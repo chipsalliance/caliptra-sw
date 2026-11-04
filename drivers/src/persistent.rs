@@ -735,11 +735,17 @@ pub struct FwPersistentData {
     pub auth_manifest_svn: u32,
     #[cfg(feature = "runtime")]
     pub auth_manifest_is_debug: U8Bool,
+    // Set when the active SoC auth manifest carries DISABLE_OTP_ACCESS. Runtime clears the fuse
+    // controller DIRECT_ACCESS_REGWEN from this value before releasing MCU Runtime firmware.
+    // Survives warm and update resets and is cleared on cold reset with the manifest metadata.
+    #[cfg(feature = "runtime")]
+    pub otp_access_disabled: U8Bool,
     #[cfg(feature = "runtime")]
     reserved9: [u8; AUTH_MAN_IMAGE_METADATA_MAX_SIZE as usize
         - (SHA384_HASH_SIZE
             + size_of::<AuthManifestImageMetadataCollection>()
             + size_of::<u32>()
+            + size_of::<U8Bool>()
             + size_of::<U8Bool>())],
 
     #[cfg(not(feature = "runtime"))]
@@ -1107,6 +1113,8 @@ mod tests {
             (offset_of!(FwPersistentData, auth_manifest_svn), 27468, "auth_manifest_svn"),
             #[cfg(feature = "runtime")]
             (offset_of!(FwPersistentData, auth_manifest_is_debug), 27472, "auth_manifest_is_debug"),
+            #[cfg(feature = "runtime")]
+            (offset_of!(FwPersistentData, otp_access_disabled), 27473, "otp_access_disabled"),
             #[cfg(feature = "runtime")]
             (offset_of!(FwPersistentData, owner_auth_manifest_image_metadata_col), 27672, "owner_auth_manifest_image_metadata_col"),
             #[cfg(feature = "runtime")]

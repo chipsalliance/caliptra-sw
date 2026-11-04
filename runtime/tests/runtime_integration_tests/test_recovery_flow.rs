@@ -449,6 +449,70 @@ fn test_recovery_flow_debug_auth_manifest_disabled_by_strap() {
     }
 }
 
+#[cfg_attr(any(feature = "verilator", feature = "fpga_realtime"), ignore)]
+#[test]
+fn test_recovery_flow_disable_otp_access_locks_dai() {
+    let mcu_fw = vec![0x37u8; 256];
+    let flags =
+        AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED | AuthManifestFlags::DISABLE_OTP_ACCESS;
+
+    for pqc_key_type in PQC_KEY_TYPE {
+        let soc_manifest = create_recovery_auth_manifest(&mcu_fw, flags, pqc_key_type);
+        let rom = crate::common::rom_for_fw_integration_tests().unwrap();
+        let args = RuntimeTestArgs {
+            init_params: Some(InitParams {
+                rom: &rom,
+                subsystem_mode: true,
+                ..Default::default()
+            }),
+            subsystem_mode: true,
+            soc_manifest: Some(soc_manifest.as_bytes()),
+            mcu_fw_image: Some(&mcu_fw),
+            ..Default::default()
+        };
+        let mut model = run_rt_test_pqc(args, pqc_key_type);
+        model.step_until_boot_status(RT_READY_FOR_COMMANDS, true);
+
+        assert_eq!(
+            get_fwinfo_allow_attestation_disabled(&mut model).otp_lock_policy,
+            FwInfoResp::OTP_ACCESS_DISABLED_BY_MANIFEST | FwInfoResp::OTP_DAI_LOCKED
+        );
+    }
+}
+
+#[cfg_attr(any(feature = "verilator", feature = "fpga_realtime"), ignore)]
+#[test]
+fn test_recovery_flow_without_disable_otp_access_leaves_dai_unlocked() {
+    let mcu_fw = vec![0x37u8; 256];
+
+    for pqc_key_type in PQC_KEY_TYPE {
+        let soc_manifest = create_recovery_auth_manifest(
+            &mcu_fw,
+            AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED,
+            pqc_key_type,
+        );
+        let rom = crate::common::rom_for_fw_integration_tests().unwrap();
+        let args = RuntimeTestArgs {
+            init_params: Some(InitParams {
+                rom: &rom,
+                subsystem_mode: true,
+                ..Default::default()
+            }),
+            subsystem_mode: true,
+            soc_manifest: Some(soc_manifest.as_bytes()),
+            mcu_fw_image: Some(&mcu_fw),
+            ..Default::default()
+        };
+        let mut model = run_rt_test_pqc(args, pqc_key_type);
+        model.step_until_boot_status(RT_READY_FOR_COMMANDS, true);
+
+        assert_eq!(
+            get_fwinfo_allow_attestation_disabled(&mut model).otp_lock_policy,
+            0
+        );
+    }
+}
+
 #[test]
 fn test_debug_auth_manifest_recovery_reason() {
     assert_eq!(

@@ -40,6 +40,7 @@ mod invoke_dpe;
 pub mod key_ladder;
 pub mod manifest;
 mod ocp_lock;
+mod otp_lock;
 mod pcr;
 mod populate_idev;
 mod reallocate_dpe_context_limits;

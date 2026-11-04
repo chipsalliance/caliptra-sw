@@ -225,10 +225,13 @@ struct caliptra_fw_info_resp
     uint32_t owner_auth_manifest_current_svn;
     uint32_t owner_auth_manifest_min_svn;
     uint32_t debug_policy;
+    uint32_t otp_lock_policy;
 };
 
 #define CALIPTRA_FW_INFO_DEBUG_FIRMWARE_ACTIVE (1U << 0)
 #define CALIPTRA_FW_INFO_DEBUG_AUTH_MANIFEST_ACTIVE (1U << 1)
+#define CALIPTRA_FW_INFO_OTP_ACCESS_DISABLED_BY_MANIFEST (1U << 0)
+#define CALIPTRA_FW_INFO_OTP_DAI_LOCKED (1U << 1)
 
 struct caliptra_dpe_tag_tci_req
 {

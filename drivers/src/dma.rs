@@ -550,6 +550,7 @@ impl<'a> DmaRecovery<'a> {
     pub const RECOVERY_REASON_PQC_CONFIGURATION_INVALID: u32 = 0x87;
     pub const RECOVERY_REASON_FIRMWARE_VERSION_INVALID: u32 = 0x88;
     pub const RECOVERY_REASON_DEBUG_IMAGE_NOT_ALLOWED: u32 = 0x89;
+    pub const RECOVERY_REASON_OTP_LOCK_FAILED: u32 = 0x8A;
 
     pub const RECOVERY_STATUS_AWAITING_RECOVERY_IMAGE: u32 = 0x1;
     const RECOVERY_STATUS_BOOTING_RECOVERY_IMAGE: u32 = 0x2;
@@ -1670,7 +1671,72 @@ impl<'a> DmaOtpCtrl<'a> {
     }
 }
 
-// OCP LOCK Encryption engine CTRL command codes
+/// Fuse controller Direct Access Interface (DAI) lock helpers.
+///
+/// `DIRECT_ACCESS_REGWEN` is RW0C and gates the DAI CMD / ADDRESS / WDATA /
+/// `*_READ_LOCK` registers. While it is clear the fuse controller drops those
+/// writes without raising an error, so a DAI user that does not check it
+/// first sees a silently ignored command and stale RDATA. It is set back to 1
+/// only by subsystem reset.
+///
+/// Register addresses come from the integrator straps (`SS_STRAP_GENERIC[0..1]`)
+/// like the rest of the DAI code. `DIRECT_ACCESS_REGWEN` sits immediately
+/// before `DIRECT_ACCESS_CMD` (0x7C / 0x80 in caliptra-ss `otp_ctrl.rdl`).
+pub struct OtpDai<'a> {
+    status_addr: AxiAddr,
+    dai_idle_mask: u32,
+    regwen_addr: AxiAddr,
+    dma: &'a Dma,
+}
+
+impl<'a> OtpDai<'a> {
+    const REGWEN_OFFSET_BEFORE_CMD: u64 = 0x4;
+    const REGWEN_BIT: u32 = 1 << 0;
+
+    pub fn new(soc_ifc: &SocIfc, dma: &'a Dma) -> Self {
+        let base = soc_ifc.fuse_controller_base_addr();
+        let cmd_addr = base + soc_ifc.otp_direct_access_cmd_reg_offset() as u64;
+        Self {
+            status_addr: AxiAddr::from(base + soc_ifc.otp_status_reg_offset() as u64),
+            dai_idle_mask: 1 << soc_ifc.otp_dai_idle_bit_num(),
+            regwen_addr: AxiAddr::from(cmd_addr - Self::REGWEN_OFFSET_BEFORE_CMD),
+            dma,
+        }
+    }
+
+    /// Spins until the DAI reports idle.
+    pub fn wait_for_idle(&self) {
+        while self.dma.read_dword(self.status_addr) & self.dai_idle_mask == 0 {}
+    }
+
+    /// Returns true if the DAI is locked until the next subsystem reset.
+    ///
+    /// The REGWEN readback is `regwen & dai_idle`, so this waits for the DAI
+    /// to go idle before sampling it.
+    pub fn is_locked(&self) -> bool {
+        self.wait_for_idle();
+        self.dma.read_dword(self.regwen_addr) & Self::REGWEN_BIT == 0
+    }
+
+    /// Fails with `UDS_FE_OTP_DAI_LOCKED` if the DAI is locked. Call before
+    /// issuing any DAI command so a dropped command is not mistaken for a
+    /// completed one.
+    pub fn ensure_unlocked(&self) -> CaliptraResult<()> {
+        if self.is_locked() {
+            Err(CaliptraError::UDS_FE_OTP_DAI_LOCKED)
+        } else {
+            Ok(())
+        }
+    }
+
+    /// Clears `DIRECT_ACCESS_REGWEN` and confirms the readback. Returns true
+    /// if the DAI is locked afterwards.
+    pub fn lock(&self) -> bool {
+        // RW0C: writing 0 clears the enable regardless of DAI state.
+        self.dma.write_dword(self.regwen_addr, 0);
+        self.is_locked()
+    }
+}
 bitfield! {
     struct EncryptionEngineCtrl(u32);
     u8;

@@ -13,10 +13,11 @@ Abstract:
 --*/
 
 use bitfield::size_of;
-use caliptra_emu_bus::{Bus, BusError, ReadOnlyRegister, WriteOnlyRegister};
+use caliptra_emu_bus::{Bus, BusError, ReadOnlyRegister, ReadWriteRegister, WriteOnlyRegister};
 use caliptra_emu_derive::Bus;
 use caliptra_emu_types::RvSize;
 use smlang::statemachine;
+use tock_registers::interfaces::{Readable, Writeable};
 use tock_registers::register_bitfields;
 
 use crate::SocRegistersInternal;
@@ -273,6 +274,11 @@ pub struct FuseController {
     #[register(offset = 0x10, read_fn = read_status)]
     status: ReadOnlyRegister<u32, Status::Register>,
 
+    /// DIRECT_ACCESS_REGWEN: RW0C. While clear, writes to the DAI CMD,
+    /// ADDRESS and WDATA registers are dropped without error.
+    #[register(offset = 0x7c, read_fn = read_regwen, write_fn = write_regwen)]
+    direct_access_regwen: ReadWriteRegister<u32>,
+
     #[register(offset = 0x80, write_fn = write_cmd)]
     direct_access_cmd: WriteOnlyRegister<u32>,
 
@@ -300,6 +306,7 @@ impl FuseController {
     pub fn new(soc_reg: SocRegistersInternal) -> Self {
         Self {
             status: ReadOnlyRegister::new(Status::DAI_IDLE::Idle.value),
+            direct_access_regwen: ReadWriteRegister::new(1),
             direct_access_cmd: WriteOnlyRegister::new(0),
             direct_access_address: WriteOnlyRegister::new(0),
             direct_access_wdata_0: WriteOnlyRegister::new(0),
@@ -322,7 +329,28 @@ impl FuseController {
         Ok(value)
     }
 
+    pub fn read_regwen(&self, _size: RvSize) -> Result<u32, BusError> {
+        // Hardware reports regwen & dai_idle.
+        let idle = matches!(self.state_machine.state(), States::Idle);
+        Ok(u32::from(self.regwen_enabled() && idle))
+    }
+
+    pub fn write_regwen(&mut self, _size: RvSize, val: u32) -> Result<(), BusError> {
+        // RW0C: writing 0 clears the enable; writing 1 has no effect.
+        if val & 1 == 0 {
+            self.direct_access_regwen.reg.set(0);
+        }
+        Ok(())
+    }
+
+    fn regwen_enabled(&self) -> bool {
+        self.direct_access_regwen.reg.get() & 1 != 0
+    }
+
     pub fn write_cmd(&mut self, _size: RvSize, val: u32) -> Result<(), BusError> {
+        if !self.regwen_enabled() {
+            return Ok(());
+        }
         if let Ok(cmd) = DaiCmd::try_from(val) {
             // Reset error state before new command
             self.state_machine.context.dai_error = false;
@@ -343,6 +371,9 @@ impl FuseController {
     }
 
     pub fn write_address(&mut self, _size: RvSize, val: u32) -> Result<(), BusError> {
+        if !self.regwen_enabled() {
+            return Ok(());
+        }
         // Read the UDS seed base address from SoC registers to determine the
         // fuse bank base. The firmware writes (dest & 0xFFF) where dest is
         // computed relative to this base.
@@ -363,12 +394,18 @@ impl FuseController {
     }
 
     pub fn write_wdata0(&mut self, _size: RvSize, val: u32) -> Result<(), BusError> {
+        if !self.regwen_enabled() {
+            return Ok(());
+        }
         self.state_machine.context.wdata0 = Some(val);
         self.state_machine.context.rdata0 = Some(val);
         Ok(())
     }
 
     pub fn write_wdata1(&mut self, _size: RvSize, val: u32) -> Result<(), BusError> {
+        if !self.regwen_enabled() {
+            return Ok(());
+        }
         self.state_machine.context.wdata1 = Some(val);
         self.state_machine.context.rdata1 = Some(val);
         Ok(())

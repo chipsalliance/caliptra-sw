@@ -2048,6 +2048,16 @@ impl CaliptraError {
             0x000E00B5,
             "Runtime Error: UDS/FE zeroization requires subsystem mode"
         ),
+        (
+            RUNTIME_AUTH_MANIFEST_DISABLE_OTP_ACCESS_NOT_SUBSYSTEM_MODE,
+            0x000E00B6,
+            "Runtime Error: Auth manifest DISABLE_OTP_ACCESS flag requires subsystem mode"
+        ),
+        (
+            RUNTIME_OTP_LOCK_FAILED,
+            0x000E00B7,
+            "Runtime Error: Failed to lock the fuse controller Direct Access Interface"
+        ),
         // FMC Errors
         (FMC_GLOBAL_NMI, 0x000F0001, "FMC Error: Global NMI"),
         (
@@ -3028,6 +3038,11 @@ impl CaliptraError {
             UDS_FE_PROGRAMMING_ZEROIZATION_FAILED,
             0xa006_0005,
             "UDS FE Zeroization Failed"
+        ),
+        (
+            UDS_FE_OTP_DAI_LOCKED,
+            0xa006_0006,
+            "UDS FE Error: OTP Direct Access Interface is locked (DIRECT_ACCESS_REGWEN is clear)"
         ),
     ];
 }

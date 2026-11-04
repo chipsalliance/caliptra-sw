@@ -57,6 +57,10 @@ bitflags::bitflags! {
     pub struct AuthManifestFlags : u32 {
         const VENDOR_SIGNATURE_REQUIRED = 0b1;
         const DEBUG_IMAGE = 0b10;
+        /// Lock the fuse controller Direct Access Interface (clear
+        /// `DIRECT_ACCESS_REGWEN`) before MCU Runtime firmware is released.
+        /// Subsystem mode only.
+        const DISABLE_OTP_ACCESS = 0b100;
     }
 }
 
@@ -114,7 +118,7 @@ pub struct AuthManifestPreamble {
 
     pub svn: u32,
 
-    pub flags: u32, // AuthManifestFlags(VENDOR_SIGNATURE_REQUIRED, DEBUG_IMAGE)
+    pub flags: u32, // AuthManifestFlags(VENDOR_SIGNATURE_REQUIRED, DEBUG_IMAGE, DISABLE_OTP_ACCESS)
 
     pub vendor_pub_keys: AuthManifestPubKeys,
 
