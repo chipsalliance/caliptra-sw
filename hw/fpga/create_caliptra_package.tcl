@@ -50,6 +50,15 @@ exec sed -i {1i `include \"config_defines.svh\"} $outputDir/ahb_lite_address_dec
 remove_files [ glob $rtlDir/src/ahb_lite_bus/rtl/ahb_lite_address_decoder.sv ]
 add_files $outputDir/ahb_lite_address_decoder.sv
 
+# Workaround for 2.2 onwards: the included files are placed in a flat directory.
+set mubi $rtlDir/src/riscv_core/veer_el2/rtl/el2_mubi_pkg.sv
+if {[file exists $mubi]} {
+  file copy -force $mubi $outputDir/el2_mubi_pkg.sv
+  exec sed -i {s|lib/el2_assert.sv|el2_assert.sv|} $outputDir/el2_mubi_pkg.sv
+  remove_files $mubi
+  add_files $outputDir/el2_mubi_pkg.sv
+}
+
 # Mark all Verilog sources as SystemVerilog because some of them have SystemVerilog syntax.
 set_property file_type SystemVerilog [get_files *.v]
 
