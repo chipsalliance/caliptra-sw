@@ -38,7 +38,7 @@ jobs:
           EOF
           )
           echo "matrix=$(echo "$MATRIX" | jq -c .)" >> $GITHUB_OUTPUT
-          echo "variants=$(echo "$MATRIX" | jq -c '[.include[].variant]')" >> $GITHUB_OUTPUT
+          echo "variants=$(echo "$MATRIX" | jq -c '[.include[] | select(.segmented) | .variant]')" >> $GITHUB_OUTPUT
 
   build-bitstream:
     needs: setup
