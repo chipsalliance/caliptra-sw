@@ -32,7 +32,10 @@ add_files [ glob $rtlDir/src/*/rtl/*.v ]
 
 # Remove spi_host files that aren't used yet and are flagged as having syntax errors
 # TODO: Re-include these files when spi_host is used.
-remove_files [ glob $rtlDir/src/spi_host/rtl/*.sv ]
+set spi_host_files [glob -nocomplain $rtlDir/src/spi_host/rtl/*.sv]
+if {[llength $spi_host_files] > 0} {
+  remove_files $spi_host_files
+}
 
 # Add FPGA specific sources
 add_files [ glob $fpgaDir/src/*.sv]

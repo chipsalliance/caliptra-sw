@@ -127,7 +127,7 @@ jobs:
         run: rm -rf manifest-bundle
 
   open-pr:
-    needs: build-bitstream
+    needs: [setup, build-bitstream]
     runs-on: ubuntu-latest
     permissions:
       contents: write
