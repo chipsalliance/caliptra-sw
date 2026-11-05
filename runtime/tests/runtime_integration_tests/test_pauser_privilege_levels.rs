@@ -42,8 +42,8 @@ use caliptra_dpe::{
 use zerocopy::IntoBytes;
 
 use crate::common::{
-    assert_error, execute_dpe_cmd, run_rt_test, run_rt_test_pqc, DpeResult, RuntimeTestArgs,
-    TEST_LABEL,
+    assert_error, execute_dpe_cmd, get_boot_dpe_context_info, run_rt_test, run_rt_test_pqc,
+    DpeResult, RuntimeTestArgs, TEST_LABEL,
 };
 use crate::test_info::get_fwinfo;
 
@@ -54,6 +54,7 @@ fn test_pl0_derive_context_dpe_context_thresholds() {
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
     });
+    let boot_context = get_boot_dpe_context_info(&mut model);
 
     // First rotate the default context so that we don't run into an error
     // when trying to retain the default context in derive child.
@@ -74,12 +75,8 @@ fn test_pl0_derive_context_dpe_context_thresholds() {
 
     // Call DeriveContext with PL0 enough times to breach the threshold on the last iteration.
     // Caliptra-owned PL0 contexts consume part of the PL0 threshold before mailbox commands run.
-    let num_iterations = if model.subsystem_mode() {
-        // Subsystem uses contexts for SOMV, SOMO, MCU FW, and field entropy state.
-        PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD - 5
-    } else {
-        PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD - 1
-    };
+    let num_iterations =
+        PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD - boot_context.pl0_context_count + 1;
     for i in 0..num_iterations {
         let derive_context_cmd = DeriveContextCmd {
             handle,
@@ -200,11 +197,9 @@ fn test_pl0_init_ctx_dpe_context_thresholds() {
     });
 
     // Caliptra-owned PL0 contexts consume part of the PL0 threshold before mailbox commands run.
-    let num_iterations = if model.subsystem_mode() {
-        PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD - 5
-    } else {
-        PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD - 1
-    };
+    let num_iterations = PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD
+        - get_boot_dpe_context_info(&mut model).pl0_context_count
+        + 1;
     for i in 0..num_iterations {
         let init_ctx_cmd = InitCtxCmd::new_simulation();
 
@@ -754,13 +749,8 @@ fn test_stash_measurement_pl_context_thresholds() {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
     });
 
-    // Root node and RT journey (which is technically the Caliptra locality) count as PL0.
-    // In subsystem mode, SOMV, SOMO, MCU FW, and field entropy state also use PL0 contexts.
-    let num_iterations = if model.subsystem_mode() {
-        PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD - 6
-    } else {
-        PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD - 2
-    };
+    let num_iterations = PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD
+        - get_boot_dpe_context_info(&mut model).pl0_context_count;
 
     for i in 0..num_iterations {
         let mut cmd = MailboxReq::StashMeasurement(StashMeasurementReq {
@@ -805,12 +795,9 @@ fn test_measurement_log_pl_context_threshold() {
 
     // Upload enough measurements to the measurement log to breach the PL0 DPE context threshold
     // after accounting for Caliptra-owned startup contexts.
-    let invocations = if model.subsystem_mode() {
-        // SOMV, SOMO, MCU FW, and field entropy state use extra DPE contexts.
-        PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD - 5
-    } else {
-        PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD - 1
-    };
+    let invocations = PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD
+        - get_boot_dpe_context_info(&mut model).pl0_context_count
+        + 1;
     for idx in 0..invocations as u8 {
         let mut measurement = StashMeasurementReq {
             measurement: [0xdeadbeef_u32; 12].as_bytes().try_into().unwrap(),
