@@ -2004,19 +2004,28 @@ fn test_toc_source_bounds_recovery_reason() {
     }
 }
 
+#[derive(Clone, Copy)]
 enum TocSourceLayout {
     RuntimePastBundle,
     RuntimeGap,
     ContiguousWithPadding,
 }
 
+const FPGA_RECOVERY_BLOCK_SIZE: usize = 256;
+
 fn run_toc_source_bounds_test(layout: TocSourceLayout) {
+    for transfer_alignment in [4, FPGA_RECOVERY_BLOCK_SIZE] {
+        run_toc_source_bounds_test_with_alignment(layout, transfer_alignment);
+    }
+}
+
+fn run_toc_source_bounds_test_with_alignment(layout: TocSourceLayout, transfer_alignment: usize) {
     const GAP_SIZE: usize = 16;
     const PADDING_SIZE: usize = 16;
 
     let (declared_gap, actual_gap, padding, expected_error) = match layout {
         TocSourceLayout::RuntimePastBundle => (
-            GAP_SIZE,
+            0,
             0,
             0,
             Some(CaliptraError::IMAGE_VERIFIER_ERR_IMAGE_LEN_MORE_THAN_BUNDLE_SIZE),
@@ -2063,6 +2072,32 @@ fn run_toc_source_bounds_test(layout: TocSourceLayout) {
             image.resize(image.len() + actual_gap, 0);
             image.extend_from_slice(&contiguous_image[runtime.offset as usize..]);
             image.resize(image.len() + padding, 0);
+            if matches!(layout, TocSourceLayout::RuntimePastBundle) {
+                // Recovery padding must not repair the truncated Runtime payload.
+                image.truncate(
+                    image
+                        .len()
+                        .checked_sub(FPGA_RECOVERY_BLOCK_SIZE)
+                        .expect("test image must contain a complete recovery block"),
+                );
+            }
+            image.resize(image.len().next_multiple_of(transfer_alignment), 0);
+            if matches!(layout, TocSourceLayout::RuntimePastBundle) {
+                let fmc_end = image_bundle
+                    .manifest
+                    .fmc
+                    .offset
+                    .checked_add(image_bundle.manifest.fmc.size)
+                    .unwrap();
+                assert_eq!(image_bundle.manifest.runtime.offset, fmc_end);
+                let runtime_end = image_bundle
+                    .manifest
+                    .runtime
+                    .offset
+                    .checked_add(image_bundle.manifest.runtime.size)
+                    .unwrap();
+                assert!(image.len() < usize::try_from(runtime_end).unwrap());
+            }
 
             if let Some(expected_error) = expected_error {
                 helpers::assert_fatal_fw_load(&mut hw, pqc_key_type, &image, expected_error);
