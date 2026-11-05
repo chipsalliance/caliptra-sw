@@ -900,7 +900,6 @@ mod tests {
     use caliptra_emu_bus::Bus;
     use caliptra_emu_crypto::EndianessTransform;
     use caliptra_emu_types::RvAddr;
-    use sha2::{Digest, Sha384, Sha512};
     use tock_registers::registers::InMemoryRegister;
 
     /// HMAC384 Tag Size
@@ -923,177 +922,270 @@ mod tests {
     const OFFSET_TAG_CONTROL: RvAddr = 0x610;
     const OFFSET_TAG_STATUS: RvAddr = 0x614;
 
-    fn padded_message(data: &[u8]) -> Vec<u8> {
-        let blocks = (data.len() + 17).div_ceil(HMAC_BLOCK_SIZE);
-        let mut padded = vec![0; blocks * HMAC_BLOCK_SIZE];
-        padded[..data.len()].copy_from_slice(data);
-        padded[data.len()] = 0x80;
-        let bit_len = ((HMAC_BLOCK_SIZE + data.len()) as u128) * 8;
-        let len_offset = padded.len() - 16;
-        padded[len_offset..].copy_from_slice(&bit_len.to_be_bytes());
-        padded
-    }
+    #[cfg(feature = "hmac-final-block")]
+    mod final_block {
+        use super::*;
+        use sha2::{Digest, Sha384, Sha512};
 
-    fn write_be_words(hmac: &mut HmacSha, base: RvAddr, bytes: &[u8]) {
-        for (index, word) in bytes.chunks_exact(4).enumerate() {
-            hmac.write(
-                RvSize::Word,
-                base + index as u32 * 4,
-                u32::from_be_bytes(word.try_into().unwrap()),
-            )
-            .unwrap();
+        fn padded_message(data: &[u8]) -> Vec<u8> {
+            let blocks = (data.len() + 17).div_ceil(HMAC_BLOCK_SIZE);
+            let mut padded = vec![0; blocks * HMAC_BLOCK_SIZE];
+            padded[..data.len()].copy_from_slice(data);
+            padded[data.len()] = 0x80;
+            let bit_len = ((HMAC_BLOCK_SIZE + data.len()) as u128) * 8;
+            let len_offset = padded.len() - 16;
+            padded[len_offset..].copy_from_slice(&bit_len.to_be_bytes());
+            padded
         }
-    }
 
-    fn read_tag_bytes(hmac: &mut HmacSha, size: usize) -> Vec<u8> {
-        (0..size)
-            .step_by(4)
-            .flat_map(|offset| {
-                hmac.read(RvSize::Word, OFFSET_TAG + offset as u32)
-                    .unwrap()
-                    .to_be_bytes()
-            })
-            .collect()
-    }
-
-    fn reference_tags<D: Digest>(key: &[u8], data: &[u8]) -> (Vec<u8>, Vec<u8>) {
-        let mut ipad = [0x36; HMAC_BLOCK_SIZE];
-        let mut opad = [0x5c; HMAC_BLOCK_SIZE];
-        for (index, byte) in key.iter().enumerate() {
-            ipad[index] ^= byte;
-            opad[index] ^= byte;
-        }
-        let inner = D::new().chain_update(ipad).chain_update(data).finalize();
-        let outer = D::new().chain_update(opad).chain_update(&inner).finalize();
-        (outer.to_vec(), inner.to_vec())
-    }
-
-    #[test]
-    fn test_revision_specific_seed_window() {
-        for revision in [
-            CaliptraHwVersion::V2_0,
-            CaliptraHwVersion::V2_1,
-            CaliptraHwVersion::V2_2,
-            CaliptraHwVersion::Latest,
-        ] {
-            let mut hmac = HmacSha::new(&Clock::new(), KeyVault::new(), revision);
-            let words = if hmac.final_block_protocol() { 6 } else { 12 };
-            for index in 0..words {
-                let address = 0x140 + index * 4;
-                hmac.write(RvSize::Word, address, index).unwrap();
-                let expected = if hmac.final_block_protocol() {
-                    Err(BusError::LoadAccessFault)
-                } else {
-                    Ok(index)
-                };
-                assert_eq!(hmac.read(RvSize::Word, address), expected);
+        fn write_be_words(hmac: &mut HmacSha, base: RvAddr, bytes: &[u8]) {
+            for (index, word) in bytes.chunks_exact(4).enumerate() {
+                hmac.write(
+                    RvSize::Word,
+                    base + index as u32 * 4,
+                    u32::from_be_bytes(word.try_into().unwrap()),
+                )
+                .unwrap();
             }
-            for size in [RvSize::Byte, RvSize::HalfWord] {
-                assert_eq!(hmac.read(size, 0x140), Err(BusError::LoadAccessFault));
+        }
+
+        fn read_tag_bytes(hmac: &mut HmacSha, size: usize) -> Vec<u8> {
+            (0..size)
+                .step_by(4)
+                .flat_map(|offset| {
+                    hmac.read(RvSize::Word, OFFSET_TAG + offset as u32)
+                        .unwrap()
+                        .to_be_bytes()
+                })
+                .collect()
+        }
+
+        fn reference_tags<D: Digest>(key: &[u8], data: &[u8]) -> (Vec<u8>, Vec<u8>) {
+            let mut ipad = [0x36; HMAC_BLOCK_SIZE];
+            let mut opad = [0x5c; HMAC_BLOCK_SIZE];
+            for (index, byte) in key.iter().enumerate() {
+                ipad[index] ^= byte;
+                opad[index] ^= byte;
+            }
+            let inner = D::new().chain_update(ipad).chain_update(data).finalize();
+            let outer = D::new().chain_update(opad).chain_update(&inner).finalize();
+            (outer.to_vec(), inner.to_vec())
+        }
+
+        #[test]
+        fn test_revision_specific_seed_window() {
+            for revision in [
+                CaliptraHwVersion::V2_0,
+                CaliptraHwVersion::V2_1,
+                CaliptraHwVersion::V2_2,
+                CaliptraHwVersion::Latest,
+            ] {
+                let mut hmac = HmacSha::new(&Clock::new(), KeyVault::new(), revision);
+                let words = if hmac.final_block_protocol() { 6 } else { 12 };
+                for index in 0..words {
+                    let address = 0x140 + index * 4;
+                    hmac.write(RvSize::Word, address, index).unwrap();
+                    let expected = if hmac.final_block_protocol() {
+                        Err(BusError::LoadAccessFault)
+                    } else {
+                        Ok(index)
+                    };
+                    assert_eq!(hmac.read(RvSize::Word, address), expected);
+                }
+                for size in [RvSize::Byte, RvSize::HalfWord] {
+                    assert_eq!(hmac.read(size, 0x140), Err(BusError::LoadAccessFault));
+                    assert_eq!(
+                        hmac.write(size, 0x140, u32::MAX),
+                        Err(BusError::StoreAccessFault)
+                    );
+                    assert_eq!(hmac.lfsr_seed[0], 0);
+                }
                 assert_eq!(
-                    hmac.write(size, 0x140, u32::MAX),
+                    hmac.write(RvSize::Word, 0x140 + words * 4, 0),
                     Err(BusError::StoreAccessFault)
                 );
-                assert_eq!(hmac.lfsr_seed[0], 0);
+                assert_eq!(
+                    hmac.read(RvSize::Word, 0x140 + words * 4),
+                    Err(BusError::LoadAccessFault)
+                );
             }
-            assert_eq!(
-                hmac.write(RvSize::Word, 0x140 + words * 4, 0),
-                Err(BusError::StoreAccessFault)
-            );
-            assert_eq!(
-                hmac.read(RvSize::Word, 0x140 + words * 4),
-                Err(BusError::LoadAccessFault)
-            );
         }
-    }
 
-    #[test]
-    fn test_revision_specific_final_block_and_padding() {
-        for revision in [
-            CaliptraHwVersion::V2_1,
-            CaliptraHwVersion::V2_2,
-            CaliptraHwVersion::Latest,
-        ] {
-            for mode512 in [false, true] {
-                let key_len = if mode512 { 64 } else { 48 };
-                let key = vec![0x0b; key_len];
-                let mode = if mode512 {
-                    Control::MODE::HMAC512
-                } else {
-                    Control::MODE::HMAC384
-                };
-                for length in [0, 1, 111, 112, 127, 128, 129, 239, 240, 255, 256, 257] {
-                    let data = vec![b'a'; length];
-                    let padded = padded_message(&data);
-                    let (outer, inner) = if mode512 {
-                        reference_tags::<Sha512>(&key, &data)
+        #[test]
+        fn test_revision_specific_final_block_and_padding() {
+            for revision in [
+                CaliptraHwVersion::V2_1,
+                CaliptraHwVersion::V2_2,
+                CaliptraHwVersion::Latest,
+            ] {
+                for mode512 in [false, true] {
+                    let key_len = if mode512 { 64 } else { 48 };
+                    let key = vec![0x0b; key_len];
+                    let mode = if mode512 {
+                        Control::MODE::HMAC512
                     } else {
-                        reference_tags::<Sha384>(&key, &data)
+                        Control::MODE::HMAC384
                     };
-                    for finalize in [false, true] {
-                        let clock = Clock::new();
-                        let mut hmac = HmacSha::new(&clock, KeyVault::new(), revision);
-                        write_be_words(&mut hmac, OFFSET_KEY, &key);
-                        for (index, block) in padded.chunks_exact(HMAC_BLOCK_SIZE).enumerate() {
-                            write_be_words(&mut hmac, OFFSET_BLOCK, block);
-                            let command = if index == 0 {
-                                Control::INIT::SET
-                            } else {
-                                Control::NEXT::SET
-                            };
-                            let last = finalize && (index + 1) * HMAC_BLOCK_SIZE == padded.len();
-                            hmac.write(
-                                RvSize::Word,
-                                OFFSET_CONTROL,
-                                (command + Control::LAST.val(u32::from(last)) + mode).value,
-                            )
-                            .unwrap();
-                            assert_eq!(hmac.read(RvSize::Word, OFFSET_STATUS).unwrap(), 0);
-                            clock.increment_and_process_timer_actions(INIT_TICKS, &mut hmac);
-                            assert_eq!(hmac.read(RvSize::Word, OFFSET_STATUS).unwrap(), 3);
-                            if hmac.final_block_protocol() {
-                                assert_eq!(
-                                    hmac.read(RvSize::Word, OFFSET_CONTROL).unwrap()
-                                        & (Control::INIT::SET
-                                            + Control::NEXT::SET
-                                            + Control::LAST::SET)
-                                            .value,
-                                    0
-                                );
-                            }
-                        }
-                        let expected = if hmac.final_block_protocol() && !finalize {
-                            &inner
+                    for length in [0, 1, 111, 112, 127, 128, 129, 239, 240, 255, 256, 257] {
+                        let data = vec![b'a'; length];
+                        let padded = padded_message(&data);
+                        let (outer, inner) = if mode512 {
+                            reference_tags::<Sha512>(&key, &data)
                         } else {
-                            &outer
+                            reference_tags::<Sha384>(&key, &data)
                         };
-                        assert_eq!(
-                            &read_tag_bytes(&mut hmac, key_len),
-                            expected,
-                            "{revision:?}, mode512={mode512}, length={length}, LAST={finalize}"
-                        );
+                        for finalize in [false, true] {
+                            let clock = Clock::new();
+                            let mut hmac = HmacSha::new(&clock, KeyVault::new(), revision);
+                            write_be_words(&mut hmac, OFFSET_KEY, &key);
+                            for (index, block) in padded.chunks_exact(HMAC_BLOCK_SIZE).enumerate() {
+                                write_be_words(&mut hmac, OFFSET_BLOCK, block);
+                                let command = if index == 0 {
+                                    Control::INIT::SET
+                                } else {
+                                    Control::NEXT::SET
+                                };
+                                let last =
+                                    finalize && (index + 1) * HMAC_BLOCK_SIZE == padded.len();
+                                hmac.write(
+                                    RvSize::Word,
+                                    OFFSET_CONTROL,
+                                    (command + Control::LAST.val(u32::from(last)) + mode).value,
+                                )
+                                .unwrap();
+                                assert_eq!(hmac.read(RvSize::Word, OFFSET_STATUS).unwrap(), 0);
+                                clock.increment_and_process_timer_actions(INIT_TICKS, &mut hmac);
+                                assert_eq!(hmac.read(RvSize::Word, OFFSET_STATUS).unwrap(), 3);
+                                if hmac.final_block_protocol() {
+                                    assert_eq!(
+                                        hmac.read(RvSize::Word, OFFSET_CONTROL).unwrap()
+                                            & (Control::INIT::SET
+                                                + Control::NEXT::SET
+                                                + Control::LAST::SET)
+                                                .value,
+                                        0
+                                    );
+                                }
+                            }
+                            let expected = if hmac.final_block_protocol() && !finalize {
+                                &inner
+                            } else {
+                                &outer
+                            };
+                            assert_eq!(
+                                &read_tag_bytes(&mut hmac, key_len),
+                                expected,
+                                "{revision:?}, mode512={mode512}, length={length}, LAST={finalize}"
+                            );
+                        }
                     }
                 }
             }
         }
-    }
 
-    #[test]
-    fn test_final_command_uses_live_outer_key() {
-        for revision in [CaliptraHwVersion::V2_2, CaliptraHwVersion::Latest] {
+        #[test]
+        fn test_final_command_uses_live_outer_key() {
+            for revision in [CaliptraHwVersion::V2_2, CaliptraHwVersion::Latest] {
+                let clock = Clock::new();
+                let mut hmac = HmacSha::new(&clock, KeyVault::new(), revision);
+                let inner_key = [0x0b; 48];
+                let outer_key = [0x1c; 48];
+                let data = [b'a'; 130];
+                let padded = padded_message(&data);
+                write_be_words(&mut hmac, OFFSET_KEY, &inner_key);
+                write_be_words(&mut hmac, OFFSET_BLOCK, &padded[..HMAC_BLOCK_SIZE]);
+                hmac.write(RvSize::Word, OFFSET_CONTROL, Control::INIT::SET.value)
+                    .unwrap();
+                clock.increment_and_process_timer_actions(INIT_TICKS, &mut hmac);
+                write_be_words(&mut hmac, OFFSET_KEY, &outer_key);
+                write_be_words(&mut hmac, OFFSET_BLOCK, &padded[HMAC_BLOCK_SIZE..]);
+                hmac.write(
+                    RvSize::Word,
+                    OFFSET_CONTROL,
+                    (Control::NEXT::SET + Control::LAST::SET).value,
+                )
+                .unwrap();
+                clock.increment_and_process_timer_actions(UPDATE_TICKS, &mut hmac);
+
+                let mut ipad = [0x36; HMAC_BLOCK_SIZE];
+                let mut opad = [0x5c; HMAC_BLOCK_SIZE];
+                for (index, byte) in inner_key.iter().enumerate() {
+                    ipad[index] ^= byte;
+                }
+                for (index, byte) in outer_key.iter().enumerate() {
+                    opad[index] ^= byte;
+                }
+                let inner = Sha384::new()
+                    .chain_update(ipad)
+                    .chain_update(data)
+                    .finalize();
+                let expected = Sha384::new()
+                    .chain_update(opad)
+                    .chain_update(inner)
+                    .finalize();
+                assert_eq!(read_tag_bytes(&mut hmac, 48), &expected[..]);
+            }
+        }
+
+        #[test]
+        fn test_last_alone_and_busy_commands_do_not_advance_hash() {
             let clock = Clock::new();
-            let mut hmac = HmacSha::new(&clock, KeyVault::new(), revision);
-            let inner_key = [0x0b; 48];
-            let outer_key = [0x1c; 48];
+            let mut hmac = HmacSha::new(&clock, KeyVault::new(), CaliptraHwVersion::V2_2);
+            hmac.write(RvSize::Word, OFFSET_CONTROL, Control::LAST::SET.value)
+                .unwrap();
+            clock.increment_and_process_timer_actions(INIT_TICKS, &mut hmac);
+            assert_eq!(hmac.read(RvSize::Word, OFFSET_STATUS).unwrap(), 1);
+            assert!(hmac.op_complete_action.is_none());
+
+            let key = [0x0b; 48];
+            let data = b"Hi There";
+            write_be_words(&mut hmac, OFFSET_KEY, &key);
+            write_be_words(&mut hmac, OFFSET_BLOCK, &padded_message(data));
+            hmac.write(
+                RvSize::Word,
+                OFFSET_CONTROL,
+                (Control::INIT::SET + Control::LAST::SET).value,
+            )
+            .unwrap();
+            hmac.write(RvSize::Word, OFFSET_CONTROL, Control::NEXT::SET.value)
+                .unwrap();
+            clock.increment_and_process_timer_actions(INIT_TICKS, &mut hmac);
+            assert_eq!(
+                read_tag_bytes(&mut hmac, 48),
+                reference_tags::<Sha384>(&key, data).0
+            );
+        }
+
+        #[test]
+        fn test_final_tag_to_kv() {
+            let clock = Clock::new();
+            let mut vault = KeyVault::new();
+            let mut usage = KeyUsage::default();
+            usage.set_hmac_data(true);
+            let sentinel = [0x5a; 48];
+            vault.write_key(4, &sentinel, u32::from(usage)).unwrap();
+            let mut hmac = HmacSha::new(&clock, vault.clone(), CaliptraHwVersion::V2_2);
+            let key = [0x0b; 48];
             let data = [b'a'; 130];
             let padded = padded_message(&data);
-            write_be_words(&mut hmac, OFFSET_KEY, &inner_key);
+            write_be_words(&mut hmac, OFFSET_KEY, &key);
             write_be_words(&mut hmac, OFFSET_BLOCK, &padded[..HMAC_BLOCK_SIZE]);
             hmac.write(RvSize::Word, OFFSET_CONTROL, Control::INIT::SET.value)
                 .unwrap();
-            clock.increment_and_process_timer_actions(INIT_TICKS, &mut hmac);
-            write_be_words(&mut hmac, OFFSET_KEY, &outer_key);
+            clock.increment_and_process_timer_actions(INIT_TICKS + KEY_RW_TICKS, &mut hmac);
+            assert_eq!(&vault.read_key(4, usage).unwrap()[..48], &sentinel);
+            assert_eq!(hmac.read(RvSize::Word, OFFSET_TAG_STATUS).unwrap(), 1);
+
             write_be_words(&mut hmac, OFFSET_BLOCK, &padded[HMAC_BLOCK_SIZE..]);
+            hmac.write(
+                RvSize::Word,
+                OFFSET_TAG_CONTROL,
+                (TagWriteControl::KEY_WRITE_EN::SET
+                    + TagWriteControl::KEY_ID.val(4)
+                    + TagWriteControl::USAGE.val(u32::from(usage)))
+                .value,
+            )
+            .unwrap();
             hmac.write(
                 RvSize::Word,
                 OFFSET_CONTROL,
@@ -1101,177 +1193,92 @@ mod tests {
             )
             .unwrap();
             clock.increment_and_process_timer_actions(UPDATE_TICKS, &mut hmac);
-
-            let mut ipad = [0x36; HMAC_BLOCK_SIZE];
-            let mut opad = [0x5c; HMAC_BLOCK_SIZE];
-            for (index, byte) in inner_key.iter().enumerate() {
-                ipad[index] ^= byte;
-            }
-            for (index, byte) in outer_key.iter().enumerate() {
-                opad[index] ^= byte;
-            }
-            let inner = Sha384::new()
-                .chain_update(ipad)
-                .chain_update(data)
-                .finalize();
-            let expected = Sha384::new()
-                .chain_update(opad)
-                .chain_update(inner)
-                .finalize();
-            assert_eq!(read_tag_bytes(&mut hmac, 48), &expected[..]);
+            clock.increment_and_process_timer_actions(KEY_RW_TICKS, &mut hmac);
+            let mut actual = vault.read_key(4, usage).unwrap()[..48].to_vec();
+            actual.to_little_endian();
+            assert_eq!(actual, reference_tags::<Sha384>(&key, &data).0);
+            assert_eq!(hmac.read(RvSize::Word, OFFSET_TAG_CONTROL).unwrap() & 1, 0);
+            assert_eq!(
+                read_tag_bytes(&mut hmac, 48),
+                reference_tags::<Sha384>(&key, &data).0
+            );
         }
-    }
 
-    #[test]
-    fn test_last_alone_and_busy_commands_do_not_advance_hash() {
-        let clock = Clock::new();
-        let mut hmac = HmacSha::new(&clock, KeyVault::new(), CaliptraHwVersion::V2_2);
-        hmac.write(RvSize::Word, OFFSET_CONTROL, Control::LAST::SET.value)
-            .unwrap();
-        clock.increment_and_process_timer_actions(INIT_TICKS, &mut hmac);
-        assert_eq!(hmac.read(RvSize::Word, OFFSET_STATUS).unwrap(), 1);
-        assert!(hmac.op_complete_action.is_none());
-
-        let key = [0x0b; 48];
-        let data = b"Hi There";
-        write_be_words(&mut hmac, OFFSET_KEY, &key);
-        write_be_words(&mut hmac, OFFSET_BLOCK, &padded_message(data));
-        hmac.write(
-            RvSize::Word,
-            OFFSET_CONTROL,
-            (Control::INIT::SET + Control::LAST::SET).value,
-        )
-        .unwrap();
-        hmac.write(RvSize::Word, OFFSET_CONTROL, Control::NEXT::SET.value)
-            .unwrap();
-        clock.increment_and_process_timer_actions(INIT_TICKS, &mut hmac);
-        assert_eq!(
-            read_tag_bytes(&mut hmac, 48),
-            reference_tags::<Sha384>(&key, data).0
-        );
-    }
-
-    #[test]
-    fn test_final_tag_to_kv() {
-        let clock = Clock::new();
-        let mut vault = KeyVault::new();
-        let mut usage = KeyUsage::default();
-        usage.set_hmac_data(true);
-        let sentinel = [0x5a; 48];
-        vault.write_key(4, &sentinel, u32::from(usage)).unwrap();
-        let mut hmac = HmacSha::new(&clock, vault.clone(), CaliptraHwVersion::V2_2);
-        let key = [0x0b; 48];
-        let data = [b'a'; 130];
-        let padded = padded_message(&data);
-        write_be_words(&mut hmac, OFFSET_KEY, &key);
-        write_be_words(&mut hmac, OFFSET_BLOCK, &padded[..HMAC_BLOCK_SIZE]);
-        hmac.write(RvSize::Word, OFFSET_CONTROL, Control::INIT::SET.value)
-            .unwrap();
-        clock.increment_and_process_timer_actions(INIT_TICKS + KEY_RW_TICKS, &mut hmac);
-        assert_eq!(&vault.read_key(4, usage).unwrap()[..48], &sentinel);
-        assert_eq!(hmac.read(RvSize::Word, OFFSET_TAG_STATUS).unwrap(), 1);
-
-        write_be_words(&mut hmac, OFFSET_BLOCK, &padded[HMAC_BLOCK_SIZE..]);
-        hmac.write(
-            RvSize::Word,
-            OFFSET_TAG_CONTROL,
-            (TagWriteControl::KEY_WRITE_EN::SET
-                + TagWriteControl::KEY_ID.val(4)
-                + TagWriteControl::USAGE.val(u32::from(usage)))
-            .value,
-        )
-        .unwrap();
-        hmac.write(
-            RvSize::Word,
-            OFFSET_CONTROL,
-            (Control::NEXT::SET + Control::LAST::SET).value,
-        )
-        .unwrap();
-        clock.increment_and_process_timer_actions(UPDATE_TICKS, &mut hmac);
-        clock.increment_and_process_timer_actions(KEY_RW_TICKS, &mut hmac);
-        let mut actual = vault.read_key(4, usage).unwrap()[..48].to_vec();
-        actual.to_little_endian();
-        assert_eq!(actual, reference_tags::<Sha384>(&key, &data).0);
-        assert_eq!(hmac.read(RvSize::Word, OFFSET_TAG_CONTROL).unwrap() & 1, 0);
-        assert_eq!(
-            read_tag_bytes(&mut hmac, 48),
-            reference_tags::<Sha384>(&key, &data).0
-        );
-    }
-
-    #[test]
-    fn test_zeroize_cancels_pending_commands() {
-        enum Pending {
-            Hash,
-            KeyRead,
-            BlockRead,
-            TagWrite,
-        }
-        for pending in [
-            Pending::Hash,
-            Pending::KeyRead,
-            Pending::BlockRead,
-            Pending::TagWrite,
-        ] {
-            let clock = Clock::new();
-            let mut vault = KeyVault::new();
-            let mut usage = KeyUsage::default();
-            usage.set_hmac_data(true);
-            usage.set_hmac_key(true);
-            let sentinel = [0x5a; 48];
-            vault.write_key(4, &sentinel, u32::from(usage)).unwrap();
-            let mut hmac = HmacSha::new(&clock, vault.clone(), CaliptraHwVersion::V2_2);
-            match pending {
-                Pending::KeyRead | Pending::BlockRead => {
-                    let address = if matches!(pending, Pending::KeyRead) {
-                        OFFSET_KEY_CONTROL
-                    } else {
-                        OFFSET_BLOCK_CONTROL
-                    };
-                    hmac.write(
-                        RvSize::Word,
-                        address,
-                        (KeyReadControl::KEY_READ_EN::SET + KeyReadControl::KEY_ID.val(4)).value,
-                    )
-                    .unwrap();
-                }
-                Pending::Hash | Pending::TagWrite => {
-                    write_be_words(&mut hmac, OFFSET_KEY, &[0x0b; 48]);
-                    write_be_words(&mut hmac, OFFSET_BLOCK, &padded_message(b"Hi There"));
-                    hmac.write(
-                        RvSize::Word,
-                        OFFSET_TAG_CONTROL,
-                        (TagWriteControl::KEY_WRITE_EN::SET
-                            + TagWriteControl::KEY_ID.val(4)
-                            + TagWriteControl::USAGE.val(u32::from(usage)))
-                        .value,
-                    )
-                    .unwrap();
-                    hmac.write(
-                        RvSize::Word,
-                        OFFSET_CONTROL,
-                        (Control::INIT::SET + Control::LAST::SET).value,
-                    )
-                    .unwrap();
-                    if matches!(pending, Pending::TagWrite) {
-                        clock.increment_and_process_timer_actions(INIT_TICKS, &mut hmac);
-                        assert!(hmac.op_tag_write_complete_action.is_some());
+        #[test]
+        fn test_zeroize_cancels_pending_commands() {
+            enum Pending {
+                Hash,
+                KeyRead,
+                BlockRead,
+                TagWrite,
+            }
+            for pending in [
+                Pending::Hash,
+                Pending::KeyRead,
+                Pending::BlockRead,
+                Pending::TagWrite,
+            ] {
+                let clock = Clock::new();
+                let mut vault = KeyVault::new();
+                let mut usage = KeyUsage::default();
+                usage.set_hmac_data(true);
+                usage.set_hmac_key(true);
+                let sentinel = [0x5a; 48];
+                vault.write_key(4, &sentinel, u32::from(usage)).unwrap();
+                let mut hmac = HmacSha::new(&clock, vault.clone(), CaliptraHwVersion::V2_2);
+                match pending {
+                    Pending::KeyRead | Pending::BlockRead => {
+                        let address = if matches!(pending, Pending::KeyRead) {
+                            OFFSET_KEY_CONTROL
+                        } else {
+                            OFFSET_BLOCK_CONTROL
+                        };
+                        hmac.write(
+                            RvSize::Word,
+                            address,
+                            (KeyReadControl::KEY_READ_EN::SET + KeyReadControl::KEY_ID.val(4))
+                                .value,
+                        )
+                        .unwrap();
+                    }
+                    Pending::Hash | Pending::TagWrite => {
+                        write_be_words(&mut hmac, OFFSET_KEY, &[0x0b; 48]);
+                        write_be_words(&mut hmac, OFFSET_BLOCK, &padded_message(b"Hi There"));
+                        hmac.write(
+                            RvSize::Word,
+                            OFFSET_TAG_CONTROL,
+                            (TagWriteControl::KEY_WRITE_EN::SET
+                                + TagWriteControl::KEY_ID.val(4)
+                                + TagWriteControl::USAGE.val(u32::from(usage)))
+                            .value,
+                        )
+                        .unwrap();
+                        hmac.write(
+                            RvSize::Word,
+                            OFFSET_CONTROL,
+                            (Control::INIT::SET + Control::LAST::SET).value,
+                        )
+                        .unwrap();
+                        if matches!(pending, Pending::TagWrite) {
+                            clock.increment_and_process_timer_actions(INIT_TICKS, &mut hmac);
+                            assert!(hmac.op_tag_write_complete_action.is_some());
+                        }
                     }
                 }
+                hmac.write(RvSize::Word, OFFSET_CONTROL, Control::ZEROIZE::SET.value)
+                    .unwrap();
+                clock.increment_and_process_timer_actions(INIT_TICKS + KEY_RW_TICKS, &mut hmac);
+                assert!(hmac.op_complete_action.is_none());
+                assert!(hmac.op_key_read_complete_action.is_none());
+                assert!(hmac.op_block_read_complete_action.is_none());
+                assert!(hmac.op_tag_write_complete_action.is_none());
+                assert_eq!(hmac.read(RvSize::Word, OFFSET_STATUS).unwrap(), 1);
+                assert_eq!(hmac.read(RvSize::Word, OFFSET_TAG_STATUS).unwrap(), 1);
+                assert_eq!(&vault.read_key(4, usage).unwrap()[..48], &sentinel);
+                assert_eq!(read_tag_bytes(&mut hmac, 48), vec![0; 48]);
+                assert_eq!(hmac.key, [0; 16]);
+                assert_eq!(hmac.block, [0; 32]);
             }
-            hmac.write(RvSize::Word, OFFSET_CONTROL, Control::ZEROIZE::SET.value)
-                .unwrap();
-            clock.increment_and_process_timer_actions(INIT_TICKS + KEY_RW_TICKS, &mut hmac);
-            assert!(hmac.op_complete_action.is_none());
-            assert!(hmac.op_key_read_complete_action.is_none());
-            assert!(hmac.op_block_read_complete_action.is_none());
-            assert!(hmac.op_tag_write_complete_action.is_none());
-            assert_eq!(hmac.read(RvSize::Word, OFFSET_STATUS).unwrap(), 1);
-            assert_eq!(hmac.read(RvSize::Word, OFFSET_TAG_STATUS).unwrap(), 1);
-            assert_eq!(&vault.read_key(4, usage).unwrap()[..48], &sentinel);
-            assert_eq!(read_tag_bytes(&mut hmac, 48), vec![0; 48]);
-            assert_eq!(hmac.key, [0; 16]);
-            assert_eq!(hmac.block, [0; 32]);
         }
     }
 

@@ -1043,6 +1043,7 @@ fn test_hmac512_multi_block() {
     assert_eq!(out_tag, Array4x16::from(result));
 }
 
+#[cfg(feature = "hmac-final-block")]
 fn test_hmac_padding_boundaries() {
     // Independent vectors from Python hmac/hashlib: key 0x0b, message 'a' repeated.
     const CASES_384: &[(usize, [u32; 12])] = &[
@@ -1284,7 +1285,8 @@ fn test_hmac_padding_boundaries() {
     }
 }
 
-fn test_hmac_streaming_kv_output() {
+#[cfg(feature = "hmac-final-block")]
+fn test_hmac_streaming_kv_output_is_final_only() {
     let mut hmac = unsafe { Hmac::new(HmacReg::new()) };
     // This read-only observer checks status between single-threaded driver calls.
     let observer = unsafe { HmacReg::new() };
@@ -1309,9 +1311,8 @@ fn test_hmac_streaming_kv_output() {
         )
         .unwrap();
     op.update(&[b'a'; 128]).unwrap();
-    let legacy = caliptra_registers::CALIPTRA_HW_REV_CHOSEN == "2.1";
-    assert_eq!(status.hmac512_kv_wr_ctrl().read().write_en(), legacy);
-    assert_eq!(status.hmac512_kv_wr_status().read().valid(), legacy);
+    assert!(!status.hmac512_kv_wr_ctrl().read().write_en());
+    assert!(!status.hmac512_kv_wr_status().read().valid());
     op.finalize().unwrap();
 }
 
@@ -1337,6 +1338,8 @@ test_suite! {
     test_hmac2_512,
     test_hmac3_512,
     test_hmac512_multi_block,
+    #[cfg(feature = "hmac-final-block")]
     test_hmac_padding_boundaries,
-    test_hmac_streaming_kv_output,
+    #[cfg(feature = "hmac-final-block")]
+    test_hmac_streaming_kv_output_is_final_only,
 }

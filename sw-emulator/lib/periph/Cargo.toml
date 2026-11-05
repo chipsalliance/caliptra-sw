@@ -7,6 +7,9 @@ edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[features]
+hmac-final-block = []
+
 [dependencies]
 aes.workspace = true
 arrayref.workspace = true

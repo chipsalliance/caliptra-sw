@@ -393,6 +393,14 @@ pub mod driver_tests {
         ..BASE_FWID
     };
 
+    pub const HMAC_WITH_FINAL_BLOCK: FwId = FwId {
+        fw_type: FirmwareType::Source {
+            features: &["emu", "hmac-final-block"],
+            hw_revision: Some(CaliptraHwVersion::Latest),
+        },
+        ..HMAC
+    };
+
     pub const KEYVAULT: FwId = FwId {
         bin_name: "keyvault",
         ..BASE_FWID
@@ -864,6 +872,7 @@ pub const REGISTERED_FW: &[&FwId] = &[
     &driver_tests::ECC384_SIGN_VALIDATION_FAILURE,
     &driver_tests::ERROR_REPORTER,
     &driver_tests::HMAC,
+    &driver_tests::HMAC_WITH_FINAL_BLOCK,
     &driver_tests::KEYVAULT,
     &driver_tests::KEYVAULT_FPGA,
     &driver_tests::MAILBOX_DRIVER_RESPONDER,

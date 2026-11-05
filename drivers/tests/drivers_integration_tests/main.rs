@@ -392,6 +392,12 @@ fn test_hmac() {
 }
 
 #[test]
+#[cfg(feature = "hmac-final-block")]
+fn test_hmac_final_block() {
+    run_driver_test(&firmware::driver_tests::HMAC_WITH_FINAL_BLOCK);
+}
+
+#[test]
 fn test_keyvault() {
     run_driver_test(
         if cfg!(any(feature = "fpga_realtime", feature = "fpga_subsystem")) {

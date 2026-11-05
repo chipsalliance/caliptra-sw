@@ -24,6 +24,8 @@ and the ROM/FMC Makefiles select `caliptra-drivers/hmac-final-block` only for th
 2.2 target. Explicit per-firmware hardware overrides take precedence over the
 environment. Builder caches and prebuilt ELF filenames include the effective
 hardware revision so artifacts cannot be reused across targets.
+Precompiled test archives retain their build-time hardware target when the
+execution host does not set `CALIPTRA_HW_REV`.
 
 For direct firmware Cargo commands, enable `hmac-final-block` on ROM, FMC,
 Runtime, or driver test firmware, or use the namespaced
@@ -31,6 +33,19 @@ Runtime, or driver test firmware, or use the namespaced
 The driver rejects that feature on 2.1 and rejects latest RISC-V firmware builds
 without it. The standalone emulator defaults to 2.1; pass
 `--hw-version latest` (or `--hw-version 2.2`) when running 2.2 firmware.
+
+The new final-block regression tests are gated by `hmac-final-block`, separately
+from the model's hardware-revision selection. For example:
+
+```sh
+CALIPTRA_HW_REV=latest cargo test -p caliptra-emu-periph --features hmac-final-block hmac::tests
+CALIPTRA_HW_REV=latest cargo test -p caliptra-drivers --features hmac-final-block test_hmac
+```
+
+The feature-gated driver integration test uses a dedicated firmware ID that
+explicitly enables the feature in the guest build. The existing CI test job
+enables these tests for latest hardware; the legacy tests remain enabled without
+the feature.
 
 ### Mailbox
 
