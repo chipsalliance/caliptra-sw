@@ -1,6 +1,9 @@
 // Licensed under the Apache-2.0 license
 
-use crate::common::{assert_error, execute_dpe_cmd, run_rt_test, DpeResult, RuntimeTestArgs};
+use crate::common::{
+    assert_error, execute_dpe_cmd, get_boot_dpe_context_info, run_rt_test, DpeResult,
+    RuntimeTestArgs,
+};
 use caliptra_api::{
     mailbox::{MailboxRespHeader, RevokeExportedCdiHandleReq},
     SocManager,
@@ -181,6 +184,7 @@ fn test_sign_with_exported_cdi_measurement_update_duplicate_cdi_mldsa() {
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
     });
+    let boot_context = get_boot_dpe_context_info(&mut model);
 
     let export_cdi_cmd = DeriveContextCmd {
         flags: DeriveContextFlags::EXPORT_CDI
@@ -225,11 +229,7 @@ fn test_sign_with_exported_cdi_measurement_update_duplicate_cdi_mldsa() {
     let measurement_cmd = DeriveContextCmd {
         data: TciMeasurement([0xa; caliptra_dpe::TCI_SIZE]),
         flags: DeriveContextFlags::RECURSIVE,
-        tci_type: if model.subsystem_mode() {
-            0
-        } else {
-            u32::from_le_bytes(*b"CCIV")
-        },
+        tci_type: boot_context.tci_type,
         ..Default::default()
     };
 
@@ -286,6 +286,7 @@ fn test_sign_with_exported_cdi_measurement_update_mldsa() {
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
     });
+    let boot_context = get_boot_dpe_context_info(&mut model);
 
     let export_cdi_cmd = DeriveContextCmd {
         flags: DeriveContextFlags::EXPORT_CDI
@@ -307,11 +308,7 @@ fn test_sign_with_exported_cdi_measurement_update_mldsa() {
     let measurement_cmd = DeriveContextCmd {
         data: TciMeasurement([0xa; caliptra_dpe::TCI_SIZE]),
         flags: DeriveContextFlags::RECURSIVE,
-        tci_type: if model.subsystem_mode() {
-            0
-        } else {
-            u32::from_le_bytes(*b"CCIV")
-        },
+        tci_type: boot_context.tci_type,
         ..Default::default()
     };
 

@@ -2,7 +2,7 @@
 
 use crate::common::{
     assert_error, calculate_cptra_config_init_vals_hash, default_rt_test_soc_manifest_measurements,
-    run_rt_test, soc_manifest_measurements, RuntimeTestArgs,
+    get_boot_dpe_context_info, run_rt_test, soc_manifest_measurements, RuntimeTestArgs,
 };
 use crate::test_set_auth_manifest::{
     create_auth_manifest, create_auth_manifest_with_metadata, AuthManifestBuilderCfg,
@@ -177,6 +177,7 @@ fn test_authorize_and_stash_cmd_deny_authorization() {
     let mut model = run_rt_test(RuntimeTestArgs::default());
 
     model.step_until_ready_for_runtime();
+    let boot_context = get_boot_dpe_context_info(&mut model);
 
     let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
         hdr: MailboxReqHeader { chksum: 0 },
@@ -236,10 +237,9 @@ fn test_authorize_and_stash_cmd_deny_authorization() {
         let mut mcu_hasher = Sha384::new();
         mcu_hasher.update(crate::common::DEFAULT_MCU_FW);
         hasher.update(mcu_hasher.finalize());
-        // MCU ROM stashes field_entropy_state measurement
-        let mut fe_hasher = Sha384::new();
-        fe_hasher.update(0u32.to_le_bytes());
-        hasher.update(fe_hasher.finalize());
+        if let Some(fe_measurement) = boot_context.fe_state_measurement {
+            hasher.update(fe_measurement);
+        }
     }
     let expected_measurement_hash = hasher.finalize();
 
@@ -250,6 +250,7 @@ fn test_authorize_and_stash_cmd_deny_authorization() {
 #[test]
 fn test_authorize_and_stash_cmd_success() {
     let mut model = set_auth_manifest(None);
+    let boot_context = get_boot_dpe_context_info(&mut model);
 
     let mut authorize_and_stash_cmd = MailboxReq::AuthorizeAndStash(AuthorizeAndStashReq {
         hdr: MailboxReqHeader { chksum: 0 },
@@ -309,10 +310,9 @@ fn test_authorize_and_stash_cmd_success() {
         let mut mcu_hasher = Sha384::new();
         mcu_hasher.update(crate::common::DEFAULT_MCU_FW);
         hasher.update(mcu_hasher.finalize());
-        // MCU ROM stashes field_entropy_state measurement
-        let mut fe_hasher = Sha384::new();
-        fe_hasher.update(0u32.to_le_bytes());
-        hasher.update(fe_hasher.finalize());
+        if let Some(fe_measurement) = boot_context.fe_state_measurement {
+            hasher.update(fe_measurement);
+        }
     }
     hasher.update(IMAGE_DIGEST1);
     let expected_measurement_hash = hasher.finalize();
