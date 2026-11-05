@@ -55,7 +55,8 @@ fn resolve_hw_revision(revision: Option<CaliptraHwVersion>) -> io::Result<Calipt
     }
     let revision = match env::var("CALIPTRA_HW_REV") {
         Ok(revision) => revision,
-        Err(env::VarError::NotPresent) => "latest".into(),
+        // Test archives may run without the hardware-selection environment used to build them.
+        Err(env::VarError::NotPresent) => option_env!("CALIPTRA_HW_REV").unwrap_or("latest").into(),
         Err(err) => return Err(other_err(err)),
     };
     match revision.as_str() {
@@ -1176,6 +1177,34 @@ mod test {
                 ["hmac-final-block"]
             );
         }
+    }
+
+    #[test]
+    fn test_fwid_elf_filename_without_runtime_revision() {
+        const CHILD: &str = "CALIPTRA_BUILDER_TEST_WITHOUT_RUNTIME_REVISION";
+        if env::var_os(CHILD).is_some() {
+            let revision = option_env!("CALIPTRA_HW_REV").unwrap_or("latest");
+            assert_eq!(
+                firmware::ROM.elf_filename(),
+                format!("caliptra-rom--cfi--hw-{revision}.elf")
+            );
+            return;
+        }
+        let output = Command::new(env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "test::test_fwid_elf_filename_without_runtime_revision",
+            ])
+            .env_remove("CALIPTRA_HW_REV")
+            .env(CHILD, "1")
+            .output()
+            .unwrap();
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        assert!(
+            output.status.success() && stdout.contains("1 passed;"),
+            "{stdout}\n{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
     }
 
     #[test]
