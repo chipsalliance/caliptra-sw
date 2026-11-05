@@ -168,6 +168,7 @@ impl CommandId {
 
     // Cryptographic mailbox commands
     pub const CM_IMPORT: Self = Self(0x434D_494D); // "CMIM"
+    pub const CM_KEY_GEN: Self = Self(0x434D_4B47); // "CMKG"
     pub const CM_DELETE: Self = Self(0x434D_444C); // "CMDL"
     pub const CM_CLEAR: Self = Self(0x434D_434C); // "CMCL"
     pub const CM_STATUS: Self = Self(0x434D_5354); // "CMST"
@@ -312,6 +313,7 @@ pub enum MailboxResp {
     RevokeExportedCdiHandle(RevokeExportedCdiHandleResp),
     GetImageInfo(GetImageInfoResp),
     CmImport(CmImportResp),
+    CmKeyGen(CmKeyGenResp),
     CmStatus(CmStatusResp),
     CmShaInit(CmShaInitResp),
     CmShaFinal(CmShaFinalResp),
@@ -377,6 +379,7 @@ impl MailboxResp {
             MailboxResp::RevokeExportedCdiHandle(resp) => Ok(resp.as_bytes()),
             MailboxResp::GetImageInfo(resp) => Ok(resp.as_bytes()),
             MailboxResp::CmImport(resp) => Ok(resp.as_bytes()),
+            MailboxResp::CmKeyGen(resp) => Ok(resp.as_bytes()),
             MailboxResp::CmStatus(resp) => Ok(resp.as_bytes()),
             MailboxResp::CmShaInit(resp) => Ok(resp.as_bytes()),
             MailboxResp::CmShaFinal(resp) => resp.as_bytes_partial(),
@@ -440,6 +443,7 @@ impl MailboxResp {
             MailboxResp::RevokeExportedCdiHandle(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::GetImageInfo(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::CmImport(resp) => Ok(resp.as_mut_bytes()),
+            MailboxResp::CmKeyGen(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::CmStatus(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::CmShaInit(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::CmShaFinal(resp) => resp.as_bytes_partial_mut(),
@@ -548,6 +552,7 @@ pub enum MailboxReq {
     GetImageInfo(GetImageInfoReq),
     CmStatus(MailboxReqHeader),
     CmImport(CmImportReq),
+    CmKeyGen(CmKeyGenReq),
     CmDelete(CmDeleteReq),
     CmClear(MailboxReqHeader),
     CmShaInit(CmShaInitReq),
@@ -631,6 +636,7 @@ impl MailboxReq {
             MailboxReq::GetImageInfo(req) => Ok(req.as_bytes()),
             MailboxReq::CmStatus(req) => Ok(req.as_bytes()),
             MailboxReq::CmImport(req) => req.as_bytes_partial(),
+            MailboxReq::CmKeyGen(req) => Ok(req.as_bytes()),
             MailboxReq::CmDelete(req) => Ok(req.as_bytes()),
             MailboxReq::CmClear(req) => Ok(req.as_bytes()),
             MailboxReq::CmShaInit(req) => req.as_bytes_partial(),
@@ -712,6 +718,7 @@ impl MailboxReq {
             MailboxReq::GetImageInfo(req) => Ok(req.as_mut_bytes()),
             MailboxReq::CmStatus(req) => Ok(req.as_mut_bytes()),
             MailboxReq::CmImport(req) => Ok(req.as_mut_bytes()),
+            MailboxReq::CmKeyGen(req) => Ok(req.as_mut_bytes()),
             MailboxReq::CmDelete(req) => Ok(req.as_mut_bytes()),
             MailboxReq::CmClear(req) => Ok(req.as_mut_bytes()),
             MailboxReq::CmShaInit(req) => req.as_bytes_partial_mut(),
@@ -793,6 +800,7 @@ impl MailboxReq {
             MailboxReq::GetImageInfo(_) => CommandId::GET_IMAGE_INFO,
             MailboxReq::CmStatus(_) => CommandId::CM_STATUS,
             MailboxReq::CmImport(_) => CommandId::CM_IMPORT,
+            MailboxReq::CmKeyGen(_) => CommandId::CM_KEY_GEN,
             MailboxReq::CmDelete(_) => CommandId::CM_DELETE,
             MailboxReq::CmClear(_) => CommandId::CM_CLEAR,
             MailboxReq::CmShaInit(_) => CommandId::CM_SHA_INIT,
@@ -2655,6 +2663,29 @@ pub struct CmImportResp {
 }
 
 impl Response for CmImportResp {}
+
+// CM_KEY_GEN
+#[repr(C)]
+#[derive(Debug, Default, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+pub struct CmKeyGenReq {
+    pub hdr: MailboxReqHeader,
+    pub key_usage: u32,
+    pub key_size: u32,
+}
+
+impl Request for CmKeyGenReq {
+    const ID: CommandId = CommandId::CM_KEY_GEN;
+    type Resp = CmKeyGenResp;
+}
+
+#[repr(C)]
+#[derive(Debug, Default, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+pub struct CmKeyGenResp {
+    pub hdr: MailboxRespHeader,
+    pub cmk: Cmk,
+}
+
+impl Response for CmKeyGenResp {}
 
 // CM_DELETE
 #[repr(C)]

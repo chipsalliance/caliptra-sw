@@ -544,6 +544,7 @@ fn execute_command_with_common_resp(
         CommandId::GET_IMAGE_INFO => GetImageInfoCmd::execute(drivers, cmd_bytes, resp),
         // Cryptographic mailbox commands
         CommandId::CM_IMPORT => cryptographic_mailbox::Commands::import(drivers, cmd_bytes, resp),
+        CommandId::CM_KEY_GEN => cryptographic_mailbox::Commands::key_gen(drivers, cmd_bytes, resp),
         CommandId::CM_DELETE => cryptographic_mailbox::Commands::delete(drivers, cmd_bytes, resp),
         CommandId::CM_CLEAR => cryptographic_mailbox::Commands::clear(drivers, resp),
         CommandId::CM_STATUS => cryptographic_mailbox::Commands::status(drivers, resp),
