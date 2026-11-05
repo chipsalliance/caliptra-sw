@@ -1561,6 +1561,7 @@ impl ModelFpgaSubsystem {
             println!("Provisioning SW_MANUF partition.");
             let mem = otp_generate_sw_manuf_partition_mem(&OtpSwManufPartition {
                 anti_rollback_disable: u32::from(self.fuses.anti_rollback_disable),
+                idevid_cert_attr: self.fuses.idevid_cert_attr.as_bytes().try_into().unwrap(),
                 ..Default::default()
             })?;
             let offset = OTP_SW_MANUF_PARTITION_OFFSET;
