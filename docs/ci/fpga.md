@@ -4,53 +4,34 @@ The Caliptra CI infrastructure utilizes FPGA emulation to verify hardware and fi
 
 ## 1. Building the FPGA Image
 
-The FPGA image creation is handled by the workflow defined in `.github/workflows/fpga-image.yml`. This workflow produces the necessary artifacts to boot the Xilinx VCK190 evaluation kit.
+The FPGA image creation is handled by the workflow defined in `.github/workflows/fpga-image.yml` using the Nix flake in `ci-tools/fpga-image/flake.nix`. This workflow produces the necessary artifacts to boot the Xilinx VCK190 evaluation kit without requiring PetaLinux.
 
 ```mermaid
 flowchart TB
     subgraph Build_Image [Workflow: fpga-image.yml]
         direction TB
-        subgraph Job_BK [Job: build_kernel]
-            bk_dl[Download Bitstream .xsa]
-            bk_verify[Verify Hash]
-            bk_build[Build Kernel via Petalinux]
-            bk_mod[Compile io-module]
-            bk_dl --> bk_verify --> bk_build --> bk_mod
+        subgraph Job_BSI [Job: build_sd_image]
+            bsi_boot[Build BOOT.BIN & system.dtb from .xsa via bootgen/TF-A/U-Boot]
+            bsi_kern[Cross-compile linux-xlnx & io-module.ko]
+            bsi_rootfs[Build NixOS Rootfs & Assemble SD Card Image]
+            bsi_boot --> bsi_kern --> bsi_rootfs
         end
 
-        subgraph Job_BSI [Job: build_sd_image]
-            bsi_dl[Download Kernel Artifacts]
-            bsi_build[Build Debian Rootfs & Image]
-            bsi_dl --> bsi_build
-        end
-        
-        Job_BK -->|Kernel & Module| Job_BSI
-        bsi_build -->|Artifact: .img| Artifact_Image(SD Card Image)
+        bsi_rootfs -->|Artifact: .img| Artifact_Image(SD Card Image)
     end
 ```
 
 ### Workflow: `fpga-image.yml`
 
-This workflow runs on a schedule (Tuesday/Thursday) or when changes are made to FPGA-related files. It creates two variants of the image: `core` and `subsystem`.
-
-#### **Job: `build_kernel`**
-- **Purpose:** Builds the Linux kernel and modules tailored for the VCK190 board with the Caliptra bitstream.
-- **Key Steps:**
-    1.  **Downloads the Bitstream:** Fetches the specific `.xsa` (Xilinx Support Archive) file (either `core` or `subsystem` variant) from a Google Cloud Storage bucket.
-    2.  **Verifies Hash:** Ensures the downloaded bitstream matches the expected SHA256 hash.
-    3.  **Builds Kernel:** Uses Petalinux tools (mounted from a pre-configured volume) to build the kernel (`BOOT.BIN`, `Image`, `image.ub`, etc.).
-    4.  **Compiles Modules:** Builds the custom `io-module` kernel driver.
-    5.  **Artifacts:** Uploads the kernel tarball (`vck190-kernel-*.tar.gz`) and the kernel module (`io-module-*.ko`) as artifacts.
+This workflow runs on a schedule (Tuesday/Thursday) or when changes are made to FPGA-related files. It creates two variants of the image: `core` and `subsystem` (in both `ci` and `dev` flavors).
 
 #### **Job: `build_sd_image`**
-- **Purpose:** Packages the kernel and a Debian-based root filesystem into a bootable SD card image (`.img`).
+- **Purpose:** Builds the Versal boot firmware, Linux kernel, UIO kernel module, and NixOS root filesystem into a bootable SD card image (`.img`) using Nix.
 - **Key Steps:**
-    1.  **Downloads Kernel:** Retrieves the artifacts from the `build_kernel` job.
-    2.  **Builds Image:** Uses a script (`ci-tools/fpga-image/build.sh`) to assemble the final image. This process involves:
-        - Setting up a Debian filesystem (using `debootstrap`).
-        - Installing the kernel and modules.
-        - Configuring boot scripts.
-    3.  **Artifacts:** Uploads the final SD card image (`caliptra-fpga-image-*.img`) as an artifact.
+    - **Builds Boot Firmware (`nix/boot-firmware.nix`):** Fetches the variant `.xsa` archive, builds `bootgen`, `arm-trusted-firmware` (`bl31.elf`), `u-boot-xlnx` (`u-boot.elf`), and `system.dtb`, and packages `BOOT.BIN`.
+    - **Builds Kernel & Modules (`nix/kernel.nix`, `nix/io-module.nix`):** Cross-compiles `linux-xlnx` (`6.6.40`), `boot.scr`, and the variant `io-module.ko` UIO driver.
+    - **Builds NixOS Rootfs & Disk Image (`nix/configuration.nix`, `nix/sd-image-vck190.nix`):** Assembles the partitioned `.img` file (with a read-only zstd SquashFS + tmpfs overlay for `ci` or mutable ext4 for `dev`).
+    - **Artifacts:** Uploads the final SD card images (`caliptra-fpga-image-*` and `caliptra-fpga-image-*-dev`) as artifacts.
 
 ---
 
@@ -133,7 +114,7 @@ These workflows are triggered by pull requests or the nightly release process. T
 
 ## 3. The FPGA Startup Script
 
-The behavior of the FPGA image upon boot is controlled by `ci-tools/fpga-image/startup-script.sh`. This script is crucial for setting up the environment for the GitHub Actions runner.
+The behavior of the FPGA image upon boot is defined in `ci-tools/fpga-image/nix/sd-image-vck190.nix` (`overlay-mount.sh`) and `ci-tools/fpga-image/nix/configuration.nix` (`startup-script.service`). This logic is crucial for setting up the environment for the GitHub Actions runner.
 
 ### Key Functions:
 
