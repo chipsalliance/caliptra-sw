@@ -76,6 +76,46 @@ const EMULATOR_OTP_END_ADDR: usize = EMULATOR_OTP_ADDR + EMULATOR_OTP_ADDR_RANGE
 // page size of simulated flash
 const FLASH_PAGE_SIZE: usize = 256;
 
+// MCU main-2.1 fuses.hjson packs the owner floor after the 32-byte DOT counter,
+// three 4-byte component SVN counters, and the 4-byte FE state in VENDOR_TEST.
+const OTP_OWNER_SOC_MANIFEST_MIN_SVN_OFFSET: usize = otp::VENDOR_TEST_OFFSET + 48;
+
+fn seed_owner_manifest_svn(otp: &mut [u8], strap: u32) -> Result<()> {
+    let svn = (strap >> 8) & 0xff;
+    let bitmap = match svn {
+        0..=63 => (1u64 << svn) - 1,
+        64 => u64::MAX,
+        _ => anyhow::bail!("Owner manifest SVN exceeds the 64-bit OTP field"),
+    };
+    otp[OTP_OWNER_SOC_MANIFEST_MIN_SVN_OFFSET..OTP_OWNER_SOC_MANIFEST_MIN_SVN_OFFSET + 8]
+        .copy_from_slice(&bitmap.to_le_bytes());
+    Ok(())
+}
+
+#[test]
+fn test_seed_owner_manifest_svn() {
+    const OFFSET: usize = OTP_OWNER_SOC_MANIFEST_MIN_SVN_OFFSET;
+    // Match OWNER_SOC_MANIFEST_MIN_SVN in MCU main-2.1's generated fuse map.
+    assert_eq!(OFFSET, 0x410);
+    for svn in 0..=64 {
+        let mut otp = [0xa5; OTP_SIZE];
+        // Other strap bits must not contribute to the SVN.
+        seed_owner_manifest_svn(&mut otp, 0xabcd_00ef | (svn << 8)).unwrap();
+        let bytes: [u8; 8] = otp[OFFSET..OFFSET + 8].try_into().unwrap();
+        assert_eq!(u64::from_le_bytes(bytes).count_ones(), svn);
+        if svn == 5 {
+            assert_eq!(bytes, [0x1f, 0, 0, 0, 0, 0, 0, 0]);
+        }
+        assert!(otp[..OFFSET].iter().all(|&byte| byte == 0xa5));
+        assert!(otp[OFFSET + 8..].iter().all(|&byte| byte == 0xa5));
+    }
+    for svn in [65, 255] {
+        let mut otp = [0xa5; OTP_SIZE];
+        assert!(seed_owner_manifest_svn(&mut otp, svn << 8).is_err());
+        assert_eq!(otp, [0xa5; OTP_SIZE]);
+    }
+}
+
 pub(crate) fn fmt_uio_error(err: UioError) -> String {
     format!("{err:?}")
 }
@@ -2079,6 +2119,11 @@ impl HwModel for ModelFpgaSubsystem {
         }
 
         if let Some(reg) = boot_params.initial_ss_strap_generic_3 {
+            // MCU ROM overwrites the owner floor in the strap from OTP. Seed
+            // the requested value before notifying ROM to load Caliptra fuses.
+            let mut otp = self.read_otp_memory();
+            seed_owner_manifest_svn(&mut otp, reg)?;
+            self.write_otp_memory(&otp);
             self.soc_ifc().ss_strap_generic().at(3).write(|_| reg);
         }
 

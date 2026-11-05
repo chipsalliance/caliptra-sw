@@ -433,11 +433,8 @@ fn test_owner_and_vendor_auth_manifests_survive_update_reset() {
 }
 
 #[test]
-// On a subsystem MCU ROM owns SS_STRAP_GENERIC[3][15:8] and populates it from the
-// owner_soc_manifest_min_svn OTP fuse before CPTRA_FUSE_WR_DONE, so the floor seeded
-// here does not survive boot. Equivalent coverage lives in caliptra-mcu-sw's
-// test_increase_owner_soc_manifest_svn.
-#[cfg(not(feature = "fpga_subsystem"))]
+// On subsystem FPGA, the harness seeds owner_soc_manifest_min_svn in OTP so
+// MCU ROM forwards the requested floor to SS_STRAP_GENERIC[3][15:8].
 fn test_set_owner_auth_manifest_svn_floor_uses_strap_bits_15_8() {
     use crate::test_info::get_fwinfo;
     use caliptra_hw_model::{DeviceLifecycle, SecurityState};
