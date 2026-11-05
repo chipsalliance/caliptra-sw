@@ -15,12 +15,15 @@ Release notes for changes introduced since Firmware 2.1.4.
 - **Host Library**:
   - Add `INSTALL_OWNER_PK_HASH` and `SET_OWNER_AUTH_MANIFEST` commands to libcaliptra (#4293, #4328)
   - Add streaming `CM_SHA_INIT`, `CM_SHA_UPDATE`, and `CM_SHA_FINAL` commands and `MLDSA87_VERIFY` to libcaliptra (#4357, #4373)
+- **Build & Hardware Support**:
+  - Refresh the latest RTL register bindings and align emulator CSRNG and entropy register mappings with the selected hardware revision (#4334)
 
 ### Fixes
 
 - **Authorization & Attestation**:
   - Extend the authorization manifest owner preamble signature to cover version, SVN, and flags as well as owner public keys (#4343)
   - Require the signed MCU load address to match the actual installation destination during hitless activation (#4323)
+  - Enforce the maximum firmware SVN of 128 in Runtime image verification, including when anti-rollback is disabled or the device is unprovisioned (#4251)
   - Preserve `RTMR` and `CCIV` byte ordering in named DPE TCI identifiers (#4338)
 - **Sensitive Data & Boot**:
   - Zeroize temporary plaintext AES, AES-GCM, ECDH, and SHAKE256 mailbox context buffers (#4367)
@@ -35,6 +38,7 @@ Release notes for changes introduced since Firmware 2.1.4.
 
 - **Authorization manifest signatures**: Owner signatures generated under the previous signing scheme no longer verify. Regenerate or re-sign manifests so the owner signature covers the policy fields and owner public keys (#4343).
 - **DPE identities**: Corrected named TCI identifiers change affected certificate identifiers and DPE-derived keys. A cold boot is required; retained contexts are not migrated (#4338).
+- **Core 2.1 builds**: Set `CALIPTRA_HW_REV=2.1` explicitly when building and testing for Core 2.1. The `latest` RTL bindings and default hardware model are no longer pinned to the Core 2.1 register map (#4334).
 - **Autonomous self-tests**: Disabled by default and triggered by workload, not elapsed time. Platforms must coordinate the new generic-input-wire assignment with the Core integration specification before adoption (#4351).
 
 **Full Changelog**: https://github.com/chipsalliance/caliptra-sw/compare/fw-2.1.4...fw-2.1.5
