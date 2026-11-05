@@ -96,6 +96,10 @@ fn test_fe_programming_cannot_be_called_from_pl1() {
     let init_params = InitParams {
         rom: &rom,
         security_state: *SecurityState::default().set_device_lifecycle(DeviceLifecycle::Production),
+        ss_init_params: SubsystemInitParams {
+            enable_mcu_uart_log: true,
+            ..Default::default()
+        },
         ..Default::default()
     };
 
@@ -103,12 +107,14 @@ fn test_fe_programming_cannot_be_called_from_pl1() {
     let mut image_opts = ImageOptions::default();
     image_opts.vendor_config.pl0_pauser = None;
 
+    println!("Starting production boot with no PL0 pauser");
     let mut model = run_rt_test(RuntimeTestArgs {
         init_params: Some(init_params),
         test_image_options: Some(image_opts),
         ..Default::default()
     });
 
+    println!("Runtime boot complete; waiting for RtReadyForCommands");
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
     });

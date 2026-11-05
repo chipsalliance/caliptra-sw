@@ -28,7 +28,8 @@ use openssl::{
 use zerocopy::{FromBytes, IntoBytes};
 
 use crate::common::{
-    assert_error, execute_dpe_cmd, run_rt_test, DpeResult, RuntimeTestArgs, TEST_DIGEST,
+    assert_error, execute_dpe_cmd, get_boot_dpe_context_info, run_rt_test, DpeResult,
+    RuntimeTestArgs, TEST_DIGEST,
 };
 
 fn check_certificate_signature(
@@ -195,6 +196,7 @@ fn test_sign_with_exported_cdi_measurement_update_duplicate_cdi() {
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
     });
+    let boot_context = get_boot_dpe_context_info(&mut model);
 
     let export_cdi_cmd = DeriveContextCmd {
         flags: DeriveContextFlags::EXPORT_CDI
@@ -232,13 +234,7 @@ fn test_sign_with_exported_cdi_measurement_update_duplicate_cdi() {
     let measurement_cmd = DeriveContextCmd {
         data: TciMeasurement([0xa; TCI_SIZE]),
         flags: DeriveContextFlags::RECURSIVE,
-        tci_type: if model.subsystem_mode() {
-            // MCU ROM stashes field_entropy_state as the last measurement,
-            // making it the default context with tci_type 0.
-            0
-        } else {
-            u32::from_le_bytes(*b"CCIV")
-        },
+        tci_type: boot_context.tci_type,
         ..Default::default()
     };
 
@@ -297,6 +293,7 @@ fn test_sign_with_exported_cdi_measurement_update() {
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
     });
+    let boot_context = get_boot_dpe_context_info(&mut model);
 
     let export_cdi_cmd = DeriveContextCmd {
         flags: DeriveContextFlags::EXPORT_CDI
@@ -318,13 +315,7 @@ fn test_sign_with_exported_cdi_measurement_update() {
     let measurement_cmd = DeriveContextCmd {
         data: TciMeasurement([0xa; TCI_SIZE]),
         flags: DeriveContextFlags::RECURSIVE,
-        tci_type: if model.subsystem_mode() {
-            // MCU ROM stashes field_entropy_state as the last measurement,
-            // making it the default context with tci_type 0.
-            0
-        } else {
-            u32::from_le_bytes(*b"CCIV")
-        },
+        tci_type: boot_context.tci_type,
         ..Default::default()
     };
 

@@ -17,7 +17,7 @@ use zerocopy::{FromBytes, IntoBytes};
 
 use crate::common::{
     assert_error, calculate_cptra_config_init_vals_hash, default_rt_test_soc_manifest_measurements,
-    run_rt_test, RuntimeTestArgs, DEFAULT_MCU_FW,
+    get_boot_dpe_context_info, run_rt_test, RuntimeTestArgs, DEFAULT_MCU_FW,
 };
 
 /// Firmware ID reserved for the Caliptra-managed MCU RT DPE context.
@@ -35,6 +35,7 @@ fn test_stash_measurement() {
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
     });
+    let boot_context = get_boot_dpe_context_info(&mut model);
 
     let measurement = [1u8; 48];
     let mut cmd = MailboxReq::StashMeasurement(StashMeasurementReq {
@@ -93,10 +94,9 @@ fn test_stash_measurement() {
         let mut mcu_hasher = Sha384::new();
         mcu_hasher.update(DEFAULT_MCU_FW);
         hasher.update(mcu_hasher.finalize());
-        // MCU ROM stashes field_entropy_state measurement
-        let mut fe_hasher = Sha384::new();
-        fe_hasher.update(0u32.to_le_bytes());
-        hasher.update(fe_hasher.finalize());
+        if let Some(fe_measurement) = boot_context.fe_state_measurement {
+            hasher.update(fe_measurement);
+        }
     }
     hasher.update(measurement);
     let expected_measurement_hash = hasher.finalize();
