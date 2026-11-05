@@ -1,3 +1,44 @@
+# fw-2.1.5
+
+This is a combined runtime and FMC release.
+
+## Caliptra Firmware 2.1.5 Release Notes
+
+Release notes for changes introduced since Firmware 2.1.4.
+
+### Features
+
+- **Runtime & Recovery**:
+  - Support `ZEROIZE_UDS_FE` after boot in PL0 subsystem mode, with verified OTP zeroization and terminal shutdown (#4294)
+  - Add opt-in command-count-triggered FIPS self-tests for `fips_self_test` builds, with startup-latched configuration and SHAKE256-session deferral (#4351)
+  - Support per-image single-DWORD DMA hashing through signed image metadata flags and honor larger configured 64-bit mailbox watchdog timeouts (#4275)
+- **Host Library**:
+  - Add `INSTALL_OWNER_PK_HASH` and `SET_OWNER_AUTH_MANIFEST` commands to libcaliptra (#4293, #4328)
+  - Add streaming `CM_SHA_INIT`, `CM_SHA_UPDATE`, and `CM_SHA_FINAL` commands and `MLDSA87_VERIFY` to libcaliptra (#4357, #4373)
+
+### Fixes
+
+- **Authorization & Attestation**:
+  - Extend the authorization manifest owner preamble signature to cover version, SVN, and flags as well as owner public keys (#4343)
+  - Require the signed MCU load address to match the actual installation destination during hitless activation (#4323)
+  - Preserve `RTMR` and `CCIV` byte ordering in named DPE TCI identifiers (#4338)
+- **Sensitive Data & Boot**:
+  - Zeroize temporary plaintext AES, AES-GCM, ECDH, and SHAKE256 mailbox context buffers (#4367)
+  - Run FMC fatal-error cleanup when firmware handoff table validation fails (#4304)
+  - Report FMC alias CSR errors for ML-DSA CSR builder failures (#4306)
+- **Drivers & Performance**:
+  - Wait for CSRNG command readiness before each command word and for command completion to prevent FIFO overruns and hardware stalls (#4322)
+  - Adapt HMAC seed programming to the hardware register width (#4217)
+  - Optimize FPGA recovery DMA transfers with burst and batched fixed-address operations (#4319)
+
+### Compatibility Notes
+
+- **Authorization manifest signatures**: Owner signatures generated under the previous signing scheme no longer verify. Regenerate or re-sign manifests so the owner signature covers the policy fields and owner public keys (#4343).
+- **DPE identities**: Corrected named TCI identifiers change affected certificate identifiers and DPE-derived keys. A cold boot is required; retained contexts are not migrated (#4338).
+- **Autonomous self-tests**: Disabled by default and triggered by workload, not elapsed time. Platforms must coordinate the new generic-input-wire assignment with the Core integration specification before adoption (#4351).
+
+**Full Changelog**: https://github.com/chipsalliance/caliptra-sw/compare/fw-2.1.4...fw-2.1.5
+
 # fw-2.1.4
 
 This is a combined runtime and FMC release.
