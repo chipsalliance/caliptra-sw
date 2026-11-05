@@ -17,7 +17,7 @@ use caliptra_dpe::{
 use caliptra_dpe_crypto::{CryptoError, MAX_EXPORTED_CDI_SIZE};
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{HwModel, ModelError, SecurityState};
-use caliptra_runtime::{RtBootStatus, TciMeasurement};
+use caliptra_runtime::{Drivers, RtBootStatus, TciMeasurement};
 use openssl::{
     bn::BigNum,
     ec::{EcGroup, EcKey},
@@ -30,6 +30,13 @@ use zerocopy::{FromBytes, IntoBytes};
 use crate::common::{
     assert_error, execute_dpe_cmd, run_rt_test, DpeResult, RuntimeTestArgs, TEST_DIGEST,
 };
+
+#[cfg(feature = "fpga_subsystem")]
+const HW_MODEL_MODES_SUBSYSTEM: [bool; 1] = [true];
+#[cfg(feature = "fpga_realtime")]
+const HW_MODEL_MODES_SUBSYSTEM: [bool; 1] = [false];
+#[cfg(not(any(feature = "fpga_realtime", feature = "fpga_subsystem")))]
+const HW_MODEL_MODES_SUBSYSTEM: [bool; 2] = [false, true];
 
 fn check_certificate_signature(
     sign_resp: &SignWithExportedEcdsaResp,
@@ -180,6 +187,12 @@ fn test_sign_with_exported_never_derived() {
 
 #[test]
 fn test_sign_with_exported_cdi_measurement_update_duplicate_cdi() {
+    for subsystem_mode in HW_MODEL_MODES_SUBSYSTEM {
+        sign_with_exported_cdi_measurement_update_duplicate_cdi_in_mode(subsystem_mode);
+    }
+}
+
+fn sign_with_exported_cdi_measurement_update_duplicate_cdi_in_mode(subsystem_mode: bool) {
     // Tests the following sequence:
     // 1. Export a CDI.
     //   - This CDI is know as the "original_cdi".
@@ -189,7 +202,10 @@ fn test_sign_with_exported_cdi_measurement_update_duplicate_cdi() {
     //    `DpeErrorCode::Crypto(CryptoError::ExportedCdiHandleDuplicateCdi))`.
     // 5. Verify signing of `SIGN_WITH_EXPORTED_ECDSA` with the CA signed by the "original_cdi".
     //    This ensures that the failure in step 4 did not overwrite the "original_cdi".
-    let mut model = run_rt_test(RuntimeTestArgs::default());
+    let mut model = run_rt_test(RuntimeTestArgs {
+        subsystem_mode,
+        ..Default::default()
+    });
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
     });
@@ -230,9 +246,9 @@ fn test_sign_with_exported_cdi_measurement_update_duplicate_cdi() {
         data: TciMeasurement([0xa; TCI_SIZE]),
         flags: DeriveContextFlags::RECURSIVE,
         tci_type: if model.subsystem_mode() {
-            u32::from_be_bytes(*b"MCFW")
+            Drivers::MCU_RT_TCI_TYPE
         } else {
-            u32::from_le_bytes(*b"CCIV")
+            Drivers::CCIV_TCI_TYPE
         },
         ..Default::default()
     };
@@ -274,6 +290,12 @@ fn test_sign_with_exported_cdi_measurement_update_duplicate_cdi() {
 
 #[test]
 fn test_sign_with_exported_cdi_measurement_update() {
+    for subsystem_mode in HW_MODEL_MODES_SUBSYSTEM {
+        sign_with_exported_cdi_measurement_update_in_mode(subsystem_mode);
+    }
+}
+
+fn sign_with_exported_cdi_measurement_update_in_mode(subsystem_mode: bool) {
     // Tests the following sequence:
     // 1. Export a CDI.
     //   - This CDI is know as the "original_cdi".
@@ -286,7 +308,10 @@ fn test_sign_with_exported_cdi_measurement_update() {
     //    to make sure that we can create valid signatures that map with the "update_cdi" CA cert.
     // 6. Double check that the certificate and export_cdi have changed between "original_cdi" and
     //    "update_cdi".
-    let mut model = run_rt_test(RuntimeTestArgs::default());
+    let mut model = run_rt_test(RuntimeTestArgs {
+        subsystem_mode,
+        ..Default::default()
+    });
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
     });
@@ -311,9 +336,9 @@ fn test_sign_with_exported_cdi_measurement_update() {
         data: TciMeasurement([0xa; TCI_SIZE]),
         flags: DeriveContextFlags::RECURSIVE,
         tci_type: if model.subsystem_mode() {
-            u32::from_be_bytes(*b"MCFW")
+            Drivers::MCU_RT_TCI_TYPE
         } else {
-            u32::from_le_bytes(*b"CCIV")
+            Drivers::CCIV_TCI_TYPE
         },
         ..Default::default()
     };
