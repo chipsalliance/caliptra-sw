@@ -1055,7 +1055,6 @@ dependencies = [
 name = "caliptra-ocp-eat"
 version = "0.1.0"
 dependencies = [
- "arrayvec",
  "ecdsa",
  "minicbor",
  "p384",

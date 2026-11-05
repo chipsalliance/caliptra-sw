@@ -5,9 +5,8 @@
 //! This module provides structures and encoding functions for COSE Sign1
 //! as defined in RFC 8152.
 
-use crate::cbor::CborEncoder;
+use crate::cbor::{CborEncodable, CborEncoder};
 use crate::error::EatError;
-use arrayvec::ArrayVec;
 
 /// COSE header label constants (RFC 8152)
 pub mod header_params {
@@ -131,14 +130,14 @@ impl ProtectedHeader<'_> {
 
     /// Encode the protected header into the provided buffer
     pub fn encode(&self, buffer: &mut [u8]) -> Result<usize, EatError> {
-        // Estimate and validate buffer size
-        let estimated_size = self.estimate_size();
-        if buffer.len() < estimated_size {
-            return Err(EatError::BufferTooSmall);
-        }
-
         let mut encoder = CborEncoder::new(buffer);
+        CborEncodable::encode(self, &mut encoder)?;
+        Ok(encoder.len())
+    }
+}
 
+impl CborEncodable for ProtectedHeader<'_> {
+    fn encode(&self, encoder: &mut CborEncoder) -> Result<(), EatError> {
         // Calculate number of entries
         let mut entries = 2u64; // alg and content_type are mandatory
         if self.kid.is_some() {
@@ -161,75 +160,29 @@ impl ProtectedHeader<'_> {
             encoder.encode_bytes(kid)?;
         }
 
-        Ok(encoder.len())
+        Ok(())
     }
 }
 
-/// Default maximum size for the encoded protected header.
-/// The current protected header uses at most the `alg`, `content_type`, and `kid` fields.
-pub const DEFAULT_PROTECTED_HEADER_SIZE: usize = 256;
-
-/// COSE Sign1 encoder with builder pattern and configurable protected header buffer
-pub struct CoseSign1WithBuffer<'a, const PROTECTED_SIZE: usize> {
-    encoder: CborEncoder<'a>,
+/// COSE Sign1 encoder with builder pattern
+pub struct CoseSign1<'a> {
+    buffer: &'a mut [u8],
     protected_header: Option<&'a ProtectedHeader<'a>>,
     unprotected_headers: Option<&'a [CoseHeaderPair<'a>]>,
-    payload: Option<&'a [u8]>,
-    signature: Option<&'a [u8]>,
 }
 
-/// Default COSE Sign1 encoder using [`DEFAULT_PROTECTED_HEADER_SIZE`].
-pub type CoseSign1<'a> = CoseSign1WithBuffer<'a, DEFAULT_PROTECTED_HEADER_SIZE>;
+impl<'a> CoseSign1<'a> {
+    const SIG_STRUCTURE_ARRAY_LEN: u64 = 4;
+    const COSE_SIGN1_ARRAY_LEN: u64 = 4;
+    const SIG_STRUCTURE_CONTEXT: &'static str = "Signature1";
 
-impl<'a, const PROTECTED_SIZE: usize> CoseSign1WithBuffer<'a, PROTECTED_SIZE> {
     /// Create a new COSE Sign1 encoder with the given buffer
     pub fn new(buffer: &'a mut [u8]) -> Self {
         Self {
-            encoder: CborEncoder::new(buffer),
+            buffer,
             protected_header: None,
             unprotected_headers: None,
-            payload: None,
-            signature: None,
         }
-    }
-
-    /// Create COSE Sign1 signature context (as per RFC 8152)
-    ///
-    /// Creates the Sig_structure for COSE_Sign1 as defined in RFC 8152 Section 4.4:
-    /// ```text
-    /// Sig_structure = [
-    ///    "Signature1",   // Context string for COSE_Sign1
-    ///    protected,      // Protected header (serialized)
-    ///    external_aad,   // Empty for basic use
-    ///    payload         // The payload to be signed
-    /// ]
-    /// ```
-    ///
-    /// For most algorithms, this data should be hashed before signing.
-    pub fn get_signature_context(&self, context_buffer: &mut [u8]) -> Result<usize, EatError> {
-        // Encode protected header to temporary buffer
-        let protected_buffer = self.encode_protected_header_to_buffer()?;
-        let payload = self.payload.ok_or(EatError::MissingMandatoryClaim)?;
-
-        // Create signature context
-        let mut encoder = CborEncoder::new(context_buffer);
-
-        // CBOR encode the Sig_structure array
-        encoder.encode_array_header(4)?; // Array of 4 items
-
-        // "Signature1" as text string
-        encoder.encode_text("Signature1")?;
-
-        // Protected header as byte string
-        encoder.encode_bytes(&protected_buffer)?;
-
-        // External AAD as empty byte string
-        encoder.encode_bytes(&[])?;
-
-        // Payload as byte string
-        encoder.encode_bytes(payload)?;
-
-        Ok(encoder.len())
     }
 
     fn encode_unprotected_header(
@@ -246,24 +199,13 @@ impl<'a, const PROTECTED_SIZE: usize> CoseSign1WithBuffer<'a, PROTECTED_SIZE> {
         Ok(())
     }
 
-    /// Encode the protected header into an ArrayVec buffer
-    fn encode_protected_header_to_buffer(&self) -> Result<ArrayVec<u8, PROTECTED_SIZE>, EatError> {
-        let mut protected_buffer = ArrayVec::new();
-        let protected = self
-            .protected_header
-            .ok_or(EatError::MissingMandatoryClaim)?;
-
-        // Encode into a temporary array, then copy to ArrayVec
-        let mut temp_buffer = [0u8; PROTECTED_SIZE];
-        let len = protected.encode(&mut temp_buffer)?;
-        if len > PROTECTED_SIZE {
-            return Err(EatError::BufferTooSmall);
+    fn estimate_unprotected_header_size(headers: &[CoseHeaderPair]) -> usize {
+        let mut size = CborEncoder::estimate_uint_size(headers.len() as u64);
+        for header in headers {
+            size += CborEncoder::estimate_int_size(header.key as i64);
+            size += CborEncoder::estimate_bytes_string_size(header.value.len());
         }
-        protected_buffer
-            .try_extend_from_slice(&temp_buffer[..len])
-            .map_err(|_| EatError::BufferTooSmall)?;
-
-        Ok(protected_buffer)
+        size
     }
 
     /// Set the protected header
@@ -278,52 +220,111 @@ impl<'a, const PROTECTED_SIZE: usize> CoseSign1WithBuffer<'a, PROTECTED_SIZE> {
         self
     }
 
-    /// Set the payload
-    pub fn payload(mut self, payload: &'a [u8]) -> Self {
-        self.payload = Some(payload);
-        self
-    }
-
-    /// Set the signature
-    pub fn signature(mut self, signature: &'a [u8]) -> Self {
-        self.signature = Some(signature);
-        self
-    }
-
     /// Encode the COSE_Sign1 structure with optional outer tags
     /// Always encodes tag 18 (COSE_Sign1). Additional outer tags can be provided.
     /// If additional_tags is Some, they are encoded before tag 18.
-    pub fn encode(mut self, additional_tags: Option<&[u64]>) -> Result<usize, EatError> {
-        // Encode additional tags first if provided
+    pub fn encode<P, S, Sig>(
+        self,
+        additional_tags: Option<&[u64]>,
+        encode_payload: P,
+        sign: S,
+    ) -> Result<usize, EatError>
+    where
+        P: FnOnce(&mut CborEncoder) -> Result<(), EatError>,
+        S: FnOnce(&[u8]) -> Result<Sig, EatError>,
+        Sig: AsRef<[u8]>,
+    {
+        let protected = self
+            .protected_header
+            .ok_or(EatError::MissingMandatoryClaim)?;
+        let unprotected = self.unprotected_headers.unwrap_or(&[]);
+
+        // Encode Sig_structure ["Signature1", bstr(protected), bstr(""), bstr(payload)]
+        let (protected_src, protected_bstr_len, payload_src, sig_ctx_end) = {
+            let mut encoder = CborEncoder::new(self.buffer);
+            encoder.encode_array_header(Self::SIG_STRUCTURE_ARRAY_LEN)?;
+            encoder.encode_text(Self::SIG_STRUCTURE_CONTEXT)?;
+            let protected_src = encoder.len();
+            encoder.encode_bytes_deferred(|enc| CborEncodable::encode(protected, enc))?;
+            let protected_end = encoder.len();
+            let protected_bstr_len = protected_end - protected_src;
+            encoder.encode_bytes(&[])?;
+            let payload_src = encoder.len();
+            encoder.encode_bytes_deferred(encode_payload)?;
+            let sig_ctx_end = encoder.len();
+            (protected_src, protected_bstr_len, payload_src, sig_ctx_end)
+        };
+        let payload_bstr_len = sig_ctx_end - payload_src;
+
+        // Sign the encoded Sig_structure
+        let sig = sign(&self.buffer[..sig_ctx_end])?;
+
+        // Calculate COSE_Sign1 layout offsets and shift bstr(protected) and bstr(payload) into place
+        let mut cose_prefix_len = CborEncoder::estimate_uint_size(crate::cbor::tag::COSE_SIGN1)
+            + CborEncoder::estimate_uint_size(Self::COSE_SIGN1_ARRAY_LEN);
         if let Some(tags) = additional_tags {
             for tag in tags {
-                self.encoder.encode_tag(*tag)?;
+                cose_prefix_len = cose_prefix_len
+                    .checked_add(CborEncoder::estimate_uint_size(*tag))
+                    .ok_or(EatError::BufferTooSmall)?;
             }
         }
+        let unprotected_len = Self::estimate_unprotected_header_size(unprotected);
+        let protected_dst = cose_prefix_len;
+        let unprotected_dst = protected_dst
+            .checked_add(protected_bstr_len)
+            .ok_or(EatError::BufferTooSmall)?;
+        let payload_dst = unprotected_dst
+            .checked_add(unprotected_len)
+            .ok_or(EatError::BufferTooSmall)?;
+        let payload_dst_end = payload_dst
+            .checked_add(payload_bstr_len)
+            .ok_or(EatError::BufferTooSmall)?;
+        if payload_dst_end > self.buffer.len() {
+            return Err(EatError::BufferTooSmall);
+        }
 
-        // Always encode COSE_Sign1 tag (18)
-        self.encoder.encode_cose_sign1_tag()?;
+        if payload_dst >= payload_src {
+            self.buffer
+                .copy_within(payload_src..sig_ctx_end, payload_dst);
+            self.buffer.copy_within(
+                protected_src..protected_src + protected_bstr_len,
+                protected_dst,
+            );
+        } else {
+            self.buffer.copy_within(
+                protected_src..protected_src + protected_bstr_len,
+                protected_dst,
+            );
+            self.buffer
+                .copy_within(payload_src..sig_ctx_end, payload_dst);
+        }
 
-        // Then encode the COSE_Sign1 array
-        self.encoder.encode_array_header(4)?;
+        // Write COSE_Sign1 tags/array header, unprotected headers, and signature bstr
+        {
+            let mut prefix_enc = CborEncoder::new(&mut self.buffer[..cose_prefix_len]);
+            if let Some(tags) = additional_tags {
+                for tag in tags {
+                    prefix_enc.encode_tag(*tag)?;
+                }
+            }
+            prefix_enc.encode_cose_sign1_tag()?;
+            prefix_enc.encode_array_header(Self::COSE_SIGN1_ARRAY_LEN)?;
+        }
+        {
+            let mut unprot_enc = CborEncoder::new(&mut self.buffer[unprotected_dst..payload_dst]);
+            Self::encode_unprotected_header(&mut unprot_enc, unprotected)?;
+            if unprot_enc.len() != unprotected_len {
+                return Err(EatError::EncodingError);
+            }
+        }
+        let sig_bstr_len = {
+            let mut sig_enc = CborEncoder::new(&mut self.buffer[payload_dst_end..]);
+            sig_enc.encode_bytes(sig.as_ref())?;
+            sig_enc.len()
+        };
 
-        // Encode protected header to temporary buffer
-        let protected_buffer = self.encode_protected_header_to_buffer()?;
-        self.encoder.encode_bytes(&protected_buffer)?;
-
-        // Unprotected header as map
-        let unprotected = self.unprotected_headers.unwrap_or(&[]);
-        Self::encode_unprotected_header(&mut self.encoder, unprotected)?;
-
-        // Payload as byte string
-        let payload = self.payload.ok_or(EatError::MissingMandatoryClaim)?;
-        self.encoder.encode_bytes(payload)?;
-
-        // Signature as byte string
-        let signature = self.signature.ok_or(EatError::MissingMandatoryClaim)?;
-        self.encoder.encode_bytes(signature)?;
-
-        Ok(self.encoder.len())
+        Ok(payload_dst_end + sig_bstr_len)
     }
 }
 
@@ -450,32 +451,31 @@ mod tests {
     #[test]
     fn test_cose_sign1_signature_context() {
         let protected = ProtectedHeader::new_es384();
-        let payload = b"test payload";
+        let signature = [0xAA; 96];
 
         let mut buffer = [0u8; 512];
-        let cose = CoseSign1::new(&mut buffer)
+        CoseSign1::new(&mut buffer)
             .protected_header(&protected)
-            .payload(payload);
-
-        let mut context_buffer = [0u8; 1024];
-        let context_len = cose
-            .get_signature_context(&mut context_buffer)
-            .expect("Failed to get signature context");
-
-        // Array(4): 1 + "Signature1"(10 chars): 11 + protected(8 bytes): 9 + empty AAD: 1 + payload(12 bytes): 13 = 35 bytes
-        assert_eq!(context_len, 35);
-
-        // Verify structure starts with array of 4 items
-        assert_eq!(
-            context_buffer[0],
-            crate::cbor::cbor_initial_byte(crate::cbor::MajorType::Array, 4)
-        );
+            .encode(
+                None,
+                |enc| enc.encode_text("test payload"),
+                |sig_ctx| {
+                    // Array(4): 1 + "Signature1"(10 chars): 11 + protected(8 bytes): 9 + empty AAD: 1 + payload(1 + 13 bytes): 14 = 36 bytes
+                    assert_eq!(sig_ctx.len(), 36);
+                    assert_eq!(
+                        sig_ctx[0],
+                        crate::cbor::cbor_initial_byte(crate::cbor::MajorType::Array, 4)
+                    );
+                    Ok(signature)
+                },
+            )
+            .expect("Encoding failed");
     }
 
     #[test]
     fn test_cose_sign1_encode_complete() {
         let protected = ProtectedHeader::new_es384();
-        let payload = b"test payload"; // 12 bytes
+        let payload = b"test payload"; // 12 bytes (13 bytes as CBOR text string)
         let signature = [0xAA; 96]; // Mock P-384 signature (96 bytes)
 
         let x5chain_header = CoseHeaderPair {
@@ -488,9 +488,7 @@ mod tests {
         let encoded_len = CoseSign1::new(&mut buffer)
             .protected_header(&protected)
             .unprotected_headers(&unprotected)
-            .payload(payload)
-            .signature(&signature)
-            .encode(None)
+            .encode(None, |enc| enc.encode_bytes(payload), |_| Ok(signature))
             .expect("Encoding failed");
 
         // Calculate expected size
@@ -504,7 +502,8 @@ mod tests {
         let unprotected_value = CborEncoder::estimate_bytes_string_size(b"mock-cert".len()); // 9 byte string
         let unprotected_size = unprotected_map_header + unprotected_key + unprotected_value;
 
-        let payload_size = CborEncoder::estimate_bytes_string_size(payload.len()); // 12 byte string
+        let inner_payload_size = CborEncoder::estimate_bytes_string_size(payload.len());
+        let payload_size = CborEncoder::estimate_bytes_string_size(inner_payload_size);
         let signature_size = CborEncoder::estimate_bytes_string_size(signature.len()); // 96 byte string
 
         let expected_size = tag18_size
@@ -537,9 +536,11 @@ mod tests {
         let additional_tags = [55799u64, 61u64]; // Self-described CBOR + CWT
         let encoded_len = CoseSign1::new(&mut buffer)
             .protected_header(&protected)
-            .payload(payload)
-            .signature(&signature)
-            .encode(Some(&additional_tags))
+            .encode(
+                Some(&additional_tags),
+                |enc| enc.encode_bytes(payload),
+                |_| Ok(signature),
+            )
             .expect("Encoding failed");
 
         // Calculate expected size
@@ -549,7 +550,8 @@ mod tests {
         let array_header_size = 1; // Array of 4 items
         let protected_size = CborEncoder::estimate_bytes_string_size(8); // protected header as byte string
         let unprotected_size = CborEncoder::estimate_uint_size(0); // Empty map (0 entries)
-        let payload_size = CborEncoder::estimate_bytes_string_size(payload.len()); // 4 byte string
+        let inner_payload_size = CborEncoder::estimate_bytes_string_size(payload.len());
+        let payload_size = CborEncoder::estimate_bytes_string_size(inner_payload_size);
         let signature_size = CborEncoder::estimate_bytes_string_size(signature.len()); // 96 byte string
 
         let expected_size = tag_55799_size
