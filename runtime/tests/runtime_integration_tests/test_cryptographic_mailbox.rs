@@ -41,7 +41,7 @@ use rand::prelude::*;
 use rand::rngs::StdRng;
 use rand::{CryptoRng, RngCore};
 use sha2::{Digest, Sha384, Sha512};
-use zerocopy::{transmute, FromBytes, IntoBytes};
+use zerocopy::{FromBytes, IntoBytes};
 
 #[cfg(feature = "fpga_subsystem")]
 const HW_MODEL_MODES_SUBSYSTEM: [bool; 1] = [true];
@@ -189,7 +189,7 @@ fn test_aes_gcm_context_authentication_failure() {
         let header =
             CmAesGcmEncryptFinalRespHeader::read_from_bytes(&final_response[..header_size])
                 .unwrap();
-        let iv: [u8; 12] = transmute!(response.iv);
+        let iv = response.iv;
         let (expected_tag, expected_ciphertext) =
             rustcrypto_gcm_encrypt(&key, &iv, &[], &plaintext);
         assert_eq!(header.ciphertext_size as usize, plaintext.len());
