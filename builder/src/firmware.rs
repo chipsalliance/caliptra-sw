@@ -3,6 +3,8 @@
 // Centralized list of all firmware targets. This allows us to compile them all
 // ahead of time for executing tests on hosts that can't compile rust code.
 
+use caliptra_hw_model_types::CaliptraHwVersion;
+
 use crate::{FirmwareType, FwId};
 
 pub fn rom_from_env() -> &'static FwId<'static> {
@@ -48,6 +50,15 @@ pub const ROM: FwId = FwId {
     },
 };
 
+pub const ROM_RC_2_2: FwId = FwId {
+    crate_name: "caliptra-rom",
+    bin_name: "caliptra-rom",
+    fw_type: FirmwareType::Source {
+        features: &["cfi", "stash-measurement-registers"],
+        hw_revision: Some(CaliptraHwVersion::Latest),
+    },
+};
+
 pub const ROM_FPGA: FwId = FwId {
     crate_name: "caliptra-rom",
     bin_name: "caliptra-rom",
@@ -63,6 +74,15 @@ pub const ROM_WITH_UART: FwId = FwId {
     fw_type: FirmwareType::Source {
         features: &["emu", "cfi"],
         hw_revision: None,
+    },
+};
+
+pub const ROM_WITH_UART_RC_2_2: FwId = FwId {
+    crate_name: "caliptra-rom",
+    bin_name: "caliptra-rom",
+    fw_type: FirmwareType::Source {
+        features: &["emu", "cfi", "stash-measurement-registers"],
+        hw_revision: Some(CaliptraHwVersion::Latest),
     },
 };
 
@@ -145,6 +165,15 @@ pub const FMC_WITH_UART: FwId = FwId {
     },
 };
 
+pub const FMC_WITH_UART_RC_2_2: FwId = FwId {
+    crate_name: "caliptra-fmc",
+    bin_name: "caliptra-fmc",
+    fw_type: FirmwareType::Source {
+        features: &["emu", "cfi"],
+        hw_revision: Some(CaliptraHwVersion::Latest),
+    },
+};
+
 pub const FMC_FAKE_WITH_UART: FwId = FwId {
     crate_name: "caliptra-fmc",
     bin_name: "caliptra-fmc",
@@ -188,6 +217,21 @@ pub const APP_WITH_UART_OCP_LOCK: FwId = FwId {
     fw_type: FirmwareType::Source {
         features: &["emu", "fips_self_test", "ocp-lock", "cfi"],
         hw_revision: None,
+    },
+};
+
+pub const APP_RC_2_2: FwId = FwId {
+    crate_name: "caliptra-runtime",
+    bin_name: "caliptra-runtime",
+    fw_type: FirmwareType::Source {
+        features: &[
+            "emu",
+            "fips_self_test",
+            "ocp-lock",
+            "cfi",
+            //"stash-measurement-registers",
+        ],
+        hw_revision: Some(CaliptraHwVersion::Latest),
     },
 };
 
@@ -822,9 +866,12 @@ pub const REGISTERED_FW: &[&FwId] = &[
     &ROM_WITH_FIPS_TEST_HOOKS,
     &ROM_WITH_FIPS_TEST_HOOKS_FPGA,
     &ROM_FPGA_WITH_UART,
+    &ROM_RC_2_2,
+    &ROM_WITH_UART_RC_2_2,
     &FMC_WITH_UART,
     &FMC_FAKE_WITH_UART,
     &FMC_FPGA_WITH_UART,
+    &FMC_WITH_UART_RC_2_2,
     &APP,
     &APP_WITH_UART,
     &APP_WITH_UART_OCP_LOCK,
@@ -832,6 +879,7 @@ pub const REGISTERED_FW: &[&FwId] = &[
     &APP_WITH_UART_FIPS_TEST_HOOKS_FPGA,
     &APP_WITH_UART_OCP_LOCK_FPGA,
     &APP_WITH_UART_FPGA,
+    &APP_RC_2_2,
     &APP_ZEROS,
     &FMC_ZEROS,
     &caliptra_builder_tests::FWID,
