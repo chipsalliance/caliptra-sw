@@ -1738,6 +1738,11 @@ impl CaliptraError {
             0x000E00B3,
             "Runtime Error: Auth manifest invalid flags"
         ),
+        (
+            RUNTIME_INVALID_SELF_TEST_CONFIG,
+            0x000E00B6,
+            "Runtime Error: Invalid or unsupported autonomous self-test configuration"
+        ),
         // FMC Errors
         (FMC_GLOBAL_NMI, 0x000F0001, "FMC Error: Global NMI"),
         (

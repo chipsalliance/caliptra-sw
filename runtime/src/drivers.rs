@@ -19,6 +19,7 @@ use crate::debug_unlock::ProductionDebugUnlock;
 use crate::dpe_crypto::DpeCrypto;
 #[cfg(feature = "fips_self_test")]
 pub use crate::fips::fips_self_test_cmd::SelfTestStatus;
+use crate::fips::SelfTestSchedule;
 use crate::invoke_dpe::{dpe_error_detail, invoke_dpe_cmd};
 use crate::recovery_flow::RecoveryFlow;
 use crate::{
@@ -195,6 +196,9 @@ pub struct Drivers {
     #[cfg(feature = "fips_self_test")]
     pub self_test_status: SelfTestStatus,
 
+    #[cfg(feature = "fips_self_test")]
+    pub(crate) self_test_schedule: SelfTestSchedule,
+
     pub is_shutdown: bool,
 
     pub dmtf_device_info: Option<ArrayVec<u8, { AddSubjectAltNameReq::MAX_DEVICE_INFO_LEN }>>,
@@ -218,6 +222,9 @@ impl Drivers {
     /// any concurrent access to these register blocks does not conflict with
     /// these drivers.
     pub unsafe fn new_from_registers() -> CaliptraResult<Self> {
+        let self_test_schedule =
+            SelfTestSchedule::new(SocIfcReg::new().regs().cptra_generic_input_wires().read()[1])?;
+
         let trng = Trng::new(
             CsrngReg::new(),
             EntropySrcReg::new(),
@@ -246,6 +253,8 @@ impl Drivers {
             pic: Pic::new(El2PicCtrl::new()),
             #[cfg(feature = "fips_self_test")]
             self_test_status: SelfTestStatus::Idle,
+            #[cfg(feature = "fips_self_test")]
+            self_test_schedule,
             ecc_cert_chain: ArrayVec::new(),
             mldsa_cert_chain: ArrayVec::new(),
             is_shutdown: false,

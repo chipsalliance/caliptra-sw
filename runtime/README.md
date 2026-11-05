@@ -1084,6 +1084,49 @@ Table: `VERSION` output arguments
 | fips_rev     | u32[3]    | [31:0] HW rev ID, [47:32] ROM version, [63:48] FMC version, [95:64] FW version
 | name         | u8[12]    | 12 character module name "Caliptra RTM"
 
+### Autonomous command-count self-tests
+
+Runtime can run its existing FIPS self-test suite after a configured number of
+completed mailbox commands. This is workload-based, not time-based: idle time
+without additional commands does not advance the count.
+
+The configuration uses the second core generic-input word,
+`CPTRA_GENERIC_INPUT_WIRES[1]`, not MCU generic inputs or subsystem straps.
+Bit positions below are relative to that word:
+
+| Bits | Meaning |
+| ---- | ------- |
+| 0 | Enable. Zero preserves manual-only behavior. |
+| 16:1 | Nonzero base command count, from 1 to 65535. |
+| 18:17 | Multiplier: 0 = x1, 1 = x16, 2 = x256, 3 = x4096. |
+| 31:19 | Reserved; tie to zero when enabled. |
+
+The threshold is `base count * multiplier`, from 1 to 268431360 commands.
+The platform must allocate and configure these input bits before Runtime starts.
+For example, `0x000207d1` selects `1000 * 16 = 16000` commands.
+
+Runtime snapshots the configuration once per startup, including cold, warm and
+firmware-update resets. Later input changes do not disable or reconfigure the
+schedule. An enabled policy with a zero count, reserved bits set, or a build
+without `fips_self_test` support fails startup with
+`RUNTIME_INVALID_SELF_TEST_CONFIG`. Disabled configurations ignore other fields.
+
+Every completed Runtime command counts once, including failed commands and
+manual self-test commands. ROM commands and self-test execution do not count.
+The active handler and its response complete before the scheduler checks the
+threshold. Pending commands and unread responses retain mailbox ownership and
+defer the test; the suite starts only after Runtime acquires the mailbox lock.
+Continued mailbox activity can therefore postpone a due test indefinitely.
+
+The suite reuses the 2.0 KAT, ROM-integrity and firmware-verification paths and
+the configured command-watchdog policy. It resets the count only on success;
+a failure follows the existing fatal-error path. Shutdown remains terminal.
+
+Manual `SELF_TEST_START` and `SELF_TEST_GET_RESULTS` keep their existing
+semantics. Successful manual tests also reset the autonomous count. Autonomous
+tests neither create nor consume manual results, so unread manual results do
+not block future autonomous suites.
+
 ### SELF\_TEST\_START
 
 FIPS command to start the self tests

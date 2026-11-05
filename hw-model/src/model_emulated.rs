@@ -138,6 +138,24 @@ impl ModelEmulated {
 }
 
 impl ModelEmulated {
+    /// Drive the generic input pins without writing read-only SoC registers.
+    pub fn set_generic_input_wires(&mut self, value: &[u32; 2]) {
+        self.cpu.bus.bus.soc_reg.set_generic_input_wires(value);
+    }
+
+    pub fn dccm_read(&self, offset: u32, len: usize) -> Vec<u8> {
+        let start = usize::try_from(offset).unwrap();
+        let end = start.checked_add(len).expect("DCCM read range overflow");
+        self.cpu
+            .bus
+            .bus
+            .dccm
+            .data()
+            .get(start..end)
+            .expect("DCCM read outside memory")
+            .to_vec()
+    }
+
     /// Read emulated MCU SRAM without touching activation registers.
     pub fn mcu_sram_contents(&self) -> &[u8] {
         self.cpu.bus.bus.dma.axi.mcu_sram.data()
