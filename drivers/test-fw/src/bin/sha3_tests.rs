@@ -224,6 +224,31 @@ fn test_shake256_op4() {
     assert_eq!(digest, Array4x8::from(expected));
 }
 
+fn test_shake256_streaming_session_state() {
+    let mut sha3 = unsafe { Sha3::new(KmacReg::new()) };
+    const TOKEN: u128 = 1;
+    const INVALID_TOKEN: u128 = 2;
+
+    assert!(!sha3.has_active_streaming_session());
+    sha3.shake256_streaming_start(TOKEN).unwrap();
+    assert!(sha3.has_active_streaming_session());
+    sha3.shake256_streaming_update(TOKEN, b"abc").unwrap();
+    assert!(sha3.has_active_streaming_session());
+    assert_eq!(
+        sha3.shake256_streaming_update(INVALID_TOKEN, b"")
+            .unwrap_err(),
+        caliptra_drivers::CaliptraError::DRIVER_SHA3_INVALID_STATE_ERR
+    );
+    assert!(sha3.has_active_streaming_session());
+    sha3.shake256_streaming_finalize(TOKEN).unwrap();
+    assert!(!sha3.has_active_streaming_session());
+
+    sha3.shake256_streaming_start(TOKEN).unwrap();
+    assert!(sha3.has_active_streaming_session());
+    Shake256Kat::default().execute(&mut sha3).unwrap();
+    assert!(!sha3.has_active_streaming_session());
+}
+
 fn test_kat() {
     // Init CFI
     CfiCounter::reset(&mut || Ok((0xdeadbeef, 0xdeadbeef, 0xdeadbeef, 0xdeadbeef)));
@@ -235,6 +260,7 @@ fn test_kat() {
 
 test_suite! {
     test_kat,
+    test_shake256_streaming_session_state,
     test_shake256_digest0,
     test_shake256_digest1,
     test_shake256_digest2,

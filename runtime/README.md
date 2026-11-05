@@ -1248,6 +1248,69 @@ Table: `VERSION` output arguments
 | fips_rev     | u32[3]    | [31:0] HW rev ID, [47:32] ROM version, [63:48] FMC version, [95:64] FW version
 | name         | u8[12]    | 12 character module name "Caliptra RTM"
 
+### Autonomous command-count self-tests
+
+RT can automatically run the existing FIPS self-test sequence after a configured
+number of completed RT mailbox commands. This is workload-based, not time-based:
+no additional commands means no additional tests.
+
+The proposed late-binding allocation uses core `generic_input_wires[63:32]`,
+exposed as `CPTRA_GENERIC_INPUT_WIRES[1]` (not the MCU's generic input wires or
+`SS_STRAP_GENERIC`). Bit positions below are relative to that 32-bit word:
+
+| Bits | Meaning |
+| ---- | ------- |
+| 0 | Enable autonomous self-tests. Zero preserves existing, manual-only behavior. |
+| 16:1 | Nonzero base command count, from 1 to 65535. |
+| 18:17 | Multiplier encoding: 0 = x1, 1 = x16, 2 = x256, 3 = x4096. |
+| 31:19 | Reserved; tie to zero. |
+
+The threshold is `base count * multiplier` (1 to 268431360 commands).
+For example, `0x000207d1` selects `1000 * 16 = 16000` commands.
+The input-wire binding requires corresponding integration-spec allocation.
+
+RT snapshots the configuration once during each RT startup, including cold,
+warm, and firmware-update resets. Subsequent input changes are ignored until the
+next RT startup. There is no runtime disable or reconfiguration command.
+An enabled configuration with a zero count, nonzero reserved bits, or a build
+without `fips_self_test` support fails startup with
+`RUNTIME_INVALID_SELF_TEST_CONFIG`; disabled configurations ignore the other fields.
+
+Each completed RT mailbox command counts once, including rejected or failed
+commands and manual self-test commands. ROM commands and internal self-test
+execution do not count. RT finishes the active command and posts its response
+before checking whether a self-test is due. This includes command-scoped long
+SHA/DMA operations; a self-test never preempts their command handler.
+
+The test remains due while the mailbox has a pending command or an unread
+response. RT services pending commands first and starts the test only after
+acquiring mailbox ownership, preventing new requests from racing with execution.
+Autonomous tests also wait while a `CM_SHAKE256` streaming session retains live
+SHA3 hardware state between commands. The due counter is preserved through
+INIT/UPDATE and idle gaps; RT can sleep normally without holding the mailbox.
+After FINAL ends the session and its response is released, RT can run the
+pending suite without another trigger command.
+
+Continued mailbox activity or an abandoned streaming session can postpone the
+test indefinitely. A session remains active until finalized, invalidated by
+another SHA3 operation, or reset. There is no timeout or forced session abort:
+the configured count is a trigger threshold, not an upper bound on commands
+between tests.
+
+The suite uses the existing SHA accelerator locking behavior, runs with watchdog
+protection, and resets the command counter only after a successful test.
+A self-test failure follows the existing fatal-error path. Shutdown and reset
+retain their normal behavior.
+
+Manual `SELF_TEST_START` / `SELF_TEST_GET_RESULTS` remain supported. A successful
+manual test also resets the autonomous counter. Autonomous execution neither
+creates nor consumes a manual result, so unread manual results cannot block
+future autonomous tests. No external start command or result polling is needed.
+
+Explicit manual self-tests do not defer for a live `CM_SHAKE256` session: as
+before, they use the SHA3 engine and invalidate the session. Callers must restart
+such a session if UPDATE or FINAL reports `RUNTIME_CM_SHAKE256_CONTEXT_MISMATCH`.
+
 ### SELF\_TEST\_START
 
 FIPS command to start the self tests
@@ -1849,6 +1912,9 @@ Command Code: `0x434D_5346` ("CMSF")
 This starts the computation of a SHAKE256 extendable-output hash, which may be larger than a single mailbox command allows.
 
 **Note:** Unlike the CM\_SHA commands, SHAKE256 cannot save and restore hardware state between calls. Instead, the SHA3 hardware state is kept live, and the context returned to the caller is an encrypted random session token. If any other SHA3 operation occurs between INIT and FINAL, the session is invalidated and UPDATE/FINAL will return an error.
+
+Autonomous command-count self-tests defer until the streaming session ends.
+Explicit manual self-tests and other SHA3 operations can still invalidate it.
 
 The sequence to use these are:
 * 1 `CM_SHAKE256_INIT` command

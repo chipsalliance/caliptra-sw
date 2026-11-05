@@ -30,6 +30,67 @@ use crate::Drivers;
 
 pub struct FipsModule;
 
+/// Command-count scheduling state; a zero threshold disables autonomous tests.
+pub(crate) struct SelfTestSchedule {
+    threshold: u32,
+    completed_commands: u32,
+}
+
+impl SelfTestSchedule {
+    /// Decode the input-wire snapshot supplied at RT startup.
+    /// Later input changes cannot alter this schedule; RT must restart to resample them.
+    pub(crate) fn new(config: u32) -> CaliptraResult<Self> {
+        // Core CPTRA_GENERIC_INPUT_WIRES[1]: enable[0], count[16:1], scale[18:17].
+        // Bits [31:19] are reserved and must be zero when enabled.
+        const ENABLE_MASK: u32 = 1;
+        const COUNT_SHIFT: u32 = 1;
+        const COUNT_MASK: u32 = 0xffff;
+        const SCALE_SHIFT: u32 = 17;
+        const SCALE_MASK: u32 = 0x3;
+        const MULTIPLIER_LOG2_STEP: u32 = 4;
+        const RESERVED_MASK: u32 =
+            !(ENABLE_MASK | (COUNT_MASK << COUNT_SHIFT) | (SCALE_MASK << SCALE_SHIFT));
+
+        let threshold = if config & ENABLE_MASK == 0 {
+            // Disabled configurations ignore all other fields.
+            0
+        } else {
+            let count = (config >> COUNT_SHIFT) & COUNT_MASK;
+            // An enabled policy must be enforceable: reject unsupported builds,
+            // a zero command count, or undefined configuration bits.
+            if !cfg!(feature = "fips_self_test") || count == 0 || config & RESERVED_MASK != 0 {
+                return Err(CaliptraError::RUNTIME_INVALID_SELF_TEST_CONFIG);
+            }
+            let scale = (config >> SCALE_SHIFT) & SCALE_MASK;
+            // Scale is a base-16 exponent: 0/1/2/3 select x1/x16/x256/x4096.
+            // Shifting by 4 * scale computes count * 16^scale.
+            // Even the maximum 65535 * 4096 fits in u32.
+            count << (MULTIPLIER_LOG2_STEP * scale)
+        };
+        Ok(Self {
+            threshold,
+            completed_commands: 0,
+        })
+    }
+
+    pub(crate) fn command_completed(&mut self) {
+        // Saturate while a due test waits for an idle mailbox; further commands
+        // must not wrap the count or clear the pending trigger.
+        if self.completed_commands < self.threshold {
+            self.completed_commands += 1;
+        }
+    }
+
+    pub(crate) fn is_due(&self) -> bool {
+        self.threshold != 0 && self.completed_commands == self.threshold
+    }
+
+    /// A successful manual or autonomous suite starts a new command-count window.
+    pub(crate) fn test_passed(&mut self) {
+        self.completed_commands = 0;
+    }
+}
+
 /// Fips command handler.
 impl FipsModule {
     /// Clear data structures in DCCM.
@@ -240,5 +301,87 @@ impl FipsShutdownCmd {
         env.is_shutdown = true;
 
         Ok(0)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn autonomous_self_test_disabled_by_default() {
+        for config in [0, !1] {
+            let mut schedule = SelfTestSchedule::new(config).unwrap();
+            for _ in 0..100 {
+                schedule.command_completed();
+                assert!(!schedule.is_due());
+            }
+        }
+    }
+
+    #[cfg(feature = "fips_self_test")]
+    #[test]
+    fn autonomous_self_test_threshold_and_reset() {
+        let mut schedule = SelfTestSchedule::new(1 | (3 << 1)).unwrap();
+        for _ in 0..2 {
+            schedule.command_completed();
+            assert!(!schedule.is_due());
+        }
+        schedule.command_completed();
+        assert!(schedule.is_due());
+        for _ in 0..100 {
+            schedule.command_completed();
+            assert!(schedule.is_due());
+        }
+        assert_eq!(schedule.completed_commands, 3);
+        schedule.test_passed();
+        assert!(!schedule.is_due());
+        assert_eq!(schedule.completed_commands, 0);
+    }
+
+    #[cfg(feature = "fips_self_test")]
+    #[test]
+    fn autonomous_self_test_multiplier_encoding() {
+        for (encoding, multiplier) in [(0, 1), (1, 16), (2, 256), (3, 4096)] {
+            let mut schedule = SelfTestSchedule::new(1 | (2 << 1) | (encoding << 17)).unwrap();
+            assert_eq!(schedule.threshold, 2 * multiplier);
+            for _ in 0..(2 * multiplier - 1) {
+                schedule.command_completed();
+                assert!(!schedule.is_due());
+            }
+            schedule.command_completed();
+            assert!(schedule.is_due());
+        }
+    }
+
+    #[cfg(feature = "fips_self_test")]
+    #[test]
+    fn autonomous_self_test_maximum_threshold() {
+        let mut schedule = SelfTestSchedule::new(0x7_ffff).unwrap();
+        assert_eq!(schedule.threshold, 268_431_360);
+        schedule.completed_commands = schedule.threshold - 1;
+        schedule.command_completed();
+        schedule.command_completed();
+        assert!(schedule.is_due());
+        assert_eq!(schedule.completed_commands, 268_431_360);
+    }
+
+    #[test]
+    fn autonomous_self_test_rejects_invalid_configuration() {
+        for config in [1, 1 | (3 << 17), 3 | (1 << 19), u32::MAX] {
+            assert!(matches!(
+                SelfTestSchedule::new(config),
+                Err(CaliptraError::RUNTIME_INVALID_SELF_TEST_CONFIG)
+            ));
+        }
+    }
+
+    #[cfg(not(feature = "fips_self_test"))]
+    #[test]
+    fn autonomous_self_test_rejects_unsupported_enable() {
+        assert!(matches!(
+            SelfTestSchedule::new(3),
+            Err(CaliptraError::RUNTIME_INVALID_SELF_TEST_CONFIG)
+        ));
     }
 }

@@ -163,6 +163,18 @@ impl ModelEmulated {
 }
 
 impl ModelEmulated {
+    /// Drive the core's generic input pins without writing the read-only SoC registers.
+    pub fn set_generic_input_wires(&mut self, value: &[u32; 2]) {
+        self.cpu
+            .bus
+            .inner_mut()
+            .bus
+            .soc_reg
+            .set_generic_input_wires(value);
+    }
+}
+
+impl ModelEmulated {
     /// Returns true when the emulated CPU is halted via the VeeR MPMC
     /// low-power CSR (not the RISC-V `wfi` instruction, which this emulator
     /// treats as a no-op).
