@@ -21,7 +21,7 @@ Release notes for changes introduced since Firmware 2.1.4.
 ### Fixes
 
 - **Authorization & Attestation**:
-  - Extend the authorization manifest owner preamble signature to cover version, SVN, and flags as well as owner public keys (#4343)
+  - Extend the vendor+owner SoC manifest owner preamble signature to cover version, SVN, and flags as well as owner public keys (#4343)
   - Require the signed MCU load address to match the actual installation destination during hitless activation (#4323)
   - Enforce the maximum firmware SVN of 128 in Runtime image verification, including when anti-rollback is disabled or the device is unprovisioned (#4251)
   - Preserve `RTMR` and `CCIV` byte ordering in named DPE TCI identifiers (#4338)
@@ -36,10 +36,11 @@ Release notes for changes introduced since Firmware 2.1.4.
 
 ### Compatibility Notes
 
-- **Authorization manifest signatures**: Owner signatures generated under the previous signing scheme no longer verify. Regenerate or re-sign manifests so the owner signature covers the policy fields and owner public keys (#4343).
+- **Authorization manifest signatures**: Vendor+owner SoC manifests generated under the previous owner preamble signing scheme must be re-signed to cover `version`, `svn`, `flags`, and owner public keys. Owner-only manifests loaded with `SET_OWNER_AUTH_MANIFEST` are unaffected (#4343).
+- **SoC manifest measurements**: `SOMO` for vendor+owner SoC manifests now measures `version`, `svn`, `flags`, and owner public keys rather than only the owner public keys. Update pinned `SOMO` reference measurements used by attestation verifiers (#4343).
 - **DPE identities**: Corrected named TCI identifiers change affected certificate identifiers and DPE-derived keys. A cold boot is required; retained contexts are not migrated (#4338).
 - **Core 2.1 builds**: Set `CALIPTRA_HW_REV=2.1` explicitly when building and testing for Core 2.1. The `latest` RTL bindings and default hardware model are no longer pinned to the Core 2.1 register map (#4334).
-- **Autonomous self-tests**: Disabled by default and triggered by workload, not elapsed time. Platforms must coordinate the new generic-input-wire assignment with the Core integration specification before adoption (#4351).
+- **Autonomous self-tests**: RT samples `CPTRA_GENERIC_INPUT_WIRES[1]` at every startup, including builds without `fips_self_test`. Keep bit 0 clear unless deliberately enabling a valid configuration in a supported build; an invalid or unsupported enabled configuration fails startup with `RUNTIME_INVALID_SELF_TEST_CONFIG`. Tests are workload-triggered, not time-based; coordinate the input-wire allocation with the Core integration specification before adoption (#4351).
 
 **Full Changelog**: https://github.com/chipsalliance/caliptra-sw/compare/fw-2.1.4...fw-2.1.5
 
