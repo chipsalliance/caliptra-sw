@@ -49,7 +49,8 @@ fn main() {
                 .value_parser(value_parser!(i32)),
         )
         .arg(arg!(--"image-options" [FILE] "Override the `ImageOptions` struct for the image bundle with the given TOML file").value_parser(value_parser!(PathBuf)))
-        .arg(arg!(--"hw-revision" <REV> "Compile for a specific HW revision (defaults to latest)").value_parser(value_parser!(String)));
+        .arg(arg!(--"hw-revision" <REV> "Compile for a specific HW revision (defaults to latest)").value_parser(value_parser!(String)))
+        .arg(arg!(--"fw-rc" <RC> "If specified, the release candidate of ROM or FW bundle will be built instead").value_parser(value_parser!(String)));
     let args = cmd.get_matches_mut();
 
     // Print help if the provided args did not create anything.
@@ -64,14 +65,31 @@ fn main() {
         }
     }
 
+    let (rom_no_log, rom_with_log, fmc, app) =
+        match args.get_one::<String>("fw-rc").map(|x| x.as_str()) {
+            Some("2.2") => (
+                &firmware::ROM_RC_2_2,
+                &firmware::ROM_WITH_UART_RC_2_2,
+                &firmware::FMC_WITH_UART_RC_2_2,
+                &firmware::APP_RC_2_2,
+            ),
+            None => (
+                &firmware::ROM,
+                &firmware::ROM_WITH_UART,
+                &firmware::FMC_WITH_UART,
+                &firmware::APP_WITH_UART_OCP_LOCK,
+            ),
+            Some(rc) => panic!("unknown firmware rc {rc}"),
+        };
+
     if let Some(path) = args.get_one::<PathBuf>("rom-no-log") {
-        let rom = caliptra_builder::build_firmware_rom(&firmware::ROM).unwrap();
+        let rom = caliptra_builder::build_firmware_rom(rom_no_log).unwrap();
         valid_cmd = true;
         std::fs::write(path, rom).unwrap();
     }
 
     if let Some(path) = args.get_one::<PathBuf>("rom-with-log") {
-        let rom = caliptra_builder::build_firmware_rom(&firmware::ROM_WITH_UART).unwrap();
+        let rom = caliptra_builder::build_firmware_rom(rom_with_log).unwrap();
         valid_cmd = true;
         std::fs::write(path, rom).unwrap();
     }
@@ -111,14 +129,14 @@ fn main() {
 
         // Get image types (zeros or actual firmware)
         let (fmc_type, app_type) = if args.contains_id("zeros") {
-            (firmware::FMC_ZEROS, firmware::APP_ZEROS)
+            (&firmware::FMC_ZEROS, &firmware::APP_ZEROS)
         } else {
-            (firmware::FMC_WITH_UART, firmware::APP_WITH_UART_OCP_LOCK)
+            (fmc, app)
         };
 
         // Generate Image Bundle
         let mut image =
-            caliptra_builder::build_and_sign_image(&fmc_type, &app_type, image_options).unwrap();
+            caliptra_builder::build_and_sign_image(fmc_type, app_type, image_options).unwrap();
 
         // Override signatures if provided
         if let Some(path) = args.get_one::<PathBuf>("owner-sig-override") {
