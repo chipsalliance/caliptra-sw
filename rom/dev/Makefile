@@ -21,6 +21,13 @@ PQC_KEY_TYPE ?= 1
 # Device lifecycle state: unprovisioned, manufacturing, production
 DEVICE_LIFECYCLE ?= production
 
+CALIPTRA_HW_REV ?= latest
+export CALIPTRA_HW_REV
+HARDWARE_FEATURES =
+ifeq ($(CALIPTRA_HW_REV),latest)
+HARDWARE_FEATURES = ,caliptra-drivers/hmac-final-block
+endif
+
 default: build
 
 build:
@@ -30,7 +37,7 @@ build:
 		--profile firmware \
 		--target=riscv32imc-unknown-none-elf \
 		--no-default-features \
-		--features "emu,cfi"
+		--features "emu,cfi$(HARDWARE_FEATURES)"
 
 build-emu:
 	cargo \
@@ -39,7 +46,7 @@ build-emu:
 		--profile firmware \
 		--target=riscv32imc-unknown-none-elf \
 		--no-default-features \
-		--features "emu,cfi"
+		--features "emu,cfi$(HARDWARE_FEATURES)"
 
 build-fmc:
 	cargo \
@@ -49,7 +56,7 @@ build-fmc:
 		--manifest-path ../../fmc/Cargo.toml \
 		--target=riscv32imc-unknown-none-elf \
 		--no-default-features \
-		--features emu,riscv,cfi \
+		--features "emu,riscv,cfi$(HARDWARE_FEATURES)" \
 		--bin caliptra-fmc
 
 build-test-fmc:
@@ -60,7 +67,7 @@ build-test-fmc:
 		--manifest-path tools/test-fmc/Cargo.toml \
 		--target=riscv32imc-unknown-none-elf \
 		--no-default-features \
-		--features emu,cfi
+		--features "emu,cfi$(HARDWARE_FEATURES)"
 
 build-rt:
 	cargo \
@@ -70,7 +77,7 @@ build-rt:
 		--manifest-path ../../runtime/Cargo.toml \
 		--target=riscv32imc-unknown-none-elf \
 		--no-default-features \
-		--features emu,riscv,cfi \
+		--features "emu,riscv,cfi$(HARDWARE_FEATURES)" \
 		--bin caliptra-runtime
 
 build-test-rt:
@@ -81,7 +88,7 @@ build-test-rt:
 		--manifest-path tools/test-rt/Cargo.toml \
 		--target=riscv32imc-unknown-none-elf \
 		--no-default-features \
-		--features emu,cfi
+		--features "emu,cfi$(HARDWARE_FEATURES)"
 
 gen-certs:
 	$(shell bash $(CURRENT_DIR)/tools/scripts/gen_test_certs.sh $(TARGET_DIR))
@@ -137,7 +144,7 @@ bloat: build
 		--profile firmware \
 		--target=riscv32imc-unknown-none-elf \
 		--no-default-features \
-		--features "emu,cfi" \
+		--features "emu,cfi$(HARDWARE_FEATURES)" \
 		-n 1000 \
 
 objdump:
@@ -148,7 +155,7 @@ objdump:
 		--profile firmware \
 		--target=riscv32imc-unknown-none-elf \
 		--no-default-features \
-		--features "emu,cfi" \
+		--features "emu,cfi$(HARDWARE_FEATURES)" \
 		-- \
 		-d \
 		--no-print-imm-hex \
@@ -168,6 +175,7 @@ run: build-emu build-fw-test-image build-rom
 		-p caliptra-emu \
 		-- \
 		--req-idevid-csr \
+		--hw-version $(CALIPTRA_HW_REV) \
 		--idevid-key-id-algo sha1 \
 		--rom $(TARGET_DIR)/caliptra-rom.bin \
 		--recovery-image-fw $(TARGET_DIR)/caliptra-rom-test-fw \
@@ -184,6 +192,7 @@ run-active: build-emu build-fw-image build-rom
 		-p caliptra-emu \
 		-- \
 		--req-idevid-csr \
+		--hw-version $(CALIPTRA_HW_REV) \
 		--idevid-key-id-algo sha1 \
 		--rom $(TARGET_DIR)/caliptra-rom.bin \
 		--recovery-image-fw $(TARGET_DIR)/caliptra-rom-test-fw \
@@ -202,6 +211,7 @@ run-update: build-emu build-fw-test-image build-rom
 		-p caliptra-emu \
 		-- \
 		--req-idevid-csr \
+		--hw-version $(CALIPTRA_HW_REV) \
 		--idevid-key-id-algo sha1 \
 		--rom $(TARGET_DIR)/caliptra-rom.bin \
 		--recovery-image-fw $(TARGET_DIR)/caliptra-rom-test-fw \
@@ -216,7 +226,7 @@ size:
 		--profile firmware \
 		--target=riscv32imc-unknown-none-elf \
 		--no-default-features \
-		--features cfi \
+		--features "cfi$(HARDWARE_FEATURES)" \
 		--bin caliptra-rom \
 
 nm:
@@ -227,7 +237,7 @@ nm:
 		--profile firmware \
 		--target=riscv32imc-unknown-none-elf \
 		--no-default-features \
-		--features cfi \
+		--features "cfi$(HARDWARE_FEATURES)" \
 		-- \
 		-v \
 

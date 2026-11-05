@@ -86,6 +86,7 @@ asn1.workspace = true
 
 [features]
 default = ["std", "cfi"]
+hmac-final-block = ["caliptra-drivers/hmac-final-block"]
 emu = ["caliptra-common/emu", "caliptra-drivers/emu"]
 itrng = ["caliptra-drivers/itrng", "caliptra-hw-model/itrng"]
 riscv = ["caliptra-cpu/riscv"]

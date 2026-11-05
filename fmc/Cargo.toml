@@ -38,6 +38,7 @@ openssl.workspace = true
 
 [features]
 default = ["std", "cfi"]
+hmac-final-block = ["caliptra-drivers/hmac-final-block"]
 emu = ["caliptra-common/emu", "caliptra-drivers/emu"]
 fake-fmc = []
 fpga_realtime = ["caliptra-drivers/fpga_realtime", "caliptra-hw-model/fpga_realtime"]

@@ -49,6 +49,53 @@ fn other_err(e: impl Into<Box<dyn std::error::Error + Send + Sync>>) -> io::Erro
     io::Error::other(e)
 }
 
+fn resolve_hw_revision(revision: Option<CaliptraHwVersion>) -> io::Result<CaliptraHwVersion> {
+    if let Some(revision) = revision {
+        return Ok(revision);
+    }
+    let revision = match env::var("CALIPTRA_HW_REV") {
+        Ok(revision) => revision,
+        Err(env::VarError::NotPresent) => "latest".into(),
+        Err(err) => return Err(other_err(err)),
+    };
+    match revision.as_str() {
+        "latest" => Ok(CaliptraHwVersion::Latest),
+        "2.1" => Ok(CaliptraHwVersion::V2_1),
+        "2.0" => Ok(CaliptraHwVersion::V2_0),
+        _ => Err(other_err(format!(
+            "Unsupported CALIPTRA_HW_REV: {revision}; use latest for Caliptra 2.2"
+        ))),
+    }
+}
+
+/// Select firmware features for the effective hardware target, including child Cargo builds.
+pub fn firmware_features<'a>(
+    features: &[&'a str],
+    revision: Option<CaliptraHwVersion>,
+) -> io::Result<Vec<&'a str>> {
+    let revision = resolve_hw_revision(revision)?;
+    let final_block = matches!(
+        revision,
+        CaliptraHwVersion::V2_2 | CaliptraHwVersion::Latest
+    );
+    let mut features = features.to_vec();
+    let has_final_block = features.iter().any(|feature| {
+        matches!(
+            *feature,
+            "hmac-final-block" | "caliptra-drivers/hmac-final-block"
+        )
+    });
+    if has_final_block && !final_block {
+        return Err(other_err(
+            "hmac-final-block requires Caliptra 2.2/latest hardware",
+        ));
+    }
+    if final_block && !has_final_block {
+        features.push("caliptra-drivers/hmac-final-block");
+    }
+    Ok(features)
+}
+
 fn run_cmd(cmd: &mut Command) -> io::Result<()> {
     let status = cmd.status()?;
     if status.success() {
@@ -120,7 +167,8 @@ pub struct FwId<'a> {
     pub fw_type: FirmwareType<'a>,
 }
 
-type PrebuiltCacheMap = Lazy<Mutex<HashMap<FwId<'static>, &'static [u8]>>>;
+type PrebuiltCacheMap =
+    Lazy<Mutex<HashMap<(FwId<'static>, Option<CaliptraHwVersion>), &'static [u8]>>>;
 
 impl From<&'static FwId<'static>> for &'static [u8] {
     fn from(id: &'static FwId<'static>) -> &'static [u8] {
@@ -151,6 +199,10 @@ impl<'a> FwId<'a> {
         }
         if let Some(v) = self.hw_revision() {
             write!(&mut result, "--{}", v.as_str()).unwrap();
+        } else if matches!(self.fw_type, FirmwareType::Source { .. }) {
+            let v = resolve_hw_revision(None)
+                .expect("Cannot name firmware for an unsupported hardware revision");
+            write!(&mut result, "--hw-{}", v.as_str()).unwrap();
         }
         write!(&mut result, ".elf").unwrap();
         result
@@ -209,7 +261,8 @@ pub fn build_firmware_elfs_uncached<'a>(
     let mut result_map = HashMap::new();
 
     for invocation in cargo_invocations {
-        let mut features_csv = invocation.features.join(",");
+        let revision = resolve_hw_revision(invocation.hw_revision)?;
+        let mut features_csv = firmware_features(invocation.features, Some(revision))?.join(",");
         if !invocation.features.contains(&"riscv") {
             if !features_csv.is_empty() {
                 features_csv.push(',');
@@ -236,9 +289,11 @@ pub fn build_firmware_elfs_uncached<'a>(
             workspace_dir.join("builder/no_meta_rustc_wrapper.sh"),
         );
 
-        if let Some(hw_revision) = invocation.hw_revision {
-            cmd.env("CALIPTRA_HW_REV", hw_revision.as_str());
-        }
+        let register_revision = match revision {
+            CaliptraHwVersion::V2_2 => "latest",
+            revision => revision.as_str(),
+        };
+        cmd.env("CALIPTRA_HW_REV", register_revision);
 
         if option_env!("GITHUB_ACTIONS").is_some() {
             // In continuous integration, warnings are always errors.
@@ -392,7 +447,7 @@ pub fn build_firmware_elf(id: &FwId<'static>) -> io::Result<Arc<Vec<u8>>> {
     }
 
     type CacheEntry = Arc<Mutex<Arc<Vec<u8>>>>;
-    static CACHE: Lazy<Mutex<HashMap<FwId, CacheEntry>>> = Lazy::new(|| {
+    static CACHE: Lazy<Mutex<HashMap<(FwId, CaliptraHwVersion), CacheEntry>>> = Lazy::new(|| {
         let result = HashMap::new();
         Mutex::new(result)
     });
@@ -401,7 +456,7 @@ pub fn build_firmware_elf(id: &FwId<'static>) -> io::Result<Arc<Vec<u8>>> {
     let mut result_mutex_guard;
     {
         let mut cache_guard = CACHE.lock().unwrap();
-        let entry = cache_guard.entry(*id);
+        let entry = cache_guard.entry((*id, resolve_hw_revision(id.hw_revision())?));
         match entry {
             Entry::Occupied(entry) => {
                 let result = entry.get().clone();
@@ -616,14 +671,19 @@ pub fn get_prebuilt_firmware(id: &FwId<'static>) -> io::Result<Vec<u8>> {
 pub fn get_prebuilt_firmware_static(id: &FwId<'static>) -> io::Result<&'static [u8]> {
     static CACHE: PrebuiltCacheMap = Lazy::new(|| Mutex::new(HashMap::new()));
 
+    let revision = match id.fw_type {
+        FirmwareType::Source { hw_revision, .. } => Some(resolve_hw_revision(hw_revision)?),
+        FirmwareType::TaggedReleaseFromNetwork { .. } => None,
+    };
+    let key = (*id, revision);
     let mut cache = CACHE.lock().unwrap();
-    if let Some(&bytes) = cache.get(id) {
+    if let Some(&bytes) = cache.get(&key) {
         return Ok(bytes);
     }
 
     let bytes = build_firmware_rom(id)?;
     let leaked: &'static [u8] = Box::leak(bytes.into_boxed_slice());
-    cache.insert(*id, leaked);
+    cache.insert(key, leaked);
     Ok(leaked)
 }
 
@@ -1096,7 +1156,43 @@ mod test {
     }
 
     #[test]
+    fn test_firmware_hardware_features() {
+        for revision in [CaliptraHwVersion::V2_0, CaliptraHwVersion::V2_1] {
+            assert_eq!(
+                firmware_features(&["cfi"], Some(revision)).unwrap(),
+                ["cfi"]
+            );
+            for feature in ["hmac-final-block", "caliptra-drivers/hmac-final-block"] {
+                assert!(firmware_features(&[feature], Some(revision)).is_err());
+            }
+        }
+        for revision in [CaliptraHwVersion::V2_2, CaliptraHwVersion::Latest] {
+            assert_eq!(
+                firmware_features(&["cfi"], Some(revision)).unwrap(),
+                ["cfi", "caliptra-drivers/hmac-final-block"]
+            );
+            assert_eq!(
+                firmware_features(&["hmac-final-block"], Some(revision)).unwrap(),
+                ["hmac-final-block"]
+            );
+        }
+    }
+
+    #[test]
+    fn test_registered_firmware_filenames_unique() {
+        let mut filenames = HashSet::new();
+        for id in firmware::REGISTERED_FW {
+            let filename = id.elf_filename();
+            assert!(
+                filenames.insert(filename.clone()),
+                "Duplicate firmware filename: {filename}"
+            );
+        }
+    }
+
+    #[test]
     fn test_fwid_elf_filename() {
+        let revision = resolve_hw_revision(None).unwrap().as_str();
         assert_eq!(
             FwId {
                 crate_name: "caliptra-rom",
@@ -1107,7 +1203,7 @@ mod test {
                 },
             }
             .elf_filename(),
-            "caliptra-rom.elf"
+            format!("caliptra-rom--hw-{revision}.elf")
         );
         assert_eq!(
             FwId {
@@ -1119,7 +1215,7 @@ mod test {
                 },
             }
             .elf_filename(),
-            "caliptra-rom--uart-debug.elf"
+            format!("caliptra-rom--uart-debug--hw-{revision}.elf")
         );
         assert_eq!(
             &FwId {
@@ -1131,7 +1227,7 @@ mod test {
                 },
             }
             .elf_filename(),
-            "caliptra-test--smoke_test.elf"
+            &format!("caliptra-test--smoke_test--hw-{revision}.elf")
         );
         assert_eq!(
             &FwId {
@@ -1143,7 +1239,7 @@ mod test {
                 },
             }
             .elf_filename(),
-            "caliptra-test--smoke_test--uart-debug.elf"
+            &format!("caliptra-test--smoke_test--uart-debug--hw-{revision}.elf")
         );
         assert_eq!(
             &FwId {
@@ -1156,6 +1252,18 @@ mod test {
             }
             .elf_filename(),
             "caliptra-test--smoke_test--uart-debug--2.1.elf"
+        );
+        assert_eq!(
+            FwId {
+                crate_name: "caliptra-test",
+                bin_name: "smoke_test",
+                fw_type: FirmwareType::Source {
+                    features: &["uart", "debug"],
+                    hw_revision: Some(CaliptraHwVersion::Latest),
+                },
+            }
+            .elf_filename(),
+            "caliptra-test--smoke_test--uart-debug--latest.elf"
         );
     }
 }

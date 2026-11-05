@@ -28,6 +28,7 @@ serde_json = { workspace = true }
 hex = { workspace = true }
 
 [features]
+hmac-final-block = ["caliptra-drivers/hmac-final-block"]
 emu = ["caliptra-test-harness/emu"]
 fpga_realtime = ["caliptra-drivers/fpga_realtime"]
 fpga_subsystem = ["caliptra-drivers/fpga_subsystem"]

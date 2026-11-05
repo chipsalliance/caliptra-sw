@@ -559,7 +559,7 @@ impl CaliptraRootBus {
             aes_clp: AesClp::new(clock, key_vault.clone(), aes_key, aes_destination),
             doe: Doe::new(clock, key_vault.clone(), soc_reg.clone()),
             ecc384: AsymEcc384::new(clock, key_vault.clone(), sha512.clone()),
-            hmac: HmacSha::new(clock, key_vault.clone()),
+            hmac: HmacSha::new(clock, key_vault.clone(), hw_version),
             key_vault: key_vault.clone(),
             sha512,
             sha256: HashSha256::new(clock),

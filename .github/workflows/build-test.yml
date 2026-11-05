@@ -124,6 +124,45 @@ jobs:
             popd; \
           done
 
+  test_hmac:
+    needs: lint
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        revision: ["latest", "2.1"]
+    env:
+      CALIPTRA_HW_REV: ${{ matrix.revision }}
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v5
+
+      - name: Test HMAC models and firmware feature selection
+        run: |
+          cargo --config "$EXTRA_CARGO_CONFIG" test --locked -p caliptra-emu-periph -p caliptra-emu-crypto --lib hmac
+          cargo --config "$EXTRA_CARGO_CONFIG" test --locked -p caliptra-builder --lib
+          cargo --config "$EXTRA_CARGO_CONFIG" test --locked -p caliptra-hw-model --test multi_version_tests test_hw_model_boot_v2_1 -- --exact
+
+      - name: Test HMAC driver firmware
+        run: cargo --config "$EXTRA_CARGO_CONFIG" test --locked -p caliptra-drivers --test drivers_integration_tests test_hmac -- --exact
+
+      - name: Reject final-block feature on 2.1 hardware
+        if: matrix.revision == '2.1'
+        run: |
+          if cargo check --locked -p caliptra-drivers --lib --features hmac-final-block > invalid-hmac.log 2>&1; then
+            echo "Unexpectedly accepted hmac-final-block on 2.1 hardware"
+            exit 1
+          fi
+          grep -F "hmac-final-block requires CALIPTRA_HW_REV=latest" invalid-hmac.log
+
+      - name: Reject latest firmware without final-block feature
+        if: matrix.revision == 'latest'
+        run: |
+          if cargo check --locked -p caliptra-drivers --lib --target riscv32imc-unknown-none-elf > invalid-hmac.log 2>&1; then
+            echo "Unexpectedly accepted latest firmware without hmac-final-block"
+            exit 1
+          fi
+          grep -F "Caliptra 2.2/latest firmware requires hmac-final-block" invalid-hmac.log
+
   test_unit:
     needs: lint
     runs-on: ubuntu-24.04

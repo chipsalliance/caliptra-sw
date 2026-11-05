@@ -67,6 +67,7 @@ zerocopy.workspace = true
 
 [features]
 riscv = []
+hmac-final-block = ["caliptra-drivers/hmac-final-block"]
 default = ["std", "cfi"]
 emu = ["caliptra-drivers/emu"]
 std = [

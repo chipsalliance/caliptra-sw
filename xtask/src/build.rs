@@ -25,13 +25,15 @@ pub fn build_all() -> Result<()> {
 
 pub fn build_rom() -> Result<()> {
     info!("Building ROM...");
+    let features = caliptra_builder::firmware_features(&["cfi"], None)?.join(",");
     let args = vec![
         "build",
         "--locked",
         "--target=riscv32imc-unknown-none-elf",
         "--profile=firmware",
         "--no-default-features",
-        "--features=cfi",
+        "--features",
+        &features,
         "--bin=caliptra-rom",
     ];
 
@@ -49,13 +51,15 @@ pub fn build_rom() -> Result<()> {
 
 pub fn build_fmc() -> Result<()> {
     info!("Building FMC...");
+    let features = caliptra_builder::firmware_features(&["cfi", "riscv"], None)?.join(",");
     let args = vec![
         "build",
         "--locked",
         "--target=riscv32imc-unknown-none-elf",
         "--profile=firmware",
         "--no-default-features",
-        "--features=cfi,riscv",
+        "--features",
+        &features,
         "--bin=caliptra-fmc",
     ];
 
@@ -73,13 +77,15 @@ pub fn build_fmc() -> Result<()> {
 
 pub fn build_runtime() -> Result<()> {
     info!("Building runtime...");
+    let features = caliptra_builder::firmware_features(&["cfi", "riscv"], None)?.join(",");
     let args = vec![
         "build",
         "--locked",
         "--target=riscv32imc-unknown-none-elf",
         "--profile=firmware",
         "--no-default-features",
-        "--features=cfi,riscv",
+        "--features",
+        &features,
         "--bin=caliptra-runtime",
     ];
 
@@ -97,12 +103,14 @@ pub fn build_runtime() -> Result<()> {
 
 pub fn build_driver_test_fw() -> Result<()> {
     info!("Building driver test-fw...");
+    let features = caliptra_builder::firmware_features(&["riscv"], None)?.join(",");
     let args = vec![
         "build",
         "--locked",
         "--target=riscv32imc-unknown-none-elf",
         "--profile=firmware",
-        "--features=riscv",
+        "--features",
+        &features,
     ];
 
     let mut cmd = Command::new("cargo");

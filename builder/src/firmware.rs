@@ -4,6 +4,7 @@
 // ahead of time for executing tests on hosts that can't compile rust code.
 
 use crate::{FirmwareType, FwId};
+use caliptra_hw_model_types::CaliptraHwVersion;
 
 pub fn rom_from_env() -> &'static FwId<'static> {
     match std::env::var("CPTRA_ROM_TYPE").as_ref().map(|s| s.as_str()) {
@@ -64,6 +65,14 @@ pub const ROM_WITH_UART: FwId = FwId {
         features: &["emu", "cfi"],
         hw_revision: None,
     },
+};
+
+pub const ROM_WITH_UART_2_1: FwId = FwId {
+    fw_type: FirmwareType::Source {
+        features: &["emu", "cfi"],
+        hw_revision: Some(CaliptraHwVersion::V2_1),
+    },
+    ..ROM_WITH_UART
 };
 
 pub const ROM_FAKE_WITH_UART: FwId = FwId {
@@ -817,6 +826,7 @@ pub const REGISTERED_FW: &[&FwId] = &[
     &ROM,
     &ROM_FPGA,
     &ROM_WITH_UART,
+    &ROM_WITH_UART_2_1,
     &ROM_FAKE_WITH_UART,
     &ROM_FAKE_WITH_UART_FPGA,
     &ROM_WITH_FIPS_TEST_HOOKS,
