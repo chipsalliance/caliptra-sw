@@ -1,14 +1,15 @@
 // Licensed under the Apache-2.0 license.
 
 use crate::common::{
-    certify_key, check_dpe_status, execute_dpe_cmd, execute_dpe_cmd_raw, get_rt_alias_ecc384_cert,
-    run_rt_test, verify_sign_and_certify_key, CertifyKeyCommandNoRef, CreateCertifyKeyCmdArgs,
-    CreateSignCmdArgs, DpeResult, RuntimeTestArgs, SignCommandNoRef, TEST_DIGEST, TEST_LABEL,
-    TEST_SD_SHA384,
+    certify_key, check_dpe_status, execute_dpe_cmd, execute_dpe_cmd_raw, get_boot_dpe_context_info,
+    get_rt_alias_ecc384_cert, run_rt_test, verify_sign_and_certify_key, CertifyKeyCommandNoRef,
+    CreateCertifyKeyCmdArgs, CreateSignCmdArgs, DpeResult, RuntimeTestArgs, SignCommandNoRef,
+    TEST_DIGEST, TEST_LABEL, TEST_SD_SHA384,
 };
 use caliptra_api::SocManager;
 use caliptra_common::mailbox_api::{
     CommandId, FwInfoResp, InvokeDpeMldsa87Req, InvokeDpeReq, MailboxReq, MailboxReqHeader,
+    StashMeasurementReq, StashMeasurementResp,
 };
 use caliptra_dpe::{
     commands::{
@@ -23,7 +24,10 @@ use caliptra_dpe::{
 };
 use caliptra_drivers::CaliptraError;
 use caliptra_hw_model::{DefaultHwModel, HwModel, SecurityState};
-use caliptra_runtime::{CaliptraDpeProfile, RtBootStatus, DPE_SUPPORT, VENDOR_ID, VENDOR_SKU};
+use caliptra_runtime::{
+    CaliptraDpeProfile, RtBootStatus, DPE_SUPPORT, PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD,
+    VENDOR_ID, VENDOR_SKU,
+};
 use cms::{
     cert::x509::der::{Decode, Encode},
     content_info::{CmsVersion, ContentInfo},
@@ -273,6 +277,67 @@ fn sign_and_certify_key_test_helper(model: &mut DefaultHwModel) {
         &certify_key_resp,
         data.as_slice(),
     );
+}
+
+#[test]
+#[cfg_attr(any(feature = "fpga_realtime", feature = "fpga_subsystem"), ignore)]
+fn test_boot_dpe_context_info_with_and_without_fe_measurement() {
+    // Core-only models have no MCU ROM; reproduce both MCU ROM measurement layouts.
+    for stash_fe in [false, true] {
+        let mut model = run_rt_test(RuntimeTestArgs {
+            subsystem_mode: true,
+            ..Default::default()
+        });
+        let fe_measurement: [u8; 48] = Sha384::digest(0u32.to_le_bytes()).into();
+        if stash_fe {
+            let mut cmd = MailboxReq::StashMeasurement(StashMeasurementReq {
+                measurement: fe_measurement,
+                ..Default::default()
+            });
+            cmd.populate_chksum().unwrap();
+            let resp = model
+                .mailbox_execute(
+                    u32::from(CommandId::STASH_MEASUREMENT),
+                    cmd.as_bytes().unwrap(),
+                )
+                .unwrap()
+                .unwrap();
+            assert_eq!(
+                StashMeasurementResp::read_from_bytes(&resp)
+                    .unwrap()
+                    .dpe_result,
+                0
+            );
+        }
+
+        let boot_context = get_boot_dpe_context_info(&mut model);
+        assert_eq!(
+            boot_context.fe_state_measurement,
+            stash_fe.then_some(fe_measurement)
+        );
+        let recursive = DeriveContextCmd {
+            flags: DeriveContextFlags::RECURSIVE,
+            tci_type: boot_context.tci_type,
+            ..Default::default()
+        };
+        execute_dpe_cmd(
+            &mut model,
+            &mut Command::from(&recursive),
+            DpeResult::Success,
+        );
+
+        let init = InitCtxCmd::new_simulation();
+        for _ in boot_context.pl0_context_count..PL0_DPE_ACTIVE_CONTEXT_DEFAULT_THRESHOLD {
+            execute_dpe_cmd(&mut model, &mut Command::InitCtx(&init), DpeResult::Success);
+        }
+        execute_dpe_cmd(
+            &mut model,
+            &mut Command::InitCtx(&init),
+            DpeResult::MboxCmdFailure(
+                CaliptraError::RUNTIME_PL0_USED_DPE_CONTEXT_THRESHOLD_REACHED,
+            ),
+        );
+    }
 }
 
 #[test]

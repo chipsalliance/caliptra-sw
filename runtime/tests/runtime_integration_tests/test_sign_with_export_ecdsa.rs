@@ -17,7 +17,7 @@ use caliptra_dpe::{
 use caliptra_dpe_crypto::{CryptoError, MAX_EXPORTED_CDI_SIZE};
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{HwModel, ModelError, SecurityState};
-use caliptra_runtime::{Drivers, RtBootStatus, TciMeasurement};
+use caliptra_runtime::{RtBootStatus, TciMeasurement};
 use openssl::{
     bn::BigNum,
     ec::{EcGroup, EcKey},
@@ -28,7 +28,8 @@ use openssl::{
 use zerocopy::{FromBytes, IntoBytes};
 
 use crate::common::{
-    assert_error, execute_dpe_cmd, run_rt_test, DpeResult, RuntimeTestArgs, TEST_DIGEST,
+    assert_error, execute_dpe_cmd, get_boot_dpe_context_info, run_rt_test, DpeResult,
+    RuntimeTestArgs, TEST_DIGEST,
 };
 
 #[cfg(feature = "fpga_subsystem")]
@@ -209,6 +210,7 @@ fn sign_with_exported_cdi_measurement_update_duplicate_cdi_in_mode(subsystem_mod
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
     });
+    let boot_context = get_boot_dpe_context_info(&mut model);
 
     let export_cdi_cmd = DeriveContextCmd {
         flags: DeriveContextFlags::EXPORT_CDI
@@ -245,11 +247,7 @@ fn sign_with_exported_cdi_measurement_update_duplicate_cdi_in_mode(subsystem_mod
     let measurement_cmd = DeriveContextCmd {
         data: TciMeasurement([0xa; TCI_SIZE]),
         flags: DeriveContextFlags::RECURSIVE,
-        tci_type: if model.subsystem_mode() {
-            Drivers::MCU_RT_TCI_TYPE
-        } else {
-            Drivers::CCIV_TCI_TYPE
-        },
+        tci_type: boot_context.tci_type,
         ..Default::default()
     };
 
@@ -315,6 +313,7 @@ fn sign_with_exported_cdi_measurement_update_in_mode(subsystem_mode: bool) {
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
     });
+    let boot_context = get_boot_dpe_context_info(&mut model);
 
     let export_cdi_cmd = DeriveContextCmd {
         flags: DeriveContextFlags::EXPORT_CDI
@@ -335,11 +334,7 @@ fn sign_with_exported_cdi_measurement_update_in_mode(subsystem_mode: bool) {
     let measurement_cmd = DeriveContextCmd {
         data: TciMeasurement([0xa; TCI_SIZE]),
         flags: DeriveContextFlags::RECURSIVE,
-        tci_type: if model.subsystem_mode() {
-            Drivers::MCU_RT_TCI_TYPE
-        } else {
-            Drivers::CCIV_TCI_TYPE
-        },
+        tci_type: boot_context.tci_type,
         ..Default::default()
     };
 
