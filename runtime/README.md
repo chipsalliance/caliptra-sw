@@ -2063,8 +2063,18 @@ Implements HKDF-Extract as specified in [RFC 5869](https://www.rfc-editor.org/rf
 
 The CMKs for IKM and salt must have been created for HMAC usage. The output will be tagged for HMAC usage.
 
-Use CM_IMPORT to import non-secret (plaintext) salt or IKMs to use
-with HKDF-Extract after right-padding to 48 or 64 bytes with zeros.
+The salt CMK length must not exceed 48 bytes for SHA2-384 or 64 bytes for
+SHA2-512. These are limits of Caliptra's hardware-backed HKDF driver, not
+limits imposed by RFC 5869. An overlong salt returns
+`DRIVER_HKDF_SALT_TOO_LONG`; salt bytes are not silently discarded.
+
+Use CM_IMPORT to import non-secret (plaintext) salt or IKMs with HMAC usage.
+HMAC imports must be 48 or 64 bytes. For SHA2-384, import salts as 48-byte
+CMKs. For SHA2-512, either 48-byte or 64-byte salt CMKs are supported.
+Shorter plaintext salts may be right-padded with zeros to an accepted
+import size without changing the HKDF result, because the salt is the HMAC
+key. An absent salt can be represented by an all-zero salt CMK of a
+supported size. This padding equivalence does not apply to IKM.
 
 Command Code: `0x434D_4B54` ("CMKT")
 
