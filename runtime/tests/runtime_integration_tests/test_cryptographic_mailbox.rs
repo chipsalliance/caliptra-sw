@@ -248,7 +248,7 @@ fn test_key_gen() {
         .unwrap()
         .expect("We should have received a response");
     let cm_key_gen_resp = CmKeyGenResp::ref_from_bytes(resp.as_slice()).unwrap();
-    let mlkem_cmk = cm_key_gen_resp.cmk.clone();
+    let mlkem_cmk = cm_key_gen_resp.cmk;
     assert!(!mlkem_cmk.as_bytes().iter().all(|&x| x == 0));
 
     // Verify ML-KEM key gen works with CM_MLKEM_KEY_GEN to derive public key
@@ -285,10 +285,7 @@ fn test_key_gen() {
         )
         .unwrap()
         .expect("We should have received a response");
-    let mldsa_cmk = CmKeyGenResp::ref_from_bytes(resp.as_slice())
-        .unwrap()
-        .cmk
-        .clone();
+    let mldsa_cmk = CmKeyGenResp::ref_from_bytes(resp.as_slice()).unwrap().cmk;
     let mut mldsa_pub_req = MailboxReq::CmMldsaPublicKey(CmMldsaPublicKeyReq {
         hdr: MailboxReqHeader { chksum: 0 },
         cmk: mldsa_cmk,
@@ -318,10 +315,7 @@ fn test_key_gen() {
         )
         .unwrap()
         .expect("We should have received a response");
-    let ecdsa_cmk = CmKeyGenResp::ref_from_bytes(resp.as_slice())
-        .unwrap()
-        .cmk
-        .clone();
+    let ecdsa_cmk = CmKeyGenResp::ref_from_bytes(resp.as_slice()).unwrap().cmk;
     let mut ecdsa_pub_req = MailboxReq::CmEcdsaPublicKey(CmEcdsaPublicKeyReq {
         hdr: MailboxReqHeader { chksum: 0 },
         cmk: ecdsa_cmk,
@@ -428,7 +422,7 @@ fn status(model: &mut DefaultHwModel) -> CmStatusResp {
 fn delete_key(model: &mut DefaultHwModel, cmk: &Cmk) {
     let mut req = MailboxReq::CmDelete(CmDeleteReq {
         hdr: MailboxReqHeader::default(),
-        cmk: cmk.clone(),
+        cmk: *cmk,
     });
     req.populate_chksum().unwrap();
     let req = req.as_bytes().unwrap();
@@ -752,10 +746,10 @@ fn test_random_generate() {
         .unwrap()
         .expect("We should have received a response");
 
-    let mut resp = CmRandomGenerateResp::default();
+    let mut resp: CmRandomGenerateResp = CmRandomGenerateResp::default();
     const VAR_HEADER_SIZE: usize = size_of::<MailboxRespHeaderVarSize>();
     resp.hdr = MailboxRespHeaderVarSize::read_from_bytes(&resp_bytes[..VAR_HEADER_SIZE]).unwrap();
-    assert_eq!(resp.hdr.data_len, 0);
+    assert_eq!({ resp.hdr.data_len }, 0);
     assert!(resp_bytes[VAR_HEADER_SIZE..].iter().all(|&x| x == 0));
 
     // 1 byte
@@ -773,7 +767,7 @@ fn test_random_generate() {
         .unwrap()
         .expect("We should have received a response");
 
-    let mut resp = CmRandomGenerateResp {
+    let mut resp: CmRandomGenerateResp = CmRandomGenerateResp {
         hdr: MailboxRespHeaderVarSize::read_from_bytes(&resp_bytes[..VAR_HEADER_SIZE]).unwrap(),
         ..Default::default()
     };
@@ -797,7 +791,7 @@ fn test_random_generate() {
             .unwrap()
             .expect("We should have received a response");
 
-        let mut resp = CmRandomGenerateResp {
+        let mut resp: CmRandomGenerateResp = CmRandomGenerateResp {
             hdr: MailboxRespHeaderVarSize::read_from_bytes(&resp_bytes[..VAR_HEADER_SIZE]).unwrap(),
             ..Default::default()
         };
@@ -1049,7 +1043,7 @@ fn test_aes_gcm_simple() {
 
     const FINAL_HEADER_SIZE: usize = size_of::<CmAesGcmEncryptFinalRespHeader>();
 
-    let mut final_resp = CmAesGcmEncryptFinalResp {
+    let mut final_resp: CmAesGcmEncryptFinalResp = CmAesGcmEncryptFinalResp {
         hdr: CmAesGcmEncryptFinalRespHeader::read_from_bytes(
             &final_resp_bytes[..FINAL_HEADER_SIZE],
         )
@@ -1057,7 +1051,7 @@ fn test_aes_gcm_simple() {
         ..Default::default()
     };
     assert_eq!(
-        final_resp.hdr.hdr.fips_status,
+        { final_resp.hdr.hdr.fips_status },
         MailboxRespHeader::FIPS_STATUS_APPROVED
     );
     let len = final_resp.hdr.ciphertext_size as usize;
@@ -1072,7 +1066,8 @@ fn test_aes_gcm_simple() {
     let (rtag, rciphertext) = rustcrypto_gcm_encrypt(&key, iv.as_bytes(), aad, plaintext);
 
     assert_eq!(ciphertext, &rciphertext);
-    assert_eq!(final_resp.hdr.tag.as_bytes(), rtag);
+    let final_tag = final_resp.hdr.tag;
+    assert_eq!(final_tag.as_bytes(), rtag);
 }
 
 // Random encrypt and decrypt GCM stress test.
@@ -1309,7 +1304,7 @@ fn test_aes_cbc_ctr_encrypt_init_rejects_non_aes_key() {
     for mode in [CmAesMode::Cbc, CmAesMode::Ctr] {
         let mut req = MailboxReq::CmAesEncryptInit(CmAesEncryptInitReq {
             hdr: MailboxReqHeader::default(),
-            cmk: hmac_cmk.clone(),
+            cmk: hmac_cmk,
             mode: mode as u32,
             plaintext_size: 16,
             plaintext: [0; MAX_CMB_DATA_SIZE],
@@ -1339,7 +1334,7 @@ fn test_aes_cbc_ctr_decrypt_init_rejects_non_aes_key() {
     for mode in [CmAesMode::Cbc, CmAesMode::Ctr] {
         let mut req = MailboxReq::CmAesDecryptInit(CmAesDecryptInitReq {
             hdr: MailboxReqHeader::default(),
-            cmk: hmac_cmk.clone(),
+            cmk: hmac_cmk,
             mode: mode as u32,
             iv: [0; 16],
             ciphertext_size: 16,
@@ -1374,7 +1369,7 @@ fn test_aes_context_authentication_failure() {
 
         for mode in [CmAesMode::Cbc, CmAesMode::Ctr] {
             let mut init = CmAesEncryptInitReq {
-                cmk: cmk.clone(),
+                cmk,
                 mode: mode as u32,
                 plaintext_size: AES_BLOCK_SIZE_BYTES as u32,
                 ..Default::default()
@@ -1688,7 +1683,7 @@ fn mailbox_gcm_encrypt(
     check_fips_status: u32,
 ) -> ([u8; 12], [u8; 16], Vec<u8>) {
     let mut cm_aes_encrypt_init = CmAesGcmEncryptInitReq {
-        cmk: cmk.clone(),
+        cmk: *cmk,
         aad_size: aad.len() as u32,
         ..Default::default()
     };
@@ -1733,14 +1728,14 @@ fn mailbox_gcm_encrypt(
 
         const UPDATE_HEADER_SIZE: usize = size_of::<CmAesGcmEncryptUpdateRespHeader>();
 
-        let mut update_resp = CmAesGcmEncryptUpdateResp {
+        let mut update_resp: CmAesGcmEncryptUpdateResp = CmAesGcmEncryptUpdateResp {
             hdr: CmAesGcmEncryptUpdateRespHeader::read_from_bytes(
                 &update_resp_bytes[..UPDATE_HEADER_SIZE],
             )
             .unwrap(),
             ..Default::default()
         };
-        assert_eq!(update_resp.hdr.hdr.fips_status, check_fips_status);
+        assert_eq!({ update_resp.hdr.hdr.fips_status }, check_fips_status);
         let len = update_resp.hdr.ciphertext_size as usize;
         assert!(len < split + AES_BLOCK_SIZE_BYTES);
         assert!(len as isize >= split as isize - AES_BLOCK_SIZE_BYTES as isize);
@@ -1771,14 +1766,14 @@ fn mailbox_gcm_encrypt(
 
     const FINAL_HEADER_SIZE: usize = size_of::<CmAesGcmEncryptFinalRespHeader>();
 
-    let mut final_resp = CmAesGcmEncryptFinalResp {
+    let mut final_resp: CmAesGcmEncryptFinalResp = CmAesGcmEncryptFinalResp {
         hdr: CmAesGcmEncryptFinalRespHeader::read_from_bytes(
             &final_resp_bytes[..FINAL_HEADER_SIZE],
         )
         .unwrap(),
         ..Default::default()
     };
-    assert_eq!(final_resp.hdr.hdr.fips_status, check_fips_status);
+    assert_eq!({ final_resp.hdr.hdr.fips_status }, check_fips_status);
     let len = final_resp.hdr.ciphertext_size as usize;
     assert!(len <= split + AES_BLOCK_SIZE_BYTES);
     final_resp.ciphertext[..len]
@@ -1807,7 +1802,7 @@ fn mailbox_spdm_gcm_encrypt(
     let mut cm_aes_encrypt_init = CmAesGcmSpdmEncryptInitReq {
         spdm_flags: (version as u32) | (if big_endian_counter_xor { 1 << 8 } else { 0 }),
         spdm_counter: counter.to_le_bytes(),
-        cmk: cmk.clone(),
+        cmk: *cmk,
         aad_size: aad.len() as u32,
         ..Default::default()
     };
@@ -1852,14 +1847,14 @@ fn mailbox_spdm_gcm_encrypt(
 
         const UPDATE_HEADER_SIZE: usize = size_of::<CmAesGcmEncryptUpdateRespHeader>();
 
-        let mut update_resp = CmAesGcmEncryptUpdateResp {
+        let mut update_resp: CmAesGcmEncryptUpdateResp = CmAesGcmEncryptUpdateResp {
             hdr: CmAesGcmEncryptUpdateRespHeader::read_from_bytes(
                 &update_resp_bytes[..UPDATE_HEADER_SIZE],
             )
             .unwrap(),
             ..Default::default()
         };
-        assert_eq!(update_resp.hdr.hdr.fips_status, check_fips_status);
+        assert_eq!({ update_resp.hdr.hdr.fips_status }, check_fips_status);
         let len = update_resp.hdr.ciphertext_size as usize;
         assert!(len < split + AES_BLOCK_SIZE_BYTES);
         assert!(len as isize >= split as isize - AES_BLOCK_SIZE_BYTES as isize);
@@ -1890,23 +1885,21 @@ fn mailbox_spdm_gcm_encrypt(
 
     const FINAL_HEADER_SIZE: usize = size_of::<CmAesGcmEncryptFinalRespHeader>();
 
-    let mut final_resp = CmAesGcmEncryptFinalResp {
+    let mut final_resp: CmAesGcmEncryptFinalResp = CmAesGcmEncryptFinalResp {
         hdr: CmAesGcmEncryptFinalRespHeader::read_from_bytes(
             &final_resp_bytes[..FINAL_HEADER_SIZE],
         )
         .unwrap(),
         ..Default::default()
     };
-    assert_eq!(final_resp.hdr.hdr.fips_status, check_fips_status);
+    assert_eq!({ final_resp.hdr.hdr.fips_status }, check_fips_status);
     let len = final_resp.hdr.ciphertext_size as usize;
     assert!(len <= split + AES_BLOCK_SIZE_BYTES);
     final_resp.ciphertext[..len]
         .copy_from_slice(&final_resp_bytes[FINAL_HEADER_SIZE..FINAL_HEADER_SIZE + len]);
     ciphertext.extend_from_slice(&final_resp.ciphertext[..final_resp.hdr.ciphertext_size as usize]);
-    (
-        final_resp.hdr.tag.as_bytes().try_into().unwrap(),
-        ciphertext,
-    )
+    let final_tag = final_resp.hdr.tag;
+    (final_tag.as_bytes().try_into().unwrap(), ciphertext)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1921,7 +1914,7 @@ fn mailbox_gcm_decrypt(
     check_fips_status: u32,
 ) -> (bool, Vec<u8>) {
     let mut cm_aes_decrypt_init = CmAesGcmDecryptInitReq {
-        cmk: cmk.clone(),
+        cmk: *cmk,
         iv: transmute!(*iv),
         aad_size: aad.len() as u32,
         ..Default::default()
@@ -1967,14 +1960,14 @@ fn mailbox_gcm_decrypt(
 
         const UPDATE_HEADER_SIZE: usize = size_of::<CmAesGcmDecryptUpdateRespHeader>();
 
-        let mut update_resp = CmAesGcmDecryptUpdateResp {
+        let mut update_resp: CmAesGcmDecryptUpdateResp = CmAesGcmDecryptUpdateResp {
             hdr: CmAesGcmDecryptUpdateRespHeader::read_from_bytes(
                 &update_resp_bytes[..UPDATE_HEADER_SIZE],
             )
             .unwrap(),
             ..Default::default()
         };
-        assert_eq!(update_resp.hdr.hdr.fips_status, check_fips_status);
+        assert_eq!({ update_resp.hdr.hdr.fips_status }, check_fips_status);
         let len = update_resp.hdr.plaintext_size as usize;
         assert!(len < split + AES_BLOCK_SIZE_BYTES);
         assert!(len as isize >= split as isize - AES_BLOCK_SIZE_BYTES as isize);
@@ -2007,14 +2000,14 @@ fn mailbox_gcm_decrypt(
 
     const FINAL_HEADER_SIZE: usize = size_of::<CmAesGcmDecryptFinalRespHeader>();
 
-    let mut final_resp = CmAesGcmDecryptFinalResp {
+    let mut final_resp: CmAesGcmDecryptFinalResp = CmAesGcmDecryptFinalResp {
         hdr: CmAesGcmDecryptFinalRespHeader::read_from_bytes(
             &final_resp_bytes[..FINAL_HEADER_SIZE],
         )
         .unwrap(),
         ..Default::default()
     };
-    assert_eq!(final_resp.hdr.hdr.fips_status, check_fips_status);
+    assert_eq!({ final_resp.hdr.hdr.fips_status }, check_fips_status);
     let len = final_resp.hdr.plaintext_size as usize;
     assert!(len <= split + AES_BLOCK_SIZE_BYTES);
     final_resp.plaintext[..len]
@@ -2040,7 +2033,7 @@ fn mailbox_spdm_gcm_decrypt(
         hdr: MailboxReqHeader::default(),
         spdm_flags: (version as u32) | (if big_endian_counter_xor { 1 << 8 } else { 0 }),
         spdm_counter: counter.to_le_bytes(),
-        cmk: cmk.clone(),
+        cmk: *cmk,
         aad_size: aad.len() as u32,
         aad: [0; MAX_CMB_DATA_SIZE],
     };
@@ -2085,14 +2078,14 @@ fn mailbox_spdm_gcm_decrypt(
 
         const UPDATE_HEADER_SIZE: usize = size_of::<CmAesGcmDecryptUpdateRespHeader>();
 
-        let mut update_resp = CmAesGcmDecryptUpdateResp {
+        let mut update_resp: CmAesGcmDecryptUpdateResp = CmAesGcmDecryptUpdateResp {
             hdr: CmAesGcmDecryptUpdateRespHeader::read_from_bytes(
                 &update_resp_bytes[..UPDATE_HEADER_SIZE],
             )
             .unwrap(),
             ..Default::default()
         };
-        assert_eq!(update_resp.hdr.hdr.fips_status, check_fips_status);
+        assert_eq!({ update_resp.hdr.hdr.fips_status }, check_fips_status);
         let len = update_resp.hdr.plaintext_size as usize;
         assert!(len < split + AES_BLOCK_SIZE_BYTES);
         assert!(len as isize >= split as isize - AES_BLOCK_SIZE_BYTES as isize);
@@ -2125,14 +2118,14 @@ fn mailbox_spdm_gcm_decrypt(
 
     const FINAL_HEADER_SIZE: usize = size_of::<CmAesGcmDecryptFinalRespHeader>();
 
-    let mut final_resp = CmAesGcmDecryptFinalResp {
+    let mut final_resp: CmAesGcmDecryptFinalResp = CmAesGcmDecryptFinalResp {
         hdr: CmAesGcmDecryptFinalRespHeader::read_from_bytes(
             &final_resp_bytes[..FINAL_HEADER_SIZE],
         )
         .unwrap(),
         ..Default::default()
     };
-    assert_eq!(final_resp.hdr.hdr.fips_status, check_fips_status);
+    assert_eq!({ final_resp.hdr.hdr.fips_status }, check_fips_status);
     let len = final_resp.hdr.plaintext_size as usize;
     assert!(len <= split + AES_BLOCK_SIZE_BYTES);
     final_resp.plaintext[..len]
@@ -2152,7 +2145,7 @@ fn mailbox_aes_encrypt(
     let init_len = plaintext.len().min(split);
     let mut cm_aes_encrypt_init = CmAesEncryptInitReq {
         hdr: MailboxReqHeader::default(),
-        cmk: cmk.clone(),
+        cmk: *cmk,
         mode: mode as u32,
         plaintext_size: init_len as u32,
         plaintext: [0; MAX_CMB_DATA_SIZE],
@@ -2171,11 +2164,11 @@ fn mailbox_aes_encrypt(
         .unwrap();
 
     const INIT_HEADER_SIZE: usize = size_of::<CmAesEncryptInitRespHeader>();
-    let mut resp = CmAesEncryptInitResp {
+    let mut resp: CmAesEncryptInitResp = CmAesEncryptInitResp {
         hdr: CmAesEncryptInitRespHeader::read_from_bytes(&resp_bytes[..INIT_HEADER_SIZE]).unwrap(),
         ..Default::default()
     };
-    assert_eq!(resp.hdr.hdr.fips_status, check_fips_status);
+    assert_eq!({ resp.hdr.hdr.fips_status }, check_fips_status);
     let len = resp.hdr.ciphertext_size as usize;
     assert_eq!(len, init_len);
     resp.ciphertext[..len].copy_from_slice(&resp_bytes[INIT_HEADER_SIZE..INIT_HEADER_SIZE + len]);
@@ -2209,12 +2202,12 @@ fn mailbox_aes_encrypt(
 
         const UPDATE_HEADER_SIZE: usize = size_of::<CmAesRespHeader>();
 
-        let mut update_resp = CmAesResp {
+        let mut update_resp: CmAesResp = CmAesResp {
             hdr: CmAesRespHeader::read_from_bytes(&update_resp_bytes[..UPDATE_HEADER_SIZE])
                 .unwrap(),
             ..Default::default()
         };
-        assert_eq!(update_resp.hdr.hdr.fips_status, check_fips_status);
+        assert_eq!({ update_resp.hdr.hdr.fips_status }, check_fips_status);
         let update_len = update_resp.hdr.output_size as usize;
         assert_eq!(len, update_len);
         update_resp.output[..len]
@@ -2238,7 +2231,7 @@ fn mailbox_aes_decrypt(
     let init_len = ciphertext.len().min(split);
     let mut cm_aes_decrypt_init = CmAesDecryptInitReq {
         hdr: MailboxReqHeader::default(),
-        cmk: cmk.clone(),
+        cmk: *cmk,
         mode: mode as u32,
         iv: *iv,
         ciphertext_size: init_len as u32,
@@ -2259,11 +2252,11 @@ fn mailbox_aes_decrypt(
 
     const RESP_HEADER_SIZE: usize = size_of::<CmAesRespHeader>();
 
-    let mut resp = CmAesResp {
+    let mut resp: CmAesResp = CmAesResp {
         hdr: CmAesRespHeader::read_from_bytes(&resp_bytes[..RESP_HEADER_SIZE]).unwrap(),
         ..Default::default()
     };
-    assert_eq!(resp.hdr.hdr.fips_status, check_fips_status);
+    assert_eq!({ resp.hdr.hdr.fips_status }, check_fips_status);
     let len = resp.hdr.output_size as usize;
     assert_eq!(len, init_len);
     resp.output[..len].copy_from_slice(&resp_bytes[RESP_HEADER_SIZE..RESP_HEADER_SIZE + len]);
@@ -2292,11 +2285,11 @@ fn mailbox_aes_decrypt(
             .expect("Should have succeeded")
             .unwrap();
 
-        let mut update_resp = CmAesResp {
+        let mut update_resp: CmAesResp = CmAesResp {
             hdr: CmAesRespHeader::read_from_bytes(&update_resp_bytes[..RESP_HEADER_SIZE]).unwrap(),
             ..Default::default()
         };
-        assert_eq!(update_resp.hdr.hdr.fips_status, check_fips_status);
+        assert_eq!({ update_resp.hdr.hdr.fips_status }, check_fips_status);
         let update_len = update_resp.hdr.output_size as usize;
         assert_eq!(len, update_len);
         update_resp.output[..len]
@@ -2332,7 +2325,7 @@ fn import_key(model: &mut DefaultHwModel, key: &[u8], key_usage: CmKeyUsage) -> 
         cm_import_resp.hdr.fips_status,
         MailboxRespHeader::FIPS_STATUS_APPROVED
     );
-    cm_import_resp.cmk.clone()
+    cm_import_resp.cmk
 }
 
 #[test]
@@ -2508,7 +2501,7 @@ fn test_hmac_cant_use_sha512_on_384_key() {
     let cmk = import_key(&mut model, &[0u8; 48], CmKeyUsage::Hmac);
 
     let cm_hmac = CmHmacReq {
-        cmk: cmk.clone(),
+        cmk,
         hash_algorithm: CmHashAlgorithm::Sha512.into(),
         ..Default::default()
     };
@@ -2558,7 +2551,7 @@ fn test_hmac_random() {
             seeded_rng.fill_bytes(&mut data);
 
             let mut cm_hmac = CmHmacReq {
-                cmk: cmks[key_idx].clone(),
+                cmk: cmks[key_idx],
                 hash_algorithm: hash_algorithm.into(),
                 data_size: len as u32,
                 ..Default::default()
@@ -2622,7 +2615,7 @@ fn test_hmac_kdf_counter_random() {
             seeded_rng.fill_bytes(&mut data);
 
             let mut cm_hmac_kdf = CmHmacKdfCounterReq {
-                kin: cmks[key_idx].clone(),
+                kin: cmks[key_idx],
                 hash_algorithm: hash_algorithm.into(),
                 key_usage: CmKeyUsage::Aes.into(),
                 key_size: 32,
@@ -2757,7 +2750,7 @@ fn test_hkdf_random() {
                 let salt_cmk = import_key(&mut model, &salt[..hash_len], CmKeyUsage::Hmac);
 
                 let mut cm_hkdf_extract = MailboxReq::CmHkdfExtract(CmHkdfExtractReq {
-                    ikm: cmks[key_idx].clone(),
+                    ikm: cmks[key_idx],
                     hash_algorithm: hash_algorithm.into(),
                     salt: salt_cmk,
                     ..Default::default()
@@ -2783,7 +2776,7 @@ fn test_hkdf_random() {
                 seeded_rng.fill_bytes(&mut info);
 
                 let mut cm_hkdf_expand = CmHkdfExpandReq {
-                    prk: resp.prk.clone(),
+                    prk: resp.prk,
                     hash_algorithm: hash_algorithm.into(),
                     key_usage: CmKeyUsage::Aes.into(),
                     key_size: 32,
@@ -2852,7 +2845,7 @@ fn test_mlkem_hkdf() {
         let seed_cmk = import_key(&mut model, &seed_bytes, CmKeyUsage::Mlkem);
 
         let mut req = MailboxReq::CmMlkemKeyGen(CmMlkemKeyGenReq {
-            cmk: seed_cmk.clone(),
+            cmk: seed_cmk,
             ..Default::default()
         });
         req.populate_chksum().unwrap();
@@ -2897,7 +2890,7 @@ fn test_mlkem_hkdf() {
         let salt_cmk = import_key(&mut model, &salt[..hash_len], CmKeyUsage::Hmac);
 
         let mut cm_hkdf_extract = MailboxReq::CmHkdfExtract(CmHkdfExtractReq {
-            ikm: ikm_cmk.shared_key.clone(),
+            ikm: ikm_cmk.shared_key,
             hash_algorithm: hash_algorithm.into(),
             salt: salt_cmk,
             ..Default::default()
@@ -2923,7 +2916,7 @@ fn test_mlkem_hkdf() {
         seeded_rng.fill_bytes(&mut info);
 
         let mut cm_hkdf_expand = CmHkdfExpandReq {
-            prk: resp.prk.clone(),
+            prk: resp.prk,
             hash_algorithm: hash_algorithm.into(),
             key_usage: CmKeyUsage::Aes.into(),
             key_size: 32,
@@ -2986,7 +2979,7 @@ fn test_mldsa_public_key() {
     let cmk = import_key(&mut model, &seed_bytes, CmKeyUsage::Mldsa);
 
     let mut req = MailboxReq::CmMldsaPublicKey(CmMldsaPublicKeyReq {
-        cmk: cmk.clone(),
+        cmk,
         ..Default::default()
     });
     req.populate_chksum().unwrap();
@@ -3236,7 +3229,7 @@ fn test_mldsa_sign_verify() {
     let cmk = import_key(&mut model, &seed_bytes, CmKeyUsage::Mldsa);
 
     let mut req = CmMldsaVerifyReq {
-        cmk: cmk.clone(),
+        cmk,
         ..Default::default()
     };
     *req.signature.last_mut().unwrap() = 1;
@@ -3260,7 +3253,7 @@ fn test_mldsa_sign_verify() {
         seeded_rng.fill_bytes(&mut data);
 
         let mut req = CmMldsaSignReq {
-            cmk: cmk.clone(),
+            cmk,
             message_size: len as u32,
             ..Default::default()
         };
@@ -3283,7 +3276,7 @@ fn test_mldsa_sign_verify() {
         assert_eq!(&resp.signature[..signature.len()], &signature);
 
         let mut req = CmMldsaVerifyReq {
-            cmk: cmk.clone(),
+            cmk,
             signature: resp.signature,
             message_size: len as u32,
             ..Default::default()
@@ -3304,7 +3297,7 @@ fn test_mldsa_sign_verify() {
 
         // now check with the correct message
         let mut req = CmMldsaVerifyReq {
-            cmk: cmk.clone(),
+            cmk,
             signature: resp.signature,
             message_size: len as u32,
             ..Default::default()
@@ -3330,7 +3323,7 @@ fn test_ecdsa_public_key() {
     let cmk = import_key(&mut model, &seed_bytes, CmKeyUsage::Ecdsa);
 
     let mut req = MailboxReq::CmEcdsaPublicKey(CmEcdsaPublicKeyReq {
-        cmk: cmk.clone(),
+        cmk,
         ..Default::default()
     });
     req.populate_chksum().unwrap();
@@ -3395,7 +3388,7 @@ fn test_ecdsa_sign_verify() {
         seeded_rng.fill_bytes(&mut data);
 
         let mut req = CmEcdsaSignReq {
-            cmk: cmk.clone(),
+            cmk,
             message_size: len as u32,
             ..Default::default()
         };
@@ -3422,7 +3415,7 @@ fn test_ecdsa_sign_verify() {
         assert_eq!(resp.signature_s, signature.1);
 
         let mut req = CmEcdsaVerifyReq {
-            cmk: cmk.clone(),
+            cmk,
             signature_r: resp.signature_r,
             signature_s: resp.signature_s,
             message_size: len as u32,
@@ -3444,7 +3437,7 @@ fn test_ecdsa_sign_verify() {
 
         // now check with the correct message
         let mut req = CmEcdsaVerifyReq {
-            cmk: cmk.clone(),
+            cmk,
             signature_r: resp.signature_r,
             signature_s: resp.signature_s,
             message_size: len as u32,
@@ -3531,10 +3524,10 @@ fn test_derive_stable_key_from_rom() {
                 resp.hdr.fips_status,
                 MailboxRespHeader::FIPS_STATUS_APPROVED
             );
-            let rom_stable_cmk = resp.cmk.clone();
+            let rom_stable_cmk = resp.cmk;
 
             let mut hmac_request = CmHmacReq {
-                cmk: rom_stable_cmk.clone(),
+                cmk: rom_stable_cmk,
                 hash_algorithm: CmHashAlgorithm::Sha384.into(),
                 data_size: 9,
                 ..Default::default()
@@ -3617,7 +3610,7 @@ fn test_derive_stable_key_from_rom() {
                 resp.hdr.fips_status,
                 MailboxRespHeader::FIPS_STATUS_APPROVED
             );
-            let fw_stable_cmk = resp.cmk.clone();
+            let fw_stable_cmk = resp.cmk;
 
             // compute the HMAC with the runtime derived key and make sure it matches the ROM HMAC
             let mut hmac_request = CmHmacReq {
@@ -3706,7 +3699,7 @@ fn test_derive_stable_owner_key_different_info() {
             resp.hdr.fips_status,
             MailboxRespHeader::FIPS_STATUS_APPROVED
         );
-        let cmk_a = resp.cmk.clone();
+        let cmk_a = resp.cmk;
 
         let mut hmac_request = CmHmacReq {
             cmk: cmk_a,
@@ -3750,7 +3743,7 @@ fn test_derive_stable_owner_key_different_info() {
             resp.hdr.fips_status,
             MailboxRespHeader::FIPS_STATUS_APPROVED
         );
-        let cmk_b = resp.cmk.clone();
+        let cmk_b = resp.cmk;
 
         let mut hmac_request = CmHmacReq {
             cmk: cmk_b,
@@ -3919,12 +3912,11 @@ fn test_derive_keys_from_stable_owner_key() {
             .unwrap();
         let stable_cmk = CmDeriveStableKeyResp::ref_from_bytes(response.as_bytes())
             .unwrap()
-            .cmk
-            .clone();
+            .cmk;
 
         // Step 2a: Derive an AES key and use it for GCM encrypt/decrypt
         let mut kdf_req = CmHmacKdfCounterReq {
-            kin: stable_cmk.clone(),
+            kin: stable_cmk,
             hash_algorithm: CmHashAlgorithm::Sha384.into(),
             key_usage: CmKeyUsage::Aes.into(),
             key_size: 32,
@@ -3943,8 +3935,7 @@ fn test_derive_keys_from_stable_owner_key() {
             .unwrap();
         let aes_cmk = CmHmacKdfCounterResp::ref_from_bytes(resp_bytes.as_bytes())
             .unwrap()
-            .kout
-            .clone();
+            .kout;
 
         let plaintext = [0x42u8; 32];
         let (iv, tag, ciphertext) = mailbox_gcm_encrypt(
@@ -3970,7 +3961,7 @@ fn test_derive_keys_from_stable_owner_key() {
 
         // Step 2b: Derive an HMAC key and use it
         let mut kdf_req = CmHmacKdfCounterReq {
-            kin: stable_cmk.clone(),
+            kin: stable_cmk,
             hash_algorithm: CmHashAlgorithm::Sha384.into(),
             key_usage: CmKeyUsage::Hmac.into(),
             key_size: 48,
@@ -3989,8 +3980,7 @@ fn test_derive_keys_from_stable_owner_key() {
             .unwrap();
         let hmac_cmk = CmHmacKdfCounterResp::ref_from_bytes(resp_bytes.as_bytes())
             .unwrap()
-            .kout
-            .clone();
+            .kout;
 
         let mut hmac_req = CmHmacReq {
             cmk: hmac_cmk,
@@ -4019,7 +4009,7 @@ fn test_derive_keys_from_stable_owner_key() {
 
         // Step 2c: Derive an ECDSA key and use it to sign/verify
         let mut kdf_req = CmHmacKdfCounterReq {
-            kin: stable_cmk.clone(),
+            kin: stable_cmk,
             hash_algorithm: CmHashAlgorithm::Sha384.into(),
             key_usage: CmKeyUsage::Ecdsa.into(),
             key_size: 48,
@@ -4038,11 +4028,10 @@ fn test_derive_keys_from_stable_owner_key() {
             .unwrap();
         let ecdsa_cmk = CmHmacKdfCounterResp::ref_from_bytes(resp_bytes.as_bytes())
             .unwrap()
-            .kout
-            .clone();
+            .kout;
 
         let mut sign_req = CmEcdsaSignReq {
-            cmk: ecdsa_cmk.clone(),
+            cmk: ecdsa_cmk,
             message_size: 16,
             ..Default::default()
         };
@@ -4078,7 +4067,7 @@ fn test_derive_keys_from_stable_owner_key() {
 
         // Step 2d: Derive an MLDSA key and use it to sign/verify
         let mut kdf_req = CmHmacKdfCounterReq {
-            kin: stable_cmk.clone(),
+            kin: stable_cmk,
             hash_algorithm: CmHashAlgorithm::Sha384.into(),
             key_usage: CmKeyUsage::Mldsa.into(),
             key_size: 32,
@@ -4097,11 +4086,10 @@ fn test_derive_keys_from_stable_owner_key() {
             .unwrap();
         let mldsa_cmk = CmHmacKdfCounterResp::ref_from_bytes(resp_bytes.as_bytes())
             .unwrap()
-            .kout
-            .clone();
+            .kout;
 
         let mut sign_req = CmMldsaSignReq {
-            cmk: mldsa_cmk.clone(),
+            cmk: mldsa_cmk,
             message_size: 16,
             ..Default::default()
         };
@@ -4165,7 +4153,7 @@ fn derive_stable_key(model: &mut DefaultHwModel, usage: CmKeyUsage, key_size: Op
         _ => panic!("Unsupported key usage for stable key derivation"),
     });
     let cm_hmac_kdf = CmHmacKdfCounterReq {
-        kin: resp.cmk.clone(),
+        kin: resp.cmk,
         hash_algorithm: if key_size == 64 {
             CmHashAlgorithm::Sha512.into()
         } else {
@@ -4192,7 +4180,7 @@ fn derive_stable_key(model: &mut DefaultHwModel, usage: CmKeyUsage, key_size: Op
         resp.hdr.fips_status,
         MailboxRespHeader::FIPS_STATUS_APPROVED
     );
-    response.kout.clone()
+    response.kout
 }
 
 #[test]
@@ -4244,7 +4232,7 @@ fn test_stable_key_ecdsa_sign_verify_fips_status() {
         let cmk = derive_stable_key(&mut model, CmKeyUsage::Ecdsa, None);
         let expected_fips_status = MailboxRespHeader::FIPS_STATUS_APPROVED;
         let req = CmEcdsaSignReq {
-            cmk: cmk.clone(),
+            cmk,
             message_size: 48,
             ..Default::default()
         };
@@ -4257,7 +4245,7 @@ fn test_stable_key_ecdsa_sign_verify_fips_status() {
         let resp = CmEcdsaSignResp::ref_from_bytes(resp_bytes.as_slice()).unwrap();
         assert_eq!(resp.hdr.fips_status, expected_fips_status);
         let req = CmEcdsaVerifyReq {
-            cmk: cmk.clone(),
+            cmk,
             signature_r: resp.signature_r,
             signature_s: resp.signature_s,
             message_size: 48,
@@ -4288,7 +4276,7 @@ fn test_stable_key_ecdsa_public_key_fips_status() {
         let cmk = derive_stable_key(&mut model, CmKeyUsage::Ecdsa, None);
         let expected_fips_status = MailboxRespHeader::FIPS_STATUS_APPROVED;
         let mut req = MailboxReq::CmEcdsaPublicKey(CmEcdsaPublicKeyReq {
-            cmk: cmk.clone(),
+            cmk,
             ..Default::default()
         });
         req.populate_chksum().unwrap();
@@ -4316,7 +4304,7 @@ fn test_stable_key_mldsa_sign_verify_fips_status() {
         let expected_fips_status = MailboxRespHeader::FIPS_STATUS_APPROVED;
 
         let req = CmMldsaSignReq {
-            cmk: cmk.clone(),
+            cmk,
             message_size: 48,
             ..Default::default()
         };
@@ -4330,7 +4318,7 @@ fn test_stable_key_mldsa_sign_verify_fips_status() {
         assert_eq!(resp.hdr.fips_status, expected_fips_status);
 
         let req = CmMldsaVerifyReq {
-            cmk: cmk.clone(),
+            cmk,
             signature: resp.signature,
             message_size: 48,
             ..Default::default()
@@ -4361,7 +4349,7 @@ fn test_stable_key_mldsa_public_key_fips_status() {
         let expected_fips_status = MailboxRespHeader::FIPS_STATUS_APPROVED;
 
         let mut req = MailboxReq::CmMldsaPublicKey(CmMldsaPublicKeyReq {
-            cmk: cmk.clone(),
+            cmk,
             ..Default::default()
         });
         req.populate_chksum().unwrap();
@@ -4398,7 +4386,7 @@ fn test_stable_key_hkdf_fips_status() {
             let salt_cmk = import_key(&mut model, &[0; 64], CmKeyUsage::Hmac);
 
             let mut cm_hkdf_extract = MailboxReq::CmHkdfExtract(CmHkdfExtractReq {
-                ikm: cmk.clone(),
+                ikm: cmk,
                 hash_algorithm: hash_algorithm.into(),
                 salt: salt_cmk,
                 ..Default::default()
@@ -4417,7 +4405,7 @@ fn test_stable_key_hkdf_fips_status() {
             assert_eq!(resp.hdr.fips_status, expected_fips_status);
 
             let cm_hkdf_expand = CmHkdfExpandReq {
-                prk: resp.prk.clone(),
+                prk: resp.prk,
                 hash_algorithm: hash_algorithm.into(),
                 key_usage: CmKeyUsage::Mldsa.into(),
                 key_size: 32,
@@ -4480,7 +4468,7 @@ fn test_stable_key_hmac_fips_status() {
                     .unwrap(),
                 ..Default::default()
             };
-            assert_eq!(resp.hdr.hdr.fips_status, expected_fips_status);
+            assert_eq!({ resp.hdr.hdr.fips_status }, expected_fips_status);
         }
     }
 }
@@ -5224,7 +5212,7 @@ fn test_mlkem_key_gen() {
     let cmk = import_key(&mut model, &seed_bytes, CmKeyUsage::Mlkem);
 
     let mut req = MailboxReq::CmMlkemKeyGen(CmMlkemKeyGenReq {
-        cmk: cmk.clone(),
+        cmk,
         ..Default::default()
     });
     req.populate_chksum().unwrap();
@@ -5243,7 +5231,7 @@ fn test_mlkem_key_gen() {
 
     // Verify determinism: same seeds should produce the same encaps key
     let mut req2 = MailboxReq::CmMlkemKeyGen(CmMlkemKeyGenReq {
-        cmk: cmk.clone(),
+        cmk,
         ..Default::default()
     });
     req2.populate_chksum().unwrap();
@@ -5277,7 +5265,7 @@ fn test_mlkem_encapsulate_decapsulate() {
 
     // Step 1: Generate key pair to get the encapsulation key
     let mut req = MailboxReq::CmMlkemKeyGen(CmMlkemKeyGenReq {
-        cmk: cmk.clone(),
+        cmk,
         ..Default::default()
     });
     req.populate_chksum().unwrap();
@@ -5314,7 +5302,7 @@ fn test_mlkem_encapsulate_decapsulate() {
     // Step 3: Decapsulate using the CMK (seeds) and the ciphertext
     let decaps_req = CmMlkemDecapsulateReq {
         key_usage: CmKeyUsage::Aes.into(),
-        cmk: cmk.clone(),
+        cmk,
         ciphertext: encaps_resp.ciphertext,
         ..Default::default()
     };
@@ -5375,7 +5363,7 @@ fn test_mlkem_wrong_key_usage() {
     let cmk = import_key(&mut model, &seed_bytes, CmKeyUsage::Mldsa);
 
     let mut req = MailboxReq::CmMlkemKeyGen(CmMlkemKeyGenReq {
-        cmk: cmk.clone(),
+        cmk,
         ..Default::default()
     });
     req.populate_chksum().unwrap();
@@ -5408,7 +5396,7 @@ fn test_mlkem_multiple_encapsulate_decapsulate() {
 
     // Get encaps key
     let mut req = MailboxReq::CmMlkemKeyGen(CmMlkemKeyGenReq {
-        cmk: cmk.clone(),
+        cmk,
         ..Default::default()
     });
     req.populate_chksum().unwrap();
@@ -5434,7 +5422,7 @@ fn test_mlkem_multiple_encapsulate_decapsulate() {
 
         let mut req = MailboxReq::CmMlkemDecapsulate(CmMlkemDecapsulateReq {
             key_usage: CmKeyUsage::Aes.into(),
-            cmk: cmk.clone(),
+            cmk,
             ciphertext: encaps_resp.ciphertext,
             ..Default::default()
         });
@@ -5492,7 +5480,7 @@ fn test_mlkem_corrupt_ciphertext() {
 
     // Get encaps key
     let mut req = MailboxReq::CmMlkemKeyGen(CmMlkemKeyGenReq {
-        cmk: cmk.clone(),
+        cmk,
         ..Default::default()
     });
     req.populate_chksum().unwrap();
@@ -5534,7 +5522,7 @@ fn test_mlkem_corrupt_ciphertext() {
     // so decapsulation succeeds but produces a different shared key.
     let mut req = MailboxReq::CmMlkemDecapsulate(CmMlkemDecapsulateReq {
         key_usage: CmKeyUsage::Aes.into(),
-        cmk: cmk.clone(),
+        cmk,
         ciphertext: corrupt_ciphertext,
         ..Default::default()
     });

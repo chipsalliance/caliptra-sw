@@ -21,29 +21,21 @@ use caliptra_common::{
     hmac_cm::hmac,
     keyids::{KEY_ID_STABLE_IDEV, KEY_ID_STABLE_LDEV, KEY_ID_STABLE_OWNER},
     mailbox_api::{
-        CmAesDecryptInitReq, CmAesDecryptUpdateReq, CmAesEncryptInitReq, CmAesEncryptInitResp,
-        CmAesEncryptUpdateReq, CmAesGcmDecryptDmaReq, CmAesGcmDecryptDmaResp,
-        CmAesGcmDecryptFinalReq, CmAesGcmDecryptFinalResp, CmAesGcmDecryptInitReq,
-        CmAesGcmDecryptInitResp, CmAesGcmDecryptUpdateReq, CmAesGcmDecryptUpdateResp,
-        CmAesGcmEncryptFinalReq, CmAesGcmEncryptFinalResp, CmAesGcmEncryptInitReq,
-        CmAesGcmEncryptInitResp, CmAesGcmEncryptUpdateReq, CmAesGcmEncryptUpdateResp,
-        CmAesGcmSpdmDecryptInitReq, CmAesGcmSpdmDecryptInitResp, CmAesGcmSpdmEncryptInitReq,
-        CmAesGcmSpdmEncryptInitResp, CmAesMode, CmAesResp, CmDeleteReq, CmDeriveStableKeyReq,
-        CmDeriveStableKeyResp, CmEcdhFinishReq, CmEcdhFinishResp, CmEcdhGenerateReq,
-        CmEcdhGenerateResp, CmEcdsaPublicKeyReq, CmEcdsaPublicKeyResp, CmEcdsaSignReq,
-        CmEcdsaSignResp, CmEcdsaVerifyReq, CmHashAlgorithm, CmHkdfExpandReq, CmHkdfExpandResp,
-        CmHkdfExtractReq, CmHkdfExtractResp, CmHmacKdfCounterReq, CmHmacKdfCounterResp,
-        CmImportReq, CmImportResp, CmKeyGenReq, CmKeyGenResp, CmKeyUsage, CmMldsaPublicKeyReq,
-        CmMldsaPublicKeyResp, CmMldsaSignReq, CmMldsaSignResp, CmMldsaVerifyReq,
+        CmAesGcmDecryptDmaReq, CmAesGcmDecryptDmaResp, CmAesGcmDecryptInitResp,
+        CmAesGcmEncryptInitResp, CmAesGcmSpdmDecryptInitResp, CmAesGcmSpdmEncryptInitResp,
+        CmAesMode, CmDeleteReq, CmDeriveStableKeyReq, CmDeriveStableKeyResp, CmEcdhFinishReq,
+        CmEcdhFinishResp, CmEcdhGenerateReq, CmEcdhGenerateResp, CmEcdsaPublicKeyReq,
+        CmEcdsaPublicKeyResp, CmEcdsaSignResp, CmHashAlgorithm, CmHkdfExpandResp, CmHkdfExtractReq,
+        CmHkdfExtractResp, CmHmacKdfCounterResp, CmImportReq, CmImportResp, CmKeyGenReq,
+        CmKeyGenResp, CmKeyUsage, CmMldsaPublicKeyReq, CmMldsaPublicKeyResp, CmMldsaSignResp,
         CmMlkemDecapsulateReq, CmMlkemDecapsulateResp, CmMlkemEncapsulateReq,
         CmMlkemEncapsulateResp, CmMlkemKeyGenReq, CmMlkemKeyGenResp, CmRandomGenerateReq,
-        CmRandomGenerateResp, CmRandomStirReq, CmShaFinalResp, CmShaInitReq, CmShaInitResp,
-        CmShaUpdateReq, CmShake256FinalReq, CmShake256FinalResp, CmShake256InitReq,
-        CmShake256InitResp, CmShake256UpdateReq, CmStableKeyType, CmStatusResp, Cmk as MailboxCmk,
-        MailboxRespHeader, MailboxRespHeaderVarSize, ResponseVarSize,
-        CMB_AES_GCM_ENCRYPTED_CONTEXT_SIZE, CMB_ECDH_CONTEXT_SIZE, CMB_ECDH_ENCRYPTED_CONTEXT_SIZE,
-        CMB_SHAKE256_CONTEXT_PLAINTEXT_SIZE, CMB_SHAKE256_CONTEXT_SIZE, CMB_SHA_CONTEXT_SIZE,
-        CMK_MAX_KEY_SIZE_BITS, CMK_SIZE_BYTES, CM_STABLE_KEY_INFO_SIZE_BYTES, MAX_CMB_DATA_SIZE,
+        CmShaFinalResp, CmShaInitResp, CmShake256FinalResp, CmShake256InitResp, CmStableKeyType,
+        CmStatusResp, Cmk as MailboxCmk, MailboxRespHeader, MailboxRespHeaderVarSize,
+        ResponseVarSize, CMB_AES_GCM_ENCRYPTED_CONTEXT_SIZE, CMB_ECDH_CONTEXT_SIZE,
+        CMB_ECDH_ENCRYPTED_CONTEXT_SIZE, CMB_SHAKE256_CONTEXT_PLAINTEXT_SIZE,
+        CMB_SHAKE256_CONTEXT_SIZE, CMB_SHA_CONTEXT_SIZE, CMK_MAX_KEY_SIZE_BITS, CMK_SIZE_BYTES,
+        CM_STABLE_KEY_INFO_SIZE_BYTES, MAX_CMB_AES_GCM_OUTPUT_SIZE, MAX_CMB_DATA_SIZE,
         MLKEM1024_SHARED_KEY_SIZE,
     },
 };
@@ -65,6 +57,56 @@ use caliptra_image_types::{
 use constant_time_eq::constant_time_eq;
 use zerocopy::{transmute, FromBytes, Immutable, IntoBytes, KnownLayout};
 use zeroize::{Zeroize, Zeroizing};
+
+// Default-sized aliases for the const-generic cryptographic-mailbox request/response
+// structs. These bind the generic buffer size to this component's mailbox limits
+// (`MAX_CMB_DATA_SIZE` / `MAX_CMB_AES_GCM_OUTPUT_SIZE`). Components with a different
+// mailbox size (e.g. caliptra-mcu-sw in passive mode) can declare their own aliases
+// with adjusted sizes while reusing the same wire-layout definitions.
+type CmAesDecryptInitReq = caliptra_common::mailbox_api::CmAesDecryptInitReq<MAX_CMB_DATA_SIZE>;
+type CmAesDecryptUpdateReq = caliptra_common::mailbox_api::CmAesDecryptUpdateReq<MAX_CMB_DATA_SIZE>;
+type CmAesEncryptInitReq = caliptra_common::mailbox_api::CmAesEncryptInitReq<MAX_CMB_DATA_SIZE>;
+type CmAesEncryptInitResp = caliptra_common::mailbox_api::CmAesEncryptInitResp<MAX_CMB_DATA_SIZE>;
+type CmAesEncryptUpdateReq = caliptra_common::mailbox_api::CmAesEncryptUpdateReq<MAX_CMB_DATA_SIZE>;
+type CmAesGcmDecryptFinalReq =
+    caliptra_common::mailbox_api::CmAesGcmDecryptFinalReq<MAX_CMB_DATA_SIZE>;
+type CmAesGcmDecryptInitReq =
+    caliptra_common::mailbox_api::CmAesGcmDecryptInitReq<MAX_CMB_DATA_SIZE>;
+type CmAesGcmDecryptUpdateReq =
+    caliptra_common::mailbox_api::CmAesGcmDecryptUpdateReq<MAX_CMB_DATA_SIZE>;
+type CmAesGcmEncryptFinalReq =
+    caliptra_common::mailbox_api::CmAesGcmEncryptFinalReq<MAX_CMB_DATA_SIZE>;
+type CmAesGcmEncryptInitReq =
+    caliptra_common::mailbox_api::CmAesGcmEncryptInitReq<MAX_CMB_DATA_SIZE>;
+type CmAesGcmEncryptUpdateReq =
+    caliptra_common::mailbox_api::CmAesGcmEncryptUpdateReq<MAX_CMB_DATA_SIZE>;
+type CmAesGcmSpdmDecryptInitReq =
+    caliptra_common::mailbox_api::CmAesGcmSpdmDecryptInitReq<MAX_CMB_DATA_SIZE>;
+type CmAesGcmSpdmEncryptInitReq =
+    caliptra_common::mailbox_api::CmAesGcmSpdmEncryptInitReq<MAX_CMB_DATA_SIZE>;
+type CmAesResp = caliptra_common::mailbox_api::CmAesResp<MAX_CMB_DATA_SIZE>;
+type CmEcdsaSignReq = caliptra_common::mailbox_api::CmEcdsaSignReq<MAX_CMB_DATA_SIZE>;
+type CmEcdsaVerifyReq = caliptra_common::mailbox_api::CmEcdsaVerifyReq<MAX_CMB_DATA_SIZE>;
+type CmHkdfExpandReq = caliptra_common::mailbox_api::CmHkdfExpandReq<MAX_CMB_DATA_SIZE>;
+type CmHmacKdfCounterReq = caliptra_common::mailbox_api::CmHmacKdfCounterReq<MAX_CMB_DATA_SIZE>;
+type CmMldsaSignReq = caliptra_common::mailbox_api::CmMldsaSignReq<MAX_CMB_DATA_SIZE>;
+type CmMldsaVerifyReq = caliptra_common::mailbox_api::CmMldsaVerifyReq<MAX_CMB_DATA_SIZE>;
+type CmRandomGenerateResp = caliptra_common::mailbox_api::CmRandomGenerateResp<MAX_CMB_DATA_SIZE>;
+type CmRandomStirReq = caliptra_common::mailbox_api::CmRandomStirReq<MAX_CMB_DATA_SIZE>;
+type CmShaFinalReq = caliptra_common::mailbox_api::CmShaFinalReq<MAX_CMB_DATA_SIZE>;
+type CmShaInitReq = caliptra_common::mailbox_api::CmShaInitReq<MAX_CMB_DATA_SIZE>;
+type CmShaUpdateReq = caliptra_common::mailbox_api::CmShaUpdateReq<MAX_CMB_DATA_SIZE>;
+type CmShake256FinalReq = caliptra_common::mailbox_api::CmShake256FinalReq<MAX_CMB_DATA_SIZE>;
+type CmShake256InitReq = caliptra_common::mailbox_api::CmShake256InitReq<MAX_CMB_DATA_SIZE>;
+type CmShake256UpdateReq = caliptra_common::mailbox_api::CmShake256UpdateReq<MAX_CMB_DATA_SIZE>;
+type CmAesGcmDecryptFinalResp =
+    caliptra_common::mailbox_api::CmAesGcmDecryptFinalResp<MAX_CMB_AES_GCM_OUTPUT_SIZE>;
+type CmAesGcmDecryptUpdateResp =
+    caliptra_common::mailbox_api::CmAesGcmDecryptUpdateResp<MAX_CMB_AES_GCM_OUTPUT_SIZE>;
+type CmAesGcmEncryptFinalResp =
+    caliptra_common::mailbox_api::CmAesGcmEncryptFinalResp<MAX_CMB_AES_GCM_OUTPUT_SIZE>;
+type CmAesGcmEncryptUpdateResp =
+    caliptra_common::mailbox_api::CmAesGcmEncryptUpdateResp<MAX_CMB_AES_GCM_OUTPUT_SIZE>;
 
 pub const GCM_MAX_KEY_USES: u64 = (1 << 32) - 1;
 pub const KEY_USAGE_MAX: usize = 256;

@@ -1695,7 +1695,7 @@ pub trait HwModel: SocManager {
                 cm_import_resp.hdr.fips_status,
             ));
         }
-        let cmk = cm_import_resp.cmk.clone();
+        let cmk = cm_import_resp.cmk;
 
         // Step 3: Write ciphertext to staging area and get the AXI address
         let mcu_sram_addr = self.write_payload_to_ss_staging_area(ciphertext, 0)?;

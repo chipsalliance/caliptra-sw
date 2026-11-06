@@ -34,7 +34,7 @@ fn test_cm_sha_sha384() {
     // Calculate checksum
     cmd.hdr.chksum = caliptra_common::checksum::calc_checksum(
         u32::from(CommandId::CM_SHA),
-        &cmd.as_bytes()[core::mem::size_of_val(&cmd.hdr.chksum)..],
+        &cmd.as_bytes()[core::mem::size_of::<u32>()..],
     );
 
     let response = hw
@@ -89,7 +89,7 @@ fn test_cm_sha_sha512() {
     // Calculate checksum
     cmd.hdr.chksum = caliptra_common::checksum::calc_checksum(
         u32::from(CommandId::CM_SHA),
-        &cmd.as_bytes()[core::mem::size_of_val(&cmd.hdr.chksum)..],
+        &cmd.as_bytes()[core::mem::size_of::<u32>()..],
     );
 
     let response = hw
@@ -143,7 +143,7 @@ fn test_cm_sha_empty_input() {
     // Calculate checksum
     cmd.hdr.chksum = caliptra_common::checksum::calc_checksum(
         u32::from(CommandId::CM_SHA),
-        &cmd.as_bytes()[core::mem::size_of_val(&cmd.hdr.chksum)..],
+        &cmd.as_bytes()[core::mem::size_of::<u32>()..],
     );
 
     let response = hw
@@ -188,7 +188,7 @@ fn test_cm_sha_invalid_algorithm() {
     // Calculate checksum
     cmd.hdr.chksum = caliptra_common::checksum::calc_checksum(
         u32::from(CommandId::CM_SHA),
-        &cmd.as_bytes()[core::mem::size_of_val(&cmd.hdr.chksum)..],
+        &cmd.as_bytes()[core::mem::size_of::<u32>()..],
     );
 
     // This should fail because the algorithm is invalid
@@ -229,7 +229,7 @@ fn test_cm_sha_full_mailbox_all_0xff() {
     // Calculate checksum
     cmd.hdr.chksum = caliptra_common::checksum::calc_checksum(
         u32::from(CommandId::CM_SHA),
-        &cmd.as_bytes()[core::mem::size_of_val(&cmd.hdr.chksum)..size + 12],
+        &cmd.as_bytes()[core::mem::size_of::<u32>()..size + 12],
     );
 
     let response = hw
