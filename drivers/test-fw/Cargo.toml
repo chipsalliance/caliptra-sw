@@ -32,6 +32,7 @@ emu = ["caliptra-test-harness/emu"]
 fpga_realtime = ["caliptra-drivers/fpga_realtime"]
 fpga_subsystem = ["caliptra-drivers/fpga_subsystem"]
 fips-test-hooks = ["caliptra-drivers/fips-test-hooks"]
+last-hmac-block = ["caliptra-drivers/last-hmac-block"]
 
 
 # This feature is used to filter all these binary targets during normal builds
