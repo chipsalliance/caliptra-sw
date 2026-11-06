@@ -3,8 +3,12 @@
 use crate::Drivers;
 use caliptra_common::x509;
 use caliptra_drivers::sha2_512_384::Sha2DigestOpTrait;
-use caliptra_drivers::{Array4x12, KeyReadArgs, Mldsa87Seed, Mldsa87SignRnd};
+use caliptra_drivers::{
+    Array4x12, Ecc384Scalar, Ecc384Signature, KeyReadArgs, Mldsa87Seed, Mldsa87SignRnd,
+};
 use caliptra_error::{CaliptraError, CaliptraResult};
+use caliptra_x509::MlDsa87Signature;
+use core::mem::size_of;
 use zerocopy::IntoBytes;
 
 mod fmc_alias;
@@ -17,9 +21,10 @@ use rt_alias::{generate_rt_alias_ecc_csr, generate_rt_alias_mldsa_csr};
 
 include!(concat!(env!("OUT_DIR"), "/attested_csr_template.rs"));
 
-// Maximum size for CSR EAT claims payload (CBOR encoded)
-pub(crate) const MAX_CSR_EAT_CLAIMS_SIZE: usize = 8192;
-const MAX_CSR_BSTR_HEADER_LEN: usize = 3;
+const KEY_ID_LEN: usize = 20;
+const ECC384_COORD_LEN: usize = size_of::<Ecc384Scalar>();
+const ECC384_SIG_LEN: usize = size_of::<Ecc384Signature>();
+const MLDSA87_SIG_LEN: usize = size_of::<MlDsa87Signature>();
 
 enum CryptoType {
     ECC384,
@@ -45,31 +50,11 @@ impl TryFrom<u32> for DevIdKeyType {
     }
 }
 
-fn write_cbor_bstr_header(buf: &mut [u8], len: usize) -> CaliptraResult<usize> {
-    if len <= CBOR_MAX_INLINE_LEN {
-        let b = buf
-            .get_mut(0)
-            .ok_or(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
-        *b = CBOR_BYTE_STRING_TINY_BASE | (len as u8);
-        Ok(1)
-    } else if len <= u8::MAX as usize {
-        if buf.len() < 2 {
-            return Err(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY);
-        }
-        buf[0] = CBOR_BYTE_STRING_1BYTE_LEN;
-        buf[1] = len as u8;
-        Ok(2)
-    } else if len <= u16::MAX as usize {
-        if buf.len() < 3 {
-            return Err(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY);
-        }
-        buf[0] = CBOR_BYTE_STRING_2BYTE_LEN;
-        buf[1] = (len >> 8) as u8;
-        buf[2] = (len & 0xff) as u8;
-        Ok(3)
-    } else {
-        Err(CaliptraError::RUNTIME_ATTESTED_CSR_EAT_ENCODING_ERROR)
-    }
+fn encode_cbor_bstr_deferred<F>(buf: &mut [u8], f: F) -> CaliptraResult<usize>
+where
+    F: FnOnce(&mut [u8]) -> CaliptraResult<usize>,
+{
+    caliptra_ocp_eat::encode_bstr_deferred(buf, |_| CaliptraError::RUNTIME_INSUFFICIENT_MEMORY, f)
 }
 
 impl DevIdKeyType {
@@ -109,9 +94,7 @@ impl DevIdKeyType {
         };
 
         let prefix_len = CSR_EAT_PREFIX.len() + nonce.len() + CSR_EAT_CLAIM_KEY_CSR.len();
-        let reserved_csr_start = prefix_len + MAX_CSR_BSTR_HEADER_LEN;
-
-        if eat_buffer.len() < reserved_csr_start {
+        if eat_buffer.len() < prefix_len {
             return Err(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY);
         }
 
@@ -122,40 +105,18 @@ impl DevIdKeyType {
         offset += nonce.len();
         eat_buffer[offset..offset + CSR_EAT_CLAIM_KEY_CSR.len()]
             .copy_from_slice(&CSR_EAT_CLAIM_KEY_CSR);
+        offset += CSR_EAT_CLAIM_KEY_CSR.len();
 
-        // Generate CSR directly into eat_buffer after reserved bstr header
-        let csr_len = self.generate_csr(drivers, crypto, &mut eat_buffer[reserved_csr_start..])?;
+        // Encode CSR as a CBOR byte string
+        let csr_bstr_len = encode_cbor_bstr_deferred(&mut eat_buffer[offset..], |csr_buf| {
+            self.generate_csr(drivers, crypto, csr_buf)
+        })?;
 
-        // Determine actual bstr header length
-        let mut bstr_hdr = [0u8; 3];
-        let bstr_hdr_len = write_cbor_bstr_header(&mut bstr_hdr, csr_len)?;
-
-        // If actual bstr header is shorter than reserved 3 bytes, shift CSR data left
-        let actual_csr_start = prefix_len + bstr_hdr_len;
-        if bstr_hdr_len < MAX_CSR_BSTR_HEADER_LEN {
-            eat_buffer.copy_within(
-                reserved_csr_start..reserved_csr_start + csr_len,
-                actual_csr_start,
-            );
-        }
-        eat_buffer[prefix_len..actual_csr_start].copy_from_slice(&bstr_hdr[..bstr_hdr_len]);
-
-        let csr_end = actual_csr_start
-            .checked_add(csr_len)
-            .ok_or(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
-        let total_len = csr_end
-            .checked_add(suffix.len())
-            .ok_or(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
-        if eat_buffer.len() < total_len {
-            return Err(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY);
-        }
-
+        let csr_end = offset + csr_bstr_len;
+        let total_len = csr_end + suffix.len();
         let suffix_dest = eat_buffer
             .get_mut(csr_end..total_len)
             .ok_or(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
-        if suffix_dest.len() != suffix.len() {
-            return Err(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY);
-        }
         suffix_dest.copy_from_slice(suffix);
         Ok(total_len)
     }
@@ -181,27 +142,57 @@ fn generate_keypair_inventory_eat_claims(
     Ok(offset)
 }
 
+fn generate_eat_payload(
+    drivers: &mut Drivers,
+    key_id: u32,
+    nonce: &[u8; 32],
+    crypto: CryptoType,
+    eat_buffer: &mut [u8],
+) -> CaliptraResult<usize> {
+    if key_id == 0 {
+        generate_keypair_inventory_eat_claims(nonce, eat_buffer)
+    } else {
+        let key_type = DevIdKeyType::try_from(key_id)?;
+        key_type.generate_csr_eat_claims(drivers, nonce, eat_buffer, crypto)
+    }
+}
+
+#[inline(never)]
 fn sign_attested_ecc_csr(
     drivers: &mut Drivers,
-    payload: &[u8],
-    rt_key_id: &[u8; 20],
+    payload_bstr_len: usize,
     signed_eat_buffer: &mut [u8],
 ) -> CaliptraResult<usize> {
-    let mut payload_bstr_hdr = [0u8; 3];
-    let payload_bstr_hdr_len = write_cbor_bstr_header(&mut payload_bstr_hdr, payload.len())?;
+    let cose_prefix_len = COSE_PREAMBLE_ECC_BEFORE_KID.len()
+        + KEY_ID_LEN
+        + COSE_ECC_AFTER_KID_BEFORE_PAYLOAD_LEN.len();
+    let payload_end = cose_prefix_len
+        .checked_add(payload_bstr_len)
+        .ok_or(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
+    let total_len = payload_end
+        .checked_add(COSE_ECC_SIG_BSTR_HEADER.len() + ECC384_SIG_LEN)
+        .ok_or(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
+    if signed_eat_buffer.len() < total_len {
+        return Err(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY);
+    }
 
-    // Hash Sig_structure by streaming into SHA384 without stack buffers
+    // Compute RT Alias subject key identifier for COSE header kid
+    let rt_pub_key = drivers.persistent_data.get().rom.fht.rt_dice_ecc_pub_key;
+    let rt_key_id = x509::subj_key_id(
+        &mut drivers.sha256,
+        &caliptra_common::crypto::PubKey::Ecc(&rt_pub_key),
+    )?;
+
+    // Hash Sig_structure with SHA384
     let mut op = drivers.sha2_512_384.sha384_digest_init()?;
     op.update(&SIG_PREAMBLE_ECC_BEFORE_KID)?;
-    op.update(rt_key_id)?;
+    op.update(&rt_key_id)?;
     op.update(&SIG_ECC_AFTER_KID_BEFORE_PAYLOAD_LEN)?;
-    op.update(&payload_bstr_hdr[..payload_bstr_hdr_len])?;
-    op.update(payload)?;
+    op.update(&signed_eat_buffer[cose_prefix_len..payload_end])?;
     let mut digest = Array4x12::default();
     op.finalize(&mut digest)?;
 
     // Get RT Alias private key and sign digest
-    let rt_pub_key = drivers.persistent_data.get().rom.fht.rt_dice_ecc_pub_key;
     let key_id_rt_priv_key = Drivers::get_key_id_rt_ecc_priv_key(drivers)?;
     let priv_key_args = KeyReadArgs::new(key_id_rt_priv_key);
     let priv_key = caliptra_drivers::Ecc384PrivKeyIn::Key(priv_key_args);
@@ -209,90 +200,83 @@ fn sign_attested_ecc_csr(
         .ecc384
         .sign(priv_key, &rt_pub_key, &digest, &mut drivers.trng)?;
 
-    let mut ecc384_signature = [0u8; 96];
-    let r_bytes: [u8; 48] = signature.r.into();
-    let s_bytes: [u8; 48] = signature.s.into();
-    ecc384_signature[..48].copy_from_slice(&r_bytes);
-    ecc384_signature[48..].copy_from_slice(&s_bytes);
-
-    // Assemble COSE Sign1 envelope into signed_eat_buffer
-    let total_len = COSE_PREAMBLE_ECC_BEFORE_KID.len()
-        + 20
-        + COSE_ECC_AFTER_KID_BEFORE_PAYLOAD_LEN.len()
-        + payload_bstr_hdr_len
-        + payload.len()
-        + COSE_ECC_SIG_BSTR_HEADER.len()
-        + 96;
-    if signed_eat_buffer.len() < total_len {
-        return Err(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY);
-    }
-
+    // Write COSE Sign1 prefix
     let mut offset = 0;
     signed_eat_buffer[offset..offset + COSE_PREAMBLE_ECC_BEFORE_KID.len()]
         .copy_from_slice(&COSE_PREAMBLE_ECC_BEFORE_KID);
     offset += COSE_PREAMBLE_ECC_BEFORE_KID.len();
-    signed_eat_buffer[offset..offset + 20].copy_from_slice(rt_key_id);
-    offset += 20;
+    signed_eat_buffer[offset..offset + KEY_ID_LEN].copy_from_slice(&rt_key_id);
+    offset += KEY_ID_LEN;
     signed_eat_buffer[offset..offset + COSE_ECC_AFTER_KID_BEFORE_PAYLOAD_LEN.len()]
         .copy_from_slice(&COSE_ECC_AFTER_KID_BEFORE_PAYLOAD_LEN);
-    offset += COSE_ECC_AFTER_KID_BEFORE_PAYLOAD_LEN.len();
-    signed_eat_buffer[offset..offset + payload_bstr_hdr_len]
-        .copy_from_slice(&payload_bstr_hdr[..payload_bstr_hdr_len]);
-    offset += payload_bstr_hdr_len;
-    signed_eat_buffer[offset..offset + payload.len()].copy_from_slice(payload);
-    offset += payload.len();
-    signed_eat_buffer[offset..offset + COSE_ECC_SIG_BSTR_HEADER.len()]
+
+    // Append COSE Sign1 signature
+    let mut offset = payload_end;
+    signed_eat_buffer
+        .get_mut(offset..offset + COSE_ECC_SIG_BSTR_HEADER.len())
+        .ok_or(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?
         .copy_from_slice(&COSE_ECC_SIG_BSTR_HEADER);
     offset += COSE_ECC_SIG_BSTR_HEADER.len();
-    signed_eat_buffer[offset..offset + 96].copy_from_slice(&ecc384_signature);
-    offset += 96;
+    let r_bytes: [u8; ECC384_COORD_LEN] = signature.r.into();
+    let s_bytes: [u8; ECC384_COORD_LEN] = signature.s.into();
+    signed_eat_buffer
+        .get_mut(offset..offset + ECC384_COORD_LEN)
+        .ok_or(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?
+        .copy_from_slice(&r_bytes);
+    offset += ECC384_COORD_LEN;
+    signed_eat_buffer
+        .get_mut(offset..offset + ECC384_COORD_LEN)
+        .ok_or(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?
+        .copy_from_slice(&s_bytes);
+    offset += ECC384_COORD_LEN;
 
     Ok(offset)
 }
 
+#[inline(never)]
 fn sign_attested_mldsa_csr(
     drivers: &mut Drivers,
-    payload: &[u8],
-    rt_key_id: &[u8; 20],
+    payload_bstr_len: usize,
     signed_eat_buffer: &mut [u8],
 ) -> CaliptraResult<usize> {
-    let mut payload_bstr_hdr = [0u8; 3];
-    let payload_bstr_hdr_len = write_cbor_bstr_header(&mut payload_bstr_hdr, payload.len())?;
+    let sig_prefix_len = SIG_PREAMBLE_MLDSA_BEFORE_KID.len()
+        + KEY_ID_LEN
+        + SIG_MLDSA_AFTER_KID_BEFORE_PAYLOAD_LEN.len();
+    let cose_prefix_len = COSE_PREAMBLE_MLDSA_BEFORE_KID.len()
+        + KEY_ID_LEN
+        + COSE_MLDSA_AFTER_KID_BEFORE_PAYLOAD_LEN.len();
 
-    let sig_ctx_len = SIG_PREAMBLE_MLDSA_BEFORE_KID.len()
-        + 20
-        + SIG_MLDSA_AFTER_KID_BEFORE_PAYLOAD_LEN.len()
-        + payload_bstr_hdr_len
-        + payload.len();
-    let total_len = COSE_PREAMBLE_MLDSA_BEFORE_KID.len()
-        + 20
-        + COSE_MLDSA_AFTER_KID_BEFORE_PAYLOAD_LEN.len()
-        + payload_bstr_hdr_len
-        + payload.len()
-        + COSE_MLDSA_SIG_BSTR_HEADER.len()
-        + 4627;
+    let sig_ctx_len = sig_prefix_len
+        .checked_add(payload_bstr_len)
+        .ok_or(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
+    let payload_cose_end = cose_prefix_len
+        .checked_add(payload_bstr_len)
+        .ok_or(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
+    let total_len = payload_cose_end
+        .checked_add(COSE_MLDSA_SIG_BSTR_HEADER.len() + MLDSA87_SIG_LEN)
+        .ok_or(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
 
     if signed_eat_buffer.len() < sig_ctx_len || signed_eat_buffer.len() < total_len {
         return Err(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY);
     }
 
-    // Assemble Sig_structure in place directly into signed_eat_buffer (pure ML-DSA-87 per RFC 9964)
+    // Compute RT Alias public key and subject key identifier for COSE header kid
+    let rt_pub_key = Drivers::get_key_id_rt_mldsa_pub_key(drivers)?;
+    let rt_key_id = x509::subj_key_id(
+        &mut drivers.sha256,
+        &caliptra_common::crypto::PubKey::Mldsa(&rt_pub_key),
+    )?;
+
+    // Write Sig_structure prefix (pure ML-DSA-87 per RFC 9964)
     let mut offset = 0;
     signed_eat_buffer[offset..offset + SIG_PREAMBLE_MLDSA_BEFORE_KID.len()]
         .copy_from_slice(&SIG_PREAMBLE_MLDSA_BEFORE_KID);
     offset += SIG_PREAMBLE_MLDSA_BEFORE_KID.len();
-    signed_eat_buffer[offset..offset + 20].copy_from_slice(rt_key_id);
-    offset += 20;
+    signed_eat_buffer[offset..offset + KEY_ID_LEN].copy_from_slice(&rt_key_id);
+    offset += KEY_ID_LEN;
     signed_eat_buffer[offset..offset + SIG_MLDSA_AFTER_KID_BEFORE_PAYLOAD_LEN.len()]
         .copy_from_slice(&SIG_MLDSA_AFTER_KID_BEFORE_PAYLOAD_LEN);
-    offset += SIG_MLDSA_AFTER_KID_BEFORE_PAYLOAD_LEN.len();
-    signed_eat_buffer[offset..offset + payload_bstr_hdr_len]
-        .copy_from_slice(&payload_bstr_hdr[..payload_bstr_hdr_len]);
-    offset += payload_bstr_hdr_len;
-    signed_eat_buffer[offset..offset + payload.len()].copy_from_slice(payload);
-    offset += payload.len();
 
-    let rt_pub_key = Drivers::get_key_id_rt_mldsa_pub_key(drivers)?;
     let rt_seed = Drivers::get_key_id_rt_mldsa_keypair_seed(drivers)?;
     let key_args = KeyReadArgs::new(rt_seed);
 
@@ -300,36 +284,47 @@ fn sign_attested_mldsa_csr(
     let signature = mldsa87.sign_var(
         Mldsa87Seed::Key(key_args),
         &rt_pub_key,
-        &signed_eat_buffer[..offset],
+        &signed_eat_buffer[..sig_ctx_len],
         &Mldsa87SignRnd::default(),
         &mut drivers.trng,
     )?;
 
-    // Assemble final COSE Sign1 envelope in place into signed_eat_buffer (ML-DSA-87 signature is 4627 bytes)
+    // Assemble final COSE Sign1 envelope in place into signed_eat_buffer
     let sig_bytes = signature
         .as_bytes()
-        .get(..4627)
+        .get(..MLDSA87_SIG_LEN)
         .ok_or(CaliptraError::RUNTIME_INTERNAL)?;
+
+    // Shift payload bstr from Sig_structure offset to COSE_Sign1 offset and write COSE prefix + signature
+    for i in 0..payload_bstr_len {
+        if let (Some(b), Some(dst)) = (
+            signed_eat_buffer.get(sig_prefix_len + i).copied(),
+            signed_eat_buffer.get_mut(cose_prefix_len + i),
+        ) {
+            *dst = b;
+        }
+    }
 
     let mut offset = 0;
     signed_eat_buffer[offset..offset + COSE_PREAMBLE_MLDSA_BEFORE_KID.len()]
         .copy_from_slice(&COSE_PREAMBLE_MLDSA_BEFORE_KID);
     offset += COSE_PREAMBLE_MLDSA_BEFORE_KID.len();
-    signed_eat_buffer[offset..offset + 20].copy_from_slice(rt_key_id);
-    offset += 20;
+    signed_eat_buffer[offset..offset + KEY_ID_LEN].copy_from_slice(&rt_key_id);
+    offset += KEY_ID_LEN;
     signed_eat_buffer[offset..offset + COSE_MLDSA_AFTER_KID_BEFORE_PAYLOAD_LEN.len()]
         .copy_from_slice(&COSE_MLDSA_AFTER_KID_BEFORE_PAYLOAD_LEN);
-    offset += COSE_MLDSA_AFTER_KID_BEFORE_PAYLOAD_LEN.len();
-    signed_eat_buffer[offset..offset + payload_bstr_hdr_len]
-        .copy_from_slice(&payload_bstr_hdr[..payload_bstr_hdr_len]);
-    offset += payload_bstr_hdr_len;
-    signed_eat_buffer[offset..offset + payload.len()].copy_from_slice(payload);
-    offset += payload.len();
-    signed_eat_buffer[offset..offset + COSE_MLDSA_SIG_BSTR_HEADER.len()]
+
+    let mut offset = payload_cose_end;
+    signed_eat_buffer
+        .get_mut(offset..offset + COSE_MLDSA_SIG_BSTR_HEADER.len())
+        .ok_or(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?
         .copy_from_slice(&COSE_MLDSA_SIG_BSTR_HEADER);
     offset += COSE_MLDSA_SIG_BSTR_HEADER.len();
-    signed_eat_buffer[offset..offset + 4627].copy_from_slice(sig_bytes);
-    offset += 4627;
+    signed_eat_buffer
+        .get_mut(offset..offset + MLDSA87_SIG_LEN)
+        .ok_or(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?
+        .copy_from_slice(sig_bytes);
+    offset += MLDSA87_SIG_LEN;
 
     Ok(offset)
 }
@@ -354,35 +349,22 @@ impl AttestedEccCsrCmd {
     ) -> CaliptraResult<usize> {
         let cmd = GetAttestedEccCsrReq::ref_from_bytes(cmd_args)
             .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
-
+        let key_id = cmd.key_id;
         let nonce = cmd.nonce;
-        let mut env_csr_eat = [0u8; MAX_CSR_EAT_CLAIMS_SIZE];
-        let csr_eat_len = if cmd.key_id == 0 {
-            generate_keypair_inventory_eat_claims(&nonce, &mut env_csr_eat)?
-        } else {
-            let key_type = DevIdKeyType::try_from(cmd.key_id)?;
-            key_type.generate_csr_eat_claims(
-                drivers,
-                &nonce,
-                &mut env_csr_eat,
-                CryptoType::ECC384,
-            )?
-        };
 
-        // Compute RT Alias subject key identifier for COSE header kid
-        let rt_pub_key = drivers.persistent_data.get().rom.fht.rt_dice_ecc_pub_key;
-        let rt_subj_sn = x509::subj_key_id(
-            &mut drivers.sha256,
-            &caliptra_common::crypto::PubKey::Ecc(&rt_pub_key),
-        )?;
-
-        // Sign EAT using COSE Sign1 with RT Alias private key
         let resp = mutrefbytes::<AttestedCsrResp>(mbox_resp)?;
-        let csr_slice = env_csr_eat
-            .get(..csr_eat_len)
-            .ok_or(CaliptraError::RUNTIME_ATTESTED_CSR_EAT_ENCODING_ERROR)?;
-        let signed_eat_len =
-            sign_attested_ecc_csr(drivers, csr_slice, &rt_subj_sn, resp.data.as_mut())?;
+        let signed_eat_buffer = resp.data.as_mut();
+        let cose_prefix_len = COSE_PREAMBLE_ECC_BEFORE_KID.len()
+            + KEY_ID_LEN
+            + COSE_ECC_AFTER_KID_BEFORE_PAYLOAD_LEN.len();
+        let payload_buf = signed_eat_buffer
+            .get_mut(cose_prefix_len..)
+            .ok_or(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
+
+        let payload_bstr_len = encode_cbor_bstr_deferred(payload_buf, |buf| {
+            generate_eat_payload(drivers, key_id, &nonce, CryptoType::ECC384, buf)
+        })?;
+        let signed_eat_len = sign_attested_ecc_csr(drivers, payload_bstr_len, signed_eat_buffer)?;
 
         resp.data_size = signed_eat_len as u32;
         resp.partial_len()
@@ -401,35 +383,22 @@ impl AttestedMldsaCsrCmd {
     ) -> CaliptraResult<usize> {
         let cmd = GetAttestedMldsaCsrReq::ref_from_bytes(cmd_args)
             .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
-
+        let key_id = cmd.key_id;
         let nonce = cmd.nonce;
-        let mut env_csr_eat = [0u8; MAX_CSR_EAT_CLAIMS_SIZE];
-        let csr_eat_len = if cmd.key_id == 0 {
-            generate_keypair_inventory_eat_claims(&nonce, &mut env_csr_eat)?
-        } else {
-            let key_type = DevIdKeyType::try_from(cmd.key_id)?;
-            key_type.generate_csr_eat_claims(
-                drivers,
-                &nonce,
-                &mut env_csr_eat,
-                CryptoType::MLDSA87,
-            )?
-        };
 
-        // Compute RT Alias subject key identifier for COSE header kid
-        let rt_pub_key = Drivers::get_key_id_rt_mldsa_pub_key(drivers)?;
-        let rt_subj_sn = x509::subj_key_id(
-            &mut drivers.sha256,
-            &caliptra_common::crypto::PubKey::Mldsa(&rt_pub_key),
-        )?;
-
-        // Sign EAT using COSE Sign1 with RT Alias private key
         let resp = mutrefbytes::<AttestedCsrResp>(mbox_resp)?;
-        let csr_slice = env_csr_eat
-            .get(..csr_eat_len)
-            .ok_or(CaliptraError::RUNTIME_ATTESTED_CSR_EAT_ENCODING_ERROR)?;
-        let signed_eat_len =
-            sign_attested_mldsa_csr(drivers, csr_slice, &rt_subj_sn, resp.data.as_mut())?;
+        let signed_eat_buffer = resp.data.as_mut();
+        let sig_prefix_len = SIG_PREAMBLE_MLDSA_BEFORE_KID.len()
+            + KEY_ID_LEN
+            + SIG_MLDSA_AFTER_KID_BEFORE_PAYLOAD_LEN.len();
+        let payload_buf = signed_eat_buffer
+            .get_mut(sig_prefix_len..)
+            .ok_or(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
+
+        let payload_bstr_len = encode_cbor_bstr_deferred(payload_buf, |buf| {
+            generate_eat_payload(drivers, key_id, &nonce, CryptoType::MLDSA87, buf)
+        })?;
+        let signed_eat_len = sign_attested_mldsa_csr(drivers, payload_bstr_len, signed_eat_buffer)?;
 
         resp.data_size = signed_eat_len as u32;
         resp.partial_len()
