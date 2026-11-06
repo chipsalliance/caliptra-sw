@@ -230,6 +230,9 @@ pub struct SubsystemInitParams<'a> {
 
     // Target provisioning stage. The harness will provision OTP up to (but not including) this stage.
     pub target_provisioning_stage: ProvisioningStage,
+
+    // Initial FE0..FE3 metadata: [digest low, digest high, zeroization low, zeroization high].
+    pub fe_metadata: Option<[[u32; 4]; 4]>,
 }
 
 impl Default for SubsystemInitParams<'_> {
@@ -246,6 +249,7 @@ impl Default for SubsystemInitParams<'_> {
             lc_state: None,
             use_strap_secrets: false,
             target_provisioning_stage: Default::default(),
+            fe_metadata: None,
         }
     }
 }

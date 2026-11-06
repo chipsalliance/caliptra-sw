@@ -89,7 +89,7 @@ fn fw_info_subsystem_model(init_params: InitParams<'_>) -> DefaultHwModel {
             subsystem_mode: true,
             ss_init_params: SubsystemInitParams {
                 enable_mcu_uart_log: true,
-                ..Default::default()
+                ..init_params.ss_init_params
             },
             ..init_params
         }),
@@ -144,6 +144,70 @@ fn test_fw_info_fe_metadata() {
             bank[offset + 4..offset + 6].copy_from_slice(&marker);
         }
         assert_eq!(get_fwinfo(&mut model).fe_status, 0xe4);
+    }
+}
+
+#[test]
+#[cfg(not(any(feature = "verilator", feature = "fpga_realtime")))]
+fn test_fw_info_fe_initial_metadata() {
+    let cases = [
+        ([0; 4], 0),
+        ([u32::MAX, u32::MAX, u32::MAX, 0x03ff_ffff], 0xaa), // 58 marker bits
+        ([u32::MAX; 4], 0xaa),
+        ([0, 0, u32::MAX, 0x01ff_ffff], 0xff), // 57 marker bits
+        ([0, 0, 0, 1], 0xff),
+    ];
+    for (metadata, expected) in cases {
+        let mut model = fw_info_subsystem_model(InitParams {
+            ss_init_params: SubsystemInitParams {
+                fe_metadata: Some([metadata; 4]),
+                ..Default::default()
+            },
+            ..Default::default()
+        });
+        assert_eq!(
+            get_fwinfo(&mut model).fe_status,
+            expected,
+            "metadata: {metadata:x?}"
+        );
+    }
+}
+
+#[test]
+#[cfg(not(any(feature = "verilator", feature = "fpga_realtime")))]
+fn test_fw_info_fe_initial_mixed_metadata() {
+    let hides_digests = caliptra_registers::CALIPTRA_HW_REV_CHOSEN == "latest";
+    for debug_intent in [false, true] {
+        let mut model = fw_info_subsystem_model(InitParams {
+            debug_intent,
+            ss_init_params: SubsystemInitParams {
+                fe_metadata: Some([[0; 4], [0; 4], [u32::MAX; 4], [0, 0, 0, 1]]),
+                ..Default::default()
+            },
+            ..Default::default()
+        });
+        assert_eq!(
+            get_fwinfo_allow_attestation_disabled(&mut model).fe_status,
+            if debug_intent && hides_digests {
+                0xef
+            } else {
+                0xe0
+            }
+        );
+
+        if !debug_intent {
+            // Use a real digest: FPGA verifies nonzero digests during OTP initialization.
+            let mut req = MailboxReq::FeProg(FeProgReq {
+                hdr: MailboxReqHeader { chksum: 0 },
+                partition: 1,
+            });
+            req.populate_chksum().unwrap();
+            model
+                .mailbox_execute(u32::from(CommandId::FE_PROG), req.as_bytes().unwrap())
+                .unwrap()
+                .unwrap();
+            assert_eq!(get_fwinfo(&mut model).fe_status, 0xe4);
+        }
     }
 }
 
