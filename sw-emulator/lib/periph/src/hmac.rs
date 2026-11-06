@@ -115,7 +115,8 @@ const UPDATE_TICKS: u64 = 1000;
 pub const KEY_RW_TICKS: u64 = 100;
 
 /// LSFR Seed Size.
-const HMAC_LFSR_SEED_SIZE: usize = 24;
+const HMAC_LFSR_SEED_SIZE: usize = 48;
+const HMAC_LFSR_SEED_SIZE_LATEST: usize = 24;
 
 const DEFAULT_CSR_HMAC_KEY: [u32; HMAC_KEY_SIZE_DWORD_512] = [
     0x14552AD, 0x19550757, 0x50C602DD, 0x85DE4E9B, 0x815CC9EF, 0xBA81A35, 0x7A05D7C0, 0x7F5EFAEB,
@@ -128,8 +129,6 @@ const DEFAULT_CSR_HMAC_KEY: [u32; HMAC_KEY_SIZE_DWORD_512] = [
 #[warm_reset_fn(warm_reset)]
 #[update_reset_fn(update_reset)]
 pub struct HmacSha {
-    last_block: bool,
-
     /// Name 0 register
     #[register(offset = 0x0000_0000)]
     name0: ReadOnlyRegister<u32>,
@@ -167,7 +166,7 @@ pub struct HmacSha {
     tag: [u32; HMAC_TAG_SIZE_512 / 4],
 
     /// LSFR Seed Register
-    #[register_array(offset = 0x0000_0140, item_size = 4, len = 6, read_fn = read_access_fault)]
+    #[register_array(offset = 0x0000_0140, item_size = 4, len = 12, read_fn = read_access_fault)]
     lfsr_seed: [u32; HMAC_LFSR_SEED_SIZE / 4],
 
     /// Key Read Control Register
@@ -228,19 +227,626 @@ pub struct HmacSha {
     csr_key: [u32; HMAC_KEY_SIZE_DWORD_512],
 }
 
+/// HMAC-SHA-384 Peripheral with the LAST block.
+#[derive(Bus)]
+#[poll_fn(poll)]
+#[warm_reset_fn(warm_reset)]
+#[update_reset_fn(update_reset)]
+pub struct HmacShaLatest {
+    last_block: bool,
+
+    /// Name 0 register
+    #[register(offset = 0x0000_0000)]
+    name0: ReadOnlyRegister<u32>,
+
+    /// Name 1 register
+    #[register(offset = 0x0000_0004)]
+    name1: ReadOnlyRegister<u32>,
+
+    /// Version 0 register
+    #[register(offset = 0x0000_0008)]
+    version0: ReadOnlyRegister<u32>,
+
+    /// Version 1 register
+    #[register(offset = 0x0000_000C)]
+    version1: ReadOnlyRegister<u32>,
+
+    /// Control register
+    #[register(offset = 0x0000_0010, write_fn = on_write_control)]
+    control: ReadWriteRegister<u32, Control::Register>,
+
+    /// Status register
+    #[register(offset = 0x0000_0018)]
+    status: ReadOnlyRegister<u32, Status::Register>,
+
+    /// HMAC Key Register
+    #[register_array(offset = 0x0000_0040, item_size = 4, len = 16, read_fn = read_access_fault, write_fn = on_write_key)]
+    key: [u32; HMAC_KEY_SIZE_DWORD_512],
+
+    /// HMAC Block Register
+    #[register_array(offset = 0x0000_0080, item_size = 4, len = 32, read_fn = read_access_fault, write_fn = on_write_block)]
+    block: [u32; HMAC_BLOCK_SIZE / 4],
+
+    /// HMAC Tag Register
+    #[register_array(offset = 0x0000_0100, item_size = 4, len = 16, read_fn = on_read_tag, write_fn = write_access_fault)]
+    tag: [u32; HMAC_TAG_SIZE_512 / 4],
+
+    /// LSFR Seed Register
+    #[register_array(offset = 0x0000_0140, item_size = 4, len = 6, read_fn = read_access_fault)]
+    lfsr_seed: [u32; HMAC_LFSR_SEED_SIZE_LATEST / 4],
+
+    /// Key Read Control Register
+    #[register(offset = 0x0000_0600, write_fn = on_write_key_read_control)]
+    key_read_ctrl: ReadWriteRegister<u32, KeyReadControl::Register>,
+
+    /// Key Read Status Register
+    #[register(offset = 0x0000_0604)]
+    key_read_status: ReadOnlyRegister<u32, KeyReadStatus::Register>,
+
+    /// Block Read Control Register
+    #[register(offset = 0x0000_0608, write_fn = on_write_block_read_control)]
+    block_read_ctrl: ReadWriteRegister<u32, KeyReadControl::Register>,
+
+    /// Block Read Status Register
+    #[register(offset = 0x0000_060c)]
+    block_read_status: ReadOnlyRegister<u32, KeyReadStatus::Register>,
+
+    /// Tag Write Control Register
+    #[register(offset = 0x0000_0610, write_fn = on_write_tag_write_control)]
+    tag_write_ctrl: ReadWriteRegister<u32, TagWriteControl::Register>,
+
+    /// Tag Write Status Register
+    #[register(offset = 0x0000_0614)]
+    tag_write_status: ReadOnlyRegister<u32, TagWriteStatus::Register>,
+
+    // True if the current key was read from the key-vault
+    key_from_kv: bool,
+
+    // True if the current block was read from the key-vault
+    block_from_kv: bool,
+
+    // True if the tag should be hidden from the CPU
+    hide_tag_from_cpu: bool,
+
+    /// HMAC engine
+    hmac: Box<dyn Hmac512Interface>,
+
+    /// Key Vault
+    key_vault: KeyVault,
+
+    /// Timer
+    timer: Timer,
+
+    /// Operation complete action
+    op_complete_action: Option<ActionHandle>,
+
+    /// Key read complete action
+    op_key_read_complete_action: Option<ActionHandle>,
+
+    /// Block read complete action
+    op_block_read_complete_action: Option<ActionHandle>,
+
+    /// Tag write complete action
+    op_tag_write_complete_action: Option<ActionHandle>,
+
+    /// CSR Key
+    csr_key: [u32; HMAC_KEY_SIZE_DWORD_512],
+}
+
+macro_rules! impl_hmac_core {
+    ($type_name:ty) => {
+        impl $type_name {
+            /// NAME0 Register Value
+            const NAME0_VAL: RvData = 0x63616d68; // hmac
+
+            /// NAME1 Register Value
+            const NAME1_VAL: RvData = 0x32616873; // sha2
+
+            /// VERSION0 Register Value
+            const VERSION0_VAL: RvData = 0x30302E31; // 1.0
+
+            /// VERSION1 Register Value
+            const VERSION1_VAL: RvData = 0x00000000;
+
+            fn read_access_fault(&mut self, _size: RvSize, _index: usize) -> Result<u32, BusError> {
+                Err(BusError::LoadAccessFault)
+            }
+
+            fn write_access_fault(
+                &mut self,
+                _size: RvSize,
+                _index: usize,
+                _val: RvData,
+            ) -> Result<(), BusError> {
+                Err(BusError::StoreAccessFault)
+            }
+
+            fn on_write_key(
+                &mut self,
+                _size: RvSize,
+                index: usize,
+                val: RvData,
+            ) -> Result<(), BusError> {
+                if self.key_from_kv {
+                    self.key_from_kv = false;
+                    self.key.fill(0);
+                }
+                self.key[index] = val;
+                Ok(())
+            }
+
+            fn on_write_block(
+                &mut self,
+                _size: RvSize,
+                index: usize,
+                val: RvData,
+            ) -> Result<(), BusError> {
+                if self.block_from_kv {
+                    self.block_from_kv = false;
+                    self.block.fill(0);
+                }
+                self.block[index] = val;
+                Ok(())
+            }
+
+            fn on_read_tag(&mut self, _size: RvSize, index: usize) -> Result<RvData, BusError> {
+                if self.hide_tag_from_cpu {
+                    return Ok(0);
+                }
+                Ok(self.tag[index])
+            }
+
+            fn key_len(&self) -> usize {
+                match self.control.reg.read_as_enum(Control::MODE).unwrap() {
+                    Control::MODE::Value::HMAC384 => 12,
+                    Control::MODE::Value::HMAC512 => 16,
+                }
+            }
+
+            /// On Write callback for `key_read_control` register
+            ///
+            /// # Arguments
+            ///
+            /// * `size` - Size of the write
+            /// * `val` - Data to write
+            ///
+            /// # Error
+            ///
+            /// * `BusError` - Exception with cause `BusError::StoreAccessFault` or `BusError::StoreAddrMisaligned`
+            pub fn on_write_key_read_control(
+                &mut self,
+                size: RvSize,
+                val: RvData,
+            ) -> Result<(), BusError> {
+                // Writes have to be Word aligned
+                if size != RvSize::Word {
+                    Err(BusError::StoreAccessFault)?
+                }
+
+                // Set the key control register
+                let key_read_ctrl = InMemoryRegister::<u32, KeyReadControl::Register>::new(val);
+
+                self.key_read_ctrl.reg.modify(
+                    KeyReadControl::KEY_READ_EN
+                        .val(key_read_ctrl.read(KeyReadControl::KEY_READ_EN))
+                        + KeyReadControl::KEY_ID.val(key_read_ctrl.read(KeyReadControl::KEY_ID)),
+                );
+
+                if key_read_ctrl.is_set(KeyReadControl::KEY_READ_EN) {
+                    self.key_read_status.reg.modify(
+                        KeyReadStatus::READY::CLEAR
+                            + KeyReadStatus::VALID::CLEAR
+                            + KeyReadStatus::ERROR::CLEAR,
+                    );
+
+                    self.op_key_read_complete_action =
+                        Some(self.timer.schedule_poll_in(KEY_RW_TICKS));
+                }
+
+                Ok(())
+            }
+
+            /// On Write callback for `block_read_control` register
+            ///
+            /// # Arguments
+            ///
+            /// * `size` - Size of the write
+            /// * `val` - Data to write
+            ///
+            /// # Error
+            ///
+            /// * `BusError` - Exception with cause `BusError::StoreAccessFault` or `BusError::StoreAddrMisaligned`
+            pub fn on_write_block_read_control(
+                &mut self,
+                size: RvSize,
+                val: RvData,
+            ) -> Result<(), BusError> {
+                // Writes have to be Word aligned
+                if size != RvSize::Word {
+                    Err(BusError::StoreAccessFault)?
+                }
+
+                // Set the block control register
+                let block_read_ctrl = InMemoryRegister::<u32, KeyReadControl::Register>::new(val);
+
+                self.block_read_ctrl.reg.modify(
+                    KeyReadControl::KEY_READ_EN
+                        .val(block_read_ctrl.read(KeyReadControl::KEY_READ_EN))
+                        + KeyReadControl::KEY_ID.val(block_read_ctrl.read(KeyReadControl::KEY_ID)),
+                );
+
+                if block_read_ctrl.is_set(KeyReadControl::KEY_READ_EN) {
+                    self.block_read_status.reg.modify(
+                        KeyReadStatus::READY::CLEAR
+                            + KeyReadStatus::VALID::CLEAR
+                            + KeyReadStatus::ERROR::CLEAR,
+                    );
+
+                    self.op_block_read_complete_action =
+                        Some(self.timer.schedule_poll_in(KEY_RW_TICKS));
+                }
+
+                Ok(())
+            }
+            /// Called by Bus::poll() to indicate that time has passed
+            fn poll(&mut self) {
+                if self.timer.fired(&mut self.op_complete_action) {
+                    self.op_complete();
+                } else if self.timer.fired(&mut self.op_key_read_complete_action) {
+                    self.key_read_complete();
+                } else if self.timer.fired(&mut self.op_block_read_complete_action) {
+                    self.block_read_complete();
+                } else if self.timer.fired(&mut self.op_tag_write_complete_action) {
+                    self.tag_write_complete();
+                }
+            }
+
+            /// Called by Bus::warm_reset() to indicate a warm reset
+            fn warm_reset(&mut self) {
+                // TODO: Reset registers
+            }
+
+            /// Called by Bus::update_reset() to indicate an update reset
+            fn update_reset(&mut self) {
+                // TODO: Reset registers
+            }
+
+            fn key_read_complete(&mut self) {
+                let key_id = self.key_read_ctrl.reg.read(KeyReadControl::KEY_ID);
+
+                let mut key_usage = KeyUsage::default();
+                key_usage.set_hmac_key(true);
+
+                let result = self.key_vault.read_key(key_id, key_usage);
+                let (key_read_result, key) = match result.err() {
+                    Some(BusError::LoadAccessFault)
+                    | Some(BusError::LoadAddrMisaligned)
+                    | Some(BusError::InstrAccessFault) => {
+                        (KeyReadStatus::ERROR::KV_READ_FAIL.value, None)
+                    }
+                    Some(BusError::StoreAccessFault) | Some(BusError::StoreAddrMisaligned) => {
+                        (KeyReadStatus::ERROR::KV_WRITE_FAIL.value, None)
+                    }
+                    None => (
+                        KeyReadStatus::ERROR::KV_SUCCESS.value,
+                        Some(result.unwrap()),
+                    ),
+                };
+
+                if let Some(key) = &key {
+                    self.key_from_kv = true;
+                    // HMAC mode is not known at this point. Thus, copying the entire
+                    // key from the KV slot even though the actual key might be shorter.
+                    // Peripherals using the key material will size it appropriately.
+                    self.key[..HMAC_KEY_SIZE_DWORD_512]
+                        .as_mut_bytes()
+                        .copy_from_slice(key.as_bytes());
+                }
+
+                self.key_read_status.reg.modify(
+                    KeyReadStatus::READY::SET
+                        + KeyReadStatus::VALID::SET
+                        + KeyReadStatus::ERROR.val(key_read_result),
+                );
+            }
+
+            fn block_read_complete(&mut self) {
+                let key_id = self.block_read_ctrl.reg.read(KeyReadControl::KEY_ID);
+
+                // Clear the block
+                self.block.fill(0);
+
+                let mut key_usage = KeyUsage::default();
+                key_usage.set_hmac_data(true);
+
+                let error_code = match self.key_vault.read_key_as_data(key_id, key_usage) {
+                    Err(BusError::LoadAccessFault)
+                    | Err(BusError::LoadAddrMisaligned)
+                    | Err(BusError::InstrAccessFault) => KeyReadStatus::ERROR::KV_READ_FAIL.value,
+                    Err(BusError::StoreAccessFault) | Err(BusError::StoreAddrMisaligned) => {
+                        KeyReadStatus::ERROR::KV_WRITE_FAIL.value
+                    }
+                    Ok(data) => {
+                        self.format_block(data.as_bytes());
+                        self.block_from_kv = true;
+                        KeyReadStatus::ERROR::KV_SUCCESS.value
+                    }
+                };
+
+                self.block_read_status.reg.modify(
+                    KeyReadStatus::READY::SET
+                        + KeyReadStatus::VALID::SET
+                        + KeyReadStatus::ERROR.val(error_code),
+                );
+            }
+
+            /// Adds padding and total data size to the block.
+            /// Stores the formatted block in peripheral's internal block data structure.
+            ///
+            /// # Arguments
+            ///
+            /// * `data_len` - Size of the data
+            /// * `data` - Data to hash. This is in big-endian format.
+            ///
+            /// # Error
+            ///
+            /// * `None`
+            fn format_block(&mut self, data: &[u8]) {
+                let mut block_arr = [0u8; HMAC_BLOCK_SIZE];
+                block_arr[..data.len()].copy_from_slice(&data[..data.len()]);
+                block_arr.to_little_endian();
+
+                // Add block padding.
+                block_arr[data.len()] = 0b1000_0000;
+
+                // Add block length.
+                let len = ((HMAC_BLOCK_SIZE + data.len()) as u128) * 8;
+                block_arr[HMAC_BLOCK_SIZE - 16..].copy_from_slice(&len.to_be_bytes());
+
+                block_arr.to_big_endian();
+                self.block.as_mut_bytes().copy_from_slice(&block_arr);
+            }
+
+            fn tag_write_complete(&mut self) {
+                let key_id = self.tag_write_ctrl.reg.read(TagWriteControl::KEY_ID);
+
+                // Store the tag in the key-vault.
+                // Tag is in big-endian format and is stored in the same format.
+                let tag_write_result = match self
+                    .key_vault
+                    .write_key(
+                        key_id,
+                        &self.tag.as_bytes()[..self.key_len() * 4],
+                        self.tag_write_ctrl.reg.read(TagWriteControl::USAGE),
+                    )
+                    .err()
+                {
+                    Some(BusError::LoadAccessFault)
+                    | Some(BusError::LoadAddrMisaligned)
+                    | Some(BusError::InstrAccessFault) => TagWriteStatus::ERROR::KV_READ_FAIL.value,
+                    Some(BusError::StoreAccessFault) | Some(BusError::StoreAddrMisaligned) => {
+                        TagWriteStatus::ERROR::KV_WRITE_FAIL.value
+                    }
+                    None => TagWriteStatus::ERROR::KV_SUCCESS.value,
+                };
+
+                self.tag_write_status.reg.modify(
+                    TagWriteStatus::READY::SET
+                        + TagWriteStatus::VALID::SET
+                        + TagWriteStatus::ERROR.val(tag_write_result),
+                );
+            }
+        }
+    };
+}
+
+impl_hmac_core!(HmacSha);
+impl_hmac_core!(HmacShaLatest);
+
 impl HmacSha {
-    /// NAME0 Register Value
-    const NAME0_VAL: RvData = 0x63616d68; // hmac
+    /// Create a new instance of HMAC-SHA-384 Engine
+    ///
+    /// # Arguments
+    ///
+    /// * `clock` - Clock
+    /// * `key_vault` - Key Vault
+    ///
+    /// # Returns
+    ///
+    /// * `Self` - Instance of HMAC-SHA-384 Engine
+    pub fn new(clock: &Clock, key_vault: KeyVault) -> Self {
+        Self {
+            hmac: Box::new(Hmac512::<HMAC_KEY_SIZE_BYTES_512>::new(Hmac512Mode::Sha512)),
+            name0: ReadOnlyRegister::new(Self::NAME0_VAL),
+            name1: ReadOnlyRegister::new(Self::NAME1_VAL),
+            version0: ReadOnlyRegister::new(Self::VERSION0_VAL),
+            version1: ReadOnlyRegister::new(Self::VERSION1_VAL),
+            control: ReadWriteRegister::new(0),
+            status: ReadOnlyRegister::new(Status::READY::SET.value),
+            key: Default::default(),
+            block: Default::default(),
+            tag: Default::default(),
+            lfsr_seed: Default::default(),
+            key_read_ctrl: ReadWriteRegister::new(0),
+            key_read_status: ReadOnlyRegister::new(KeyReadStatus::READY::SET.value),
+            block_read_ctrl: ReadWriteRegister::new(0),
+            block_read_status: ReadOnlyRegister::new(KeyReadStatus::READY::SET.value),
+            tag_write_ctrl: ReadWriteRegister::new(0),
+            tag_write_status: ReadOnlyRegister::new(TagWriteStatus::READY::SET.value),
+            key_vault,
+            timer: Timer::new(clock),
+            key_from_kv: false,
+            block_from_kv: false,
+            hide_tag_from_cpu: false,
+            op_complete_action: None,
+            op_key_read_complete_action: None,
+            op_block_read_complete_action: None,
+            op_tag_write_complete_action: None,
+            csr_key: DEFAULT_CSR_HMAC_KEY,
+        }
+    }
 
-    /// NAME1 Register Value
-    const NAME1_VAL: RvData = 0x32616873; // sha2
+    /// On Write callback for `control` register
+    ///
+    /// # Arguments
+    ///
+    /// * `size` - Size of the write
+    /// * `val` - Data to write
+    ///
+    /// # Error
+    ///
+    /// * `BusError` - Exception with cause `BusError::StoreAccessFault` or `BusError::StoreAddrMisaligned`
+    pub fn on_write_control(&mut self, size: RvSize, val: RvData) -> Result<(), BusError> {
+        // Writes have to be Word aligned
+        if size != RvSize::Word {
+            Err(BusError::StoreAccessFault)?
+        }
 
-    /// VERSION0 Register Value
-    const VERSION0_VAL: RvData = 0x30302E31; // 1.0
+        // Set the control register
+        self.control.reg.set(val);
 
-    /// VERSION1 Register Value
-    const VERSION1_VAL: RvData = 0x00000000;
+        if self.control.reg.is_set(Control::INIT) || self.control.reg.is_set(Control::NEXT) {
+            // Reset the Ready and Valid status bits
+            self.status
+                .reg
+                .modify(Status::READY::CLEAR + Status::VALID::CLEAR);
 
+            let mode512 = self.control.reg.is_set(Control::MODE);
+
+            // If CSR mode is set, use the pre-defined key.
+            // Also reset the key_from_kv flag since the key is not read from the key-vault.
+            if self.control.reg.is_set(Control::CSR_MODE) {
+                self.key = self.csr_key;
+                self.key_from_kv = false;
+            }
+
+            if self.control.reg.is_set(Control::INIT) {
+                if mode512 {
+                    self.hmac =
+                        Box::new(Hmac512::<HMAC_KEY_SIZE_BYTES_512>::new(Hmac512Mode::Sha512))
+                } else {
+                    self.hmac = Box::new(Hmac512::<HMAC_KEY_SIZE_384>::new(Hmac512Mode::Sha384))
+                }
+
+                // Initialize the HMAC engine with key and initial data block
+                if mode512 {
+                    self.hmac.init(
+                        &bytes_from_words_le::<[u32; 16]>(&self.key[..16].try_into().unwrap()),
+                        &bytes_from_words_le(&self.block),
+                    );
+                } else {
+                    self.hmac.init(
+                        &bytes_from_words_le::<[u32; 12]>(&self.key[..12].try_into().unwrap()),
+                        &bytes_from_words_le(&self.block),
+                    );
+                }
+
+                // Schedule a future call to poll() complete the operation.
+                self.op_complete_action = Some(self.timer.schedule_poll_in(INIT_TICKS));
+            } else if self.control.reg.is_set(Control::NEXT) {
+                // Update a HMAC engine with a new block
+                self.hmac.update(&bytes_from_words_le(&self.block));
+
+                // Schedule a future call to poll() complete the operation.
+                self.op_complete_action = Some(self.timer.schedule_poll_in(UPDATE_TICKS));
+            }
+        }
+
+        if self.control.reg.is_set(Control::ZEROIZE) {
+            // Zeroize the HMAC engine
+            self.zeroize();
+        }
+
+        Ok(())
+    }
+
+    /// On Write callback for `tag_write_control` register
+    ///
+    /// # Arguments
+    ///
+    /// * `size` - Size of the write
+    /// * `val` - Data to write
+    ///
+    /// # Error
+    ///
+    /// * `BusError` - Exception with cause `BusError::StoreAccessFault` or `BusError::StoreAddrMisaligned`
+    pub fn on_write_tag_write_control(
+        &mut self,
+        size: RvSize,
+        val: RvData,
+    ) -> Result<(), BusError> {
+        // Writes have to be Word aligned
+        if size != RvSize::Word {
+            Err(BusError::StoreAccessFault)?
+        }
+
+        // Set the Tag control register
+        let tag_write_ctrl = InMemoryRegister::<u32, TagWriteControl::Register>::new(val);
+
+        self.tag_write_ctrl.reg.modify(
+            TagWriteControl::KEY_WRITE_EN.val(tag_write_ctrl.read(TagWriteControl::KEY_WRITE_EN))
+                + TagWriteControl::KEY_ID.val(tag_write_ctrl.read(TagWriteControl::KEY_ID))
+                + TagWriteControl::USAGE.val(tag_write_ctrl.read(TagWriteControl::USAGE)),
+        );
+
+        Ok(())
+    }
+
+    fn op_complete(&mut self) {
+        // Retrieve the tag
+        let key_len = self.key_len();
+
+        // the hardware will not return the tag if HMAC512 is used with a truncated input from KV,
+        // and instead returns ready = true and valid = false.
+        if self.key_from_kv && key_len == 16 && self.key[12..16].iter().all(|&x| x == 0) {
+            self.status
+                .reg
+                .modify(Status::READY::SET + Status::VALID::CLEAR);
+            return;
+        }
+        // the hardware will not return the tag if HMAC512 is used with a 0 key from KV,
+        // and instead returns ready = true and valid = false.
+        if self.key_from_kv && self.key.iter().all(|&x| x == 0) {
+            self.status
+                .reg
+                .modify(Status::READY::SET + Status::VALID::CLEAR);
+            return;
+        }
+
+        self.hmac.tag(self.tag[..key_len].as_mut_bytes());
+        // Don't reveal the tag to the CPU if the inputs came from the
+        // key-vault.
+        self.hide_tag_from_cpu = self.block_from_kv || self.key_from_kv;
+
+        // Check if tag control is enabled.
+        if self
+            .tag_write_ctrl
+            .reg
+            .is_set(TagWriteControl::KEY_WRITE_EN)
+        {
+            self.tag_write_status.reg.modify(
+                TagWriteStatus::READY::CLEAR
+                    + TagWriteStatus::VALID::CLEAR
+                    + TagWriteStatus::ERROR::CLEAR,
+            );
+
+            self.op_tag_write_complete_action = Some(self.timer.schedule_poll_in(KEY_RW_TICKS));
+        }
+
+        // Update Ready and Valid status bits
+        self.status
+            .reg
+            .modify(Status::READY::SET + Status::VALID::SET);
+    }
+
+    fn zeroize(&mut self) {
+        self.key.fill(0);
+        self.block.fill(0);
+        self.tag.fill(0);
+    }
+}
+
+impl HmacShaLatest {
     /// Create a new instance of HMAC-SHA-384 Engine
     ///
     /// # Arguments
@@ -281,51 +887,6 @@ impl HmacSha {
             op_block_read_complete_action: None,
             op_tag_write_complete_action: None,
             csr_key: DEFAULT_CSR_HMAC_KEY,
-        }
-    }
-
-    fn read_access_fault(&mut self, _size: RvSize, _index: usize) -> Result<u32, BusError> {
-        Err(BusError::LoadAccessFault)
-    }
-
-    fn write_access_fault(
-        &mut self,
-        _size: RvSize,
-        _index: usize,
-        _val: RvData,
-    ) -> Result<(), BusError> {
-        Err(BusError::StoreAccessFault)
-    }
-
-    fn on_write_key(&mut self, _size: RvSize, index: usize, val: RvData) -> Result<(), BusError> {
-        if self.key_from_kv {
-            self.key_from_kv = false;
-            self.key.fill(0);
-        }
-        self.key[index] = val;
-        Ok(())
-    }
-
-    fn on_write_block(&mut self, _size: RvSize, index: usize, val: RvData) -> Result<(), BusError> {
-        if self.block_from_kv {
-            self.block_from_kv = false;
-            self.block.fill(0);
-        }
-        self.block[index] = val;
-        Ok(())
-    }
-
-    fn on_read_tag(&mut self, _size: RvSize, index: usize) -> Result<RvData, BusError> {
-        if self.hide_tag_from_cpu {
-            return Ok(0);
-        }
-        Ok(self.tag[index])
-    }
-
-    fn key_len(&self) -> usize {
-        match self.control.reg.read_as_enum(Control::MODE).unwrap() {
-            Control::MODE::Value::HMAC384 => 12,
-            Control::MODE::Value::HMAC512 => 16,
         }
     }
 
@@ -424,84 +985,6 @@ impl HmacSha {
         Ok(())
     }
 
-    /// On Write callback for `key_read_control` register
-    ///
-    /// # Arguments
-    ///
-    /// * `size` - Size of the write
-    /// * `val` - Data to write
-    ///
-    /// # Error
-    ///
-    /// * `BusError` - Exception with cause `BusError::StoreAccessFault` or `BusError::StoreAddrMisaligned`
-    pub fn on_write_key_read_control(&mut self, size: RvSize, val: RvData) -> Result<(), BusError> {
-        // Writes have to be Word aligned
-        if size != RvSize::Word {
-            Err(BusError::StoreAccessFault)?
-        }
-
-        // Set the key control register
-        let key_read_ctrl = InMemoryRegister::<u32, KeyReadControl::Register>::new(val);
-
-        self.key_read_ctrl.reg.modify(
-            KeyReadControl::KEY_READ_EN.val(key_read_ctrl.read(KeyReadControl::KEY_READ_EN))
-                + KeyReadControl::KEY_ID.val(key_read_ctrl.read(KeyReadControl::KEY_ID)),
-        );
-
-        if key_read_ctrl.is_set(KeyReadControl::KEY_READ_EN) {
-            self.key_read_status.reg.modify(
-                KeyReadStatus::READY::CLEAR
-                    + KeyReadStatus::VALID::CLEAR
-                    + KeyReadStatus::ERROR::CLEAR,
-            );
-
-            self.op_key_read_complete_action = Some(self.timer.schedule_poll_in(KEY_RW_TICKS));
-        }
-
-        Ok(())
-    }
-
-    /// On Write callback for `block_read_control` register
-    ///
-    /// # Arguments
-    ///
-    /// * `size` - Size of the write
-    /// * `val` - Data to write
-    ///
-    /// # Error
-    ///
-    /// * `BusError` - Exception with cause `BusError::StoreAccessFault` or `BusError::StoreAddrMisaligned`
-    pub fn on_write_block_read_control(
-        &mut self,
-        size: RvSize,
-        val: RvData,
-    ) -> Result<(), BusError> {
-        // Writes have to be Word aligned
-        if size != RvSize::Word {
-            Err(BusError::StoreAccessFault)?
-        }
-
-        // Set the block control register
-        let block_read_ctrl = InMemoryRegister::<u32, KeyReadControl::Register>::new(val);
-
-        self.block_read_ctrl.reg.modify(
-            KeyReadControl::KEY_READ_EN.val(block_read_ctrl.read(KeyReadControl::KEY_READ_EN))
-                + KeyReadControl::KEY_ID.val(block_read_ctrl.read(KeyReadControl::KEY_ID)),
-        );
-
-        if block_read_ctrl.is_set(KeyReadControl::KEY_READ_EN) {
-            self.block_read_status.reg.modify(
-                KeyReadStatus::READY::CLEAR
-                    + KeyReadStatus::VALID::CLEAR
-                    + KeyReadStatus::ERROR::CLEAR,
-            );
-
-            self.op_block_read_complete_action = Some(self.timer.schedule_poll_in(KEY_RW_TICKS));
-        }
-
-        Ok(())
-    }
-
     /// On Write callback for `tag_write_control` register
     ///
     /// # Arguments
@@ -537,29 +1020,6 @@ impl HmacSha {
         }
 
         Ok(())
-    }
-
-    /// Called by Bus::poll() to indicate that time has passed
-    fn poll(&mut self) {
-        if self.timer.fired(&mut self.op_complete_action) {
-            self.op_complete();
-        } else if self.timer.fired(&mut self.op_key_read_complete_action) {
-            self.key_read_complete();
-        } else if self.timer.fired(&mut self.op_block_read_complete_action) {
-            self.block_read_complete();
-        } else if self.timer.fired(&mut self.op_tag_write_complete_action) {
-            self.tag_write_complete();
-        }
-    }
-
-    /// Called by Bus::warm_reset() to indicate a warm reset
-    fn warm_reset(&mut self) {
-        // TODO: Reset registers
-    }
-
-    /// Called by Bus::update_reset() to indicate an update reset
-    fn update_reset(&mut self) {
-        // TODO: Reset registers
     }
 
     fn op_complete(&mut self) {
@@ -623,130 +1083,6 @@ impl HmacSha {
         self.status
             .reg
             .modify(Status::READY::SET + Status::VALID::SET);
-    }
-
-    fn key_read_complete(&mut self) {
-        let key_id = self.key_read_ctrl.reg.read(KeyReadControl::KEY_ID);
-
-        let mut key_usage = KeyUsage::default();
-        key_usage.set_hmac_key(true);
-
-        let result = self.key_vault.read_key(key_id, key_usage);
-        let (key_read_result, key) = match result.err() {
-            Some(BusError::LoadAccessFault)
-            | Some(BusError::LoadAddrMisaligned)
-            | Some(BusError::InstrAccessFault) => (KeyReadStatus::ERROR::KV_READ_FAIL.value, None),
-            Some(BusError::StoreAccessFault) | Some(BusError::StoreAddrMisaligned) => {
-                (KeyReadStatus::ERROR::KV_WRITE_FAIL.value, None)
-            }
-            None => (
-                KeyReadStatus::ERROR::KV_SUCCESS.value,
-                Some(result.unwrap()),
-            ),
-        };
-
-        if let Some(key) = &key {
-            self.key_from_kv = true;
-            // HMAC mode is not known at this point. Thus, copying the entire
-            // key from the KV slot even though the actual key might be shorter.
-            // Peripherals using the key material will size it appropriately.
-            self.key[..HMAC_KEY_SIZE_DWORD_512]
-                .as_mut_bytes()
-                .copy_from_slice(key.as_bytes());
-        }
-
-        self.key_read_status.reg.modify(
-            KeyReadStatus::READY::SET
-                + KeyReadStatus::VALID::SET
-                + KeyReadStatus::ERROR.val(key_read_result),
-        );
-    }
-
-    fn block_read_complete(&mut self) {
-        let key_id = self.block_read_ctrl.reg.read(KeyReadControl::KEY_ID);
-
-        // Clear the block
-        self.block.fill(0);
-
-        let mut key_usage = KeyUsage::default();
-        key_usage.set_hmac_data(true);
-
-        let error_code = match self.key_vault.read_key_as_data(key_id, key_usage) {
-            Err(BusError::LoadAccessFault)
-            | Err(BusError::LoadAddrMisaligned)
-            | Err(BusError::InstrAccessFault) => KeyReadStatus::ERROR::KV_READ_FAIL.value,
-            Err(BusError::StoreAccessFault) | Err(BusError::StoreAddrMisaligned) => {
-                KeyReadStatus::ERROR::KV_WRITE_FAIL.value
-            }
-            Ok(data) => {
-                self.format_block(data.as_bytes());
-                self.block_from_kv = true;
-                KeyReadStatus::ERROR::KV_SUCCESS.value
-            }
-        };
-
-        self.block_read_status.reg.modify(
-            KeyReadStatus::READY::SET
-                + KeyReadStatus::VALID::SET
-                + KeyReadStatus::ERROR.val(error_code),
-        );
-    }
-
-    /// Adds padding and total data size to the block.
-    /// Stores the formatted block in peripheral's internal block data structure.
-    ///
-    /// # Arguments
-    ///
-    /// * `data_len` - Size of the data
-    /// * `data` - Data to hash. This is in big-endian format.
-    ///
-    /// # Error
-    ///
-    /// * `None`
-    fn format_block(&mut self, data: &[u8]) {
-        let mut block_arr = [0u8; HMAC_BLOCK_SIZE];
-        block_arr[..data.len()].copy_from_slice(&data[..data.len()]);
-        block_arr.to_little_endian();
-
-        // Add block padding.
-        block_arr[data.len()] = 0b1000_0000;
-
-        // Add block length.
-        let len = ((HMAC_BLOCK_SIZE + data.len()) as u128) * 8;
-        block_arr[HMAC_BLOCK_SIZE - 16..].copy_from_slice(&len.to_be_bytes());
-
-        block_arr.to_big_endian();
-        self.block.as_mut_bytes().copy_from_slice(&block_arr);
-    }
-
-    fn tag_write_complete(&mut self) {
-        let key_id = self.tag_write_ctrl.reg.read(TagWriteControl::KEY_ID);
-
-        // Store the tag in the key-vault.
-        // Tag is in big-endian format and is stored in the same format.
-        let tag_write_result = match self
-            .key_vault
-            .write_key(
-                key_id,
-                &self.tag.as_bytes()[..self.key_len() * 4],
-                self.tag_write_ctrl.reg.read(TagWriteControl::USAGE),
-            )
-            .err()
-        {
-            Some(BusError::LoadAccessFault)
-            | Some(BusError::LoadAddrMisaligned)
-            | Some(BusError::InstrAccessFault) => TagWriteStatus::ERROR::KV_READ_FAIL.value,
-            Some(BusError::StoreAccessFault) | Some(BusError::StoreAddrMisaligned) => {
-                TagWriteStatus::ERROR::KV_WRITE_FAIL.value
-            }
-            None => TagWriteStatus::ERROR::KV_SUCCESS.value,
-        };
-
-        self.tag_write_status.reg.modify(
-            TagWriteStatus::READY::SET
-                + TagWriteStatus::VALID::SET
-                + TagWriteStatus::ERROR.val(tag_write_result),
-        );
     }
 
     fn zeroize(&mut self) {
@@ -823,7 +1159,7 @@ mod tests {
         padded
     }
 
-    fn write_be_words(hmac: &mut HmacSha, base: RvAddr, bytes: &[u8]) {
+    fn write_be_words(hmac: &mut HmacShaLatest, base: RvAddr, bytes: &[u8]) {
         for (index, word) in bytes.chunks_exact(4).enumerate() {
             hmac.write(
                 RvSize::Word,
@@ -834,7 +1170,7 @@ mod tests {
         }
     }
 
-    fn read_tag_bytes(hmac: &mut HmacSha, size: usize) -> Vec<u8> {
+    fn read_tag_bytes(hmac: &mut HmacShaLatest, size: usize) -> Vec<u8> {
         (0..size)
             .step_by(4)
             .flat_map(|offset| {
@@ -866,7 +1202,7 @@ mod tests {
         let block = padded_message(data);
         for mode512 in [false, true] {
             let clock = Clock::new();
-            let mut hmac = HmacSha::new(&clock, KeyVault::new());
+            let mut hmac = HmacShaLatest::new(&clock, KeyVault::new());
             let key_len = if mode512 { 64 } else { 48 };
             let key = vec![0x0b; key_len];
             let mode = if mode512 {
@@ -941,7 +1277,7 @@ mod tests {
                 let data = vec![b'a'; length];
                 let padded = padded_message(&data);
                 let clock = Clock::new();
-                let mut hmac = HmacSha::new(&clock, KeyVault::new());
+                let mut hmac = HmacShaLatest::new(&clock, KeyVault::new());
                 write_be_words(&mut hmac, OFFSET_KEY, &key);
                 for (index, block) in padded.chunks_exact(HMAC_BLOCK_SIZE).enumerate() {
                     write_be_words(&mut hmac, OFFSET_BLOCK, block);
@@ -974,7 +1310,7 @@ mod tests {
     #[test]
     fn test_final_command_uses_live_outer_key() {
         let clock = Clock::new();
-        let mut hmac = HmacSha::new(&clock, KeyVault::new());
+        let mut hmac = HmacShaLatest::new(&clock, KeyVault::new());
         let inner_key = [0x0b; 48];
         let outer_key = [0x1c; 48];
         let data = [b'a'; 130];
@@ -1016,7 +1352,7 @@ mod tests {
     #[test]
     fn test_last_alone_and_busy_commands_do_not_advance_hash() {
         let clock = Clock::new();
-        let mut hmac = HmacSha::new(&clock, KeyVault::new());
+        let mut hmac = HmacShaLatest::new(&clock, KeyVault::new());
         hmac.write(RvSize::Word, OFFSET_CONTROL, Control::LAST::SET.value)
             .unwrap();
         clock.increment_and_process_timer_actions(INIT_TICKS, &mut hmac);
@@ -1050,7 +1386,7 @@ mod tests {
         usage.set_hmac_data(true);
         let sentinel = [0x5a; 48];
         vault.write_key(4, &sentinel, u32::from(usage)).unwrap();
-        let mut hmac = HmacSha::new(&clock, vault.clone());
+        let mut hmac = HmacShaLatest::new(&clock, vault.clone());
         let key = [0x0b; 48];
         let data = [b'a'; 130];
         let padded = padded_message(&data);
@@ -1101,7 +1437,7 @@ mod tests {
 
     #[test]
     fn test_six_word_write_only_lfsr_seed_bank() {
-        let mut hmac = HmacSha::new(&Clock::new(), KeyVault::new());
+        let mut hmac = HmacShaLatest::new(&Clock::new(), KeyVault::new());
         for index in 0..12 {
             let address = 0x140 + index * 4;
             let result = hmac.write(RvSize::Word, address, index);
