@@ -489,6 +489,14 @@ pub mod driver_tests {
         ..BASE_FWID
     };
 
+    pub const DMA_CHECKED: FwId = FwId {
+        bin_name: "dma_checked",
+        fw_type: FirmwareType::Source {
+            features: &["emu", "dma-checked"],
+        },
+        ..BASE_FWID
+    };
+
     pub const DMA_SHA384: FwId = FwId {
         bin_name: "dma_sha384",
         ..BASE_FWID
@@ -710,6 +718,7 @@ pub const REGISTERED_FW: &[&FwId] = &[
     &driver_tests::CSRNG_RESEED_HEALTH_FAIL_TESTS,
     &driver_tests::TRNG_DRIVER_RESPONDER,
     &driver_tests::PERSISTENT,
+    &driver_tests::DMA_CHECKED,
     &driver_tests::DMA_SHA384,
     &driver_tests::DMA_SHA384_FPGA,
     &rom_tests::ASM_TESTS,

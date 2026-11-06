@@ -718,3 +718,12 @@ pub enum ResetReason {
     /// Unknown Reset
     Unknown,
 }
+
+#[cfg(feature = "runtime")]
+impl SocIfc {
+    pub fn get_timestamp(&self) -> u64 {
+        let low = self.soc_ifc.regs().internal_rv_mtime_l().read();
+        let high = self.soc_ifc.regs().internal_rv_mtime_h().read();
+        ((high as u64) << 32) | low as u64
+    }
+}

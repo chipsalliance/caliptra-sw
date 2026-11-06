@@ -808,6 +808,12 @@ struct SocRegistersImpl {
     #[register(offset = 0x062c, write_fn = on_write_internal_nmi_vector)]
     internal_nmi_vector: ReadWriteRegister<u32>,
 
+    #[register(offset = 0x0640, read_fn = on_read_internal_rv_mtime_l)]
+    internal_rv_mtime_l: ReadOnlyRegister<u32>,
+
+    #[register(offset = 0x0644, read_fn = on_read_internal_rv_mtime_h)]
+    internal_rv_mtime_h: ReadOnlyRegister<u32>,
+
     /// GLOBAL_INTR_EN_R Register
     #[register(offset = 0x0800)]
     global_intr_en_r: ReadWriteRegister<u32, GlobalIntrEn::Register>,
@@ -1021,6 +1027,8 @@ impl SocRegistersImpl {
             internal_fw_update_reset: ReadWriteRegister::new(0),
             internal_fw_update_reset_wait_cycles: ReadWriteRegister::new(5),
             internal_nmi_vector: ReadWriteRegister::new(0),
+            internal_rv_mtime_l: ReadOnlyRegister::new(0),
+            internal_rv_mtime_h: ReadOnlyRegister::new(0),
             global_intr_en_r: ReadWriteRegister::new(0),
             error_intr_en_r: ReadWriteRegister::new(0),
             notif_intr_en_r: ReadWriteRegister::new(0),
@@ -1388,6 +1396,14 @@ impl SocRegistersImpl {
     ) -> Result<(), BusError> {
         self.ss_strap_generic[index] = val;
         Ok(())
+    }
+
+    fn on_read_internal_rv_mtime_h(&mut self, _size: RvSize) -> Result<u32, BusError> {
+        Ok((self.timer.now() >> 32) as u32)
+    }
+
+    fn on_read_internal_rv_mtime_l(&mut self, _size: RvSize) -> Result<u32, BusError> {
+        Ok(self.timer.now() as u32)
     }
 
     fn reset_common(&mut self) {

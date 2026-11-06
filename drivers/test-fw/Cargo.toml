@@ -34,6 +34,7 @@ fips-test-hooks = ["caliptra-drivers/fips-test-hooks"]
 #     --features riscv
 riscv = ["caliptra-test-harness/riscv"]
 runtime = []
+dma-checked = ["caliptra-drivers/runtime"]
 
 [[bin]]
 name = "aes"
@@ -204,6 +205,11 @@ required-features = ["riscv"]
 name = "ml_dsa87"
 path = "src/bin/mldsa87_tests.rs"
 required-features = ["riscv"]
+
+[[bin]]
+name = "dma_checked"
+path = "src/bin/dma_checked_tests.rs"
+required-features = ["riscv", "dma-checked"]
 
 [[bin]]
 name = "dma_sha384"

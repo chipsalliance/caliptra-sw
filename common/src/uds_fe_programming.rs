@@ -253,3 +253,83 @@ impl UdsFeProgrammingFlow {
         result
     }
 }
+
+#[cfg(feature = "runtime")]
+pub const FE_MAX_PARTITIONS: u32 = MAX_FE_PARTITIONS + 1;
+
+#[cfg(feature = "runtime")]
+impl UdsFeProgrammingFlow {
+    /// Read live FE digests using the marker-free Caliptra 2.0 OTP layout.
+    pub fn fe_status(
+        partition: u32,
+        soc_ifc: &SocIfc,
+        dma: &Dma,
+    ) -> crate::mailbox_api::FePartitionStatus {
+        use crate::mailbox_api::FePartitionStatus;
+
+        let read_status = || {
+            let flow = Self::Fe { partition };
+            flow.validate().ok()?;
+            if !soc_ifc.subsystem_mode() {
+                return None;
+            }
+            let metadata_end = UDS_SEED_SIZE_BYTES
+                + FUSE_CTRL_DIGEST_SIZE_BYTES
+                + FE_MAX_PARTITIONS as usize
+                    * (FE_PARTITION_SIZE_BYTES + FUSE_CTRL_DIGEST_SIZE_BYTES);
+            soc_ifc
+                .uds_seed_dest_base_addr_low()
+                .checked_add(metadata_end as u32)?;
+            let base = soc_ifc.fuse_controller_base_addr();
+            base.checked_add(u16::MAX as u64 + 0x14)?;
+            let cmd_addr = base + soc_ifc.otp_direct_access_cmd_reg_offset() as u64;
+            let regwen_addr = cmd_addr.checked_sub(4)?;
+            let status_offset = match soc_ifc.otp_status_reg_offset() {
+                0 => 0x10,
+                offset => offset,
+            };
+            let status_addr = base + u64::from(status_offset);
+            let idle_mask = 1u32.checked_shl(soc_ifc.otp_dai_idle_bit_num())?;
+            let read_reg = |addr| dma.read_dword_checked(AxiAddr::from(addr), soc_ifc).ok();
+            let is_dai_locked = || Some(read_reg(regwen_addr)? & 1 == 0);
+            let wait_idle = || {
+                let start = soc_ifc.get_timestamp();
+                loop {
+                    let status = read_reg(status_addr)?;
+                    if status & idle_mask != 0 {
+                        return Some(status);
+                    }
+                    if soc_ifc.get_timestamp().wrapping_sub(start) >= 1_000_000 {
+                        return None;
+                    }
+                }
+            };
+
+            wait_idle()?;
+            if is_dai_locked()? {
+                return None;
+            }
+            let digest_address = flow.get_dest_address(soc_ifc) + FE_PARTITION_SIZE_BYTES as u32;
+            dma.write_dword_checked(
+                AxiAddr::from(cmd_addr + DIRECT_ACCESS_ADDRESS_OFFSET),
+                digest_address & 0xFFF,
+                soc_ifc,
+            )
+            .ok()?;
+            dma.write_dword_checked(AxiAddr::from(cmd_addr), 1, soc_ifc)
+                .ok()?;
+            let status = caliptra_registers::otp_ctrl::regs::StatusReadVal::from(wait_idle()?);
+            if status.dai_error() || is_dai_locked()? {
+                return None;
+            }
+            // Metadata is 64-bit even when seed rows use 32-bit DAI accesses.
+            let digest = [read_reg(cmd_addr + 0x10)?, read_reg(cmd_addr + 0x14)?];
+            Some(if digest == [0; 2] {
+                FePartitionStatus::Unprovisioned
+            } else {
+                FePartitionStatus::Provisioned
+            })
+        };
+        read_status().unwrap_or(FePartitionStatus::Error)
+    }
+}
