@@ -14,6 +14,8 @@ Abstract:
 --*/
 
 use crate::cprintln;
+#[cfg(feature = "runtime")]
+use crate::mailbox_api::FePartitionStatus;
 use caliptra_drivers::{AxiAddr, CaliptraError, CaliptraResult, Dma, DmaOtpCtrl, SocIfc, Trng};
 
 /// UDS/FE Programming Flow
@@ -30,15 +32,23 @@ const UDS_SEED_SIZE_BYTES: usize = 64;
 const DIGEST_SIZE_BYTES: usize = 8;
 const FE_PARTITION_SEED_SIZE_BYTES: usize = 8;
 const ZEROIZATION_MARKER_SIZE_BYTES: usize = 8;
+#[cfg(feature = "runtime")]
+const ZEROIZATION_MARKER_THRESHOLD: u32 = 58;
+#[cfg(feature = "runtime")]
+const DAI_READ_TIMEOUT_CYCLES: u64 = 1_000_000;
 const FE_PARTITION_SIZE_BYTES: usize =
     FE_PARTITION_SEED_SIZE_BYTES + DIGEST_SIZE_BYTES + ZEROIZATION_MARKER_SIZE_BYTES;
 pub const FE_MAX_PARTITIONS: u32 = 4;
+#[cfg(feature = "runtime")]
+const DIRECT_ACCESS_REGWEN_MASK: u32 = 1 << 0;
 // OTP Direct Access Register Offsets (relative to DIRECT_ACCESS_CMD)
 const DIRECT_ACCESS_ADDRESS_OFFSET: u64 = 0x4;
 const DIRECT_ACCESS_WDATA_0_OFFSET: u64 = 0x8;
 const DIRECT_ACCESS_WDATA_1_OFFSET: u64 = 0xC;
 const DIRECT_ACCESS_RDATA_0_OFFSET: u64 = 0x10;
 const DIRECT_ACCESS_RDATA_1_OFFSET: u64 = 0x14;
+#[cfg(feature = "runtime")]
+const SECRET_DIGEST_READ_LOCK_OFFSET: u64 = 0xec;
 
 #[derive(Default)]
 struct SeedConfig {
@@ -61,7 +71,112 @@ struct OtpCtrlConfig {
     direct_access_rdata_1_reg_addr: u64,
 }
 
+#[cfg(feature = "runtime")]
+impl OtpCtrlConfig {
+    fn read_metadata(&self, soc_ifc: &SocIfc, dma: &Dma, address: u32) -> Option<[u32; 2]> {
+        let idle_mask = 1u32.checked_shl(self.dai_idle_bit_num)?;
+        let regwen_addr = self.direct_access_cmd_reg_addr.checked_sub(4)?;
+        let read_reg = |addr| dma.read_dword_checked(AxiAddr::from(addr), soc_ifc).ok();
+        let is_dai_locked = || Some(read_reg(regwen_addr)? & DIRECT_ACCESS_REGWEN_MASK == 0);
+        let wait_idle = || {
+            let start = soc_ifc.get_timestamp();
+            loop {
+                let status = read_reg(self.status_reg_addr)?;
+                if status & idle_mask != 0 {
+                    return Some(status);
+                }
+                if soc_ifc.get_timestamp().wrapping_sub(start) >= DAI_READ_TIMEOUT_CYCLES {
+                    return None;
+                }
+            }
+        };
+
+        wait_idle()?;
+        if is_dai_locked()? {
+            return None;
+        }
+        dma.write_dword_checked(
+            AxiAddr::from(self.direct_access_address_reg_addr),
+            address & 0xFFF,
+            soc_ifc,
+        )
+        .ok()?;
+        dma.write_dword_checked(
+            AxiAddr::from(self.direct_access_cmd_reg_addr),
+            0b0001,
+            soc_ifc,
+        )
+        .ok()?;
+        let status = caliptra_registers::otp_ctrl::regs::StatusReadVal::from(wait_idle()?);
+        if status.dai_error() || is_dai_locked()? {
+            return None;
+        }
+
+        // Digests and zeroization markers are 64-bit, independent of seed-row granularity.
+        Some([
+            read_reg(self.direct_access_rdata_0_reg_addr)?,
+            read_reg(self.direct_access_rdata_1_reg_addr)?,
+        ])
+    }
+}
+
 impl UdsFeProgrammingFlow {
+    /// Read live FE metadata; inaccessible or invalid metadata is never unprovisioned.
+    #[cfg(feature = "runtime")]
+    pub fn fe_status(partition: u32, soc_ifc: &SocIfc, dma: &Dma) -> FePartitionStatus {
+        let read_status = || {
+            let flow = Self::Fe { partition };
+            flow.validate().ok()?;
+            if !soc_ifc.subsystem_mode() {
+                return None;
+            }
+            let metadata_end = UDS_SEED_SIZE_BYTES
+                + DIGEST_SIZE_BYTES
+                + ZEROIZATION_MARKER_SIZE_BYTES
+                + FE_MAX_PARTITIONS as usize * FE_PARTITION_SIZE_BYTES;
+            soc_ifc
+                .uds_seed_dest_base_addr_low()
+                .checked_add(metadata_end as u32)?;
+            soc_ifc
+                .fuse_controller_base_addr()
+                .checked_add(u16::MAX as u64 + DIRECT_ACCESS_RDATA_1_OFFSET)?;
+            let config = flow.init_otp_config(soc_ifc);
+            let digest_address = config.seed_config.address + config.seed_config.length_bytes;
+            let marker =
+                config.read_metadata(soc_ifc, dma, digest_address + DIGEST_SIZE_BYTES as u32)?;
+            match marker[0].count_ones() + marker[1].count_ones() {
+                ZEROIZATION_MARKER_THRESHOLD..=64 => Some(FePartitionStatus::Zeroized),
+                0 => {
+                    let digest = config.read_metadata(soc_ifc, dma, digest_address)?;
+                    // Latest hardware hides secret digests by returning zero without a DAI error.
+                    if caliptra_registers::CALIPTRA_HW_REV_CHOSEN == "latest"
+                        && (soc_ifc.ss_debug_intent()
+                            || dma
+                                .read_dword_checked(
+                                    AxiAddr::from(
+                                        config.fuse_controller_base_addr
+                                            + SECRET_DIGEST_READ_LOCK_OFFSET,
+                                    ),
+                                    soc_ifc,
+                                )
+                                .ok()?
+                                & 1
+                                != 0)
+                    {
+                        return None;
+                    }
+                    Some(if digest == [0; 2] {
+                        FePartitionStatus::Unprovisioned
+                    } else {
+                        FePartitionStatus::Provisioned
+                    })
+                }
+                _ => Some(FePartitionStatus::Error),
+            }
+        };
+        read_status().unwrap_or(FePartitionStatus::Error)
+    }
+
     /// Initialize OTP controller configuration from SoC interface
     fn init_otp_config(&self, soc_ifc: &SocIfc) -> OtpCtrlConfig {
         let uds_fuse_row_granularity_64 = soc_ifc.uds_fuse_row_granularity_64();
