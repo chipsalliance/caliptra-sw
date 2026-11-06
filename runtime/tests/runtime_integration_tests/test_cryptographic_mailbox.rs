@@ -248,7 +248,7 @@ fn test_key_gen() {
         .unwrap()
         .expect("We should have received a response");
     let cm_key_gen_resp = CmKeyGenResp::ref_from_bytes(resp.as_slice()).unwrap();
-    let mlkem_cmk = cm_key_gen_resp.cmk.clone();
+    let mlkem_cmk = cm_key_gen_resp.cmk;
     assert!(!mlkem_cmk.as_bytes().iter().all(|&x| x == 0));
 
     // Verify ML-KEM key gen works with CM_MLKEM_KEY_GEN to derive public key
@@ -285,10 +285,7 @@ fn test_key_gen() {
         )
         .unwrap()
         .expect("We should have received a response");
-    let mldsa_cmk = CmKeyGenResp::ref_from_bytes(resp.as_slice())
-        .unwrap()
-        .cmk
-        .clone();
+    let mldsa_cmk = CmKeyGenResp::ref_from_bytes(resp.as_slice()).unwrap().cmk;
     let mut mldsa_pub_req = MailboxReq::CmMldsaPublicKey(CmMldsaPublicKeyReq {
         hdr: MailboxReqHeader { chksum: 0 },
         cmk: mldsa_cmk,
@@ -318,10 +315,7 @@ fn test_key_gen() {
         )
         .unwrap()
         .expect("We should have received a response");
-    let ecdsa_cmk = CmKeyGenResp::ref_from_bytes(resp.as_slice())
-        .unwrap()
-        .cmk
-        .clone();
+    let ecdsa_cmk = CmKeyGenResp::ref_from_bytes(resp.as_slice()).unwrap().cmk;
     let mut ecdsa_pub_req = MailboxReq::CmEcdsaPublicKey(CmEcdsaPublicKeyReq {
         hdr: MailboxReqHeader { chksum: 0 },
         cmk: ecdsa_cmk,
@@ -1375,7 +1369,7 @@ fn test_aes_context_authentication_failure() {
 
         for mode in [CmAesMode::Cbc, CmAesMode::Ctr] {
             let mut init = CmAesEncryptInitReq {
-                cmk: cmk.clone(),
+                cmk,
                 mode: mode as u32,
                 plaintext_size: AES_BLOCK_SIZE_BYTES as u32,
                 ..Default::default()
