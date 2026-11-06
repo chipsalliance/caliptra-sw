@@ -1551,30 +1551,34 @@ impl Request for LmsVerifyReq {
 // No command-specific output args
 
 // MLDSA87_SIGNATURE_VERIFY
-#[repr(C, packed)]
+//
+// Intentionally not const-generic: this struct is used by the frozen ROM, and
+// the `repr(C, packed)` layout required for a generic `IntoBytes` derive changes
+// the generated ROM code (see FROZEN_IMAGES.sha384sum).
+#[repr(C)]
 #[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
-pub struct MldsaVerifyReq<const DS: usize = MAX_CMB_DATA_SIZE> {
+pub struct MldsaVerifyReq {
     pub hdr: MailboxReqHeader,
     pub pub_key: [u8; MLDSA87_PUB_KEY_BYTE_SIZE],
     pub signature: [u8; MLDSA87_SIGNATURE_BYTE_SIZE],
     pub message_size: u32,
-    pub message: [u8; DS],
+    pub message: [u8; MAX_CMB_DATA_SIZE],
 }
 
-impl<const DS: usize> MldsaVerifyReq<DS> {
+impl MldsaVerifyReq {
     pub fn as_bytes_partial(&self) -> CaliptraResult<&[u8]> {
-        if self.message_size as usize > DS {
+        if self.message_size as usize > MAX_CMB_DATA_SIZE {
             return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
         }
-        let unused_byte_count = DS - self.message_size as usize;
+        let unused_byte_count = MAX_CMB_DATA_SIZE - self.message_size as usize;
         Ok(&self.as_bytes()[..size_of::<Self>() - unused_byte_count])
     }
 
     pub fn as_bytes_partial_mut(&mut self) -> CaliptraResult<&mut [u8]> {
-        if self.message_size as usize > DS {
+        if self.message_size as usize > MAX_CMB_DATA_SIZE {
             return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
         }
-        let unused_byte_count = DS - self.message_size as usize;
+        let unused_byte_count = MAX_CMB_DATA_SIZE - self.message_size as usize;
         Ok(&mut self.as_mut_bytes()[..size_of::<Self>() - unused_byte_count])
     }
 
@@ -1617,7 +1621,7 @@ impl<const DS: usize> MldsaVerifyReq<DS> {
     /// Extract the message from a byte slice, using the decoded message_size for proper length
     pub fn message(bytes: &[u8]) -> Option<&[u8]> {
         let msg_size = Self::message_size(bytes)? as usize;
-        if msg_size > DS {
+        if msg_size > MAX_CMB_DATA_SIZE {
             return None;
         }
         let offset = core::mem::offset_of!(Self, message);
@@ -1626,14 +1630,14 @@ impl<const DS: usize> MldsaVerifyReq<DS> {
     }
 }
 
-impl<const DS: usize> Default for MldsaVerifyReq<DS> {
+impl Default for MldsaVerifyReq {
     fn default() -> Self {
         Self {
             hdr: MailboxReqHeader::default(),
             pub_key: [0u8; MLDSA87_PUB_KEY_BYTE_SIZE],
             signature: [0u8; MLDSA87_SIGNATURE_BYTE_SIZE],
             message_size: 0,
-            message: [0u8; DS],
+            message: [0u8; MAX_CMB_DATA_SIZE],
         }
     }
 }
@@ -4677,42 +4681,46 @@ pub struct CmEcdhFinishResp {
 impl Response for CmEcdhFinishResp {}
 
 // CM_HMAC
-#[repr(C, packed)]
+//
+// Intentionally not const-generic: this struct is used by the frozen ROM, and
+// the `repr(C, packed)` layout required for a generic `IntoBytes` derive changes
+// the generated ROM code (see FROZEN_IMAGES.sha384sum).
+#[repr(C)]
 #[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
-pub struct CmHmacReq<const DS: usize = MAX_CMB_DATA_SIZE> {
+pub struct CmHmacReq {
     pub hdr: MailboxReqHeader,
     pub cmk: Cmk,
     pub hash_algorithm: u32,
     pub data_size: u32,
-    pub data: [u8; DS],
+    pub data: [u8; MAX_CMB_DATA_SIZE],
 }
 
-impl<const DS: usize> Default for CmHmacReq<DS> {
+impl Default for CmHmacReq {
     fn default() -> Self {
         Self {
             hdr: MailboxReqHeader::default(),
             cmk: Cmk::default(),
             hash_algorithm: 0,
             data_size: 0,
-            data: [0u8; DS],
+            data: [0u8; MAX_CMB_DATA_SIZE],
         }
     }
 }
 
-impl<const DS: usize> CmHmacReq<DS> {
+impl CmHmacReq {
     pub fn as_bytes_partial(&self) -> CaliptraResult<&[u8]> {
-        if self.data_size as usize > DS {
+        if self.data_size as usize > MAX_CMB_DATA_SIZE {
             return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
         }
-        let unused_byte_count = DS - self.data_size as usize;
+        let unused_byte_count = MAX_CMB_DATA_SIZE - self.data_size as usize;
         Ok(&self.as_bytes()[..size_of::<Self>() - unused_byte_count])
     }
 
     pub fn as_bytes_partial_mut(&mut self) -> CaliptraResult<&mut [u8]> {
-        if self.data_size as usize > DS {
+        if self.data_size as usize > MAX_CMB_DATA_SIZE {
             return Err(CaliptraError::RUNTIME_MAILBOX_API_REQUEST_DATA_LEN_TOO_LARGE);
         }
-        let unused_byte_count = DS - self.data_size as usize;
+        let unused_byte_count = MAX_CMB_DATA_SIZE - self.data_size as usize;
         Ok(&mut self.as_mut_bytes()[..size_of::<Self>() - unused_byte_count])
     }
 }

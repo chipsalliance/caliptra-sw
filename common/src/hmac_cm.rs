@@ -14,15 +14,9 @@ Abstract:
 
 use crate::crypto::{Crypto, EncryptedCmk, UnencryptedCmk};
 use caliptra_api::mailbox::{
-    CmHashAlgorithm, CmHmacResp, CmKeyUsage, Cmk, MailboxRespHeaderVarSize, ResponseVarSize,
-    MAX_CMB_DATA_SIZE,
+    CmHashAlgorithm, CmHmacReq, CmHmacResp, CmKeyUsage, Cmk, MailboxRespHeaderVarSize,
+    ResponseVarSize,
 };
-
-// Default-sized alias for the const-generic `CmHmacReq`, binding the generic buffer
-// size to this component's mailbox limit (`MAX_CMB_DATA_SIZE`). Components with a
-// different mailbox size (e.g. caliptra-mcu-sw in passive mode) can declare their own
-// alias with an adjusted size while reusing the same wire-layout definition.
-type CmHmacReq = caliptra_api::mailbox::CmHmacReq<MAX_CMB_DATA_SIZE>;
 use caliptra_drivers::{
     AesGcmOp, Array4x12, Array4x16, Hmac, HmacData, HmacMode, LEArray4x8, Trng,
 };

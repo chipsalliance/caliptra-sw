@@ -12,13 +12,7 @@ Abstract:
 
 --*/
 
-use caliptra_api::mailbox::{EcdsaVerifyReq, MAX_CMB_DATA_SIZE};
-
-// Default-sized alias for the const-generic `MldsaVerifyReq`, binding the generic buffer
-// size to this component's mailbox limit (`MAX_CMB_DATA_SIZE`). Components with a different
-// mailbox size (e.g. caliptra-mcu-sw in passive mode) can declare their own alias with an
-// adjusted size while reusing the same wire-layout definition.
-type MldsaVerifyReq = caliptra_api::mailbox::MldsaVerifyReq<MAX_CMB_DATA_SIZE>;
+use caliptra_api::mailbox::{EcdsaVerifyReq, MldsaVerifyReq};
 #[cfg(feature = "cfi")]
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_drivers::{
