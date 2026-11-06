@@ -771,6 +771,8 @@ dependencies = [
  "caliptra-emu-types",
  "caliptra-hw-model-types",
  "caliptra-registers",
+ "caliptra-registers-latest",
+ "caliptra-registers-rev-2-1",
  "const-random",
  "fips204",
  "lazy_static",

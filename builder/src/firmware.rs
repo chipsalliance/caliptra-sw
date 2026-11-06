@@ -4,6 +4,7 @@
 // ahead of time for executing tests on hosts that can't compile rust code.
 
 use crate::{FirmwareType, FwId};
+use caliptra_hw_model_types::CaliptraHwVersion;
 
 pub fn rom_from_env() -> &'static FwId<'static> {
     match std::env::var("CPTRA_ROM_TYPE").as_ref().map(|s| s.as_str()) {
@@ -63,6 +64,16 @@ pub const ROM_WITH_UART: FwId = FwId {
     fw_type: FirmwareType::Source {
         features: &["emu", "cfi"],
         hw_revision: None,
+    },
+};
+
+/// Logging ROM for tests that instantiate the pinned 2.1 hardware model.
+pub const ROM_WITH_UART_HW_2_1: FwId = FwId {
+    crate_name: "caliptra-rom",
+    bin_name: "caliptra-rom",
+    fw_type: FirmwareType::Source {
+        features: &["emu", "cfi"],
+        hw_revision: Some(CaliptraHwVersion::V2_1),
     },
 };
 
@@ -817,6 +828,7 @@ pub const REGISTERED_FW: &[&FwId] = &[
     &ROM,
     &ROM_FPGA,
     &ROM_WITH_UART,
+    &ROM_WITH_UART_HW_2_1,
     &ROM_FAKE_WITH_UART,
     &ROM_FAKE_WITH_UART_FPGA,
     &ROM_WITH_FIPS_TEST_HOOKS,

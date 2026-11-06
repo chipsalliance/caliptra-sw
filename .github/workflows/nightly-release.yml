@@ -58,7 +58,7 @@ jobs:
           echo "Current ref $(git rev-parse HEAD) will receive tag ${TAG_BASE}${INDEX}-2.x after tests"
 
   sw-emulator:
-    name: sw-emulator Suite (${{ matrix.config.name }}, ${{ matrix.rng.name }}, ${{ matrix.log.name }}, HW ${{ matrix.hw-rev }})
+    name: sw-emulator Suite (${{ matrix.config.name }}, ${{ matrix.rng.name }}, ${{ matrix.log.name }}, HW ${{ matrix.config.hw }})
     needs: find-latest-release-2-x
     if: needs.find-latest-release-2-x.outputs.create_release
     permissions:
@@ -68,23 +68,24 @@ jobs:
       fail-fast: false
       matrix:
         config:
-          - { name: "2.1.0", rom: "2.1.0", suffix: "rom-2.1.0", base_features: "slow_tests" }
-          - { name: "2.1.1", rom: "2.1.1", suffix: "rom-2.1.1", base_features: "slow_tests" }
-          - { name: "2.1.2", rom: "2.1.2", suffix: "rom-2.1.2", base_features: "slow_tests" }
-          - { name: "latest", rom: "latest", suffix: "hw-latest", base_features: "slow_tests" }
+          # Released ROMs use the 2.1 register map; source ROMs can target either map.
+          - { name: "2.1.0", rom: "2.1.0", hw: "2.1", suffix: "rom-2.1.0", base_features: "slow_tests" }
+          - { name: "2.1.1", rom: "2.1.1", hw: "2.1", suffix: "rom-2.1.1", base_features: "slow_tests" }
+          - { name: "2.1.2", rom: "2.1.2", hw: "2.1", suffix: "rom-2.1.2", base_features: "slow_tests" }
+          - { name: "latest", rom: "latest", hw: "2.1", suffix: "hw-latest", base_features: "slow_tests" }
+          - { name: "latest", rom: "latest", hw: "latest", suffix: "hw-latest", base_features: "slow_tests" }
         rng:
           - { name: "etrng", extra: "" }
           - { name: "itrng", extra: ",itrng" }
         log:
           - { name: "log", rom_logging: true }
           - { name: "nolog", rom_logging: false }
-        hw-rev: ["latest", "2.1"]
     with:
-      artifact-suffix: -sw-emulator-${{ matrix.config.suffix }}-${{ matrix.rng.name }}-${{ matrix.log.name }}-hw_${{ matrix.hw-rev }}
+      artifact-suffix: -sw-emulator-${{ matrix.config.suffix }}-${{ matrix.rng.name }}-${{ matrix.log.name }}-hw_${{ matrix.config.hw }}
       extra-features: ${{ matrix.config.base_features }}${{ matrix.rng.extra }}
       rom-logging: ${{ matrix.log.rom_logging }}
       rom-version: ${{ matrix.config.rom }}
-      hw-revision: ${{ matrix.hw-rev }}
+      hw-revision: ${{ matrix.config.hw }}
 
   fpga:
     name: FPGA Suite (${{ matrix.hw_config.name }}, ${{ matrix.rng.name }}, ${{ matrix.log.name }}, ${{ matrix.ocp_lock.name }})
