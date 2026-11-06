@@ -3,7 +3,7 @@
 use caliptra_emu_bus::{BusError, ReadOnlyRegister, WriteOnlyRegister};
 use caliptra_emu_derive::Bus;
 use caliptra_emu_types::{RvData, RvSize};
-use caliptra_registers::entropy_src::regs::{ConfReadVal, HealthTestWindowsReadVal};
+use caliptra_registers::entropy_src::regs::HealthTestWindowsReadVal;
 use caliptra_registers::{
     AdaptpHiThresholdsReadVal, AdaptpLoThresholdsReadVal, RepcntThresholdsReadVal,
     RepcntsThresholdsReadVal,
@@ -325,9 +325,9 @@ impl CsrngLatest {
     }
 }
 
-/// Implement common methods shared by both CSRNG layouts.
+/// Implement common methods with the CONF layout of the emulated hardware.
 macro_rules! impl_csrng_core {
-    ($type_name:ty) => {
+    ($type_name:ty, $conf_read_val:ty) => {
         impl $type_name {
             fn cmd_req_write(&mut self, _: RvSize, data: RvData) -> Result<(), BusError> {
                 // Since the CMD_REQ register can be used to initiate new commands or
@@ -435,7 +435,7 @@ macro_rules! impl_csrng_core {
                     return Ok(());
                 }
 
-                if ConfReadVal::from(self.conf).fips_enable() == MultiBitBool::False as u32 {
+                if <$conf_read_val>::from(self.conf).fips_enable() == MultiBitBool::False as u32 {
                     unimplemented!("emulation of non-FIPS mode");
                 }
 
@@ -451,7 +451,7 @@ macro_rules! impl_csrng_core {
                 }
                 self.conf = data;
 
-                let conf = ConfReadVal::from(self.conf);
+                let conf = <$conf_read_val>::from(self.conf);
                 let threshold_scope = conf.threshold_scope() == MultiBitBool::True as u32;
                 self.health_tester
                     .adaptp
@@ -712,8 +712,14 @@ macro_rules! impl_csrng_core {
     }
 }
 
-impl_csrng_core!(Csrng);
-impl_csrng_core!(CsrngLatest);
+impl_csrng_core!(
+    Csrng,
+    caliptra_registers_rev_2_1::entropy_src::regs::ConfReadVal
+);
+impl_csrng_core!(
+    CsrngLatest,
+    caliptra_registers_latest::entropy_src::regs::ConfReadVal
+);
 
 #[derive(Default)]
 struct Words {
@@ -785,6 +791,61 @@ mod tests {
 
     fn make_itrng_nibbles() -> Box<dyn Iterator<Item = u8>> {
         Box::new(std::iter::repeat_with(|| 0xAu8))
+    }
+
+    fn assert_by_sum_threshold_scope(health_tester: &mut HealthTester) {
+        health_tester.adaptp.set_window_size_bits(64);
+        health_tester
+            .adaptp
+            .set_lo_threshold(AdaptpLoThresholdsReadVal::from(30));
+        health_tester
+            .adaptp
+            .set_hi_threshold(AdaptpHiThresholdsReadVal::from(34));
+        for _ in 0..16 {
+            health_tester.adaptp.feed(0b1010);
+        }
+        assert_eq!(health_tester.adaptp.lo_failures(), 0);
+        assert_eq!(health_tester.adaptp.hi_failures(), 0);
+    }
+
+    fn assert_selected_rng_lane(health_tester: &mut HealthTester) {
+        health_tester
+            .repcnt
+            .set_threshold(RepcntThresholdsReadVal::from(4));
+        for i in 0..16 {
+            health_tester.repcnt.feed(0b0001 | ((i & 1) << 2));
+        }
+        assert_eq!(health_tester.repcnt.failures(), 0);
+    }
+
+    #[test]
+    fn test_legacy_conf_uses_legacy_field_layout() {
+        let mut csrng = Csrng::new(make_itrng_nibbles());
+        let conf = caliptra_registers_rev_2_1::entropy_src::regs::ConfWriteVal::from(0)
+            .threshold_scope(MultiBitBool::True as u32);
+        csrng.write(RvSize::Word, OFFSET_CONF, conf.into()).unwrap();
+        assert_by_sum_threshold_scope(&mut csrng.health_tester);
+
+        let conf = conf
+            .rng_bit_enable(MultiBitBool::True as u32)
+            .rng_bit_sel(2);
+        csrng.write(RvSize::Word, OFFSET_CONF, conf.into()).unwrap();
+        assert_selected_rng_lane(&mut csrng.health_tester);
+    }
+
+    #[test]
+    fn test_latest_conf_uses_latest_field_layout() {
+        let mut csrng = CsrngLatest::new(make_itrng_nibbles());
+        let conf = caliptra_registers_latest::entropy_src::regs::ConfWriteVal::from(0)
+            .threshold_scope(MultiBitBool::True as u32);
+        csrng.write(RvSize::Word, OFFSET_CONF, conf.into()).unwrap();
+        assert_by_sum_threshold_scope(&mut csrng.health_tester);
+
+        let conf = conf
+            .rng_bit_enable(MultiBitBool::True as u32)
+            .rng_bit_sel(2);
+        csrng.write(RvSize::Word, OFFSET_CONF, conf.into()).unwrap();
+        assert_selected_rng_lane(&mut csrng.health_tester);
     }
 
     #[test]
