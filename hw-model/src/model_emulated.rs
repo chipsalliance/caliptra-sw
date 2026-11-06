@@ -209,6 +209,34 @@ impl ModelEmulated {
     pub fn otp_fuse_bank(&self) -> &[u32] {
         self.cpu.bus.inner().bus.dma.axi.otp_fc.fuse_bank()
     }
+
+    pub fn otp_fuse_bank_mut(&mut self) -> &mut [u32] {
+        self.cpu.bus.inner_mut().bus.dma.axi.otp_fc.fuse_bank_mut()
+    }
+
+    pub fn lock_otp_dai(&mut self) {
+        self.cpu
+            .bus
+            .inner_mut()
+            .bus
+            .dma
+            .axi
+            .otp_fc
+            .write_regwen(caliptra_emu_types::RvSize::Word, 0)
+            .unwrap();
+    }
+
+    pub fn lock_otp_secret_digests(&mut self) {
+        self.cpu
+            .bus
+            .inner_mut()
+            .bus
+            .dma
+            .axi
+            .otp_fc
+            .write_secret_digest_lock(caliptra_emu_types::RvSize::Word, 1)
+            .unwrap();
+    }
 }
 
 impl SocManager for ModelEmulated {

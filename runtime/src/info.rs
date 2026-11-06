@@ -16,6 +16,7 @@ use crate::{handoff::RtHandoff, mutrefbytes, Drivers};
 use caliptra_common::mailbox_api::{
     AlgorithmType, FwInfoResp, GetIdevEcc384InfoResp, GetIdevMldsa87InfoResp, MailboxRespHeader,
 };
+use caliptra_common::uds_fe_programming::{UdsFeProgrammingFlow, FE_MAX_PARTITIONS};
 use caliptra_drivers::{get_fw_error_non_fatal, CaliptraResult};
 use caliptra_image_types::IMAGE_FLAGS_DEBUG_IMAGE;
 
@@ -70,6 +71,11 @@ impl FwInfoCmd {
             0 => drivers.persistent_data.get().rom.cleared_non_fatal_fw_error,
             e => e,
         };
+        resp.fe_status = 0;
+        for partition in 0..FE_MAX_PARTITIONS {
+            let status = UdsFeProgrammingFlow::fe_status(partition, &drivers.soc_ifc, &drivers.dma);
+            resp.fe_status |= (status as u32) << (2 * partition);
+        }
         Ok(core::mem::size_of::<FwInfoResp>())
     }
 }
