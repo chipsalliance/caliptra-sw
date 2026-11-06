@@ -1,4 +1,5 @@
 // Licensed under the Apache-2.0 license
+#include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -1574,6 +1575,155 @@ int upload_fw_piecewise(const test_info *info)
     return failure;
 }
 
+// Verify PCR log retrieval in synchronous and asynchronous modes
+static int test_get_pcr_log(const test_info *info)
+{
+    // Match the firmware PCR log entry layout
+    struct pcr_log_entry
+    {
+        uint16_t id;
+        uint8_t reserved[2];
+        uint32_t pcr_ids;
+        uint32_t data[12];
+    };
+
+    // Confirm the host structures match the mailbox wire format
+    _Static_assert(sizeof(struct pcr_log_entry) == 56, "PCR log entry wire size");
+    _Static_assert(sizeof(struct caliptra_get_pcr_log_resp) == 9228, "PCR log response wire size");
+    _Static_assert(offsetof(struct caliptra_get_pcr_log_resp, data_size) == 8, "PCR log size wire offset");
+    _Static_assert(offsetof(struct caliptra_get_pcr_log_resp, data) == 12, "PCR log data wire offset");
+
+    // Reject a missing response buffer in both modes before booting Caliptra
+    if (caliptra_get_pcr_log(NULL, false) != INVALID_PARAMS ||
+        caliptra_get_pcr_log(NULL, true) != INVALID_PARAMS)
+    {
+        printf("Get PCR Log: NULL response was not rejected\n");
+        return 1;
+    }
+
+    // Boot to runtime, where GET_PCR_LOG is handled
+    int status = boot_to_ready_for_fw(info, false);
+    if (!status)
+    {
+        status = caliptra_upload_fw(&info->image_bundle, false);
+    }
+    if (!status)
+    {
+        status = caliptra_ready_for_runtime();
+    }
+    if (status)
+    {
+        printf("Get PCR Log: firmware boot failed: 0x%x\n", status);
+        return 1;
+    }
+
+    // Use nonzero initial contents to confirm the caller need not clear the response
+    struct caliptra_get_pcr_log_resp sync_resp;
+    memset(&sync_resp, 0xa5, sizeof(sync_resp));
+    status = caliptra_get_pcr_log(&sync_resp, false);
+    if (status)
+    {
+        printf("Get PCR Log: synchronous retrieval failed: 0x%x\n", status);
+        return 1;
+    }
+
+    // Firmware returns all 17 log slots, including unused entries
+    if (sync_resp.data_size != 17 * sizeof(struct pcr_log_entry) ||
+        sync_resp.data_size > sizeof(sync_resp.data))
+    {
+        printf("Get PCR Log: unexpected log size: %u\n", sync_resp.data_size);
+        return 1;
+    }
+
+    bool found_device_status = false;
+    bool found_fmc_tci = false;
+    bool found_rt_tci = false;
+    for (size_t offset = 0; offset < sync_resp.data_size; offset += sizeof(struct pcr_log_entry))
+    {
+        // Copy each record without assuming the response bytes are suitably aligned
+        struct pcr_log_entry entry;
+        memcpy(&entry, &sync_resp.data[offset], sizeof(entry));
+        if (entry.id > 7 || entry.reserved[0] != 0 || entry.reserved[1] != 0)
+        {
+            printf("Get PCR Log: invalid log entry at offset %zu\n", offset);
+            return 1;
+        }
+
+        // ID 0 denotes an unused slot; active entries must identify at least one PCR
+        if (entry.id != 0 && entry.pcr_ids == 0)
+        {
+            printf("Get PCR Log: active entry has no PCRs at offset %zu\n", offset);
+            return 1;
+        }
+
+        // Track device status, FMC TCI, and runtime TCI by their measurement IDs
+        found_device_status |= entry.id == 1;
+        found_fmc_tci |= entry.id == 4;
+        found_rt_tci |= entry.id == 6;
+    }
+    if (!found_device_status || !found_fmc_tci || !found_rt_tci)
+    {
+        printf("Get PCR Log: expected boot measurements are missing\n");
+        return 1;
+    }
+
+    // Async submission clears the response but does not retrieve it until completion
+    struct caliptra_get_pcr_log_resp async_resp;
+    memset(&async_resp, 0xa5, sizeof(async_resp));
+    status = caliptra_get_pcr_log(&async_resp, true);
+    if (status || async_resp.data_size != 0)
+    {
+        printf("Get PCR Log: asynchronous submission failed or populated response early: 0x%x\n", status);
+        return 1;
+    }
+
+    // Reject invalid arguments and a second command while the transaction is pending
+    if (caliptra_get_pcr_log(NULL, true) != INVALID_PARAMS ||
+        caliptra_get_pcr_log(&async_resp, true) != MBX_BUSY)
+    {
+        printf("Get PCR Log: pending transaction was not protected\n");
+        return 1;
+    }
+
+    // Bound polling so an unfinished command cannot keep the test waiting forever
+    uint32_t polls = 0;
+    while (!caliptra_test_for_completion() && polls < 1000000)
+    {
+        caliptra_wait();
+        polls++;
+    }
+    if (!caliptra_test_for_completion())
+    {
+        printf("Get PCR Log: asynchronous retrieval timed out\n");
+        return 1;
+    }
+
+    // Complete the request and compare the full response with synchronous retrieval
+    status = caliptra_complete();
+    if (status || memcmp(&sync_resp, &async_resp, sizeof(sync_resp)) != 0)
+    {
+        printf("Get PCR Log: asynchronous response differs or completion failed: 0x%x\n", status);
+        return 1;
+    }
+
+    // Completion must clear the pending transaction
+    if (caliptra_complete() != MBX_NO_MSG_PENDING)
+    {
+        printf("Get PCR Log: completed transaction remains pending\n");
+        return 1;
+    }
+
+    // Confirm the mailbox can accept another request after async completion
+    status = caliptra_get_pcr_log(&async_resp, false);
+    if (status || memcmp(&sync_resp, &async_resp, sizeof(sync_resp)) != 0)
+    {
+        printf("Get PCR Log: mailbox reuse failed: 0x%x\n", status);
+        return 1;
+    }
+
+    return 0;
+}
+
 // Test infrastructure
 
 int global_test_result = 0;
@@ -1606,6 +1756,7 @@ int run_tests(const test_info *info)
     run_test(legacy_boot_test, info, "Legacy boot test");
     run_test(rom_test_all_commands, info, "Test all ROM commands");
     run_test(rt_test_all_commands, info, "Test all Runtime commmands");
+    run_test(test_get_pcr_log, info, "Test Get PCR Log");
     run_test(rom_test_idevid_csr, info, "Test ECC384 & MLDSA87 IDEV CSR GEN");
     run_test(upload_fw_piecewise, info, "Test Piecewise FW Load");
     run_test(sign_with_exported_ecdsa_cdi, info, "Test Sign with Exported ECDSA");
