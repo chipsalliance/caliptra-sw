@@ -1,3 +1,49 @@
+# fw-2.1.5
+
+This is a combined runtime and FMC release.
+
+## Caliptra Firmware 2.1.5 Release Notes
+
+Release notes for changes introduced since Firmware 2.1.4.
+
+### Features
+
+- **Runtime & Recovery**:
+  - Support `ZEROIZE_UDS_FE` after boot in PL0 subsystem mode, with verified OTP zeroization and terminal shutdown (#4294)
+  - Add opt-in command-count-triggered FIPS self-tests for `fips_self_test` builds, with startup-latched configuration and SHAKE256-session deferral (#4351)
+  - Support per-image single-DWORD DMA hashing through signed image metadata flags and honor larger configured 64-bit mailbox watchdog timeouts (#4275)
+- **Host Library**:
+  - Add `INSTALL_OWNER_PK_HASH` and `SET_OWNER_AUTH_MANIFEST` commands to libcaliptra (#4293, #4328)
+  - Add streaming `CM_SHA_INIT`, `CM_SHA_UPDATE`, and `CM_SHA_FINAL` commands and `MLDSA87_VERIFY` to libcaliptra (#4357, #4373)
+- **Build & Hardware Support**:
+  - Refresh the latest RTL register bindings and align emulator CSRNG and entropy register mappings with the selected hardware revision (#4334)
+
+### Fixes
+
+- **Authorization & Attestation**:
+  - Extend the vendor+owner SoC manifest owner preamble signature to cover version, SVN, and flags as well as owner public keys (#4343)
+  - Require the signed MCU load address to match the actual installation destination during hitless activation (#4323)
+  - Enforce the maximum firmware SVN of 128 in Runtime image verification, including when anti-rollback is disabled or the device is unprovisioned (#4251)
+  - Preserve `RTMR` and `CCIV` byte ordering in named DPE TCI identifiers (#4338)
+- **Sensitive Data & Boot**:
+  - Zeroize temporary plaintext AES, AES-GCM, ECDH, and SHAKE256 mailbox context buffers (#4367)
+  - Run FMC fatal-error cleanup when firmware handoff table validation fails (#4304)
+  - Report FMC alias CSR errors for ML-DSA CSR builder failures (#4306)
+- **Drivers & Performance**:
+  - Wait for CSRNG command readiness before each command word and for command completion to prevent FIFO overruns and hardware stalls (#4322)
+  - Adapt HMAC seed programming to the hardware register width (#4217)
+  - Optimize FPGA recovery DMA transfers with burst and batched fixed-address operations (#4319)
+
+### Compatibility Notes
+
+- **Authorization manifest signatures**: Vendor+owner SoC manifests generated under the previous owner preamble signing scheme must be re-signed to cover `version`, `svn`, `flags`, and owner public keys. Owner-only manifests loaded with `SET_OWNER_AUTH_MANIFEST` are unaffected (#4343).
+- **SoC manifest measurements**: `SOMO` for vendor+owner SoC manifests now measures `version`, `svn`, `flags`, and owner public keys rather than only the owner public keys. Update pinned `SOMO` reference measurements used by attestation verifiers (#4343).
+- **DPE identities**: Corrected named TCI identifiers change affected certificate identifiers and DPE-derived keys. A cold boot is required; retained contexts are not migrated (#4338).
+- **Core 2.1 builds**: Set `CALIPTRA_HW_REV=2.1` explicitly when building and testing for Core 2.1. The `latest` RTL bindings and default hardware model are no longer pinned to the Core 2.1 register map (#4334).
+- **Autonomous self-tests**: RT samples `CPTRA_GENERIC_INPUT_WIRES[1]` at every startup, including builds without `fips_self_test`. Keep bit 0 clear unless deliberately enabling a valid configuration in a supported build; an invalid or unsupported enabled configuration fails startup with `RUNTIME_INVALID_SELF_TEST_CONFIG`. Tests are workload-triggered, not time-based; coordinate the input-wire allocation with the Core integration specification before adoption (#4351).
+
+**Full Changelog**: https://github.com/chipsalliance/caliptra-sw/compare/fw-2.1.4...fw-2.1.5
+
 # fw-2.1.4
 
 This is a combined runtime and FMC release.
