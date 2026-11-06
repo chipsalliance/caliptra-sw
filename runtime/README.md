@@ -1061,6 +1061,19 @@ Command Code: `0x494E_464F` ("INFO")
 | owner_auth_manifest_current_svn | u32   | SVN of the owner authorization manifest accepted by `SET_OWNER_AUTH_MANIFEST`, or zero if none has been accepted.                                  |
 | owner_auth_manifest_min_svn | u32      | Minimum owner authorization manifest SVN encoded in `SS_STRAP_GENERIC[3][15:8]` and enforced by `SET_OWNER_AUTH_MANIFEST` when anti-rollback checks are enabled. |
 | debug_policy                | u32      | Active vendor-authorized debug policy. Bit 0 (`DEBUG_FIRMWARE_ACTIVE`) indicates that the active firmware bundle is marked as debug. Bit 1 (`DEBUG_AUTH_MANIFEST_ACTIVE`) indicates that the installed SoC authorization manifest is marked as debug. Bits 31:2 are zero. |
+| fe_status                   | u32      | Live OTP provisioning status of all four FE partitions in subsystem mode. Partition `i` occupies bits `[2*i+1:2*i]`: `0` = unprovisioned, `1` = provisioned, `2` = reserved on Caliptra 2.0, `3` = error/indeterminate. Outside subsystem mode, all partitions report error/indeterminate. Bits 31:8 are zero. |
+
+The response is 400 bytes in both subsystem and standalone modes. The `fe_status`
+field is always present; standalone mode returns `0x000000ff` because FE status is
+unavailable. Callers must use the updated response layout and validate the checksum
+over the full response.
+
+FE status is read for each request, not cached at boot. Caliptra 2.0 has no
+zeroization markers: a zero digest reports unprovisioned and a nonzero digest
+reports provisioned. Locked DAI access, DMA/DAI errors, and timeouts report error
+for the affected partition while leaving the other firmware information
+available. This metadata does not establish whether FE contributed to an existing
+certificate.
 
 ### VERSION
 

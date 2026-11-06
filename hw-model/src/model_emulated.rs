@@ -197,6 +197,27 @@ fn hash_slice(slice: &[u8]) -> u64 {
     hasher.finish()
 }
 
+impl ModelEmulated {
+    pub fn set_otp_error_injection(&mut self, enable: bool) {
+        self.cpu.bus.bus.dma.axi.otp_fc.set_error_injection(enable);
+    }
+
+    pub fn otp_fuse_bank_mut(&mut self) -> &mut [u32] {
+        self.cpu.bus.bus.dma.axi.otp_fc.fuse_bank_mut()
+    }
+
+    pub fn lock_otp_dai(&mut self) {
+        self.cpu
+            .bus
+            .bus
+            .dma
+            .axi
+            .otp_fc
+            .write_regwen(caliptra_emu_types::RvSize::Word, 0)
+            .unwrap();
+    }
+}
+
 impl SocManager for ModelEmulated {
     type TMmio<'a> = BusMmio<EmulatedApbBus<'a>>;
 
