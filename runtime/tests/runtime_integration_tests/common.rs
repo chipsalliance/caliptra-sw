@@ -88,7 +88,12 @@ pub const PQC_KEY_TYPE: [FwVerificationPqcKeyType; 2] = [
 ];
 static NEXT_TEST_TCI_TYPE: AtomicU32 = AtomicU32::new(u32::from_be_bytes(*b"TST0"));
 
-pub const DEFAULT_MCU_FW: &[u8] = &[0x6f; 256];
+// RISC-V `jal x0, 0` followed by padding, not repeated 0x6f bytes.
+pub const DEFAULT_MCU_FW: &[u8] = &{
+    let mut firmware = [0u8; 256];
+    firmware[0] = 0x6f;
+    firmware
+};
 
 fn default_soc_manifest(pqc_key_type: FwVerificationPqcKeyType, svn: u32) -> AuthorizationManifest {
     // generate a default SoC manifest if one is not provided in subsystem mode

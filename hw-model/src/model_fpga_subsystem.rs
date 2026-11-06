@@ -64,6 +64,7 @@ const OTP_SVN_PARTITION_FMC_SVN_FIELD_OFFSET: usize = OTP_SVN_PARTITION_OFFSET +
 const OTP_SVN_PARTITION_RUNTIME_SVN_FIELD_OFFSET: usize = OTP_SVN_PARTITION_OFFSET + 4; // 16 bytes
 const OTP_SVN_PARTITION_SOC_MANIFEST_SVN_FIELD_OFFSET: usize = OTP_SVN_PARTITION_OFFSET + 20; // 16 bytes
 const OTP_SVN_PARTITION_SOC_MAX_SVN_FIELD_OFFSET: usize = OTP_SVN_PARTITION_OFFSET + 36; // 1 byte used
+const OTP_OWNER_SOC_MANIFEST_MIN_SVN_OFFSET: usize = 0x3E4; // 8-byte one-hot bitmap
 
 // VENDOR_HASHES_MANUF_PARTITION
 const OTP_VENDOR_HASHES_MANUF_PARTITION_OFFSET: usize = 0x3F8;
@@ -95,6 +96,23 @@ const EMULATOR_MCI_END_ADDR: usize = EMULATOR_MCI_ADDR + EMULATOR_MCI_ADDR_RANGE
 
 // page size of simulated flash
 const FLASH_PAGE_SIZE: usize = 256;
+
+fn owner_manifest_svn_bitmap(svn: u32) -> Option<u64> {
+    match svn {
+        0..=63 => Some((1u64 << svn) - 1),
+        64 => Some(u64::MAX),
+        _ => None,
+    }
+}
+
+#[test]
+fn owner_manifest_svn_bitmap_limits() {
+    for svn in [0, 1, 5, 63, 64] {
+        assert_eq!(owner_manifest_svn_bitmap(svn).unwrap().count_ones(), svn);
+    }
+    assert_eq!(owner_manifest_svn_bitmap(65), None);
+    assert_eq!(owner_manifest_svn_bitmap(u32::MAX), None);
+}
 
 pub(crate) fn fmt_uio_error(err: UioError) -> String {
     format!("{err:?}")
@@ -2057,6 +2075,14 @@ impl HwModel for ModelFpgaSubsystem {
         }
 
         if let Some(reg) = boot_params.initial_ss_strap_generic_3 {
+            // MCU ROM fills the strap from OTP. Seed the requested floor before
+            // allowing it to populate the Caliptra fuse registers.
+            let bitmap = owner_manifest_svn_bitmap((reg >> 8) & 0xff)
+                .ok_or("Owner manifest SVN exceeds the 64-bit OTP field")?;
+            let mut otp = self.otp_slice().to_vec();
+            otp[OTP_OWNER_SOC_MANIFEST_MIN_SVN_OFFSET..OTP_OWNER_SOC_MANIFEST_MIN_SVN_OFFSET + 8]
+                .copy_from_slice(&bitmap.to_le_bytes());
+            self.otp_slice().copy_from_slice(&otp);
             self.soc_ifc().ss_strap_generic().at(3).write(|_| reg);
         }
 
