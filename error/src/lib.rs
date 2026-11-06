@@ -1823,6 +1823,11 @@ impl CaliptraError {
             "OCP LOCK Error: MEK is invalid XTS key"
         ),
         (
+            RUNTIME_OCP_LOCK_HPKE_KEYS_ROTATED_DUE_TO_ERROR,
+            0x000E00B5,
+            "OCP LOCK Error: HPKE keys were rotated due to a decapsulation or open error"
+        ),
+        (
             RUNTIME_INVALID_ROM_PERSISTENT_DATA_MARKER,
             0x000E007A,
             "Runtime Error: Invalid ROM persistent data marker"
