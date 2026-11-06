@@ -2008,6 +2008,29 @@ impl HwModel for ModelFpgaSubsystem {
 
         let saved_input_wires = [(!params.uds_fuse_row_granularity_64 as u32) << 0, 0];
 
+        let mut otp_init = Vec::new();
+        if let Some(metadata) = params.ss_init_params.fe_metadata {
+            otp_init.resize(
+                otp::SECRET_PROD_PARTITION_3_OFFSET + otp::SECRET_PROD_PARTITION_3_SIZE,
+                0,
+            );
+            for (offset, words) in [
+                otp::SECRET_PROD_PARTITION_0_OFFSET,
+                otp::SECRET_PROD_PARTITION_1_OFFSET,
+                otp::SECRET_PROD_PARTITION_2_OFFSET,
+                otp::SECRET_PROD_PARTITION_3_OFFSET,
+            ]
+            .into_iter()
+            .zip(metadata)
+            {
+                // Each FE partition starts with an eight-byte seed.
+                for (index, word) in words.into_iter().enumerate() {
+                    let start = offset + 8 + index * 4;
+                    otp_init[start..start + 4].copy_from_slice(&word.to_le_bytes());
+                }
+            }
+        }
+
         let mut m = Self {
             devs,
             wrapper,
@@ -2028,7 +2051,7 @@ impl HwModel for ModelFpgaSubsystem {
                 otp_mmio,
             }),
 
-            otp_init: vec![],
+            otp_init,
             fuses: params.fuses,
             realtime_thread: None,
             realtime_thread_exit_flag,
