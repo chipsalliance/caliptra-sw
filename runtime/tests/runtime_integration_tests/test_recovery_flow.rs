@@ -19,7 +19,7 @@ use caliptra_common::mailbox_api::{
 };
 use caliptra_drivers::DmaRecovery;
 #[cfg(not(feature = "fpga_subsystem"))]
-use caliptra_emu_bus::{Device, EventData};
+use caliptra_emu_bus::{Device, EventData, RecoveryCommandCode};
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{DefaultHwModel, HwModel, InitParams};
 use caliptra_image_crypto::OsslCrypto as Crypto;
@@ -337,6 +337,21 @@ fn test_loads_mcu_fw() {
             }
         }
         assert!(found);
+
+        // The flow reports the terminal codes: DEVICE_STATUS 0x1 'Device
+        // healthy' and RECOVERY_STATUS 0x3 'Recovery successful' carrying
+        // the MCU firmware image index in bits 4-7.
+        let device_status =
+            crate::common::read_recovery_register(&mut model, RecoveryCommandCode::DeviceStatus);
+        assert_eq!(
+            u32::from(device_status[0]),
+            DmaRecovery::DEVICE_STATUS_HEALTHY
+        );
+        let recovery_status =
+            crate::common::read_recovery_register(&mut model, RecoveryCommandCode::RecoveryStatus);
+        let status_byte = u32::from(recovery_status[0]);
+        assert_eq!(status_byte & 0xF, DmaRecovery::RECOVERY_STATUS_SUCCESSFUL);
+        assert_eq!(status_byte >> 4, DmaRecovery::MCU_FIRMWARE_IMAGE_INDEX);
     }
 }
 
