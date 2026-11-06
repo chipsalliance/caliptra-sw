@@ -66,6 +66,20 @@ impl RecoveryFlow {
         dma_recovery.set_boot_failure_reason(recovery_reason)
     }
 
+    /// Reports RECOVERY_STATUS 0xC ('Recovery failed') with the index of the
+    /// image that failed, so the Recovery Agent stops polling. Authentication
+    /// failures go through `set_recovery_boot_failure` instead, which reports
+    /// 0xD with a boot failure reason.
+    ///
+    /// Drops the error of the status write itself, so the caller returns the
+    /// error of the stage that failed and CPTRA_FW_ERROR_FATAL keeps naming
+    /// what went wrong. A DMA error on the status write would replace the
+    /// stage error with a less specific error.
+    fn set_recovery_failed(drivers: &Drivers, image_idx: u32) {
+        let dma_recovery = Self::dma_recovery(&drivers.soc_ifc, &drivers.dma);
+        let _ = dma_recovery.set_recovery_status(DmaRecovery::RECOVERY_STATUS_FAILED, image_idx);
+    }
+
     /// Load the SoC Manifest and MCU firwmare
     #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     pub(crate) fn recovery_flow(drivers: &mut Drivers) -> CaliptraResult<()> {
@@ -82,7 +96,12 @@ impl RecoveryFlow {
             )?;
 
             // download SoC manifest
-            dma_recovery.download_image_to_caliptra(SOC_MANIFEST_INDEX, &mut buffer)?;
+            if let Err(err) =
+                dma_recovery.download_image_to_caliptra(SOC_MANIFEST_INDEX, &mut buffer)
+            {
+                Self::set_recovery_failed(drivers, SOC_MANIFEST_INDEX);
+                return Err(err);
+            }
             buffer.as_bytes()
         };
 
@@ -120,13 +139,25 @@ impl RecoveryFlow {
             dma_recovery.wait_for_payload_not_available();
 
             let mcu_size_bytes =
-                dma_recovery.download_image_to_mcu(MCU_FIRMWARE_INDEX, AesDmaMode::None)?;
-            let digest = dma_recovery.sha384_mcu_sram(
+                match dma_recovery.download_image_to_mcu(MCU_FIRMWARE_INDEX, AesDmaMode::None) {
+                    Ok(mcu_size_bytes) => mcu_size_bytes,
+                    Err(err) => {
+                        Self::set_recovery_failed(drivers, MCU_FIRMWARE_INDEX);
+                        return Err(err);
+                    }
+                };
+            let digest = match dma_recovery.sha384_mcu_sram(
                 &mut drivers.sha2_512_384_acc,
                 0,
                 mcu_size_bytes,
                 AesDmaMode::None,
-            )?;
+            ) {
+                Ok(digest) => digest,
+                Err(err) => {
+                    Self::set_recovery_failed(drivers, MCU_FIRMWARE_INDEX);
+                    return Err(err);
+                }
+            };
             (digest, mcu_size_bytes)
         };
 
@@ -195,15 +226,22 @@ impl RecoveryFlow {
                 // and verifies the SHA-384 against only the ciphertext portion,
                 // so strip the tag from both the size and the digest.
                 const GCM_TAG_SIZE: u32 = 16;
-                let ciphertext_size = mcu_size_bytes
-                    .checked_sub(GCM_TAG_SIZE)
-                    .ok_or(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
-                let ciphertext_digest = dma_recovery.sha384_mcu_sram(
+                let Some(ciphertext_size) = mcu_size_bytes.checked_sub(GCM_TAG_SIZE) else {
+                    Self::set_recovery_failed(drivers, MCU_FIRMWARE_INDEX);
+                    return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
+                };
+                let ciphertext_digest = match dma_recovery.sha384_mcu_sram(
                     &mut drivers.sha2_512_384_acc,
                     0,
                     ciphertext_size,
                     AesDmaMode::None,
-                )?;
+                ) {
+                    Ok(ciphertext_digest) => ciphertext_digest,
+                    Err(err) => {
+                        Self::set_recovery_failed(drivers, MCU_FIRMWARE_INDEX);
+                        return Err(err);
+                    }
+                };
                 drivers.mcu_fw_info.size = ciphertext_size;
                 drivers.mcu_fw_info.sha384 = ciphertext_digest.into();
 
