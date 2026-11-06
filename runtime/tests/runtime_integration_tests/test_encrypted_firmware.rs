@@ -154,6 +154,68 @@ fn test_encrypted_firmware_decrypt_dma() {
     }
 }
 
+/// An encrypted MCU image shorter than the GCM tag fails the size check in
+/// the recovery flow. The device reports RECOVERY_STATUS 0xC 'Recovery
+/// failed' with the MCU image index, so the Recovery Agent stops polling.
+#[cfg(not(feature = "fpga_subsystem"))]
+#[cfg_attr(any(feature = "verilator", feature = "fpga_realtime"), ignore)]
+#[test]
+fn test_short_encrypted_firmware_reports_recovery_failed() {
+    // Shorter than the 16-byte GCM tag, so ciphertext_size underflows.
+    let mcu_fw_image = vec![0xA5u8; 8];
+
+    // The manifest digest covers the delivered image so that
+    // AUTHORIZE_AND_STASH passes and the flow reaches the size check.
+    const IMAGE_SOURCE_IN_REQUEST: u32 = 1;
+    let mut flags = ImageMetadataFlags(0);
+    flags.set_image_source(IMAGE_SOURCE_IN_REQUEST);
+    flags.set_exec_bit(2);
+    let crypto = Crypto::default();
+    let digest = from_hw_format(&crypto.sha384_digest(&mcu_fw_image).unwrap());
+    let metadata = vec![AuthManifestImageMetadata {
+        fw_id: 2,
+        flags: flags.0,
+        digest,
+        ..Default::default()
+    }];
+    let soc_manifest = create_auth_manifest_with_metadata(metadata);
+    let soc_manifest_bytes = soc_manifest.as_bytes();
+
+    let rom = crate::common::rom_for_fw_integration_tests().unwrap();
+    let args = RuntimeTestArgs {
+        init_params: Some(InitParams {
+            rom: &rom,
+            subsystem_mode: true,
+            ss_init_params: SubsystemInitParams {
+                enable_mcu_uart_log: true,
+                ..Default::default()
+            },
+            ..Default::default()
+        }),
+        soc_manifest: Some(soc_manifest_bytes),
+        mcu_fw_image: Some(&mcu_fw_image),
+        encrypted_boot: true,
+        successful_reach_rt: false,
+        ..Default::default()
+    };
+
+    let mut model = run_rt_test(args);
+    model.step_until_fatal_error(
+        CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS.into(),
+        30_000_000,
+    );
+
+    let recovery_status = read_recovery_register(&mut model, RecoveryCommandCode::RecoveryStatus);
+    // Byte 0 packs the status in bits [3:0] and the image index in bits
+    // [7:4]: 0xC 'Recovery failed' for image 2, the MCU firmware.
+    // `set_recovery_status` modifies the status and index fields only, so
+    // byte 1 stays 0.
+    assert_eq!(
+        u16::from_le_bytes(recovery_status[..2].try_into().unwrap()),
+        0x2C
+    );
+}
+
 /// Test that CM_AES_GCM_DECRYPT_DMA fails when not in subsystem mode.
 #[cfg_attr(any(feature = "verilator", feature = "fpga_realtime",), ignore)]
 #[test]
