@@ -458,6 +458,14 @@ pub struct BootParams<'a> {
     /// Use encrypted firmware boot (RI_DOWNLOAD_ENCRYPTED_FIRMWARE instead of RI_DOWNLOAD_FIRMWARE).
     /// This sets BootMode::EncryptedFirmware and skips MCU activation in the recovery flow.
     pub encrypted_boot: bool,
+    /// After an encrypted boot, wait for Caliptra RT and decrypt the MCU
+    /// firmware in-place, as MCU ROM does on real hardware. A test that
+    /// expects the recovery flow to fail before RT is ready sets the flag to
+    /// false: the wait reaches RT_READY_FOR_COMMANDS only on a flow that
+    /// succeeds, so otherwise `boot()` runs into the `step_until_boot_status`
+    /// cycle limit and panics, and the test reports a boot status timeout
+    /// instead of the failure it set up.
+    pub simulate_mcu_rom_decrypt: bool,
 }
 
 impl Default for BootParams<'_> {
@@ -474,6 +482,7 @@ impl Default for BootParams<'_> {
             soc_manifest: Default::default(),
             mcu_fw_image: Default::default(),
             encrypted_boot: false,
+            simulate_mcu_rom_decrypt: true,
         }
     }
 }
@@ -1000,9 +1009,11 @@ pub trait HwModel: SocManager {
                     // Simulate what the MCU ROM does on real hardware: wait for
                     // Caliptra RT to be ready, then decrypt the MCU firmware
                     // in-place via CM_IMPORT + CM_AES_GCM_DECRYPT_DMA.
-                    if let Some(mcu_fw) = boot_params.mcu_fw_image {
-                        self.step_until_boot_status(RT_READY_FOR_COMMANDS, true);
-                        self.decrypt_encrypted_mcu_firmware(mcu_fw)?;
+                    if boot_params.simulate_mcu_rom_decrypt {
+                        if let Some(mcu_fw) = boot_params.mcu_fw_image {
+                            self.step_until_boot_status(RT_READY_FOR_COMMANDS, true);
+                            self.decrypt_encrypted_mcu_firmware(mcu_fw)?;
+                        }
                     }
                 } else {
                     self.upload_firmware_rri(
