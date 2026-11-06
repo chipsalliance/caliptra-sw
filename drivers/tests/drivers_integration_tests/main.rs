@@ -1447,6 +1447,16 @@ fn test_mailbox_txn_drop() {
 }
 
 #[test]
+#[cfg(not(any(
+    feature = "verilator",
+    feature = "fpga_realtime",
+    feature = "fpga_subsystem"
+)))]
+fn test_dma_checked_word_recovers_from_busy_error() {
+    run_driver_test(&firmware::driver_tests::DMA_CHECKED);
+}
+
+#[test]
 fn test_dma_sha384() {
     if cfg!(feature = "fpga_realtime") {
         // not supported

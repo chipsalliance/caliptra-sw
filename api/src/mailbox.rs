@@ -2031,6 +2031,15 @@ impl Response for FipsVersionResp {}
 
 // FW_INFO
 // No command-specific input args
+#[repr(u32)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FePartitionStatus {
+    Unprovisioned = 0,
+    Provisioned = 1,
+    Zeroized = 2,
+    Error = 3,
+}
+
 #[repr(C)]
 #[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
 pub struct FwInfoResp {
@@ -2058,11 +2067,15 @@ pub struct FwInfoResp {
     pub owner_auth_manifest_current_svn: u32,
     pub owner_auth_manifest_min_svn: u32,
     pub debug_policy: u32,
+    /// Partition i occupies bits [2*i+1:2*i]; all partitions report Error outside subsystem mode.
+    /// Values are defined by FePartitionStatus; bits 31:8 are reserved.
+    pub fe_status: u32,
 }
 
 impl FwInfoResp {
     pub const DEBUG_FIRMWARE_ACTIVE: u32 = 1 << 0;
     pub const DEBUG_AUTH_MANIFEST_ACTIVE: u32 = 1 << 1;
+    pub const FE_STATUS_ERROR_ALL: u32 = 0xff;
 }
 
 // CAPABILITIES
