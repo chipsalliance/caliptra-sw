@@ -1378,6 +1378,8 @@ DMTF otherName subject alternative name extension until reset.
 
 Command Code: `0x414C_544E` ("ALTN")
 
+**Note**: This command is only available in the locality of the PL0 PAUSER.
+
 *Table: `ADD_SUBJECT_ALT_NAME` input arguments*
 
 | **Name**                  | **Type** | **Description**
@@ -3522,7 +3524,8 @@ Caliptra models PAUSER callers to its mailbox as having 1 of 2 privilege levels:
   is denoted in the signed Caliptra firmware image. The PL0 PAUSER may call any
   supported DPE commands. Only PL0 can use the CertifyKey command. Success of the
   CertifyKey command signifies to the caller that it is at PL0. Only PL0 can use
-  the POPULATE\_IDEV\_ECC384\_CERT and POPULATE\_IDEV\_MLDSA87\_CERT mailbox commands.
+  the POPULATE\_IDEV\_ECC384\_CERT, POPULATE\_IDEV\_MLDSA87\_CERT, and
+  ADD\_SUBJECT\_ALT\_NAME mailbox commands.
 * PL1 - Restricted privilege. All other PAUSERs in the SoC are PL1. Caliptra
   SHALL fail any calls to the DPE CertifyKey with format=X509 by PL1 callers.
   PL1 callers should use the CSR format instead.

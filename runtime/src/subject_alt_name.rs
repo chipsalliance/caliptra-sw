@@ -26,6 +26,9 @@ impl AddSubjectAltNameCmd {
 
     #[inline(never)]
     pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<usize> {
+        // ADD_SUBJECT_ALT_NAME MUST only be called from PL0
+        drivers.ensure_pl0()?;
+
         if cmd_args.len() <= core::mem::size_of::<AddSubjectAltNameReq>() {
             let mut cmd = AddSubjectAltNameReq::default();
             cmd.as_mut_bytes()[..cmd_args.len()].copy_from_slice(cmd_args);
