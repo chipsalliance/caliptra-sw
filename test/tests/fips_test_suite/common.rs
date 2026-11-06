@@ -80,11 +80,16 @@ const ROM_EXP_2_0_4: RomExpVals = RomExpVals {
     ..ROM_EXP_2_0_3
 };
 
-const ROM_EXP_CURRENT: RomExpVals = RomExpVals { ..ROM_EXP_2_0_4 };
+const ROM_EXP_2_0_5: RomExpVals = RomExpVals {
+    rom_version: 0x1005, // 2.0.5
+    ..ROM_EXP_2_0_4
+};
+
+const ROM_EXP_CURRENT: RomExpVals = RomExpVals { ..ROM_EXP_2_0_5 };
 
 #[test]
 fn current_rom_version_matches_builder() {
-    assert_eq!(ROM_EXP_CURRENT.rom_version, 0x1004);
+    assert_eq!(ROM_EXP_CURRENT.rom_version, 0x1005);
     assert_eq!(ROM_EXP_CURRENT.rom_version, version::get_rom_version());
 }
 
@@ -109,7 +114,28 @@ const RT_EXP_2_0_2: RtExpVals = RtExpVals {
     fw_version: 0x0200_0002, // 2.0.2
 };
 
-const RT_EXP_CURRENT: RtExpVals = RtExpVals { ..RT_EXP_2_0_2 };
+const RT_EXP_2_0_4: RtExpVals = RtExpVals {
+    fmc_version: 0x1004,     // 2.0.4
+    fw_version: 0x0200_0004, // 2.0.4
+};
+
+const RT_EXP_CURRENT: RtExpVals = RtExpVals { ..RT_EXP_2_0_4 };
+
+#[test]
+fn current_runtime_version_matches_builder() {
+    assert_eq!(RT_EXP_CURRENT.fmc_version, 0x1004);
+    assert_eq!(RT_EXP_CURRENT.fw_version, 0x0200_0004);
+    assert_eq!(RT_EXP_CURRENT.fmc_version, version::get_fmc_version());
+    assert_eq!(RT_EXP_CURRENT.fw_version, version::get_runtime_version());
+}
+
+#[test]
+fn legacy_version_profiles_are_preserved() {
+    assert_eq!(ROM_EXP_2_0_4.rom_version, 0x1004);
+    assert_eq!(ROM_EXP_2_0_5.capabilities, ROM_EXP_2_0_4.capabilities);
+    assert_eq!(RT_EXP_2_0_2.fmc_version, 0x1002);
+    assert_eq!(RT_EXP_2_0_2.fw_version, 0x0200_0002);
+}
 
 // === Getter implementations ===
 // TODO: These could be improved
@@ -141,6 +167,7 @@ impl RomExpVals {
                 "2_0_2" => ROM_EXP_2_0_2,
                 "2_0_3" => ROM_EXP_2_0_3,
                 "2_0_4" => ROM_EXP_2_0_4,
+                "2_0_5" => ROM_EXP_2_0_5,
                 _ => panic!(
                     "FIPS Test: Unknown version for expected ROM values ({})",
                     version
@@ -159,6 +186,7 @@ impl RtExpVals {
                 "2_0_0" => RT_EXP_2_0_0,
                 "2_0_1" => RT_EXP_2_0_1,
                 "2_0_2" => RT_EXP_2_0_2,
+                "2_0_4" => RT_EXP_2_0_4,
                 _ => panic!(
                     "FIPS Test: Unknown version for expected Runtime values ({})",
                     version

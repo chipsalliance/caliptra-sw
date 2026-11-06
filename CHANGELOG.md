@@ -1,3 +1,84 @@
+# fw-2.0.4
+
+This is a combined runtime and FMC release.
+
+## Caliptra Firmware 2.0.4 Release Notes
+
+Release notes for changes introduced since Firmware 2.0.3.
+
+### Features
+
+- **Authorization, Attestation & DPE**:
+  - Support owner-only authorization manifests and backward-compatible manifest selection for firmware activation (#4233, #3720)
+  - Bind original/vendor SoC manifests to an optional signed device UEID entry (#4213)
+  - Support vendor-authorized debug artifacts and report active debug policy in `FW_INFO` (#4219)
+  - Add the OCP EAT profile, ECC/ML-DSA algorithm selection, and CDDL-compliant attested CSR templates (#4181, #4223)
+  - Support context-aware raw ML-DSA signing through DPE (#4314)
+- **Runtime Self-Tests**:
+  - Add opt-in command-count-triggered FIPS self-tests using the existing 2.0 suite, with startup-latched configuration and idle-mailbox scheduling (#4351)
+- **Host Library**:
+  - Add `INSTALL_OWNER_PK_HASH` and `SET_OWNER_AUTH_MANIFEST` commands to libcaliptra (#4293, #4328)
+  - Add streaming `CM_SHA_INIT`, `CM_SHA_UPDATE`, and `CM_SHA_FINAL` commands and `MLDSA87_VERIFY` to libcaliptra (#4357, #4373)
+
+### Fixes
+
+- **Authorization & Attestation**:
+  - Extend the vendor+owner SoC manifest owner preamble signature to cover version, SVN, and flags as well as owner public keys (#4343)
+  - Bind MCU firmware activation to the signed installation destination and validate complete destination/staging ranges and SRAM capacity before modifying state (#4323)
+  - Enforce the maximum firmware SVN of 128 in Runtime image verification, including when anti-rollback is disabled or the device is unprovisioned (#4251)
+  - Preserve named `RTMR`, `CCIV`, `SOMV`, `SOMO`, and `MCFW` TCI identifier bytes in DPE attestation (#4338)
+  - Reserve PCRs and enforce PL0 access for privileged mailbox operations and `EXTEND_PCR` (#4138, #4175, #4170, #4197)
+- **Cryptography, FMC & Recovery**:
+  - Enforce key-usage checks for cryptographic mailbox AES operations (#4164)
+  - Zeroize temporary plaintext AES, AES-GCM, and ECDH mailbox context buffers and clear cryptographic hardware on driver errors (#4367, #3346)
+  - Run FMC fatal-error cleanup when firmware handoff table validation fails and report ML-DSA-specific FMC alias CSR errors (#4304, #4306)
+  - Wait for recovery payload deassertion between images and report device healthy after recovery completes (#4236)
+  - Wait for CSRNG command readiness and completion to prevent FIFO overruns and hardware stalls (#4322)
+  - Honor configured 64-bit mailbox watchdog timeouts while enforcing a 20-million-cycle minimum; DWORD hashing mode is not included (#4275)
+- **Build, FPGA & Tests**:
+  - Update the Rust toolchain to 1.96 and improve 2.0 nightly artifact uploads, MCU revision coverage, and FPGA smoke-test reliability (#4135, #4229)
+  - Synchronize FPGA realtime/reset access with an `RwLock` while retaining the existing 2.0 reset sequences (#4316)
+  - Honor IDevID certificate attributes in subsystem FPGA OTP and correct recovery-padding and subsystem TCI test assumptions (#4376)
+  - Gate debug-update and platform-owned owner-SVN strap tests on supported ROM/hardware configurations (#4231, #4289)
+  - Align emulator ECC invalid-key/error-reset behavior with hardware and fix the libcaliptra Zephyr include path and ML-DSA verification declaration (#3341, #3383, #4184)
+  - Add the Mjolnir auditing workflow and clarify fatal-error strap and PCR/CDI documentation (#4272, #4306)
+
+### Compatibility Notes
+
+- **Firmware images**: The linker and image generator now place FMC and Runtime entry points at their load addresses. Rebuild and re-sign images with the updated tools; ROM 2.0.5 rejects legacy nonzero-offset entry points and noncontiguous image layouts (#4280, #4271).
+- **Authorization manifest signatures**: Vendor+owner SoC manifests using the previous owner preamble signing scheme must be re-signed to cover `version`, `svn`, `flags`, and owner public keys. Owner-only manifests loaded with `SET_OWNER_AUTH_MANIFEST` are unaffected (#4343).
+- **SoC manifest measurements**: `SOMO` for vendor+owner SoC manifests now measures the signed policy fields as well as owner public keys. Update pinned `SOMO` reference measurements used by attestation verifiers (#4343).
+- **DPE identities**: Corrected named TCI identifiers change affected certificate identifiers and DPE-derived keys. A cold boot is required; retained contexts are not migrated (#4338).
+- **Optional UEID binding**: Firmware ID `0xFFF` is reserved for the optional original/vendor-manifest UEID entry. Legacy manifests without that entry remain valid, and owner-only manifests retain ordinary firmware-ID semantics (#4213).
+- **Autonomous self-tests**: RT samples `CPTRA_GENERIC_INPUT_WIRES[1]` at every startup, including builds without `fips_self_test`. Keep bit 0 clear unless deliberately enabling a valid configuration in a supported build; an invalid or unsupported enabled configuration fails startup with `RUNTIME_INVALID_SELF_TEST_CONFIG`. Tests are workload-triggered, not time-based; continuous mailbox traffic can defer them (#4351).
+- **ROM-dependent fixes**: A firmware-only update cannot install the ROM fixes listed below. Use a newly built ROM 2.0.5 artifact to obtain those boot and image-verification changes.
+
+**Full Changelog**: https://github.com/chipsalliance/caliptra-sw/compare/fw-2.0.3...fw-2.0.4
+
+# rom-2.0.5
+
+## Caliptra ROM 2.0.5 Release Notes
+
+Release notes for changes introduced since ROM 2.0.4.
+
+### Fixes
+
+- **Boot & Image Verification**:
+  - Verify firmware bytes after loading into ICCM and make post-load Runtime digest mismatches fatal during update reset (#3702, #4150)
+  - Validate FMC/Runtime entry points against their authenticated image bounds and require entry points to equal load addresses (#4224, #4280)
+  - Authenticate the protected manifest snapshot, reject image segments outside the supplied bundle, require contiguous FMC/Runtime data, and reject overflowing AXI source ranges (#4271)
+  - Enforce the maximum firmware SVN of 128 independently of lifecycle and anti-rollback settings (#4251)
+- **Cryptography & Self-Tests**:
+  - Wait for CSRNG command readiness and completion, and zeroize cryptographic hardware on driver errors (#4322, #3346)
+  - Report boot-time KAT failures as non-fatal and continue remaining tests in the Unprovisioned lifecycle. Preserve strict handling in provisioned lifecycles and explicit self-test requests; entropy-restoration errors remain fatal in every lifecycle (#4350).
+
+### Compatibility Notes
+
+- ROM 2.0.5 requires images whose entry points equal their load addresses and whose FMC/Runtime payloads are contiguous. Previously accepted signed images with nonzero in-image entry offsets are rejected (#4280, #4271).
+- Rebuild ROM artifacts from this release preparation to obtain the embedded 2.0.5 version and updated logging/non-logging frozen hashes. Existing ROM 2.0.4 artifacts and tags are unchanged.
+
+**Full Changelog**: https://github.com/chipsalliance/caliptra-sw/compare/rom-2.0.4...rom-2.0.5
+
 # rom-2.0.4
 
 ## Caliptra ROM 2.0.4 Release Notes
