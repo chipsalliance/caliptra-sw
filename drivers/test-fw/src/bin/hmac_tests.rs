@@ -1284,6 +1284,7 @@ fn test_hmac_padding_boundaries() {
     }
 }
 
+#[cfg(feature = "last-hmac-block")]
 fn test_hmac_streaming_kv_output_is_final_only() {
     let mut hmac = unsafe { Hmac::new(HmacReg::new()) };
     // This read-only observer checks status between single-threaded driver calls.
@@ -1337,5 +1338,6 @@ test_suite! {
     test_hmac3_512,
     test_hmac512_multi_block,
     test_hmac_padding_boundaries,
+    #[cfg(feature = "last-hmac-block")]
     test_hmac_streaming_kv_output_is_final_only,
 }

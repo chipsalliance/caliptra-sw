@@ -114,7 +114,7 @@ macro_rules! runtime_handlers {
 
 #[macro_export]
 macro_rules! test_suite {
-    ($($test_case: ident,)*) => {
+    ($($(#[$attr:meta])* $test_case: ident,)*) => {
         use core::arch::global_asm;
         use core::panic::PanicInfo;
         use caliptra_test_harness::{println, Testable};
@@ -148,6 +148,7 @@ macro_rules! test_suite {
         #[no_mangle]
         pub extern "C" fn main() {
             $(
+                $(#[$attr])*
                 $test_case.run();
             )*
         }
