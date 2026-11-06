@@ -32,7 +32,10 @@ add_files [ glob $rtlDir/src/*/rtl/*.v ]
 
 # Remove spi_host files that aren't used yet and are flagged as having syntax errors
 # TODO: Re-include these files when spi_host is used.
-remove_files [ glob $rtlDir/src/spi_host/rtl/*.sv ]
+set spi_host_files [glob -nocomplain $rtlDir/src/spi_host/rtl/*.sv]
+if {[llength $spi_host_files] > 0} {
+  remove_files $spi_host_files
+}
 
 # Add FPGA specific sources
 add_files [ glob $fpgaDir/src/*.sv]
@@ -46,6 +49,32 @@ file copy [ glob $rtlDir/src/ahb_lite_bus/rtl/ahb_lite_address_decoder.sv ] $out
 exec sed -i {1i `include \"config_defines.svh\"} $outputDir/ahb_lite_address_decoder.sv
 remove_files [ glob $rtlDir/src/ahb_lite_bus/rtl/ahb_lite_address_decoder.sv ]
 add_files $outputDir/ahb_lite_address_decoder.sv
+
+# Workaround for 2.2 onwards: el2_mubi_pkg.sv `include`s lib/el2_assert.sv, a macro-only
+# file that no module references. The IP packager drops unreferenced files, so the include
+# cannot be resolved when the packaged IP is synthesized. Inline the macros instead.
+set mubi $rtlDir/src/riscv_core/veer_el2/rtl/el2_mubi_pkg.sv
+set mubi_assert $rtlDir/src/riscv_core/veer_el2/rtl/lib/el2_assert.sv
+if {[file exists $mubi]} {
+  set fp [open $mubi r]
+  set mubi_src [read $fp]
+  close $fp
+  set fp [open $mubi_assert r]
+  set assert_src [read $fp]
+  close $fp
+
+  set include_line "`include \"lib/el2_assert.sv\""
+  if { [string first $include_line $mubi_src] < 0 } {
+    puts "ERROR: $include_line not found in $mubi"
+    exit
+  }
+
+  set fp [open $outputDir/el2_mubi_pkg.sv w]
+  puts -nonewline $fp [string map [list $include_line $assert_src] $mubi_src]
+  close $fp
+  remove_files $mubi
+  add_files $outputDir/el2_mubi_pkg.sv
+}
 
 # Mark all Verilog sources as SystemVerilog because some of them have SystemVerilog syntax.
 set_property file_type SystemVerilog [get_files *.v]
