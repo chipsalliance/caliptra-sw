@@ -13,7 +13,7 @@ Abstract:
 --*/
 
 use bitfield::size_of;
-use caliptra_emu_bus::{Bus, BusError, ReadOnlyRegister, WriteOnlyRegister};
+use caliptra_emu_bus::{Bus, BusError, ReadOnlyRegister, ReadWriteRegister, WriteOnlyRegister};
 use caliptra_emu_derive::Bus;
 use caliptra_emu_types::RvSize;
 use smlang::statemachine;
@@ -26,7 +26,7 @@ register_bitfields! {
 
     /// Status Register
     pub Status [
-        DAI_ERROR OFFSET(7) NUMBITS(1) [],
+        DAI_ERROR OFFSET(24) NUMBITS(1) [],
         /// Data Access Interface Idle Status
         DAI_IDLE OFFSET(30) NUMBITS(1) [
             Busy = 0,
@@ -37,6 +37,7 @@ register_bitfields! {
 
 #[derive(PartialEq)]
 pub enum DaiCmd {
+    Read = 0x1,
     Write = 0x2,
     Digest = 0x4,
     Zeroize = 0x8,
@@ -47,6 +48,7 @@ impl TryFrom<u32> for DaiCmd {
 
     fn try_from(val: u32) -> Result<Self, Self::Error> {
         match val {
+            0x1 => Ok(DaiCmd::Read),
             0x2 => Ok(DaiCmd::Write),
             0x4 => Ok(DaiCmd::Digest),
             0x8 => Ok(DaiCmd::Zeroize),
@@ -57,10 +59,12 @@ impl TryFrom<u32> for DaiCmd {
 
 statemachine! {
     transitions: {
+        Idle + Read [is_valid_read] / start_read = Reading,
         *Idle + Write [is_valid_write] / start_write = Writing,
         Idle + Digest [is_valid_digest] / start_digest = Computing,
         Idle + Zeroize [is_valid_zeroize] / start_zeroize = Zeroizing,
 
+        Reading + Complete / finish_read = Idle,
         Writing + Complete / finish_write = Idle,
         Computing + Complete / finish_digest = Idle,
         Zeroizing + Complete / finish_zeroize = Idle,
@@ -91,6 +95,7 @@ pub struct Context {
     pub fuse_bank: [u32; FUSE_BANK_SIZE_BYTES / size_of::<u32>()],
     pub error_injection: bool,
     pub dai_error: bool,
+    pub secret_digest_read_locked: bool,
     pub soc_reg: SocRegistersInternal,
 }
 
@@ -105,6 +110,7 @@ impl Context {
             fuse_bank: [0; FUSE_BANK_SIZE_BYTES / size_of::<u32>()],
             error_injection: false,
             dai_error: false,
+            secret_digest_read_locked: false,
             soc_reg,
         }
     }
@@ -123,6 +129,50 @@ impl Context {
 }
 
 impl StateMachineContext for Context {
+    fn is_valid_read(&self) -> Result<bool, ()> {
+        let addr = self.address.ok_or(())?;
+        let words = if self.granularity() == Granularity::Bits64
+            || matches!(addr, 64 | 72 | 88 | 96 | 112 | 120 | 136 | 144 | 160 | 168)
+        {
+            2
+        } else {
+            1
+        };
+        Ok(!self.error_injection
+            && (addr as usize).is_multiple_of(words * 4)
+            && (addr as usize / 4) + words <= self.fuse_bank.len())
+    }
+
+    fn start_read(&mut self) -> Result<(), ()> {
+        let addr = self.address.take().ok_or(())?;
+        if caliptra_registers::CALIPTRA_HW_REV_CHOSEN == "latest"
+            && matches!(addr, 64 | 88 | 112 | 136 | 160)
+        {
+            let debug_intent = self.soc_reg.read(RvSize::Word, 0x530).map_err(|_| ())? & 1 != 0;
+            if self.secret_digest_read_locked || debug_intent {
+                self.rdata0 = Some(0);
+                self.rdata1 = Some(0);
+                return Ok(());
+            }
+        }
+        let idx = addr as usize / 4;
+        self.rdata0 = Some(self.fuse_bank[idx]);
+        self.rdata1 = Some(
+            if self.granularity() == Granularity::Bits64
+                || matches!(addr, 64 | 72 | 88 | 96 | 112 | 120 | 136 | 144 | 160 | 168)
+            {
+                self.fuse_bank[idx + 1]
+            } else {
+                0
+            },
+        );
+        Ok(())
+    }
+
+    fn finish_read(&mut self) -> Result<(), ()> {
+        Ok(())
+    }
+
     fn is_valid_write(&self) -> Result<bool, ()> {
         // Check that we have a valid address and required write data
         match (self.address, self.wdata0) {
@@ -156,11 +206,11 @@ impl StateMachineContext for Context {
     }
 
     // Validate digest command parameters.
-    // The digest operation is only valid when the address points to the base of the UDS fuses (relative address 0).
+    // The address must point to the beginning of a UDS or FE partition.
     fn is_valid_digest(&self) -> Result<bool, ()> {
         match self.address {
             None => Err(()),
-            Some(0) => Ok(true),
+            Some(0 | 80 | 104 | 128 | 152) => Ok(true),
             Some(_) => Err(()),
         }
     }
@@ -186,6 +236,19 @@ impl StateMachineContext for Context {
 
     fn start_digest(&mut self) -> Result<(), ()> {
         use sha2::{Digest, Sha512};
+
+        if let Some(addr @ (80 | 104 | 128 | 152)) = self.address.take() {
+            let idx = addr as usize / 4;
+            let mut hasher = Sha512::new();
+            for word in &self.fuse_bank[idx..idx + 2] {
+                hasher.update(word.to_be_bytes());
+            }
+            // Model a nonzero FE digest; this is not the hardware OTP digest algorithm.
+            let hash = hasher.finalize();
+            self.fuse_bank[idx + 2] = u32::from_be_bytes(hash[..4].try_into().unwrap());
+            self.fuse_bank[idx + 3] = u32::from_be_bytes(hash[4..8].try_into().unwrap());
+            return Ok(());
+        }
 
         // Compute SHA-512 hash of UDS portion of fuse bank (first 64 bytes)
         let mut hasher = Sha512::new();
@@ -273,6 +336,9 @@ pub struct FuseController {
     #[register(offset = 0x10, read_fn = read_status)]
     status: ReadOnlyRegister<u32, Status::Register>,
 
+    #[register(offset = 0x7c, read_fn = read_regwen, write_fn = write_regwen)]
+    direct_access_regwen: u32,
+
     #[register(offset = 0x80, write_fn = write_cmd)]
     direct_access_cmd: WriteOnlyRegister<u32>,
 
@@ -290,6 +356,10 @@ pub struct FuseController {
 
     #[register(offset = 0x94, read_fn = read_rdata1)]
     direct_access_rdata_1: ReadOnlyRegister<u32>,
+
+    #[register(offset = 0xec, read_fn = read_secret_digest_lock, write_fn = write_secret_digest_lock)]
+    _secret_digest_read_lock: ReadWriteRegister<u32>,
+
     state_machine: StateMachine<Context>,
 }
 
@@ -300,12 +370,14 @@ impl FuseController {
     pub fn new(soc_reg: SocRegistersInternal) -> Self {
         Self {
             status: ReadOnlyRegister::new(Status::DAI_IDLE::Idle.value),
+            direct_access_regwen: 1,
             direct_access_cmd: WriteOnlyRegister::new(0),
             direct_access_address: WriteOnlyRegister::new(0),
             direct_access_wdata_0: WriteOnlyRegister::new(0),
             direct_access_wdata_1: WriteOnlyRegister::new(0),
             direct_access_rdata_0: ReadOnlyRegister::new(0),
             direct_access_rdata_1: ReadOnlyRegister::new(0),
+            _secret_digest_read_lock: ReadWriteRegister::new(0),
             state_machine: StateMachine::new(Context::new(soc_reg)),
         }
     }
@@ -323,11 +395,15 @@ impl FuseController {
     }
 
     pub fn write_cmd(&mut self, _size: RvSize, val: u32) -> Result<(), BusError> {
+        if self.direct_access_regwen == 0 {
+            return Ok(());
+        }
         if let Ok(cmd) = DaiCmd::try_from(val) {
             // Reset error state before new command
             self.state_machine.context.dai_error = false;
 
             let event = match cmd {
+                DaiCmd::Read => Events::Read,
                 DaiCmd::Write => Events::Write,
                 DaiCmd::Digest => Events::Digest,
                 DaiCmd::Zeroize => Events::Zeroize,
@@ -343,6 +419,9 @@ impl FuseController {
     }
 
     pub fn write_address(&mut self, _size: RvSize, val: u32) -> Result<(), BusError> {
+        if self.direct_access_regwen == 0 {
+            return Ok(());
+        }
         // Read the UDS seed base address from SoC registers to determine the
         // fuse bank base. The firmware writes (dest & 0xFFF) where dest is
         // computed relative to this base.
@@ -363,12 +442,18 @@ impl FuseController {
     }
 
     pub fn write_wdata0(&mut self, _size: RvSize, val: u32) -> Result<(), BusError> {
+        if self.direct_access_regwen == 0 {
+            return Ok(());
+        }
         self.state_machine.context.wdata0 = Some(val);
         self.state_machine.context.rdata0 = Some(val);
         Ok(())
     }
 
     pub fn write_wdata1(&mut self, _size: RvSize, val: u32) -> Result<(), BusError> {
+        if self.direct_access_regwen == 0 {
+            return Ok(());
+        }
         self.state_machine.context.wdata1 = Some(val);
         self.state_machine.context.rdata1 = Some(val);
         Ok(())
@@ -382,11 +467,42 @@ impl FuseController {
         Ok(self.state_machine.context.rdata1.unwrap_or(0))
     }
 
+    pub fn read_regwen(&self, _size: RvSize) -> Result<u32, BusError> {
+        Ok(self.direct_access_regwen
+            * u32::from(matches!(self.state_machine.state(), States::Idle)))
+    }
+
+    pub fn write_regwen(&mut self, _size: RvSize, val: u32) -> Result<(), BusError> {
+        self.direct_access_regwen &= val & 1;
+        Ok(())
+    }
+
     pub fn set_error_injection(&mut self, enable: bool) {
         self.state_machine.context.error_injection = enable;
     }
 
+    pub fn read_secret_digest_lock(&self, _size: RvSize) -> Result<u32, BusError> {
+        if caliptra_registers::CALIPTRA_HW_REV_CHOSEN != "latest" {
+            return Err(BusError::LoadAccessFault);
+        }
+        Ok(u32::from(
+            self.state_machine.context.secret_digest_read_locked,
+        ))
+    }
+
+    pub fn write_secret_digest_lock(&mut self, _size: RvSize, val: u32) -> Result<(), BusError> {
+        if caliptra_registers::CALIPTRA_HW_REV_CHOSEN != "latest" {
+            return Err(BusError::StoreAccessFault);
+        }
+        self.state_machine.context.secret_digest_read_locked |= val & 1 != 0;
+        Ok(())
+    }
+
     pub fn fuse_bank(&self) -> &[u32] {
         &self.state_machine.context.fuse_bank
+    }
+
+    pub fn fuse_bank_mut(&mut self) -> &mut [u32] {
+        &mut self.state_machine.context.fuse_bank
     }
 }

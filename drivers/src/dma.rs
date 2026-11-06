@@ -369,6 +369,91 @@ impl Dma {
         read_val[0]
     }
 
+    /// Read one word, returning an error instead of waiting indefinitely on a failed transfer.
+    #[cfg(feature = "runtime")]
+    pub fn read_dword_checked(&self, read_addr: AxiAddr, soc_ifc: &SocIfc) -> CaliptraResult<u32> {
+        self.flush_checked(soc_ifc)?;
+        self.setup_dma_read(DmaReadTransaction {
+            read_addr,
+            fixed_addr: false,
+            length: size_of::<u32>() as u32,
+            target: DmaReadTarget::AhbFifo,
+            aes_mode: false,
+            aes_gcm: false,
+            block_mode: BlockMode::Other,
+        });
+        self.finish_word_transaction(soc_ifc, true)
+    }
+
+    /// Write one word with bounded, error-checked completion.
+    #[cfg(feature = "runtime")]
+    pub fn write_dword_checked(
+        &self,
+        write_addr: AxiAddr,
+        write_val: u32,
+        soc_ifc: &SocIfc,
+    ) -> CaliptraResult<()> {
+        self.flush_checked(soc_ifc)?;
+        self.setup_dma_write(DmaWriteTransaction {
+            write_addr,
+            fixed_addr: false,
+            length: size_of::<u32>() as u32,
+            origin: DmaWriteOrigin::AhbFifo,
+            aes_mode: false,
+            aes_gcm: false,
+        });
+        self.with_dma(|dma| dma.write_data().write(|_| write_val));
+        self.finish_word_transaction(soc_ifc, false).map(|_| ())
+    }
+
+    #[cfg(feature = "runtime")]
+    const WORD_TRANSACTION_TIMEOUT_CYCLES: u64 = 1_000_000;
+
+    #[cfg(feature = "runtime")]
+    fn flush_checked(&self, soc_ifc: &SocIfc) -> CaliptraResult<()> {
+        let start = soc_ifc.get_timestamp();
+        self.with_dma(|dma| {
+            dma.ctrl().write(|c| c.flush(true));
+            while dma.status0().read().busy() {
+                if soc_ifc.get_timestamp().wrapping_sub(start)
+                    >= Self::WORD_TRANSACTION_TIMEOUT_CYCLES
+                {
+                    return Err(CaliptraError::DRIVER_DMA_TRANSACTION_ERROR);
+                }
+            }
+            Ok(())
+        })
+    }
+
+    #[cfg(feature = "runtime")]
+    fn finish_word_transaction(&self, soc_ifc: &SocIfc, read: bool) -> CaliptraResult<u32> {
+        let start = soc_ifc.get_timestamp();
+        let result = self.with_dma(|dma| {
+            let mut word = None;
+            loop {
+                let status = dma.status0().read();
+                if status.error() {
+                    return Err(CaliptraError::DRIVER_DMA_TRANSACTION_ERROR);
+                }
+                if read && word.is_none() && status.fifo_depth() != 0 {
+                    word = Some(dma.read_data().read());
+                }
+                if !status.busy() && (!read || word.is_some()) {
+                    return Ok(word.unwrap_or(0));
+                }
+                if soc_ifc.get_timestamp().wrapping_sub(start)
+                    >= Self::WORD_TRANSACTION_TIMEOUT_CYCLES
+                {
+                    return Err(CaliptraError::DRIVER_DMA_TRANSACTION_ERROR);
+                }
+            }
+        });
+        if result.is_err() {
+            self.with_dma(|dma| dma.ctrl().write(|c| c.flush(true)));
+        }
+        result
+    }
+
     /// Read an arbitrary length buffer to fifo and read back the fifo into the provided buffer
     ///
     /// # Arguments

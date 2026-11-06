@@ -13,12 +13,13 @@ use caliptra_builder::{
 use caliptra_common::{
     capabilities::Capabilities,
     mailbox_api::{
-        CapabilitiesResp, CommandId, FwInfoResp, GetIdevEcc384InfoResp, GetIdevMldsa87InfoResp,
-        MailboxReqHeader, MailboxRespHeader,
+        CapabilitiesResp, CommandId, FeProgReq, FwInfoResp, GetIdevEcc384InfoResp,
+        GetIdevMldsa87InfoResp, MailboxReq, MailboxReqHeader, MailboxRespHeader,
     },
 };
 use caliptra_hw_model::{
-    BootParams, DefaultHwModel, Fuses, HwModel, InitParams, ModelError, SubsystemInitParams,
+    BootParams, DefaultHwModel, DeviceLifecycle, Fuses, HwModel, InitParams, ModelError,
+    SecurityState, SubsystemInitParams,
 };
 use caliptra_image_crypto::OsslCrypto as Crypto;
 use caliptra_image_gen::ImageGenerator;
@@ -62,19 +63,202 @@ pub fn get_fwinfo_allow_attestation_disabled(model: &mut DefaultHwModel) -> FwIn
         .unwrap()
         .unwrap();
 
+    assert_eq!(resp.len(), size_of::<FwInfoResp>());
     let info = FwInfoResp::read_from_bytes(resp.as_slice()).unwrap();
 
     // Verify checksum and FIPS status
     assert!(caliptra_common::checksum::verify_checksum(
         info.hdr.chksum,
         0x0,
-        &info.as_bytes()[core::mem::size_of_val(&info.hdr.chksum)..],
+        &resp[core::mem::size_of_val(&info.hdr.chksum)..],
     ));
     assert_eq!(
         info.hdr.fips_status,
         MailboxRespHeader::FIPS_STATUS_APPROVED
     );
     info
+}
+
+fn fw_info_subsystem_model(init_params: InitParams<'_>) -> DefaultHwModel {
+    let rom = crate::common::rom_for_fw_integration_tests().unwrap();
+    let mut model = run_rt_test(RuntimeTestArgs {
+        init_params: Some(InitParams {
+            rom: &rom,
+            security_state: *SecurityState::default()
+                .set_device_lifecycle(DeviceLifecycle::Production),
+            subsystem_mode: true,
+            ss_init_params: SubsystemInitParams {
+                enable_mcu_uart_log: true,
+                ..Default::default()
+            },
+            ..init_params
+        }),
+        subsystem_mode: true,
+        ..Default::default()
+    });
+    // Normal boot-status updates are suppressed while debug is locked.
+    assert!(model
+        .soc_ifc()
+        .cptra_flow_status()
+        .read()
+        .ready_for_runtime());
+    model
+}
+
+#[test]
+#[cfg(not(any(
+    feature = "verilator",
+    feature = "fpga_realtime",
+    feature = "fpga_subsystem"
+)))]
+fn test_fw_info_fe_metadata() {
+    let cases = [
+        ([0, 0], [0, 0], 0),
+        ([0, 1], [0, 0], 1),
+        ([u32::MAX; 2], [u32::MAX, 0x03ff_ffff], 2), // 58 marker bits
+        ([u32::MAX; 2], [u32::MAX; 2], 2),
+        ([0, 0], [u32::MAX, 0x01ff_ffff], 3), // 57 marker bits
+        ([0, 0], [0, 1], 3),
+    ];
+    for granularity_64 in [true, false] {
+        let mut model = fw_info_subsystem_model(InitParams {
+            uds_fuse_row_granularity_64: granularity_64,
+            ..Default::default()
+        });
+        for (digest, marker, status) in cases {
+            for partition in 0..4 {
+                let offset = (80 + partition * 24) / 4;
+                let bank = model.otp_fuse_bank_mut();
+                bank[offset + 2..offset + 4].copy_from_slice(&digest);
+                bank[offset + 4..offset + 6].copy_from_slice(&marker);
+            }
+            assert_eq!(get_fwinfo(&mut model).fe_status, status * 0x55);
+        }
+        for (partition, (digest, marker, _)) in [cases[0], cases[1], cases[2], cases[4]]
+            .into_iter()
+            .enumerate()
+        {
+            let offset = (80 + partition * 24) / 4;
+            let bank = model.otp_fuse_bank_mut();
+            bank[offset + 2..offset + 4].copy_from_slice(&digest);
+            bank[offset + 4..offset + 6].copy_from_slice(&marker);
+        }
+        assert_eq!(get_fwinfo(&mut model).fe_status, 0xe4);
+    }
+}
+
+#[test]
+#[cfg(not(any(feature = "verilator", feature = "fpga_realtime")))]
+fn test_fw_info_fe_live_programming() {
+    let granularities: &[bool] = if cfg!(feature = "fpga_subsystem") {
+        // The subsystem FPGA uses 64-bit DAI accesses for secret partitions.
+        &[true]
+    } else {
+        &[true, false]
+    };
+    for &granularity_64 in granularities {
+        let mut model = fw_info_subsystem_model(InitParams {
+            uds_fuse_row_granularity_64: granularity_64,
+            ..Default::default()
+        });
+        assert_eq!(get_fwinfo(&mut model).fe_status, 0);
+        let mut expected = 0;
+        for partition in 0..4 {
+            let mut req = MailboxReq::FeProg(FeProgReq {
+                hdr: MailboxReqHeader { chksum: 0 },
+                partition,
+            });
+            req.populate_chksum().unwrap();
+            model
+                .mailbox_execute(u32::from(CommandId::FE_PROG), req.as_bytes().unwrap())
+                .unwrap()
+                .unwrap();
+            expected |= 1 << (2 * partition);
+            assert_eq!(get_fwinfo(&mut model).fe_status, expected);
+        }
+    }
+}
+
+#[test]
+#[cfg(not(any(
+    feature = "verilator",
+    feature = "fpga_realtime",
+    feature = "fpga_subsystem"
+)))]
+fn test_fw_info_fe_unavailable() {
+    let mut model = fw_info_subsystem_model(InitParams::default());
+    let original = get_fwinfo(&mut model);
+    assert_eq!(original.fe_status, 0);
+    model.set_otp_error_injection(true);
+    let failed = get_fwinfo(&mut model);
+    assert_eq!(failed.fe_status, FwInfoResp::FE_STATUS_ERROR_ALL);
+    assert_eq!(failed.fw_svn, original.fw_svn);
+    model.set_otp_error_injection(false);
+    assert_eq!(get_fwinfo(&mut model).fe_status, 0);
+    model.lock_otp_dai();
+    assert_eq!(
+        get_fwinfo(&mut model).fe_status,
+        FwInfoResp::FE_STATUS_ERROR_ALL
+    );
+}
+
+#[test]
+#[cfg(not(any(
+    feature = "verilator",
+    feature = "fpga_realtime",
+    feature = "fpga_subsystem"
+)))]
+fn test_fw_info_fe_dma_failure_and_dai_timeout() {
+    for init_params in [
+        InitParams {
+            otp_status_reg_offset: 0xfc,
+            ..Default::default()
+        },
+        InitParams {
+            otp_dai_idle_bit_offset: 31,
+            ..Default::default()
+        },
+    ] {
+        let mut model = fw_info_subsystem_model(init_params);
+        assert_eq!(
+            get_fwinfo(&mut model).fe_status,
+            FwInfoResp::FE_STATUS_ERROR_ALL
+        );
+    }
+}
+
+#[test]
+#[cfg(not(any(
+    feature = "verilator",
+    feature = "fpga_realtime",
+    feature = "fpga_subsystem"
+)))]
+fn test_fw_info_fe_redacted_digests() {
+    let hides_digests = caliptra_registers::CALIPTRA_HW_REV_CHOSEN == "latest";
+    for debug_intent in [false, true] {
+        let mut model = fw_info_subsystem_model(InitParams {
+            debug_intent,
+            ..Default::default()
+        });
+        let bank = model.otp_fuse_bank_mut();
+        bank[22..24].copy_from_slice(&[0, 1]); // FE0 digest
+        bank[36..38].copy_from_slice(&[u32::MAX; 2]); // FE2 marker
+        bank[42..44].copy_from_slice(&[0, 1]); // FE3 partial marker
+
+        if !debug_intent {
+            assert_eq!(
+                get_fwinfo_allow_attestation_disabled(&mut model).fe_status,
+                0xe1
+            );
+            if hides_digests {
+                model.lock_otp_secret_digests();
+            }
+        }
+        assert_eq!(
+            get_fwinfo_allow_attestation_disabled(&mut model).fe_status,
+            if hides_digests { 0xef } else { 0xe1 }
+        );
+    }
 }
 
 #[test]
@@ -168,13 +352,17 @@ fn test_fw_info() {
                 .unwrap()
                 .unwrap();
 
+            assert_eq!(resp.len(), 400);
             let info = FwInfoResp::read_from_bytes(resp.as_slice()).unwrap();
+            if !fpga {
+                assert_eq!(info.fe_status, FwInfoResp::FE_STATUS_ERROR_ALL);
+            }
 
             // Verify checksum and FIPS status
             assert!(caliptra_common::checksum::verify_checksum(
                 info.hdr.chksum,
                 0x0,
-                &info.as_bytes()[core::mem::size_of_val(&info.hdr.chksum)..],
+                &resp[core::mem::size_of_val(&info.hdr.chksum)..],
             ));
             assert_eq!(
                 info.hdr.fips_status,
