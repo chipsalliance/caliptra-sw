@@ -96,6 +96,45 @@ const EMULATOR_MCI_END_ADDR: usize = EMULATOR_MCI_ADDR + EMULATOR_MCI_ADDR_RANGE
 // page size of simulated flash
 const FLASH_PAGE_SIZE: usize = 256;
 
+// OWNER_SOC_MANIFEST_MIN_SVN in the Caliptra 2.0 MCU fuse map.
+const OTP_OWNER_SOC_MANIFEST_MIN_SVN_OFFSET: usize = 0x3e4;
+
+fn seed_owner_manifest_svn(otp: &mut [u8], strap: u32) -> Result<()> {
+    let svn = (strap >> 8) & 0xff;
+    let bitmap = match svn {
+        0..=63 => (1u64 << svn) - 1,
+        64 => u64::MAX,
+        _ => anyhow::bail!("Owner manifest SVN exceeds the 64-bit OTP field"),
+    };
+    otp[OTP_OWNER_SOC_MANIFEST_MIN_SVN_OFFSET..OTP_OWNER_SOC_MANIFEST_MIN_SVN_OFFSET + 8]
+        .copy_from_slice(&bitmap.to_le_bytes());
+    Ok(())
+}
+
+#[test]
+fn test_seed_owner_manifest_svn() {
+    const OFFSET: usize = OTP_OWNER_SOC_MANIFEST_MIN_SVN_OFFSET;
+    // Match OWNER_SOC_MANIFEST_MIN_SVN in MCU main's generated 2.0 fuse map.
+    assert_eq!(OFFSET, 0x3e4);
+    for svn in 0..=64 {
+        let mut otp = [0xa5; OTP_SIZE];
+        // Other strap bits must not contribute to the SVN.
+        seed_owner_manifest_svn(&mut otp, 0xabcd_00ef | (svn << 8)).unwrap();
+        let bytes: [u8; 8] = otp[OFFSET..OFFSET + 8].try_into().unwrap();
+        assert_eq!(u64::from_le_bytes(bytes).count_ones(), svn);
+        if svn == 5 {
+            assert_eq!(bytes, [0x1f, 0, 0, 0, 0, 0, 0, 0]);
+        }
+        assert!(otp[..OFFSET].iter().all(|&byte| byte == 0xa5));
+        assert!(otp[OFFSET + 8..].iter().all(|&byte| byte == 0xa5));
+    }
+    for svn in [65, 255] {
+        let mut otp = [0xa5; OTP_SIZE];
+        assert!(seed_owner_manifest_svn(&mut otp, svn << 8).is_err());
+        assert_eq!(otp, [0xa5; OTP_SIZE]);
+    }
+}
+
 pub(crate) fn fmt_uio_error(err: UioError) -> String {
     format!("{err:?}")
 }
@@ -1644,6 +1683,26 @@ impl ModelFpgaSubsystem {
         Ok(())
     }
 
+    // The FPGA OTP backdoor requires 32-bit MMIO accesses, not byte or vector operations.
+    fn read_otp_memory(&self) -> Vec<u8> {
+        let mut data = Vec::with_capacity(OTP_SIZE);
+        let otp_words = self.otp_mem_backdoor.cast::<u32>();
+        for index in 0..OTP_SIZE / core::mem::size_of::<u32>() {
+            let word = unsafe { otp_words.add(index).read_volatile() };
+            data.extend_from_slice(&word.to_ne_bytes());
+        }
+        data
+    }
+
+    fn write_otp_memory(&self, data: &[u8]) {
+        assert_eq!(data.len(), OTP_SIZE);
+        let otp_words = self.otp_mem_backdoor.cast::<u32>();
+        for (index, chunk) in data.chunks_exact(core::mem::size_of::<u32>()).enumerate() {
+            let word = u32::from_ne_bytes(chunk.try_into().unwrap());
+            unsafe { otp_words.add(index).write_volatile(word) };
+        }
+    }
+
     pub fn otp_slice(&self) -> &mut [u8] {
         unsafe { core::slice::from_raw_parts_mut(self.otp_mem_backdoor, OTP_SIZE) }
     }
@@ -2057,6 +2116,11 @@ impl HwModel for ModelFpgaSubsystem {
         }
 
         if let Some(reg) = boot_params.initial_ss_strap_generic_3 {
+            // MCU ROM overwrites the owner floor in the strap from OTP. Seed
+            // the requested value before notifying ROM to load Caliptra fuses.
+            let mut otp = self.read_otp_memory();
+            seed_owner_manifest_svn(&mut otp, reg)?;
+            self.write_otp_memory(&otp);
             self.soc_ifc().ss_strap_generic().at(3).write(|_| reg);
         }
 
