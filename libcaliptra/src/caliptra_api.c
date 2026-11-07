@@ -1357,6 +1357,22 @@ int caliptra_quote_pcrs_mldsa87(struct caliptra_quote_pcrs_req *req, struct cali
     return pack_and_execute_command(&p, async);
 }
 
+// Get PCR log
+int caliptra_get_pcr_log(struct caliptra_get_pcr_log_resp *resp, bool async)
+{
+    if (!resp)
+    {
+        return INVALID_PARAMS;
+    }
+
+    // GET_PCR_LOG has no request fields beyond the checksum
+    caliptra_checksum checksum = 0;
+
+    CREATE_PARCEL(p, OP_GET_PCR_LOG, &checksum, resp);
+
+    return pack_and_execute_command(&p, async);
+}
+
 // Extend PCR
 int caliptra_extend_pcr(struct caliptra_extend_pcr_req *req, bool async)
 {
