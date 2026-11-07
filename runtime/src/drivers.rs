@@ -444,6 +444,7 @@ impl Drivers {
         let (cciv_idx, somv_idx, somo_idx, mcu_rt_idx) = {
             let persistent_data = self.persistent_data.get();
             let dpe = &persistent_data.fw.dpe.state;
+            let pl0_pauser = Some(persistent_data.rom.manifest1.header.pl0_pauser);
             let root_idx = Self::get_dpe_root_context_idx(dpe)? as u8;
             let cciv_idx = Self::get_dpe_context_idx_by_tci_type(
                 dpe,
@@ -452,16 +453,14 @@ impl Drivers {
                 Some(root_idx),
             )?;
             let somv_idx =
-                Self::get_dpe_context_idx_by_tci_type(dpe, Self::SOMV_TCI_TYPE, None, None).ok();
+                Self::get_dpe_context_idx_by_tci_type(dpe, Self::SOMV_TCI_TYPE, pl0_pauser, None)
+                    .ok();
             let somo_idx =
-                Self::get_dpe_context_idx_by_tci_type(dpe, Self::SOMO_TCI_TYPE, None, None).ok();
-            let mcu_rt_idx = Self::get_dpe_context_idx_by_tci_type(
-                dpe,
-                Self::MCU_RT_TCI_TYPE,
-                Some(persistent_data.rom.manifest1.header.pl0_pauser),
-                None,
-            )
-            .ok();
+                Self::get_dpe_context_idx_by_tci_type(dpe, Self::SOMO_TCI_TYPE, pl0_pauser, None)
+                    .ok();
+            let mcu_rt_idx =
+                Self::get_dpe_context_idx_by_tci_type(dpe, Self::MCU_RT_TCI_TYPE, pl0_pauser, None)
+                    .ok();
             (cciv_idx, somv_idx, somo_idx, mcu_rt_idx)
         };
 
@@ -863,7 +862,6 @@ impl Drivers {
         let manifest = drivers.persistent_data.get().rom.manifest1;
         let pl0_pauser_locality = manifest.header.pl0_pauser;
         let hashed_rt_pub_key = drivers.compute_ecc_rt_alias_sn()?;
-        let privilege_level = drivers.caller_privilege_level();
 
         // Set context limits in persistent data as we init DPE
         drivers.persistent_data.get_mut().fw.dpe.pl0_context_limit =
@@ -973,7 +971,7 @@ impl Drivers {
             // Use the helper method here because the DPE instance holds a mutable reference to driver
             Self::is_dpe_context_threshold_exceeded_helper(
                 pl0_pauser_locality,
-                privilege_level,
+                PauserPrivileges::PL0,
                 env.state,
                 pl0_context_limit as usize,
                 pl1_context_limit as usize,
