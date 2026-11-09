@@ -73,7 +73,7 @@ fn test_hw_model_boot_v2_0_runtime_firmware() {
 fn test_hw_model_boot_v2_2() {
     let mut model = caliptra_hw_model::new(
         InitParams {
-            hw_version: CaliptraHwVersion::V2_1,
+            hw_version: CaliptraHwVersion::V2_2,
             rom: (&caliptra_builder::firmware::ROM_WITH_UART).into(),
             random_sram_puf: false,
             ..Default::default()
