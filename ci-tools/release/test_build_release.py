@@ -6,14 +6,17 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import shlex
 import shutil
 import subprocess
 import tempfile
+import textwrap
 import unittest
 import zipfile
 
 
 SCRIPT = Path(__file__).with_name("build_release.sh").resolve()
+WORKFLOW = SCRIPT.parents[2] / ".github/workflows/nightly-release.yml"
 
 CARGO = """#!/usr/bin/env python3
 import json, os, sys
@@ -50,7 +53,7 @@ else:
 ZIP = """#!/usr/bin/env python3
 import sys, zipfile
 from pathlib import Path
-if len(sys.argv) < 4 or sys.argv[1] != "-r":
+if len(sys.argv) < 4 or sys.argv[1] not in ("-r", "-qr"):
     raise SystemExit(f"Unexpected zip invocation: {sys.argv[1:]}")
 with zipfile.ZipFile(sys.argv[2], "w", zipfile.ZIP_DEFLATED) as archive:
     for argument in sys.argv[3:]:
@@ -164,6 +167,163 @@ class PackagingTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("Usage:", result.stdout)
         self.assertTrue((self.root / "release/sentinel").exists())
+
+
+def workflow_run_step(name):
+    lines = WORKFLOW.read_text().splitlines()
+    start = lines.index(f"      - name: {name}") + 1
+    while lines[start] != "        run: |":
+        if lines[start] and not lines[start].startswith("        "):
+            raise AssertionError(f"Missing run block for {name}")
+        start += 1
+    script = []
+    for line in lines[start + 1:]:
+        if line and not line.startswith("          "):
+            break
+        script.append(line)
+    return textwrap.dedent("\n".join(script)) + "\n"
+
+
+class NightlyTagTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory(prefix="caliptra-nightly-tag-check-")
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        self.repo = self.root / "repo"
+        self.repo.mkdir()
+        tools = self.root / "tools"
+        tools.mkdir()
+        date = tools / "date"
+        date.write_text(
+            "#!/bin/sh\n"
+            '[ "$#" = 1 ] && [ "$1" = "+%Y%m%d" ] || exit 1\n'
+            "echo 20261110\n"
+        )
+        date.chmod(0o755)
+        zip_tool = tools / "zip"
+        zip_tool.write_text(ZIP)
+        zip_tool.chmod(0o755)
+        self.env = os.environ.copy()
+        for key in ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE"):
+            self.env.pop(key, None)
+        self.env["PATH"] = str(tools) + os.pathsep + self.env["PATH"]
+        self.env["GITHUB_OUTPUT"] = str(self.root / "github-output")
+        self.env["GITHUB_WORKSPACE"] = str(self.repo)
+        self.git("init", "--quiet", "-b", "main")
+        self.commit()
+
+    def git(self, *args):
+        result = subprocess.run(
+            ["git", *args], cwd=self.repo, env=self.env,
+            text=True, capture_output=True, check=True,
+        )
+        return result.stdout.strip()
+
+    def commit(self):
+        self.git(
+            "-c", "user.name=Nightly Test", "-c", "user.email=test@example.com",
+            "-c", "commit.gpgsign=false", "-c", "core.hooksPath=/dev/null",
+            "commit", "--quiet", "--allow-empty", "-m", "Nightly fixture",
+            "-m", "Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>",
+        )
+
+    def run_script(self, script):
+        result = subprocess.run(
+            ["bash", "-e", "-o", "pipefail", "-c", script],
+            cwd=self.repo, env=self.env, text=True, capture_output=True,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def find_release(self):
+        output = Path(self.env["GITHUB_OUTPUT"])
+        output.write_text("")
+        refs_before = self.git("for-each-ref", "--format=%(refname) %(objectname)")
+        self.run_script(workflow_run_step("Find latest release"))
+        self.assertEqual(
+            self.git("for-each-ref", "--format=%(refname) %(objectname)"), refs_before
+        )
+        values = dict(line.split("=", 1) for line in output.read_text().splitlines())
+        self.assertEqual(values["release_ref"], self.git("rev-parse", "HEAD"))
+        return values
+
+    def test_new_namespace_ignores_other_release_families(self):
+        for tag in ("release_v20261109_0", "release_v20261109_0-2.0",
+                    "release_v20261109_0-2.2"):
+            self.git("tag", tag)
+        values = self.find_release()
+        self.assertEqual(values["new_release_tag"], "release_v20261110_0-2.1")
+        self.assertEqual(values["create_release"], "true")
+
+    def test_falls_back_to_legacy_2x(self):
+        self.git("tag", "release_v20261107_0-2.x")
+        values = self.find_release()
+        self.assertEqual(values["create_release"], "false")
+        self.commit()
+        self.git("tag", "release_v20261109_0-2.2")
+        self.assertEqual(self.find_release()["create_release"], "true")
+
+    def test_prefers_21_over_newer_legacy_tags(self):
+        self.git("tag", "release_v20261108_0-2.1")
+        self.commit()
+        self.git("tag", "release_v20261109_0-2.x")
+        self.assertEqual(self.find_release()["create_release"], "true")
+
+    def test_latest_21_tag_uses_numeric_index_order(self):
+        self.git("tag", "release_v20261109_9-2.1")
+        self.commit()
+        self.git("tag", "release_v20261109_10-2.1")
+        self.assertEqual(self.find_release()["create_release"], "false")
+
+    def test_collision_check_matches_only_exact_21_tag(self):
+        for tag in ("release_v20261110_0-2.1", "release_v20261110_1-2.1",
+                    "release_v20261110_2-2.x", "release_v20261110_2-2a1",
+                    "release_v20261110_2-2.10"):
+            self.git("tag", tag)
+        self.assertEqual(
+            self.find_release()["new_release_tag"], "release_v20261110_2-2.1"
+        )
+
+    def test_unchanged_21_commit_reports_no_new_release(self):
+        self.git("tag", "release_v20261109_0-2.1")
+        self.assertEqual(self.find_release()["create_release"], "false")
+
+    def test_generated_tag_is_used_for_zip_names_and_metadata(self):
+        tag = self.find_release()["new_release_tag"]
+        expression = "${{ needs.find-latest-release-2-x.outputs.new_release_tag }}"
+        release = self.repo / "release"
+        release.mkdir()
+        (release / "release.zip").write_bytes(b"release fixture")
+        moves = [
+            line for line in workflow_run_step("Generate release zip").splitlines()
+            if line.startswith("mv ")
+        ]
+        self.assertEqual(len(moves), 1)
+        self.run_script(moves[0].replace(expression, tag))
+        self.assertTrue((release / f"caliptra_{tag}.zip").exists())
+
+        artifacts = self.root / "artifacts"
+        (artifacts / "suite").mkdir(parents=True)
+        (artifacts / "suite/results.txt").write_text("test results")
+        script = workflow_run_step("Package test artifacts per artifact directory")
+        self.assertIn("cd /tmp/artifacts", script)
+        script = script.replace(expression, tag).replace(
+            "cd /tmp/artifacts", f"cd {shlex.quote(str(artifacts))}"
+        )
+        self.run_script(script)
+        with zipfile.ZipFile(release / f"test_artifacts_{tag}_suite.zip") as archive:
+            self.assertEqual(archive.read("suite/results.txt"), b"test results")
+
+        metadata = self.root / "release-info"
+        script = workflow_run_step("Write artifact to workflow with release info")
+        self.assertIn("/tmp/release-info-2-1", script)
+        script = script.replace(expression, tag).replace(
+            "/tmp/release-info-2-1", shlex.quote(str(metadata))
+        )
+        self.run_script(script)
+        self.assertEqual((metadata / "tag-name").read_text(), tag + "\n")
+        self.assertEqual(
+            (metadata / "zip-file-name").read_text(), f"caliptra_{tag}.zip\n"
+        )
 
 
 if __name__ == "__main__":
