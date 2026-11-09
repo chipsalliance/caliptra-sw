@@ -61,6 +61,12 @@ Release notes for changes introduced since Firmware 2.0.3.
 
 Release notes for changes introduced since ROM 2.0.4.
 
+The published [`rom-2.0.5rc1` release](https://github.com/chipsalliance/caliptra-sw/releases/tag/rom-2.0.5rc1)
+was built from `c7ed8c09` with embedded ROM version 2.0.4 and FMC/Runtime
+versions 2.0.2. ROM 2.0.5 and firmware 2.0.4 artifacts must be rebuilt from a
+commit containing these version updates; the RC1 tag and published artifacts
+remain unchanged.
+
 ### Fixes
 
 - **Boot & Image Verification**:
