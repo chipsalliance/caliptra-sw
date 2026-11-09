@@ -7,13 +7,28 @@ set -euo pipefail
 if [ $# -ne 1 ]
   then
     echo "Usage: $(basename $0) <release_name>"
+    echo "Set CALIPTRA_HW_REV to 2.1 or latest (default: latest)."
 	exit -1
 fi
 
 WORKSPACE_DIR="release/workspace"
 release_scripts_path=$(dirname "$0")
-CALIPTRA_SS_DIR="hw/latest/caliptra-ss"
+export CALIPTRA_HW_REV="${CALIPTRA_HW_REV-latest}"
+case "$CALIPTRA_HW_REV" in
+    "2.1") CALIPTRA_SS_DIR="hw/rev-2_1/caliptra-ss" ;;
+    "latest") CALIPTRA_SS_DIR="hw/latest/caliptra-ss" ;;
+    *)
+        echo "Unsupported CALIPTRA_HW_REV '$CALIPTRA_HW_REV'; expected 2.1 or latest" >&2
+        exit 1
+        ;;
+esac
 CALIPTRA_RTL_DIR="$CALIPTRA_SS_DIR/third_party/caliptra-rtl"
+if [ ! -d "$CALIPTRA_RTL_DIR/src" ]; then
+    echo "Missing RTL at $CALIPTRA_RTL_DIR; initialize $CALIPTRA_SS_DIR submodules recursively" >&2
+    exit 1
+fi
+CALIPTRA_RTL_REV=$(git -C "$CALIPTRA_SS_DIR" rev-parse HEAD:third_party/caliptra-rtl)
+echo "Building release $1 for Caliptra hardware $CALIPTRA_HW_REV"
 # Generate Release Folder
 rm -rf release
 mkdir -p $WORKSPACE_DIR
@@ -66,9 +81,9 @@ echo "RTL hash is $rtl_hash"
 cp $release_scripts_path/tools/rtl_hash.sh $WORKSPACE_DIR/
 
 # Generate Notes
-CALIPTRA_RTL_REV=$(git -C "$CALIPTRA_SS_DIR" rev-parse HEAD:third_party/caliptra-rtl)
 echo -e "Caliptra HW Release Note " > $WORKSPACE_DIR/release_notes.txt
 echo -e "Nightly $1" >> $WORKSPACE_DIR/release_notes.txt
+echo -e "Caliptra-HW Target: $CALIPTRA_HW_REV" >> $WORKSPACE_DIR/release_notes.txt
 echo -e "Caliptra-RTL Rev: $CALIPTRA_RTL_REV" >> $WORKSPACE_DIR/release_notes.txt
 echo -e "Caliptra-SW Rev: $(git rev-parse HEAD)" >> $WORKSPACE_DIR/release_notes.txt
 echo -e "RTL hash (see rtl_hash.sh): $rtl_hash" >> $WORKSPACE_DIR/release_notes.txt
