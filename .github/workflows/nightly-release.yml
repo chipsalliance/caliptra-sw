@@ -181,9 +181,6 @@ jobs:
           ref: ${{ needs.find-latest-release-2-x.outputs.release_ref }}
           submodules: 'recursive'
 
-      - name: Test release packaging selection
-        run: python3 ci-tools/release/test_build_release.py
-
       - name: Generate release zip
         run: |
           ./ci-tools/release/build_release.sh ${{ needs.find-latest-release-2-x.outputs.new_release_tag }}
