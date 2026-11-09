@@ -1,3 +1,33 @@
+# rom-2.0.5
+
+## Caliptra ROM 2.0.5 Release Notes
+
+Release notes for changes introduced since ROM 2.0.4.
+
+The published [`rom-2.0.5rc1` release](https://github.com/chipsalliance/caliptra-sw/releases/tag/rom-2.0.5rc1)
+was built from `c7ed8c09` with embedded ROM version 2.0.4 and FMC/Runtime
+versions 2.0.2. ROM 2.0.5 artifacts must be rebuilt from a commit containing
+the ROM version update; FMC/Runtime versions stay at 2.0.2. The RC1 tag and
+published artifacts remain unchanged.
+
+### Fixes
+
+- **Boot & Image Verification**:
+  - Verify firmware bytes after loading into ICCM and make post-load Runtime digest mismatches fatal during update reset (#3702, #4150)
+  - Validate FMC/Runtime entry points against their authenticated image bounds and require entry points to equal load addresses (#4224, #4280)
+  - Authenticate the protected manifest snapshot, reject image segments outside the supplied bundle, require contiguous FMC/Runtime data, and reject overflowing AXI source ranges (#4271)
+  - Enforce the maximum firmware SVN of 128 independently of lifecycle and anti-rollback settings (#4251)
+- **Cryptography & Self-Tests**:
+  - Wait for CSRNG command readiness and completion, and zeroize cryptographic hardware on driver errors (#4322, #3346)
+  - Report boot-time KAT failures as non-fatal and continue remaining tests in the Unprovisioned lifecycle. Preserve strict handling in provisioned lifecycles and explicit self-test requests; entropy-restoration errors remain fatal in every lifecycle (#4350).
+
+### Compatibility Notes
+
+- ROM 2.0.5 requires images whose entry points equal their load addresses and whose FMC/Runtime payloads are contiguous. Previously accepted signed images with nonzero in-image entry offsets are rejected (#4280, #4271).
+- Rebuild ROM artifacts from this release preparation to obtain the embedded 2.0.5 version and updated logging/non-logging frozen hashes. Existing ROM 2.0.4 artifacts and tags are unchanged.
+
+**Full Changelog**: https://github.com/chipsalliance/caliptra-sw/compare/rom-2.0.4...rom-2.0.5
+
 # rom-2.0.4
 
 ## Caliptra ROM 2.0.4 Release Notes

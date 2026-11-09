@@ -2,7 +2,7 @@
 
 pub const ROM_VERSION_MAJOR: u16 = 2;
 pub const ROM_VERSION_MINOR: u16 = 0;
-pub const ROM_VERSION_PATCH: u16 = 4;
+pub const ROM_VERSION_PATCH: u16 = 5;
 
 pub const FMC_VERSION_MAJOR: u16 = 2;
 pub const FMC_VERSION_MINOR: u16 = 0;
@@ -47,7 +47,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn rom_version_is_2_0_4() {
-        assert_eq!(get_rom_version(), 0x1004);
+    fn rom_version_is_2_0_5() {
+        assert_eq!(get_rom_version(), 0x1005);
     }
 }
