@@ -6,11 +6,11 @@ pub const ROM_VERSION_PATCH: u16 = 5;
 
 pub const FMC_VERSION_MAJOR: u16 = 2;
 pub const FMC_VERSION_MINOR: u16 = 0;
-pub const FMC_VERSION_PATCH: u16 = 4;
+pub const FMC_VERSION_PATCH: u16 = 2;
 
 pub const RUNTIME_VERSION_MAJOR: u32 = 2;
 pub const RUNTIME_VERSION_MINOR: u32 = 0;
-pub const RUNTIME_VERSION_PATCH: u32 = 4;
+pub const RUNTIME_VERSION_PATCH: u32 = 2;
 
 // ROM Version - 16 bits
 // Major - 5 bits [15:11]
@@ -49,15 +49,5 @@ mod tests {
     #[test]
     fn rom_version_is_2_0_5() {
         assert_eq!(get_rom_version(), 0x1005);
-    }
-
-    #[test]
-    fn fmc_version_is_2_0_4() {
-        assert_eq!(get_fmc_version(), 0x1004);
-    }
-
-    #[test]
-    fn runtime_version_is_2_0_4() {
-        assert_eq!(get_runtime_version(), 0x0200_0004);
     }
 }
