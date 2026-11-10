@@ -19,8 +19,10 @@ use caliptra_common::mailbox_api::{
 };
 use caliptra_drivers::DmaRecovery;
 #[cfg(not(feature = "fpga_subsystem"))]
-use caliptra_emu_bus::{Device, EventData};
+use caliptra_emu_bus::{Device, EventData, RecoveryCommandCode};
 use caliptra_error::CaliptraError;
+#[cfg(not(feature = "fpga_subsystem"))]
+use caliptra_hw_model::BootParams;
 use caliptra_hw_model::{DefaultHwModel, HwModel, InitParams};
 use caliptra_image_crypto::OsslCrypto as Crypto;
 use caliptra_image_fake_keys::*;
@@ -337,6 +339,21 @@ fn test_loads_mcu_fw() {
             }
         }
         assert!(found);
+
+        // The flow reports the terminal codes: DEVICE_STATUS 0x1 'Device
+        // healthy' and RECOVERY_STATUS 0x3 'Recovery successful'.
+        let device_status =
+            crate::common::read_recovery_register(&mut model, RecoveryCommandCode::DeviceStatus);
+        assert_eq!(
+            u32::from_le_bytes(device_status[..4].try_into().unwrap()),
+            DmaRecovery::DEVICE_STATUS_HEALTHY
+        );
+        let recovery_status =
+            crate::common::read_recovery_register(&mut model, RecoveryCommandCode::RecoveryStatus);
+        assert_eq!(
+            u32::from(u16::from_le_bytes(recovery_status[..2].try_into().unwrap())),
+            DmaRecovery::RECOVERY_STATUS_SUCCESSFUL
+        );
     }
 }
 
@@ -669,4 +686,43 @@ fn test_set_auth_manifest_updates_soc_manifest_dpe_contexts() {
     );
     assert_ne!(owner_updated_somo.digest, updated_somo.digest);
     assert_ne!(quote_pcr31(&mut model), pcr31_after_somv_update);
+}
+
+/// OCP Recovery 1.1 Table 1 scopes PROT_CAP as available anytime the
+/// recovery interface is available. The ROM publishes PROT_CAP when the
+/// command loop starts, so a Recovery Agent that checks the capabilities
+/// before the MCU sends RI_DOWNLOAD_FIRMWARE reads protocol version 1.1,
+/// not 0.
+#[cfg(not(feature = "fpga_subsystem"))]
+#[test]
+fn test_rom_publishes_prot_cap_before_first_image_request() {
+    let rom = crate::common::rom_for_fw_integration_tests().unwrap();
+    let mut model = caliptra_hw_model::new(
+        InitParams {
+            rom: &rom,
+            subsystem_mode: true,
+            ..Default::default()
+        },
+        BootParams::default(),
+    )
+    .unwrap();
+    model
+        .step_until_output_contains("[fwproc] Wait for Commands...")
+        .unwrap();
+
+    // The test sends no RI_DOWNLOAD_FIRMWARE, so request_image has not run
+    // and the ROM write is the only write that can have filled PROT_CAP.
+    let payload = crate::common::read_recovery_register(&mut model, RecoveryCommandCode::ProtCap);
+
+    // PROT_CAP2 occupies payload bytes 8-11: the protocol version in bytes
+    // 8-9 (1.1 as 0x0101) and the agent capabilities in bytes 10-11, where
+    // bit 11 is 'Flashless boot'.
+    const REC_PROT_VERSION_1_1: u16 = 0x0101;
+    const AGENT_CAPS_FLASHLESS_BOOT: u16 = 1 << 11;
+    assert_eq!(
+        u16::from_le_bytes(payload[8..10].try_into().unwrap()),
+        REC_PROT_VERSION_1_1
+    );
+    let agent_caps = u16::from_le_bytes(payload[10..12].try_into().unwrap());
+    assert_ne!(agent_caps & AGENT_CAPS_FLASHLESS_BOOT, 0);
 }
