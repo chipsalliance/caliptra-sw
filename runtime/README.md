@@ -824,6 +824,9 @@ Privilege Level: PL0 or PL1
 | fmc_sha384_digest      | u32[12]        | Digest of FMC binary.
 | runtime_sha384_digest  | u32[12]        | Digest of runtime binary.
 | owner_pub_key_hash     | u32[12]        | Hash of the owner public keys provided in the image bundle manifest.
+| authman_sha384_digest  | u32[12]        | Digest of the image authorization manifest.
+| vendor_ecc_pub_key_idx | u32            | Index of the vendor ECC public key used to boot.
+| vendor_lms_pub_key_idx | u32            | Index of the vendor LMS public key used to boot. 0xFFFFFFFF if LMS verification is not enabled.
 
 ### VERSION
 
