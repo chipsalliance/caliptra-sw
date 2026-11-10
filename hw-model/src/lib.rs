@@ -2297,6 +2297,53 @@ mod tests {
         );
     }
 
+    fn new_mailbox_responder_model() -> DefaultHwModel {
+        let rom =
+            caliptra_builder::build_firmware_rom(&firmware::hw_model_tests::MAILBOX_RESPONDER)
+                .unwrap();
+        caliptra_hw_model::new(
+            InitParams {
+                rom: &rom,
+                ..Default::default()
+            },
+            BootParams::default(),
+        )
+        .unwrap()
+    }
+
+    #[test]
+    /// An oversized request must be rejected without leaking the mailbox lock.
+    fn test_soc_mgr_mbox_oversized_buf_does_not_leak_lock() {
+        use caliptra_api::CaliptraApiError;
+        let mut model = new_mailbox_responder_model();
+        let mut resp_data = [0u8; 128];
+
+        let oversized = vec![0u8; <DefaultHwModel as SocManager>::MAILBOX_SIZE_LIMIT + 1];
+        assert_eq!(
+            model.mailbox_exec(0x1000_0000, &oversized, &mut resp_data),
+            Err(CaliptraApiError::BufferTooLargeForMailbox)
+        );
+
+        // The lock must still be free, so a following command succeeds.
+        assert_eq!(
+            model.mailbox_exec(0x2000_0000, &[], &mut resp_data),
+            Ok(None)
+        );
+    }
+
+    #[test]
+    /// A buffer of exactly the size limit is still accepted.
+    fn test_soc_mgr_mbox_buf_at_size_limit_is_accepted() {
+        let mut model = new_mailbox_responder_model();
+        let mut resp_data = [0u8; 128];
+
+        let max = vec![0u8; <DefaultHwModel as SocManager>::MAILBOX_SIZE_LIMIT];
+        assert_eq!(
+            model.mailbox_exec(0x2000_0000, &max, &mut resp_data),
+            Ok(None)
+        );
+    }
+
     #[test]
     pub fn test_mailbox_receive() {
         let rom = caliptra_builder::build_firmware_rom(&firmware::hw_model_tests::MAILBOX_SENDER)
