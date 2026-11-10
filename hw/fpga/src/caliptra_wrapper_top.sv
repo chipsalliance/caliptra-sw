@@ -365,9 +365,21 @@ caliptra_top caliptra_top_dut (
     .cptra_error_fatal    (hwif_in.interface_regs.status.cptra_error_fatal.next),
     .cptra_error_non_fatal(hwif_in.interface_regs.status.cptra_error_non_fatal.next),
 
+`ifdef CALIPTRA_MULTI_ENTROPY_SRC
+    // This RTL has one TRNG interface per entropy source. Entropy source 0 is
+    // fed by the FPGA TRNG FIFO below; entropy source 1 is disabled.
+    .etrng0_req            (etrng_req),
+    .etrng1_req            (),
+    .itrng0_data           (itrng_data),
+    .itrng0_valid          (itrng_valid),
+    .itrng1_data           (4'b0),
+    .itrng1_valid          (1'b0),
+    .itrng1_en             (1'b0),
+`else
     .etrng_req             (etrng_req),
     .itrng_data            (itrng_data),
     .itrng_valid           (itrng_valid),
+`endif
 
     .generic_input_wires({hwif_out.interface_regs.generic_input_wires[0].value.value, hwif_out.interface_regs.generic_input_wires[1].value.value}),
     .generic_output_wires({hwif_in.interface_regs.generic_output_wires[0].value.next, hwif_in.interface_regs.generic_output_wires[1].value.next}),
