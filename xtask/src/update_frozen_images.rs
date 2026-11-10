@@ -6,45 +6,31 @@ use std::fs;
 use std::io::Write;
 use std::path::Path;
 
-use crate::util::run_command;
+use caliptra_builder::{build_firmware_rom, firmware};
 
-// TODO(clundin): This is based on the `./ci.sh` script, should instead call the builder library
-// directly
 fn build_rom_images(work_dir: &Path) -> Result<()> {
     let _ = fs::create_dir_all(work_dir);
 
-    let rom_with_log_path = work_dir.join("caliptra-rom-with-log.bin");
+    // By default, do not bake the git revision into the ROM image.
+    // This follows the behaviour of ci.sh.
+    if std::env::var("CALIPTRA_IMAGE_NO_GIT_REVISION").is_err() {
+        std::env::set_var("CALIPTRA_IMAGE_NO_GIT_REVISION", "1");
+    }
+
     let rom_no_log_path = work_dir.join("caliptra-rom-no-log.bin");
+    let rom = build_firmware_rom(&firmware::ROM)?;
+    std::fs::write(rom_no_log_path, rom)?;
 
-    let target_dir = std::env::var("CARGO_TARGET_DIR").unwrap_or_else(|_| "target".to_string());
-    let target_elf_dir = Path::new(&target_dir).join("riscv32imc-unknown-none-elf");
-
-    let extra_cargo_config = "target.'cfg(all())'.rustflags = [\"-Dwarnings\"]";
-
-    let build_rom = |path: &std::path::Path, flag: &str| -> Result<()> {
-        let _ = fs::remove_dir_all(&target_elf_dir);
-        let mut cmd = std::process::Command::new("cargo");
-        cmd.env("CALIPTRA_IMAGE_NO_GIT_REVISION", "1").args([
-            "--config",
-            extra_cargo_config,
-            "run",
-            "-p",
-            "caliptra-builder",
-            "--",
-            flag,
-            path.to_str().unwrap(),
-        ]);
-        if let Err(e) = run_command(&mut cmd) {
-            error!("{}", e);
-            bail!("Failed to build ROM with {}", flag);
-        }
-        Ok(())
-    };
-
-    build_rom(&rom_with_log_path, "--rom-with-log")?;
-    build_rom(&rom_no_log_path, "--rom-no-log")?;
+    let rom_with_log_path = work_dir.join("caliptra-rom-with-log.bin");
+    let rom = build_firmware_rom(&firmware::ROM_WITH_UART)?;
+    std::fs::write(rom_with_log_path, rom)?;
 
     Ok(())
+}
+
+fn frozen_image_filename() -> String {
+    let hw_revision = std::env::var("CALIPTRA_HW_REV").unwrap_or("latest".to_string());
+    format!("FROZEN_IMAGES.{}.sha384sum", hw_revision)
 }
 
 pub fn update_frozen_images() -> Result<()> {
@@ -63,16 +49,16 @@ pub fn update_frozen_images() -> Result<()> {
     }
 
     let sum_output = String::from_utf8_lossy(&status.stdout);
+    let filename = frozen_image_filename();
 
-    let frozen_image_file = "FROZEN_IMAGES.sha384sum";
-    let mut file = fs::File::create(frozen_image_file)?;
+    let mut file = fs::File::create(&filename)?;
     writeln!(
         file,
         "# WARNING: Do not update this file without the approval of the Caliptra TAC"
     )?;
     write!(file, "{}", sum_output)?;
 
-    info!("Successfully updated {}", frozen_image_file);
+    info!("Successfully updated {}", &filename);
     let _ = fs::remove_dir_all(&work_dir);
 
     Ok(())
@@ -84,7 +70,7 @@ pub fn check_frozen_images() -> Result<()> {
     let work_dir = std::env::temp_dir().join("caliptra_frozen_images");
     build_rom_images(&work_dir)?;
 
-    let frozen_image_file = std::env::current_dir()?.join("FROZEN_IMAGES.sha384sum");
+    let frozen_image_file = std::env::current_dir()?.join(frozen_image_filename());
 
     let output = std::process::Command::new("sha384sum")
         .current_dir(&work_dir)

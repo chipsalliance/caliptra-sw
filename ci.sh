@@ -33,7 +33,8 @@ function task_enabled() {
     optional_task_enabled "$1"
 }
 
-FROZEN_IMAGE_FILE="${PWD}/FROZEN_IMAGES.sha384sum"
+HW_REV="${CALIPTRA_HW_REV:-latest}"
+FROZEN_IMAGE_FILE="${PWD}/FROZEN_IMAGES.${HW_REV}.sha384sum"
 
 # Tell caliptra-builder to make warnings errors
 export GITHUB_ACTIONS=1
