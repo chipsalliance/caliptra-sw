@@ -1,3 +1,54 @@
+# fw-2.0.4
+
+This is a combined runtime and FMC release for Caliptra 2.0.
+
+## Caliptra Firmware 2.0.4 Release Notes
+
+Release notes for changes introduced since Firmware 2.0.3.
+
+### Features
+
+- **Runtime, Authorization & Attestation**:
+  - Support owner-only authorization manifests and backward-compatible manifest selection for firmware activation (#4233, #3720)
+  - Bind original/vendor SoC manifests to an optional signed device UEID entry (#4213)
+  - Support vendor-authorized debug artifacts and report active debug policy through `FW_INFO` (#4219)
+  - Add the OCP EAT profile, ECC/ML-DSA algorithm selection, and CDDL-compliant attested CSR templates (#4181, #4223)
+  - Support context-aware raw ML-DSA signing through DPE (#4314)
+  - Add opt-in command-count-triggered FIPS self-tests with startup-latched configuration (#4351)
+  - Add `CM_KEY_GEN` for internally generated encrypted AES, ECDSA, ML-DSA, and HMAC keys (#4188, #4397)
+  - Report live FE provisioning status through `FW_INFO` using the native 2.0 OTP layout (#4366, #4397)
+- **Host Library**:
+  - Add `INSTALL_OWNER_PK_HASH` and `SET_OWNER_AUTH_MANIFEST` commands to libcaliptra (#4293, #4328)
+  - Add streaming `CM_SHA_INIT`, `CM_SHA_UPDATE`, and `CM_SHA_FINAL` commands and `MLDSA87_VERIFY` to libcaliptra (#4357, #4373)
+
+### Fixes
+
+- **Runtime Security & Recovery**:
+  - Extend the vendor+owner SoC manifest owner preamble signature to cover version, SVN, and flags as well as owner public keys (#4343)
+  - Bind MCU activation to the signed installation destination and validate complete destination/staging ranges and SRAM capacity before modifying state (#4323)
+  - Enforce the maximum firmware SVN of 128 during image verification independently of lifecycle and anti-rollback settings (#4251)
+  - Preserve named `RTMR`, `CCIV`, `SOMV`, `SOMO`, and `MCFW` TCI identifier bytes in DPE attestation (#4338)
+  - Reserve PCRs and enforce PL0 access for privileged mailbox operations and `EXTEND_PCR` (#4138, #4175, #4170, #4197)
+  - Enforce key-usage checks for cryptographic mailbox AES operations and clear temporary plaintext AES, AES-GCM, and ECDH contexts (#4164, #4367)
+  - Wait for recovery payload deassertion between images and report device healthy after recovery completes (#4236)
+  - Honor configured 64-bit mailbox watchdog timeouts while enforcing a 20-million-cycle minimum (#4275, watchdog subset only)
+- **FMC & Drivers**:
+  - Run FMC fatal-error cleanup when firmware handoff table validation fails and report ML-DSA-specific FMC alias CSR errors (#4304, #4306)
+  - Wait for CSRNG command readiness and completion and zeroize cryptographic hardware on driver errors (#4322, #3346)
+  - Fix the libcaliptra Zephyr include path and ML-DSA verification declaration (#4184)
+
+### Compatibility Notes
+
+- **`FW_INFO`**: Responses are now 400 bytes in both subsystem and standalone modes. Update consumers accordingly. FE status value `2` is reserved and never returned on Caliptra 2.0; standalone mode reports all partitions as error/indeterminate (#4366, #4397).
+- **Key generation**: `CM_KEY_GEN` supports the native 2.0 key types listed above; ML-KEM remains unsupported (#4188, #4397).
+- **Authorization manifests**: Re-sign vendor+owner SoC manifests to cover `version`, `svn`, `flags`, and owner public keys, and update pinned `SOMO` measurements. Owner-only manifests are unaffected (#4343).
+- **DPE identities**: Corrected named TCI identifiers change affected certificate identifiers and derived keys. Perform a cold boot; retained contexts are not migrated (#4338).
+- **Optional UEID binding**: Firmware ID `0xFFF` is reserved for the optional original/vendor-manifest UEID entry. Legacy manifests without that entry remain valid; owner-only manifests retain ordinary firmware-ID semantics (#4213).
+- **Autonomous self-tests**: RT samples `CPTRA_GENERIC_INPUT_WIRES[1]` at every startup. Keep bit 0 clear unless enabling a valid configuration in a supported build. Invalid or unsupported enabled configurations fail startup with `RUNTIME_INVALID_SELF_TEST_CONFIG`. Tests are workload-triggered, not time-based; continuous mailbox traffic can defer them (#4351).
+- **ROM-dependent fixes**: The boot and image-verification fixes in ROM 2.0.5 require newly built ROM artifacts; a firmware-only update cannot install them. ROM 2.0.5 requires offset-zero entry points and contiguous FMC/Runtime image payloads (#4280, #4271).
+
+**Full Changelog**: https://github.com/chipsalliance/caliptra-sw/compare/fw-2.0.3...fw-2.0.4
+
 # rom-2.0.5
 
 ## Caliptra ROM 2.0.5 Release Notes
@@ -6,9 +57,9 @@ Release notes for changes introduced since ROM 2.0.4.
 
 The published [`rom-2.0.5rc1` release](https://github.com/chipsalliance/caliptra-sw/releases/tag/rom-2.0.5rc1)
 was built from `c7ed8c09` with embedded ROM version 2.0.4 and FMC/Runtime
-versions 2.0.2. ROM 2.0.5 artifacts must be rebuilt from a commit containing
-the ROM version update; FMC/Runtime versions stay at 2.0.2. The RC1 tag and
-published artifacts remain unchanged.
+versions 2.0.2. ROM 2.0.5 and firmware 2.0.4 artifacts must be rebuilt with
+the updated embedded versions. The RC1 tag and published artifacts remain
+unchanged.
 
 ### Fixes
 
