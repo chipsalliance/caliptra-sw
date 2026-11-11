@@ -23,8 +23,7 @@ The Processing System ARM cores then act as the SoC Security Processor with memo
 ### Requirements: ###
  - Vivado
    - Version v2022.2 or 2024.2
- - PetaLinux Tools
-   - Version must match Vivado
+ - Nix (with Flakes enabled, for building the VCK-190 SD card image and `BOOT.BIN`)
  - FPGA
    - [VCK190](https://www.xilinx.com/products/boards-and-kits/vck190.html)
    - VMK180 will be supported soon.
@@ -90,21 +89,19 @@ This script provides a number of configuration options for features that can be 
     - Generate Device Image: `write_device_image $outputDir/caliptra_fpga`
     - Export hardware: `write_hw_platform -fixed -include_bit -force -file $outputDir/caliptra_fpga.xsa`
 
-### Build boot.bin: ###
- - Source PetaLinux tools from the PetaLinux installation directory. *PetaLinux Tools must match Vivado version*
-   - `source settings.sh`
- - Execute [create_boot_bin.sh](create_boot_bin.sh) to create a BOOT.BIN
-   - `./create_boot_bin.sh /path/to/caliptra_fpga_project_bd_wrapper.xsa`
- - (Optional) After the BOOT.BIN is created once, update_boot_bin.sh can be used to incorporate a new xsa.
-   - `./update_boot_bin.sh /path/to/caliptra_fpga_project_bd_wrapper.xsa`
- - Copy petalinux_project/images/linux/BOOT.BIN to the boot partition as boot1900.bin
-   - If the Ubuntu image is booted, it will mount the boot partition at /boot/firmware/
-   - If boot1900.bin fails to boot the system will fallback to the default boot1901.bin
-   ```shell
-   sudo su
-   cp BOOT.BIN /boot/firmware/boot1900.bin
-   reboot
-   ```
+### Build SD Card Image & `BOOT.BIN`: ###
+The VCK-190 SD card image (`BOOT.BIN`, `system.dtb`, `boot.scr`, `linux-xlnx`, `io-module.ko`, and the NixOS rootfs) is built directly from the Vivado `.xsa` archive using Nix in [`ci-tools/fpga-image/`](../../ci-tools/fpga-image/README.md):
+```shell
+cd ../../ci-tools/fpga-image
+
+# Build full SD card images (Subsystem or Core, Dev or CI)
+nix build -L path:.#vck190-subsystem-dev
+nix build -L path:.#vck190-core-dev
+
+# Or build BOOT.BIN standalone
+nix build -L path:.#boot-bin-subsystem
+nix build -L path:.#boot-bin-core
+```
 - Verify the correct image is loaded
    - fpga_magic (0xA4010000) contains 0x52545043.
    - fpga_version (0xA4010004) contains the hash of the git HEAD commit.
