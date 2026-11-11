@@ -1,7 +1,5 @@
 # fw-2.0.4
 
-This is a combined runtime and FMC release for Caliptra 2.0.
-
 ## Caliptra Firmware 2.0.4 Release Notes
 
 Release notes for changes introduced since Firmware 2.0.3.
