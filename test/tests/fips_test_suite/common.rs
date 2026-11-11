@@ -114,12 +114,17 @@ const RT_EXP_2_0_2: RtExpVals = RtExpVals {
     fw_version: 0x0200_0002, // 2.0.2
 };
 
-const RT_EXP_CURRENT: RtExpVals = RtExpVals { ..RT_EXP_2_0_2 };
+const RT_EXP_2_0_4: RtExpVals = RtExpVals {
+    fmc_version: 0x1004,     // 2.0.4
+    fw_version: 0x0200_0004, // 2.0.4
+};
+
+const RT_EXP_CURRENT: RtExpVals = RtExpVals { ..RT_EXP_2_0_4 };
 
 #[test]
 fn current_runtime_version_matches_builder() {
-    assert_eq!(RT_EXP_CURRENT.fmc_version, 0x1002);
-    assert_eq!(RT_EXP_CURRENT.fw_version, 0x0200_0002);
+    assert_eq!(RT_EXP_CURRENT.fmc_version, 0x1004);
+    assert_eq!(RT_EXP_CURRENT.fw_version, 0x0200_0004);
     assert_eq!(RT_EXP_CURRENT.fmc_version, version::get_fmc_version());
     assert_eq!(RT_EXP_CURRENT.fw_version, version::get_runtime_version());
 }
@@ -181,6 +186,7 @@ impl RtExpVals {
                 "2_0_0" => RT_EXP_2_0_0,
                 "2_0_1" => RT_EXP_2_0_1,
                 "2_0_2" => RT_EXP_2_0_2,
+                "2_0_4" => RT_EXP_2_0_4,
                 _ => panic!(
                     "FIPS Test: Unknown version for expected Runtime values ({})",
                     version
