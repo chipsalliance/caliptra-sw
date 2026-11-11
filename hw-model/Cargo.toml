@@ -33,12 +33,16 @@ sha2.workspace = true
 uio = { workspace = true, optional = true }
 ureg.workspace = true
 zerocopy.workspace = true
-nix.workspace = true
-libc.workspace = true
 caliptra-coverage = { workspace = true, optional = true }
 caliptra-image-types.workspace = true
 inferno = "0.12.8"
 rustc-demangle = "0.1.28"
+
+# Only the FPGA model and its tools use these, and they are Linux-only.
+# Keeping them out of other targets lets the emulated model build for wasm32.
+[target.'cfg(target_os = "linux")'.dependencies]
+libc.workspace = true
+nix.workspace = true
 
 [dev-dependencies]
 caliptra-registers.workspace = true
