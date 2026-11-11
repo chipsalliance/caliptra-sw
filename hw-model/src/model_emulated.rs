@@ -165,6 +165,12 @@ impl ModelEmulated {
         self.cpu.read_halted()
     }
 
+    /// Snapshot of the Caliptra Key Vault (keys, PCRs, and control registers).
+    /// For tools that display emulator state, such as caliptra-wasm.
+    pub fn key_vault_snapshot(&self) -> caliptra_emu_periph::KeyVaultSnapshot {
+        self.cpu.bus.bus.key_vault.snapshot()
+    }
+
     /// Fetch stack samples record so far.
     pub fn stack_samples(&self) -> Option<HashMap<StackSample, u64>> {
         self.cpu.stack_sampler.as_ref().map(|s| s.samples.clone())
