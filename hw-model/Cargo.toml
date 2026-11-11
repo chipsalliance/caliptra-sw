@@ -34,8 +34,6 @@ caliptra-image-fake-keys.workspace = true
 caliptra-verilated = { workspace = true, optional = true }
 once_cell.workspace = true
 rand.workspace = true
-regex.workspace = true
-rustix.workspace = true
 scopeguard.workspace = true
 serde = {workspace = true, features = ['derive']}
 sha2.workspace = true
@@ -45,11 +43,17 @@ thiserror.workspace = true
 uio = { workspace = true, optional = true }
 caliptra-ureg.workspace = true
 zerocopy.workspace = true
-nix.workspace = true
-libc.workspace = true
 caliptra-coverage = { workspace = true, optional = true }
 caliptra-image-types.workspace = true
 tock-registers.workspace = true
+
+# Only the FPGA models and the openocd module use these, and they are Linux-only.
+# Keeping them out of other targets lets the emulated model build for wasm32.
+[target.'cfg(target_os = "linux")'.dependencies]
+libc.workspace = true
+nix.workspace = true
+regex.workspace = true
+rustix.workspace = true
 
 [build-dependencies]
 deser-hjson.workspace = true
