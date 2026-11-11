@@ -49,8 +49,7 @@ pub use api::mailbox::mbox_write_fifo;
 pub use api_types::{DeviceLifecycle, Fuses, SecurityState, U4};
 pub use caliptra_emu_bus::BusMmio;
 pub use caliptra_emu_cpu::{CodeRange, ImageInfo, StackInfo, StackRange};
-use output::ExitStatus;
-pub use output::Output;
+pub use output::{ExitStatus, Output};
 
 pub use model_emulated::ModelEmulated;
 
