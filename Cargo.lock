@@ -649,7 +649,6 @@ version = "0.1.0"
 dependencies = [
  "bit-vec",
  "bitfield",
- "caliptra-builder",
  "caliptra-emu-bus",
  "caliptra-emu-derive",
  "caliptra-emu-types",
