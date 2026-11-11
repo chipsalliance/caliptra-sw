@@ -25,7 +25,7 @@ use caliptra_emu_bus::{
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
 use const_random::const_random;
 use std::env;
-use std::sync::LazyLock;
+use std::sync::{LazyLock, OnceLock};
 use std::{rc::Rc, sync::mpsc};
 
 pub type AxiAddr = u64;
@@ -448,8 +448,21 @@ impl AxiRootBus {
     }
 }
 
+static SS_MCI_OFFSET_OVERRIDE: OnceLock<AxiAddr> = OnceLock::new();
+
+/// Set the subsystem MCI base address programmatically, as an alternative to
+/// the `CPTRA_EMULATOR_SS_MCI_OFFSET` environment variable for targets that
+/// cannot set environment variables (e.g. wasm32). Must be called before the
+/// first emulator is created; returns false if a different offset was
+/// already set.
+pub fn set_ss_mci_offset(offset: AxiAddr) -> bool {
+    *SS_MCI_OFFSET_OVERRIDE.get_or_init(|| offset) == offset
+}
+
 static SS_MCI_OFFSET: LazyLock<AxiAddr> = LazyLock::new(|| {
-    if let Ok(s) = env::var("CPTRA_EMULATOR_SS_MCI_OFFSET") {
+    if let Some(offset) = SS_MCI_OFFSET_OVERRIDE.get() {
+        *offset
+    } else if let Ok(s) = env::var("CPTRA_EMULATOR_SS_MCI_OFFSET") {
         parse_u64(&s)
     } else {
         const_random!(u64) & 0xffffffff_00000000
