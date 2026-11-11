@@ -289,6 +289,58 @@ fn get_hpke_handle(model: &mut DefaultHwModel, suite: HpkeAlgorithms) -> Option<
     Some(hpke_handle)
 }
 
+fn get_all_validated_hpke_handles(model: &mut DefaultHwModel) -> Vec<ValidatedHpkeHandle> {
+    let mut valid_handles = Vec::new();
+    for alg in ALL_HPKE_ALGS {
+        if let Some(hpke_handle) = get_hpke_handle(model, alg.clone()) {
+            if let Some(validated) = verify_hpke_pub_key(model, hpke_handle) {
+                valid_handles.push(validated);
+            }
+        }
+    }
+    valid_handles
+}
+
+fn assert_hpke_key_rotated(
+    model: &mut DefaultHwModel,
+    old_handles: &[ValidatedHpkeHandle],
+    rotated_handle: &ValidatedHpkeHandle,
+) {
+    let new_handles = get_all_validated_hpke_handles(model);
+    assert_eq!(old_handles.len(), new_handles.len());
+    for (old, new) in old_handles.iter().zip(new_handles.iter()) {
+        assert_eq!(
+            old.hpke_handle.hpke_algorithm,
+            new.hpke_handle.hpke_algorithm
+        );
+        if old.hpke_handle.hpke_algorithm == rotated_handle.hpke_handle.hpke_algorithm {
+            assert_ne!(old.hpke_handle.handle, new.hpke_handle.handle);
+            assert_ne!(old.pub_key, new.pub_key);
+
+            let mut cmd = MailboxReq::OcpLockGetHpkePubKey(OcpLockGetHpkePubKeyReq {
+                hpke_handle: old.hpke_handle.handle,
+                ..Default::default()
+            });
+            cmd.populate_chksum().unwrap();
+            let response = model.mailbox_execute(
+                CommandId::OCP_LOCK_GET_HPKE_PUB_KEY.into(),
+                cmd.as_bytes().unwrap(),
+            );
+            validate_ocp_lock_response(model, response, |response, _| {
+                assert_eq!(
+                    response.unwrap_err(),
+                    ModelError::MailboxCmdFailed(
+                        CaliptraError::RUNTIME_OCP_LOCK_UNKNOWN_HPKE_HANDLE.into(),
+                    )
+                );
+            });
+        } else {
+            assert_eq!(old.hpke_handle.handle, new.hpke_handle.handle);
+            assert_eq!(old.pub_key, new.pub_key);
+        }
+    }
+}
+
 fn get_validated_hpke_handle(model: &mut DefaultHwModel) -> Option<ValidatedHpkeHandle> {
     let mut valid_handles = Vec::new();
     for alg in ALL_HPKE_ALGS {
