@@ -11,6 +11,7 @@ use std::{
 mod build;
 mod cargo_lock;
 mod ci;
+mod ci_selection;
 mod clippy;
 mod format;
 mod fpga;
@@ -111,6 +112,8 @@ pub enum CICommands {
         path: String,
     },
     TestMatrix,
+    /// Select hardware revisions affected by a PR.
+    SelectRevisions,
 }
 
 #[derive(Subcommand)]
@@ -184,6 +187,7 @@ fn main() {
             CICommands::SizeHistory => ci::size_history(),
             CICommands::BitstreamDownloader { path } => ci::bitstream_download(path.clone()),
             CICommands::TestMatrix => Ok(()),
+            CICommands::SelectRevisions => ci_selection::run(),
         },
         Commands::Build { command } => match command {
             BuildCommands::Rom => build::build_rom(),
