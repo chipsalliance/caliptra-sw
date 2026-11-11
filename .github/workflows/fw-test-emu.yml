@@ -75,12 +75,12 @@ jobs:
             exit 1
           fi
 
-          cargo-nextest nextest list \
+          cargo nextest list \
             --features="${{ inputs.extra-features }}" \
             --message-format json \
             > /tmp/nextest-list.json
 
-          cargo-nextest nextest run \
+          cargo nextest run \
             --features="${{ inputs.extra-features }}" \
             --no-fail-fast \
             --profile=nightly
