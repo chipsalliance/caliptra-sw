@@ -67,16 +67,12 @@ if [[ -z "${SKIP_DEBOOTSTRAP}" ]]; then
       chroot out/rootfs bash -c "su runner -c \"echo ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBNAmcxogmvhKGQy/kd5R+uB382XiSb1p/hlqx/lJv3IcxT3JDVk2cRuVxipirplizT6g5+a5FWH6fGrOizQ/Rd0= publickey >> ~/.ssh/authorized_keys\""
       # jlmahowa-amd
       chroot out/rootfs bash -c "su runner -c \"echo ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIER1Qp/fV0TrAdlUpQZwApMvLLdnQecLraHiIlKAQazi luke.mahowald@amd.com >> ~/.ssh/authorized_keys\""
-      # jose-cipriano-soc
-      chroot out/rootfs bash -c "su runner -c \"echo ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOqxIT54u8MjPlfrEbBNI01f1irf27GfeZF9uCjPdkaI josecipriano@josecipriano.c.googlers.com >> ~/.ssh/authorized_keys\""
-      # moidx
-      chroot out/rootfs bash -c "su runner -c \"echo ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAING7nHmIo6v/jHTFuLGlALBM9bJ+p8WI4H6NZCREkxxc miguelosorio@google.com >> ~/.ssh/authorized_keys\""
-      # sileno-rocco-soc
-      chroot out/rootfs bash -c "su runner -c \"echo ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFdco7xfZ3kPkSYrVWZsGWYB8VuRPTT8FupUXegAj2+n sileno@sileno-caliptra.c.googlers.com >> ~/.ssh/authorized_keys\""
-      # ttrippel
-      chroot out/rootfs bash -c "su runner -c \"echo ecdsa-sha2-nistp521 AAAAE2VjZHNhLXNoYTItbmlzdHA1MjEAAAAIbmlzdHA1MjEAAACFBAC3/lGx3rPr9Nns3aAS8faxKHOj/jgqLNFpjfXehz2kGhNC2EGRibXBHHP738KEG+rjA8HOsG8oHFmTFcOBJf+UqgDNmIfx7M5Db3cEgvhMcZSWck3Nb6ouIBwVchFgAupohpKmGroNuLB5QDuOE3cA8U7zN3y1L8uhUrDAxNPmS2Dvag== ttrippel@ttrippel.svl.corp.google.com >> ~/.ssh/authorized_keys\""
       # zhalvorsen
       chroot out/rootfs bash -c "su runner -c \"echo ecdsa-sha2-nistp384 AAAAE2VjZHNhLXNoYTItbmlzdHAzODQAAAAIbmlzdHAzODQAAABhBLCee6PZ63j9MXxo2LIB6K7I5WmIKJAWdww922p9klsKVhLkMpNPXkLtYaf44GDLSmNO1j2stkXw174agt722rAa6fNInSCY8HPpAlyAJ7xELEGDOb5FfQVJU5ruGYJ7LQ== zhalvorsen@zhalvorsen.c.googlers.com >> ~/.ssh/authorized_keys\""
+      # swenson
+      chroot out/rootfs bash -c "su runner -c \"echo ecdsa-sha2-nistp521 AAAAE2VjZHNhLXNoYTItbmlzdHA1MjEAAAAIbmlzdHA1MjEAAACFBAEv3TqKHssPHVZtZ4df3wx6x7lF4SmKuRy5s9jbyFUELqn0ET0z4OsvQ4BV0g3LoRofdzEr1qrzFQh8VFJLROBYLgCAm7m66rjcjLtqAF80rArEWuWkdQAATyUdTb+AVo2RZ60JCRR6t356hp9G2WCG/RP/CT85HD33+JHvnbttU4p3aA== swenson@fura >> ~/.ssh/authorized_keys\""
+      # levenick
+      chroot out/rootfs bash -c "su runner -c \"echo ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBIfG73OaiyV0FJCiljQQE8LEty3zrMytYLSsV+1oubAFpS6bSLgi2G7xODTpcibpeCaLWtR+Tmqz3fGmUBfFxas= levenick@google.com >> ~/.ssh/authorized_keys\""
 
       # Add rootfs resize script and service
       cat <<'EOF' > out/rootfs/usr/sbin/resize-rootfs.sh
