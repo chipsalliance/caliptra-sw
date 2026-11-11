@@ -8,18 +8,22 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
-default = []
+default = ["profiling"]
 verilator = ["dep:caliptra-verilated"]
 fpga_realtime = ["dep:uio"]
 itrng = ["caliptra-verilated?/itrng"]
 coverage = ["dep:caliptra-coverage"]
 "hw-1.0" = ["caliptra-emu-periph/hw-1.0"]
+# Stack-sampling flamegraphs (InitParams::elfs, ModelEmulated::gen_flamegraph).
+# Needs host-only crates (caliptra-builder, and through it OpenSSL); disable
+# for targets without them, such as wasm32.
+profiling = ["dep:caliptra-builder", "dep:inferno", "dep:rustc-demangle"]
 
 [dependencies]
 bitfield.workspace = true
 bit-vec.workspace = true
 caliptra-api-types.workspace = true
-caliptra-builder.workspace = true
+caliptra-builder = { workspace = true, optional = true }
 caliptra-emu-bus.workspace = true
 caliptra-emu-cpu.workspace = true
 caliptra-emu-periph.workspace = true
@@ -35,8 +39,8 @@ ureg.workspace = true
 zerocopy.workspace = true
 caliptra-coverage = { workspace = true, optional = true }
 caliptra-image-types.workspace = true
-inferno = "0.12.8"
-rustc-demangle = "0.1.28"
+inferno = { version = "0.12.8", optional = true }
+rustc-demangle = { version = "0.1.28", optional = true }
 
 # Only the FPGA model and its tools use these, and they are Linux-only.
 # Keeping them out of other targets lets the emulated model build for wasm32.
@@ -45,6 +49,7 @@ libc.workspace = true
 nix.workspace = true
 
 [dev-dependencies]
+caliptra-builder.workspace = true
 caliptra-registers.workspace = true
 caliptra-test-harness-types.workspace = true
 nix.workspace = true

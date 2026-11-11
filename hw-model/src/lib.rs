@@ -4,6 +4,7 @@ use api::CaliptraApiError;
 use caliptra_api as api;
 use caliptra_api::SocManager;
 use caliptra_api_types as api_types;
+#[cfg(feature = "profiling")]
 use caliptra_builder::Elfs;
 use caliptra_emu_bus::Bus;
 use core::panic;
@@ -192,6 +193,7 @@ pub struct InitParams<'a> {
     pub stack_sample_rate: Option<u64>,
 
     // ELF byte streams of the FMC and runtime, will be used to resolve symbols in stack samples.
+    #[cfg(feature = "profiling")]
     pub elfs: Option<Elfs>,
 }
 impl<'a> Default for InitParams<'a> {
@@ -231,6 +233,7 @@ impl<'a> Default for InitParams<'a> {
             soc_user: MailboxRequester::SocUser(1u32),
             sample_stack_traces: false,
             stack_sample_rate: None,
+            #[cfg(feature = "profiling")]
             elfs: None,
         }
     }
