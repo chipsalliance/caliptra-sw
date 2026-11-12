@@ -93,6 +93,30 @@ const _: () = assert!(OCP_LOCK_ENCRYPTION_ENGINE_AUX_SIZE.is_multiple_of(size_of
 pub const OCP_LOCK_ENCRYPTION_ENGINE_MAX_MEK_SIZE: usize = 64;
 const _: () = assert!(OCP_LOCK_ENCRYPTION_ENGINE_MAX_MEK_SIZE.is_multiple_of(size_of::<u32>()));
 
+/// Compile-time check that header struct `$hdr` is an exact prefix of request/response `$req`: every listed
+/// field sits at the same offset with the same size in both structs, and the
+/// trailing variable-length field of `$req` starts immediately after `$hdr`.
+macro_rules! assert_hdr_prefix {
+    ($req:ty, $hdr:ty, [$($field:ident),+ $(,)?], $tail:ident) => {
+        const _: () = {
+            $(
+                assert!(
+                    core::mem::offset_of!($req, $field) == core::mem::offset_of!($hdr, $field)
+                );
+                assert!(
+                    size_of_field(|r: &$req| &r.$field) == size_of_field(|h: &$hdr| &h.$field)
+                );
+            )+
+            assert!(core::mem::offset_of!($req, $tail) == size_of::<$hdr>());
+        };
+    };
+}
+
+/// Returns the size of the field selected by `_f` (used only in const context).
+const fn size_of_field<S, F>(_f: fn(&S) -> &F) -> usize {
+    size_of::<F>()
+}
+
 #[derive(PartialEq, Eq)]
 pub struct CommandId(pub u32);
 
@@ -3526,6 +3550,111 @@ pub struct CmShaReqHdr {
 
 /// Size of the CmShaReqHdr in bytes (for computing input offset in mailbox).
 pub const CM_SHA_REQ_HDR_SIZE: usize = size_of::<CmShaReqHdr>();
+
+/// Header-only struct for CM_SHA_UPDATE / CM_SHA_FINAL requests.
+/// This contains only the fixed-size header fields, not the variable-length input data,
+/// so the header and input can be written to / read from the mailbox separately.
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+pub struct CmShaContextReqHdr {
+    pub hdr: MailboxReqHeader,
+    pub context: [u8; CMB_SHA_CONTEXT_SIZE],
+    pub input_size: u32,
+}
+
+impl Default for CmShaContextReqHdr {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxReqHeader::default(),
+            context: [0u8; CMB_SHA_CONTEXT_SIZE],
+            input_size: 0,
+        }
+    }
+}
+
+/// Size of the CmShaContextReqHdr in bytes (for computing input offset in mailbox).
+pub const CM_SHA_CONTEXT_REQ_HDR_SIZE: usize = size_of::<CmShaContextReqHdr>();
+
+assert_hdr_prefix!(
+    CmShaReq,
+    CmShaReqHdr,
+    [hdr, hash_algorithm, input_size],
+    input
+);
+assert_hdr_prefix!(
+    CmShaInitReq,
+    CmShaReqHdr,
+    [hdr, hash_algorithm, input_size],
+    input
+);
+assert_hdr_prefix!(
+    CmShaUpdateReq,
+    CmShaContextReqHdr,
+    [hdr, context, input_size],
+    input
+);
+assert_hdr_prefix!(
+    CmShaFinalReq,
+    CmShaContextReqHdr,
+    [hdr, context, input_size],
+    input
+);
+
+/// Header-only struct for CM_SHAKE256_INIT request.
+/// This contains only the fixed-size header fields, not the variable-length input data,
+/// so the header and input can be written to / read from the mailbox separately.
+#[repr(C)]
+#[derive(Debug, Default, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+pub struct CmShake256ReqHdr {
+    pub hdr: MailboxReqHeader,
+    pub input_size: u32,
+}
+
+/// Size of the CmShake256ReqHdr in bytes (for computing input offset in mailbox).
+pub const CM_SHAKE256_REQ_HDR_SIZE: usize = size_of::<CmShake256ReqHdr>();
+
+/// Header-only struct for CM_SHAKE256_UPDATE / CM_SHAKE256_FINAL requests.
+/// This contains only the fixed-size header fields, not the variable-length input data,
+/// so the header and input can be written to / read from the mailbox separately.
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+pub struct CmShake256ContextReqHdr {
+    pub hdr: MailboxReqHeader,
+    pub context: [u8; CMB_SHAKE256_CONTEXT_SIZE],
+    pub input_size: u32,
+}
+
+impl Default for CmShake256ContextReqHdr {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxReqHeader::default(),
+            context: [0u8; CMB_SHAKE256_CONTEXT_SIZE],
+            input_size: 0,
+        }
+    }
+}
+
+/// Size of the CmShake256ContextReqHdr in bytes (for computing input offset in mailbox).
+pub const CM_SHAKE256_CONTEXT_REQ_HDR_SIZE: usize = size_of::<CmShake256ContextReqHdr>();
+
+assert_hdr_prefix!(
+    CmShake256InitReq,
+    CmShake256ReqHdr,
+    [hdr, input_size],
+    input
+);
+assert_hdr_prefix!(
+    CmShake256UpdateReq,
+    CmShake256ContextReqHdr,
+    [hdr, context, input_size],
+    input
+);
+assert_hdr_prefix!(
+    CmShake256FinalReq,
+    CmShake256ContextReqHdr,
+    [hdr, context, input_size],
+    input
+);
 
 #[repr(C)]
 #[derive(Debug, Default, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
