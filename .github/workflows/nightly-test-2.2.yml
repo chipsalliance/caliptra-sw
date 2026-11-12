@@ -1,0 +1,84 @@
+name: Nightly Tests HW 2.2
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  sw-emulator:
+    name: Emulator HW 2.2 (${{ matrix.config.name }}, ${{ matrix.rng.name }}, ${{ matrix.log.name }})
+    uses: ./.github/workflows/fw-test-emu.yml
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          - { name: "latest", rom: "latest", suffix: "rom-latest", base_features: "slow_tests" }
+        rng:
+          - { name: "etrng", extra: "" }
+          - { name: "itrng", extra: ",itrng" }
+        log:
+          - { name: "log", enabled: true }
+          - { name: "nolog", enabled: false }
+    with:
+      hw-revision: "2.2"
+      rom-version: ${{ matrix.config.rom }}
+      extra-features: ${{ matrix.config.base_features }}${{ matrix.rng.extra }}
+      rom-logging: ${{ matrix.log.enabled }}
+      artifact-suffix: -sw-emulator-hw_2.2-${{ matrix.config.suffix }}-${{ matrix.rng.name }}-${{ matrix.log.name }}-${{ github.sha }}
+
+  # Enable only after the FPGA support HW 2.2.
+  fpga:
+    name: FPGA HW 2.2 (${{ matrix.config.name }}, itrng, ${{ matrix.log.name }}, ${{ matrix.ocp_lock.name }})
+    if: ${{ false }}  # Remove to enable
+    uses: ./.github/workflows/fpga.yml
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          - { name: "latest", rom: "latest", suffix: "rom-latest", base_features: "slow_tests" }
+        log:
+          - { name: "log", enabled: true }
+          - { name: "nolog", enabled: false }
+        ocp_lock:
+          - { name: "no-ocp-lock", enabled: false }
+          - { name: "ocp-lock", enabled: true }
+    with:
+      branch: ${{ github.sha }}
+      # Requires HW 2.2 sources, features, firmware selection, and bitstreams before enabling.
+      hw-version: "2.2"
+      rom-version: ${{ matrix.config.rom }}
+      extra-features: ${{ matrix.config.base_features }},itrng
+      fpga-itrng: true
+      rom-logging: ${{ matrix.log.enabled }}
+      ocp-lock: ${{ matrix.ocp_lock.enabled }}
+      artifact-suffix: -fpga-realtime-hw_2.2-${{ matrix.config.suffix }}-itrng-${{ matrix.log.name }}-${{ matrix.ocp_lock.name }}-${{ github.sha }}
+
+  # Subsystem testing also requires compatible MCU support.
+  fpga-subsystem:
+    name: FPGA Subsystem HW 2.2 (${{ matrix.config.name }}, itrng, ${{ matrix.ocp_lock.name }}, ${{ matrix.flash_boot.name }})
+    if: ${{ false }}  # Remove to enable
+    uses: ./.github/workflows/fpga-subsystem.yml
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          - { name: "latest", rom: "latest", suffix: "rom-latest", base_features: "slow_tests" }
+        ocp_lock:
+          - { name: "no-ocp-lock", enabled: false }
+          - { name: "ocp-lock", enabled: true }
+        flash_boot:
+          - { name: "no-flash-boot", enabled: false }
+          - { name: "flash-boot", enabled: true }
+    with:
+      branch: ${{ github.sha }}
+      # Requires HW 2.2 sources, features, firmware selection, and bitstreams before enabling.
+      hw-version: "2.2"
+      rom-version: ${{ matrix.config.rom }}
+      extra-features: ${{ matrix.config.base_features }},itrng
+      fpga-itrng: true
+      rom-logging: false
+      ocp-lock: ${{ matrix.ocp_lock.enabled }}
+      flash-boot: ${{ matrix.flash_boot.enabled }}
+      artifact-suffix: -fpga-subsystem-hw_2.2-${{ matrix.config.suffix }}-itrng-nolog-${{ matrix.ocp_lock.name }}-${{ matrix.flash_boot.name }}-${{ github.sha }}
