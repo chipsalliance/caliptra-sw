@@ -75,9 +75,11 @@ Raw Cargo commands that supply their own feature list do not consult the
 resolver automatically. When using the standalone emulator, pass a matching
 `--hw-version`; the ROM/FMC Makefiles do this automatically.
 
-The existing CI build matrix builds firmware and runs the generic feature-policy
-and CLI tests for both targets. Feature-specific behavioral tests belong to the
-PR that introduces the feature. The 2.1 release/nightly policy is unchanged.
+The existing CI build matrix builds firmware for both targets. The generic
+feature-policy and CLI tests run in the normal workspace test job and explicitly
+exercise both hardware selectors; no additional workflow step is needed.
+Feature-specific behavioral tests belong to the PR that introduces the feature.
+The 2.1 release/nightly policy is unchanged.
 
 ## Options
 

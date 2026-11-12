@@ -70,9 +70,6 @@ jobs:
           cargo --config "$EXTRA_CARGO_CONFIG" build --locked
           cargo xtask build all
 
-      - name: Test firmware feature selection
-        run: cargo --config "$EXTRA_CARGO_CONFIG" test --locked -p caliptra-builder -p xtask firmware_features
-
       - name: Build with OpenSSL
         run: |
           for proj in caliptra-auth-manifest-app caliptra-builder caliptra-image-crypto caliptra-image-app; do
