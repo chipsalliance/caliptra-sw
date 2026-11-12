@@ -59,7 +59,12 @@ serde = { workspace = true, features = ["derive"] }
 caliptra-builder.workspace = true
 caliptra-registers.workspace = true
 caliptra-test-harness-types.workspace = true
+deser-hjson.workspace = true
 nix.workspace = true
+
+[[test]]
+name = "otp_mmap_codegen"
+path = "build.rs"
 
 [[bin]]
 name = "fpga_realtime_mbox_pauser"

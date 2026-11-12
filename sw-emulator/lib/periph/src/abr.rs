@@ -1139,6 +1139,9 @@ impl Abr {
 
             self.mlkem_seed_d = words_from_bytes_le(&seed_d_bytes);
             self.mlkem_seed_z = words_from_bytes_le(&seed_z_bytes);
+            // KV DWORD 0 maps to seed register 7 in each half.
+            self.mlkem_seed_d.reverse();
+            self.mlkem_seed_z.reverse();
         }
 
         seed_read_result
@@ -1164,10 +1167,12 @@ impl Abr {
         };
 
         if let Some(msg) = msg {
-            let temp = words_from_bytes_le(
+            let mut temp = words_from_bytes_le(
                 &<[u8; ML_KEM_1024_MESSAGE_SIZE]>::try_from(&msg[..ML_KEM_1024_MESSAGE_SIZE])
                     .unwrap(),
             );
+            // KV DWORD 0 maps to message register 7.
+            temp.reverse();
             self.mlkem_msg = temp;
         }
 
@@ -1511,6 +1516,10 @@ mod tests {
     const OFFSET_MLKEM_DECAPS_KEY: RvAddr = 0xA000;
     const OFFSET_MLKEM_ENCAPS_KEY: RvAddr = 0xB000;
     const OFFSET_MLKEM_CIPHERTEXT: RvAddr = 0xB800;
+    const OFFSET_MLKEM_KV_RD_SEED_CONTROL: RvAddr = 0xC000;
+    const OFFSET_MLKEM_KV_RD_SEED_STATUS: RvAddr = 0xC004;
+    const OFFSET_MLKEM_KV_RD_MSG_CONTROL: RvAddr = 0xC008;
+    const OFFSET_MLKEM_KV_RD_MSG_STATUS: RvAddr = 0xC00C;
 
     /// Write non-zero entropy to the ABR_ENTROPY registers (shared by MLDSA and MLKEM).
     fn write_abr_entropy(abr: &mut Abr) {
@@ -2554,6 +2563,129 @@ mod tests {
 
         assert_ne!(encaps_key_word, 0);
         assert_ne!(decaps_key_word, 0);
+    }
+
+    #[test]
+    fn test_mlkem_keygen_from_kv() {
+        let seed_d: [u8; 32] = std::array::from_fn(|i| u8::try_from(i).unwrap());
+        let seed_z: [u8; 32] = std::array::from_fn(|i| u8::try_from(i + 32).unwrap());
+        let mut rng = SeedOnlyRng::new_with_seeds(vec![seed_d, seed_z]);
+        let (_, expected_key) = MlKem1024::generate(&mut rng);
+
+        let mut kv_seed_d = words_from_bytes_le(&seed_d);
+        let mut kv_seed_z = words_from_bytes_le(&seed_z);
+        kv_seed_d.reverse();
+        kv_seed_z.reverse();
+        let kv_seed = [kv_seed_d.as_bytes(), kv_seed_z.as_bytes()].concat();
+
+        let clock = Clock::new();
+        let mut key_vault = KeyVault::new();
+        let mut usage = KeyUsage::default();
+        usage.set_mlkem_seed(true);
+        key_vault.write_key(2, &kv_seed, u32::from(usage)).unwrap();
+        let sha512 = HashSha512::new(&clock, key_vault.clone());
+        let mut abr = Abr::new(&clock, key_vault, sha512);
+        let ctrl = InMemoryRegister::<u32, KvRdCtrl::Register>::new(0);
+        ctrl.modify(KvRdCtrl::READ_ENTRY.val(2) + KvRdCtrl::READ_EN::SET);
+        abr.write(RvSize::Word, OFFSET_MLKEM_KV_RD_SEED_CONTROL, ctrl.get())
+            .unwrap();
+        loop {
+            let status = InMemoryRegister::<u32, KvStatus::Register>::new(
+                abr.read(RvSize::Word, OFFSET_MLKEM_KV_RD_SEED_STATUS)
+                    .unwrap(),
+            );
+            if status.is_set(KvStatus::VALID) {
+                assert_eq!(status.read(KvStatus::ERROR), KvStatus::ERROR::SUCCESS.value);
+                break;
+            }
+            clock.increment_and_process_timer_actions(1, &mut abr);
+        }
+        assert_eq!(abr.mlkem_seed_d, words_from_bytes_le(&seed_d));
+        assert_eq!(abr.mlkem_seed_z, words_from_bytes_le(&seed_z));
+        write_abr_entropy(&mut abr);
+        abr.write(
+            RvSize::Word,
+            OFFSET_MLKEM_CONTROL,
+            MlKemControl::CTRL::KEYGEN.into(),
+        )
+        .unwrap();
+        loop {
+            let status = InMemoryRegister::<u32, MlKemStatus::Register>::new(
+                abr.read(RvSize::Word, OFFSET_MLKEM_STATUS).unwrap(),
+            );
+            if status.is_set(MlKemStatus::VALID) && status.is_set(MlKemStatus::READY) {
+                break;
+            }
+            clock.increment_and_process_timer_actions(1, &mut abr);
+        }
+        assert_eq!(
+            bytes_from_words_le(&abr.mlkem_encaps_key).as_slice(),
+            expected_key.as_bytes().as_slice()
+        );
+    }
+
+    #[test]
+    fn test_mlkem_encaps_from_kv_message() {
+        let mut rng = SeedOnlyRng::new_with_seeds(vec![[0x31; 32], [0x72; 32]]);
+        let (_, encaps_key) = MlKem1024::generate(&mut rng);
+        let message: [u8; 32] = std::array::from_fn(|i| u8::try_from(i).unwrap());
+        let mut encaps_rng = SeedOnlyRng::new(message);
+        let (expected_ciphertext, _) = encaps_key.encapsulate(&mut encaps_rng).unwrap();
+        let mut kv_message = words_from_bytes_le(&message);
+        kv_message.reverse();
+
+        let clock = Clock::new();
+        let mut key_vault = KeyVault::new();
+        let mut usage = KeyUsage::default();
+        usage.set_mlkem_msg(true);
+        key_vault
+            .write_key(3, kv_message.as_bytes(), u32::from(usage))
+            .unwrap();
+        let sha512 = HashSha512::new(&clock, key_vault.clone());
+        let mut abr = Abr::new(&clock, key_vault, sha512);
+        for (i, chunk) in encaps_key.as_bytes().chunks_exact(4).enumerate() {
+            abr.write(
+                RvSize::Word,
+                OFFSET_MLKEM_ENCAPS_KEY + (i * 4) as RvAddr,
+                u32::from_le_bytes(chunk.try_into().unwrap()),
+            )
+            .unwrap();
+        }
+        let ctrl = InMemoryRegister::<u32, KvRdCtrl::Register>::new(0);
+        ctrl.modify(KvRdCtrl::READ_ENTRY.val(3) + KvRdCtrl::READ_EN::SET);
+        abr.write(RvSize::Word, OFFSET_MLKEM_KV_RD_MSG_CONTROL, ctrl.get())
+            .unwrap();
+        loop {
+            let status = InMemoryRegister::<u32, KvStatus::Register>::new(
+                abr.read(RvSize::Word, OFFSET_MLKEM_KV_RD_MSG_STATUS)
+                    .unwrap(),
+            );
+            if status.is_set(KvStatus::VALID) {
+                assert_eq!(status.read(KvStatus::ERROR), KvStatus::ERROR::SUCCESS.value);
+                break;
+            }
+            clock.increment_and_process_timer_actions(1, &mut abr);
+        }
+        write_abr_entropy(&mut abr);
+        abr.write(
+            RvSize::Word,
+            OFFSET_MLKEM_CONTROL,
+            MlKemControl::CTRL::ENCAPS.into(),
+        )
+        .unwrap();
+        loop {
+            let status = InMemoryRegister::<u32, MlKemStatus::Register>::new(
+                abr.read(RvSize::Word, OFFSET_MLKEM_STATUS).unwrap(),
+            );
+            if status.is_set(MlKemStatus::VALID) && status.is_set(MlKemStatus::READY) {
+                break;
+            }
+            clock.increment_and_process_timer_actions(1, &mut abr);
+        }
+        assert_eq!(
+            bytes_from_words_le(&abr.mlkem_ciphertext).as_slice(),
+            expected_ciphertext.as_slice()
+        );
     }
 
     #[test]
