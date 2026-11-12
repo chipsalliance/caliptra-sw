@@ -2,11 +2,6 @@ name: Nightly Tests HW 2.2
 
 on:
   workflow_dispatch:
-    inputs:
-      target-ref:
-        description: Branch, tag, or commit to test
-        type: string
-        default: caliptra-2.2-dev
   schedule:
     # Daily at 07:00 UTC.
     - cron: '0 7 * * *'
@@ -15,30 +10,8 @@ permissions:
   contents: read
 
 jobs:
-  resolve-target:
-    name: Resolve test commit
-    runs-on: ubuntu-22.04
-    outputs:
-      sha: ${{ steps.target.outputs.sha }}
-    steps:
-      - name: Checkout target
-        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #v5
-        with:
-          ref: ${{ inputs.target-ref || 'caliptra-2.2-dev' }}
-
-      - name: Record test commit
-        id: target
-        env:
-          TARGET_REF: ${{ inputs.target-ref || 'caliptra-2.2-dev' }}
-        run: |
-          sha="$(git rev-parse HEAD)"
-          echo "sha=$sha" >> "$GITHUB_OUTPUT"
-          printf 'Test target: `%s`\n\nTest commit: `%s`\n' \
-            "$TARGET_REF" "$sha" >> "$GITHUB_STEP_SUMMARY"
-
   sw-emulator:
     name: Emulator HW 2.2 (${{ matrix.config.name }}, ${{ matrix.rng.name }}, ${{ matrix.log.name }})
-    needs: resolve-target
     uses: ./.github/workflows/fw-test-emu.yml
     strategy:
       fail-fast: false
@@ -52,17 +25,15 @@ jobs:
           - { name: "log", enabled: true }
           - { name: "nolog", enabled: false }
     with:
-      source-ref: ${{ needs.resolve-target.outputs.sha }}
       hw-revision: "2.2"
       rom-version: ${{ matrix.config.rom }}
       extra-features: ${{ matrix.config.base_features }}${{ matrix.rng.extra }}
       rom-logging: ${{ matrix.log.enabled }}
-      artifact-suffix: -sw-emulator-hw_2.2-${{ matrix.config.suffix }}-${{ matrix.rng.name }}-${{ matrix.log.name }}-${{ needs.resolve-target.outputs.sha }}
+      artifact-suffix: -sw-emulator-hw_2.2-${{ matrix.config.suffix }}-${{ matrix.rng.name }}-${{ matrix.log.name }}-${{ github.sha }}
 
   # Enable only after the FPGA support HW 2.2.
   fpga:
     name: FPGA HW 2.2 (${{ matrix.config.name }}, itrng, ${{ matrix.log.name }}, ${{ matrix.ocp_lock.name }})
-    needs: resolve-target
     if: ${{ false }}  # Remove to enable
     uses: ./.github/workflows/fpga.yml
     strategy:
@@ -77,7 +48,7 @@ jobs:
           - { name: "no-ocp-lock", enabled: false }
           - { name: "ocp-lock", enabled: true }
     with:
-      branch: ${{ needs.resolve-target.outputs.sha }}
+      branch: ${{ github.sha }}
       # Requires HW 2.2 sources, features, firmware selection, and bitstreams before enabling.
       hw-version: "2.2"
       rom-version: ${{ matrix.config.rom }}
@@ -85,12 +56,11 @@ jobs:
       fpga-itrng: true
       rom-logging: ${{ matrix.log.enabled }}
       ocp-lock: ${{ matrix.ocp_lock.enabled }}
-      artifact-suffix: -fpga-realtime-hw_2.2-${{ matrix.config.suffix }}-itrng-${{ matrix.log.name }}-${{ matrix.ocp_lock.name }}-${{ needs.resolve-target.outputs.sha }}
+      artifact-suffix: -fpga-realtime-hw_2.2-${{ matrix.config.suffix }}-itrng-${{ matrix.log.name }}-${{ matrix.ocp_lock.name }}-${{ github.sha }}
 
   # Subsystem testing also requires compatible MCU support.
   fpga-subsystem:
     name: FPGA Subsystem HW 2.2 (${{ matrix.config.name }}, itrng, ${{ matrix.ocp_lock.name }}, ${{ matrix.flash_boot.name }})
-    needs: resolve-target
     if: ${{ false }}  # Remove to enable
     uses: ./.github/workflows/fpga-subsystem.yml
     strategy:
@@ -105,7 +75,7 @@ jobs:
           - { name: "no-flash-boot", enabled: false }
           - { name: "flash-boot", enabled: true }
     with:
-      branch: ${{ needs.resolve-target.outputs.sha }}
+      branch: ${{ github.sha }}
       # Requires HW 2.2 sources, features, firmware selection, and bitstreams before enabling.
       hw-version: "2.2"
       rom-version: ${{ matrix.config.rom }}
@@ -114,4 +84,4 @@ jobs:
       rom-logging: false
       ocp-lock: ${{ matrix.ocp_lock.enabled }}
       flash-boot: ${{ matrix.flash_boot.enabled }}
-      artifact-suffix: -fpga-subsystem-hw_2.2-${{ matrix.config.suffix }}-itrng-nolog-${{ matrix.ocp_lock.name }}-${{ matrix.flash_boot.name }}-${{ needs.resolve-target.outputs.sha }}
+      artifact-suffix: -fpga-subsystem-hw_2.2-${{ matrix.config.suffix }}-itrng-nolog-${{ matrix.ocp_lock.name }}-${{ matrix.flash_boot.name }}-${{ github.sha }}
