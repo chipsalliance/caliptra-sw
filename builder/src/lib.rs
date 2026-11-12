@@ -172,6 +172,38 @@ pub fn build_firmware_elf_uncached(workspace_dir: Option<&Path>, id: &FwId) -> i
     Ok(result.into_iter().next().unwrap().1)
 }
 
+/// Resolve the features for a firmware Cargo invocation targeting the selected hardware.
+pub fn firmware_features<'a>(crate_name: &str, requested: &[&'a str]) -> io::Result<Vec<&'a str>> {
+    let revision = match env::var("CALIPTRA_HW_REV") {
+        Ok(revision) => revision,
+        Err(env::VarError::NotPresent) => "latest".into(),
+        Err(err) => return Err(other_err(err)),
+    };
+    firmware_features_for_hw(&revision, crate_name, requested)
+}
+
+fn firmware_features_for_hw<'a>(
+    revision: &str,
+    crate_name: &str,
+    requested: &[&'a str],
+) -> io::Result<Vec<&'a str>> {
+    let defaults: &[&str] = match (revision, crate_name) {
+        ("2.1" | "latest", _) => &["riscv"],
+        _ => {
+            return Err(other_err(format!(
+                "Unsupported CALIPTRA_HW_REV={revision:?} for {crate_name}; expected 2.1 or latest"
+            )))
+        }
+    };
+    let mut features = requested.to_vec();
+    for &feature in defaults {
+        if !features.contains(&feature) {
+            features.push(feature);
+        }
+    }
+    Ok(features)
+}
+
 /// Calls out to Cargo to build a firmware elf file, combining targets to
 /// extract as much parallelism as possible. `workspace_dir` is the workspace
 /// dir to build from; defaults to this workspace. `fwids` are the ids of the
@@ -189,13 +221,7 @@ pub fn build_firmware_elfs_uncached<'a>(
     let mut result_map = HashMap::new();
 
     for invocation in cargo_invocations {
-        let mut features_csv = invocation.features.join(",");
-        if !invocation.features.contains(&"riscv") {
-            if !features_csv.is_empty() {
-                features_csv.push(',');
-            }
-            features_csv.push_str("riscv");
-        }
+        let features = firmware_features(invocation.crate_name, invocation.features)?;
 
         let workspace_dir = workspace_dir.unwrap_or_else(|| Path::new(THIS_WORKSPACE_DIR));
 
@@ -228,7 +254,7 @@ pub fn build_firmware_elfs_uncached<'a>(
             .arg("--target")
             .arg(TARGET)
             .arg("--features")
-            .arg(features_csv)
+            .arg(features.join(","))
             .arg("--no-default-features")
             .arg("--profile")
             .arg(PROFILE);
@@ -752,6 +778,43 @@ fn image_revision_from_str(commit_id_str: &str, is_clean: bool) -> io::Result<Im
 mod test {
 
     use super::*;
+
+    #[test]
+    fn test_firmware_features_preserve_requested_features() {
+        for revision in ["2.1", "latest"] {
+            for crate_name in [
+                "caliptra-rom",
+                "caliptra-fmc",
+                "caliptra-runtime",
+                "caliptra-drivers-test-bin",
+            ] {
+                assert_eq!(
+                    firmware_features_for_hw(revision, crate_name, &["cfi", "emu"]).unwrap(),
+                    ["cfi", "emu", "riscv"]
+                );
+                assert_eq!(
+                    firmware_features_for_hw(revision, crate_name, &["emu", "riscv"]).unwrap(),
+                    ["emu", "riscv"]
+                );
+                assert_eq!(
+                    firmware_features_for_hw(revision, crate_name, &[]).unwrap(),
+                    ["riscv"]
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_firmware_features_reject_unsupported_hardware() {
+        for revision in ["", "2.0", "2.2", "latset"] {
+            let err = firmware_features_for_hw(revision, "caliptra-rom", &["cfi"])
+                .unwrap_err()
+                .to_string();
+            assert!(err.contains("Unsupported CALIPTRA_HW_REV"));
+            assert!(err.contains("caliptra-rom"));
+            assert!(err.contains("expected 2.1 or latest"));
+        }
+    }
 
     #[test]
     fn test_build_firmware() {

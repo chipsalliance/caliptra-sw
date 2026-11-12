@@ -21,27 +21,33 @@ PQC_KEY_TYPE ?= 1
 # Device lifecycle state: unprovisioned, manufacturing, production
 DEVICE_LIFECYCLE ?= production
 
+CALIPTRA_HW_REV ?= latest
+export CALIPTRA_HW_REV
+
 default: build
 
 build:
+	features="$$(cargo xtask build features --package caliptra-rom --features emu,cfi)" && \
 	cargo \
 		"--config=$(EXTRA_CARGO_CONFIG)" \
 		build \
 		--profile firmware \
 		--target=riscv32imc-unknown-none-elf \
 		--no-default-features \
-		--features "emu,cfi"
+		--features "$$features"
 
 build-emu:
+	features="$$(cargo xtask build features --package caliptra-rom --features emu,cfi)" && \
 	cargo \
 		"--config=$(EXTRA_CARGO_CONFIG)" \
 		build \
 		--profile firmware \
 		--target=riscv32imc-unknown-none-elf \
 		--no-default-features \
-		--features "emu,cfi"
+		--features "$$features"
 
 build-fmc:
+	features="$$(cargo xtask build features --package caliptra-fmc --features emu,riscv,cfi)" && \
 	cargo \
 		"--config=$(EXTRA_CARGO_CONFIG)" \
 		build \
@@ -49,10 +55,11 @@ build-fmc:
 		--manifest-path ../../fmc/Cargo.toml \
 		--target=riscv32imc-unknown-none-elf \
 		--no-default-features \
-		--features emu,riscv,cfi \
+		--features "$$features" \
 		--bin caliptra-fmc
 
 build-test-fmc:
+	features="$$(cargo xtask build features --package caliptra-rom-test-fmc --features emu,cfi)" && \
 	cargo \
 		"--config=$(EXTRA_CARGO_CONFIG)" \
 		build \
@@ -60,9 +67,10 @@ build-test-fmc:
 		--manifest-path tools/test-fmc/Cargo.toml \
 		--target=riscv32imc-unknown-none-elf \
 		--no-default-features \
-		--features emu,cfi
+		--features "$$features"
 
 build-rt:
+	features="$$(cargo xtask build features --package caliptra-runtime --features emu,riscv,cfi)" && \
 	cargo \
 		"--config=$(EXTRA_CARGO_CONFIG)" \
 		build \
@@ -70,10 +78,11 @@ build-rt:
 		--manifest-path ../../runtime/Cargo.toml \
 		--target=riscv32imc-unknown-none-elf \
 		--no-default-features \
-		--features emu,riscv,cfi \
+		--features "$$features" \
 		--bin caliptra-runtime
 
 build-test-rt:
+	features="$$(cargo xtask build features --package caliptra-rom-test-rt --features emu,cfi)" && \
 	cargo \
 		"--config=$(EXTRA_CARGO_CONFIG)" \
 		build \
@@ -81,7 +90,7 @@ build-test-rt:
 		--manifest-path tools/test-rt/Cargo.toml \
 		--target=riscv32imc-unknown-none-elf \
 		--no-default-features \
-		--features emu,cfi
+		--features "$$features"
 
 gen-certs:
 	$(shell bash $(CURRENT_DIR)/tools/scripts/gen_test_certs.sh $(TARGET_DIR))
@@ -130,25 +139,27 @@ build-fw-image: gen-certs build-fmc build-rt
 		--print-hashes
 
 bloat: build
-	 cargo \
+	features="$$(cargo xtask build features --package caliptra-rom --features emu,cfi)" && \
+	cargo \
 		"--config=$(EXTRA_CARGO_CONFIG)" \
 		bloat \
 		--bin caliptra-rom \
 		--profile firmware \
 		--target=riscv32imc-unknown-none-elf \
 		--no-default-features \
-		--features "emu,cfi" \
+		--features "$$features" \
 		-n 1000 \
 
 objdump:
-	 cargo \
+	features="$$(cargo xtask build features --package caliptra-rom --features emu,cfi)" && \
+	cargo \
 		"--config=$(EXTRA_CARGO_CONFIG)" \
 		objdump \
 		--bin caliptra-rom \
 		--profile firmware \
 		--target=riscv32imc-unknown-none-elf \
 		--no-default-features \
-		--features "emu,cfi" \
+		--features "$$features" \
 		-- \
 		-d \
 		--no-print-imm-hex \
@@ -168,6 +179,7 @@ run: build-emu build-fw-test-image build-rom
 		-p caliptra-emu \
 		-- \
 		--req-idevid-csr \
+		--hw-version "$(CALIPTRA_HW_REV)" \
 		--idevid-key-id-algo sha1 \
 		--rom $(TARGET_DIR)/caliptra-rom.bin \
 		--recovery-image-fw $(TARGET_DIR)/caliptra-rom-test-fw \
@@ -184,6 +196,7 @@ run-active: build-emu build-fw-image build-rom
 		-p caliptra-emu \
 		-- \
 		--req-idevid-csr \
+		--hw-version "$(CALIPTRA_HW_REV)" \
 		--idevid-key-id-algo sha1 \
 		--rom $(TARGET_DIR)/caliptra-rom.bin \
 		--recovery-image-fw $(TARGET_DIR)/caliptra-rom-test-fw \
@@ -202,6 +215,7 @@ run-update: build-emu build-fw-test-image build-rom
 		-p caliptra-emu \
 		-- \
 		--req-idevid-csr \
+		--hw-version "$(CALIPTRA_HW_REV)" \
 		--idevid-key-id-algo sha1 \
 		--rom $(TARGET_DIR)/caliptra-rom.bin \
 		--recovery-image-fw $(TARGET_DIR)/caliptra-rom-test-fw \
@@ -210,24 +224,26 @@ run-update: build-emu build-fw-test-image build-rom
 
 
 size:
-	 cargo \
+	features="$$(cargo xtask build features --package caliptra-rom --features cfi)" && \
+	cargo \
 		"--config=$(EXTRA_CARGO_CONFIG)" \
 		size \
 		--profile firmware \
 		--target=riscv32imc-unknown-none-elf \
 		--no-default-features \
-		--features cfi \
+		--features "$$features" \
 		--bin caliptra-rom \
 
 nm:
-	 cargo \
+	features="$$(cargo xtask build features --package caliptra-rom --features cfi)" && \
+	cargo \
 		"--config=$(EXTRA_CARGO_CONFIG)" \
 		nm \
 		--bin caliptra-rom \
 		--profile firmware \
 		--target=riscv32imc-unknown-none-elf \
 		--no-default-features \
-		--features cfi \
+		--features "$$features" \
 		-- \
 		-v \
 

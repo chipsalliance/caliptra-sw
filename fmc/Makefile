@@ -17,29 +17,35 @@ TARGET_DIR=../target/riscv32imc-unknown-none-elf/firmware
 CURRENT_DIR = $(shell pwd)
 GIT_REV = $(shell git rev-parse HEAD)
 
+CALIPTRA_HW_REV ?= latest
+export CALIPTRA_HW_REV
+
 default: build
 
 build:
+	features="$$(cargo xtask build features --package caliptra-fmc --features riscv,cfi)" && \
 	$(RUSTFLAGS) cargo build \
 		--profile firmware \
 		--target=riscv32imc-unknown-none-elf \
 		--no-default-features \
-		--features riscv,cfi
+		--features "$$features"
 
 build-emu:
+	features="$$(cargo xtask build features --package caliptra-fmc --features emu,riscv,cfi)" && \
 	$(RUSTFLAGS) cargo build \
 		--profile firmware \
 		--target=riscv32imc-unknown-none-elf \
 		--no-default-features \
-		--features emu,riscv,cfi \
+		--features "$$features" \
 
 build-rom:
+	features="$$(cargo xtask build features --package caliptra-rom --features emu,cfi)" && \
 	$(RUSTFLAGS) cargo build \
 		--profile firmware \
 		--manifest-path ../rom/dev/Cargo.toml \
 		--target=riscv32imc-unknown-none-elf \
 		--no-default-features \
-		--features emu,cfi \
+		--features "$$features" \
 
 objcopy-rom:
 	riscv64-unknown-elf-objcopy \
@@ -52,12 +58,13 @@ objcopy-rom:
   		$(TARGET_DIR)/caliptra-rom.bin \
 
 build-test-rt:
+	features="$$(cargo xtask build features --package caliptra-runtime --features emu,riscv,cfi)" && \
 	$(RUSTFLAGS) cargo build \
 		--profile firmware \
 		--manifest-path ../runtime/Cargo.toml \
 		--target=riscv32imc-unknown-none-elf \
 		--no-default-features \
-		--features emu,riscv,cfi \
+		--features "$$features" \
 
 gen-certs:
 	$(shell bash $(CURRENT_DIR)/tools/scripts/gen_test_certs.sh $(TARGET_DIR))
@@ -81,19 +88,21 @@ build-fw-image: gen-certs build-emu build-test-rt
 		--out $(TARGET_DIR)/caliptra-rom-test-fw \
 
 bloat: build
+	features="$$(cargo xtask build features --package caliptra-fmc --features cfi)" && \
 	$(RUSTFLAGS) cargo bloat \
 		--profile firmware \
 		--target=riscv32imc-unknown-none-elf \
 		--no-default-features \
-		--features cfi \
+		--features "$$features" \
 		-n 1000 \
 
 objdump:
+	features="$$(cargo xtask build features --package caliptra-fmc --features cfi)" && \
 	$(RUSTFLAGS) cargo objdump \
 		--profile firmware \
 		--target=riscv32imc-unknown-none-elf \
 		--no-default-features \
-		-- features cfi \
+		--features "$$features" \
  		-- \
 		-d \
 		--no-print-imm-hex \
@@ -116,23 +125,26 @@ run: build-emu build-rom objcopy-rom build-fw-image
 		--bin caliptra-emu \
 		-- \
 		--idevid-key-id-algo sha1 \
+		--hw-version "$(CALIPTRA_HW_REV)" \
 		--rom $(TARGET_DIR)/caliptra-rom.bin \
 		--recovery-image-fw $(TARGET_DIR)/caliptra-rom-test-fw \
 		--device-lifecycle unprovisioned \
 
 size:
+	features="$$(cargo xtask build features --package caliptra-fmc --features cfi)" && \
 	$(RUSTFLAGS) cargo size \
 		--profile firmware \
 		--target=riscv32imc-unknown-none-elf \
 		--no-default-features \
-		-- features cfi
+		--features "$$features"
 
 nm:
+	features="$$(cargo xtask build features --package caliptra-fmc --features cfi)" && \
 	$(RUSTFLAGS) cargo nm \
 		--profile firmware \
 		--target=riscv32imc-unknown-none-elf \
 		--no-default-features \
-		-- features cfi
+		--features "$$features" \
 		-- \
 		-v \
 
@@ -141,4 +153,3 @@ hexdump: objcopy
 
 clean:
 	cargo clean
-

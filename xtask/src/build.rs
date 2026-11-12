@@ -19,19 +19,21 @@ pub fn build_all() -> Result<()> {
     build_rom()?;
     build_fmc()?;
     build_runtime()?;
-    build_driver_test_fw()?;
+    build_driver_test_fw(&[])?;
     Ok(())
 }
 
 pub fn build_rom() -> Result<()> {
     info!("Building ROM...");
+    let features = caliptra_builder::firmware_features("caliptra-rom", &["cfi"])?.join(",");
     let args = vec![
         "build",
         "--locked",
         "--target=riscv32imc-unknown-none-elf",
         "--profile=firmware",
         "--no-default-features",
-        "--features=cfi",
+        "--features",
+        &features,
         "--bin=caliptra-rom",
     ];
 
@@ -49,13 +51,16 @@ pub fn build_rom() -> Result<()> {
 
 pub fn build_fmc() -> Result<()> {
     info!("Building FMC...");
+    let features =
+        caliptra_builder::firmware_features("caliptra-fmc", &["cfi", "riscv"])?.join(",");
     let args = vec![
         "build",
         "--locked",
         "--target=riscv32imc-unknown-none-elf",
         "--profile=firmware",
         "--no-default-features",
-        "--features=cfi,riscv",
+        "--features",
+        &features,
         "--bin=caliptra-fmc",
     ];
 
@@ -73,13 +78,16 @@ pub fn build_fmc() -> Result<()> {
 
 pub fn build_runtime() -> Result<()> {
     info!("Building runtime...");
+    let features =
+        caliptra_builder::firmware_features("caliptra-runtime", &["cfi", "riscv"])?.join(",");
     let args = vec![
         "build",
         "--locked",
         "--target=riscv32imc-unknown-none-elf",
         "--profile=firmware",
         "--no-default-features",
-        "--features=cfi,riscv",
+        "--features",
+        &features,
         "--bin=caliptra-runtime",
     ];
 
@@ -95,14 +103,18 @@ pub fn build_runtime() -> Result<()> {
     Ok(())
 }
 
-pub fn build_driver_test_fw() -> Result<()> {
+pub fn build_driver_test_fw(extra_features: &[String]) -> Result<()> {
     info!("Building driver test-fw...");
+    let requested: Vec<&str> = extra_features.iter().map(String::as_str).collect();
+    let features =
+        caliptra_builder::firmware_features("caliptra-drivers-test-bin", &requested)?.join(",");
     let args = vec![
         "build",
         "--locked",
         "--target=riscv32imc-unknown-none-elf",
         "--profile=firmware",
-        "--features=riscv",
+        "--features",
+        &features,
     ];
 
     let mut cmd = Command::new("cargo");
@@ -115,6 +127,15 @@ pub fn build_driver_test_fw() -> Result<()> {
         bail!("cargo build for driver test-fw failed");
     }
     info!("driver test-fw build succeeded");
+    Ok(())
+}
+
+pub fn print_firmware_features(crate_name: &str, requested: &[String]) -> Result<()> {
+    let requested: Vec<&str> = requested.iter().map(String::as_str).collect();
+    println!(
+        "{}",
+        caliptra_builder::firmware_features(crate_name, &requested)?.join(",")
+    );
     Ok(())
 }
 
