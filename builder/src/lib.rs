@@ -13,6 +13,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex};
 
+use caliptra_hw_model_types::CaliptraHwVersion;
 #[cfg(feature = "openssl")]
 use caliptra_image_crypto::OsslCrypto as Crypto;
 #[cfg(feature = "rustcrypto")]
@@ -172,6 +173,15 @@ pub fn build_firmware_elf_uncached(workspace_dir: Option<&Path>, id: &FwId) -> i
     Ok(result.into_iter().next().unwrap().1)
 }
 
+fn default_features(hw_revision: CaliptraHwVersion, _crate_name: &str) -> Vec<&str> {
+    let features = vec![];
+    match hw_revision {
+        CaliptraHwVersion::Latest | CaliptraHwVersion::V2_2 => (),
+        _ => (),
+    }
+    features
+}
+
 /// Calls out to Cargo to build a firmware elf file, combining targets to
 /// extract as much parallelism as possible. `workspace_dir` is the workspace
 /// dir to build from; defaults to this workspace. `fwids` are the ids of the
@@ -189,13 +199,18 @@ pub fn build_firmware_elfs_uncached<'a>(
     let mut result_map = HashMap::new();
 
     for invocation in cargo_invocations {
-        let mut features_csv = invocation.features.join(",");
+        let mut features = invocation.features.to_vec();
         if !invocation.features.contains(&"riscv") {
-            if !features_csv.is_empty() {
-                features_csv.push(',');
-            }
-            features_csv.push_str("riscv");
+            features.push("riscv");
         }
+
+        // Append the default features depending on the RTL revision.
+        let hw_revision = std::env::var("CALIPTRA_HW_REV").unwrap_or("latest".to_string());
+        let hw_revision = hw_revision
+            .parse()
+            .unwrap_or_else(|_| panic!("Unsupported CALIPTRA_HW_REV: {}", hw_revision));
+        let defaults = default_features(hw_revision, invocation.crate_name);
+        features.extend_from_slice(defaults.as_slice());
 
         let workspace_dir = workspace_dir.unwrap_or_else(|| Path::new(THIS_WORKSPACE_DIR));
 
@@ -228,7 +243,7 @@ pub fn build_firmware_elfs_uncached<'a>(
             .arg("--target")
             .arg(TARGET)
             .arg("--features")
-            .arg(features_csv)
+            .arg(features.as_slice().join(","))
             .arg("--no-default-features")
             .arg("--profile")
             .arg(PROFILE);
