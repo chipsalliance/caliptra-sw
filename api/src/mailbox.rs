@@ -93,6 +93,87 @@ const _: () = assert!(OCP_LOCK_ENCRYPTION_ENGINE_AUX_SIZE.is_multiple_of(size_of
 pub const OCP_LOCK_ENCRYPTION_ENGINE_MAX_MEK_SIZE: usize = 64;
 const _: () = assert!(OCP_LOCK_ENCRYPTION_ENGINE_MAX_MEK_SIZE.is_multiple_of(size_of::<u32>()));
 
+/// Wraps a `pub struct` request/response definition: emits the struct
+/// unchanged, and automatically generates a standalone header struct `$hdr`
+/// containing all fields except the final payload field.
+///
+/// # Examples
+///
+/// **Requester (serialize header without allocating the full request on stack):**
+/// ```ignore
+/// let mut hdr = CmShaInitReqHdr {
+///     hash_algorithm: CmHashAlgorithm::Sha384.into(),
+///     input_size: payload.len() as u32,
+///     ..Default::default()
+/// };
+/// // Compute checksum over header bytes (after `chksum`) + payload bytes,
+/// // then write `hdr.as_bytes()` followed by `payload` to the mailbox FIFO.
+/// ```
+///
+/// **Receiver (parse header and payload slice in-place with zero stack copy):**
+/// ```ignore
+/// let (hdr, payload) = CmShaInitReqHdr::ref_from_prefix(cmd_bytes)
+///     .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+/// let data = payload
+///     .get(..hdr.input_size as usize)
+///     .ok_or(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+/// ```
+macro_rules! with_hdr {
+    (
+        $(#[$meta:meta])*
+        pub struct $name:ident {
+            $( $fields:tt )+
+        }
+        hdr: $hdr:ident $(,)?
+    ) => {
+        $(#[$meta])*
+        pub struct $name {
+            $( $fields )+
+        }
+
+        with_hdr!(@emit_hdr $hdr, [] $( $fields )+);
+    };
+
+    // Base case: only the trailing payload field remains — drop it.
+    (
+        @emit_hdr $hdr:ident,
+        [ $( ($(#[$fmeta:meta])* $fvis:vis $fname:ident : $fty:ty) )* ]
+        $(#[$_last_meta:meta])* $_last_vis:vis $_last_name:ident : $_last_ty:ty $(,)?
+    ) => {
+        /// Header-only struct containing the fixed-size prefix fields (all
+        /// fields except the trailing payload), so the header and payload can
+        /// be written to / read from the mailbox separately.
+        #[repr(C)]
+        #[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+        pub struct $hdr {
+            $(
+                $(#[$fmeta])*
+                $fvis $fname : $fty,
+            )*
+        }
+
+        impl Default for $hdr {
+            fn default() -> Self {
+                zerocopy::FromZeros::new_zeroed()
+            }
+        }
+    };
+
+    // Recursive step: shift one field into accumulator.
+    (
+        @emit_hdr $hdr:ident,
+        [ $( $acc:tt )* ]
+        $(#[$fmeta:meta])* $fvis:vis $fname:ident : $fty:ty ,
+        $( $rest:tt )+
+    ) => {
+        with_hdr!(
+            @emit_hdr $hdr,
+            [ $( $acc )* ($(#[$fmeta])* $fvis $fname : $fty) ]
+            $( $rest )+
+        );
+    };
+}
+
 #[derive(PartialEq, Eq)]
 pub struct CommandId(pub u32);
 
@@ -3116,13 +3197,16 @@ impl From<CmHashAlgorithm> for u32 {
 }
 
 // CM_SHA_INIT
-#[repr(C)]
-#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
-pub struct CmShaInitReq {
-    pub hdr: MailboxReqHeader,
-    pub hash_algorithm: u32,
-    pub input_size: u32,
-    pub input: [u8; MAX_CMB_DATA_SIZE],
+with_hdr! {
+    #[repr(C)]
+    #[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+    pub struct CmShaInitReq {
+        pub hdr: MailboxReqHeader,
+        pub hash_algorithm: u32,
+        pub input_size: u32,
+        pub input: [u8; MAX_CMB_DATA_SIZE],
+    }
+    hdr: CmShaInitReqHdr,
 }
 
 impl Default for CmShaInitReq {
@@ -3178,13 +3262,16 @@ impl Default for CmShaInitResp {
 impl Response for CmShaInitResp {}
 
 // CM_SHA_UPDATE
-#[repr(C)]
-#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
-pub struct CmShaUpdateReq {
-    pub hdr: MailboxReqHeader,
-    pub context: [u8; CMB_SHA_CONTEXT_SIZE],
-    pub input_size: u32,
-    pub input: [u8; MAX_CMB_DATA_SIZE],
+with_hdr! {
+    #[repr(C)]
+    #[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+    pub struct CmShaUpdateReq {
+        pub hdr: MailboxReqHeader,
+        pub context: [u8; CMB_SHA_CONTEXT_SIZE],
+        pub input_size: u32,
+        pub input: [u8; MAX_CMB_DATA_SIZE],
+    }
+    hdr: CmShaUpdateReqHdr,
 }
 
 impl Default for CmShaUpdateReq {
@@ -3222,13 +3309,16 @@ impl Request for CmShaUpdateReq {
 }
 
 // CM_SHA_FINAL
-#[repr(C)]
-#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
-pub struct CmShaFinalReq {
-    pub hdr: MailboxReqHeader,
-    pub context: [u8; CMB_SHA_CONTEXT_SIZE],
-    pub input_size: u32,
-    pub input: [u8; MAX_CMB_DATA_SIZE],
+with_hdr! {
+    #[repr(C)]
+    #[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+    pub struct CmShaFinalReq {
+        pub hdr: MailboxReqHeader,
+        pub context: [u8; CMB_SHA_CONTEXT_SIZE],
+        pub input_size: u32,
+        pub input: [u8; MAX_CMB_DATA_SIZE],
+    }
+    hdr: CmShaFinalReqHdr,
 }
 
 impl Default for CmShaFinalReq {
@@ -3284,12 +3374,15 @@ impl Default for CmShaFinalResp {
 impl ResponseVarSize for CmShaFinalResp {}
 
 // CM_SHAKE256_INIT
-#[repr(C)]
-#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
-pub struct CmShake256InitReq {
-    pub hdr: MailboxReqHeader,
-    pub input_size: u32,
-    pub input: [u8; MAX_CMB_DATA_SIZE],
+with_hdr! {
+    #[repr(C)]
+    #[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+    pub struct CmShake256InitReq {
+        pub hdr: MailboxReqHeader,
+        pub input_size: u32,
+        pub input: [u8; MAX_CMB_DATA_SIZE],
+    }
+    hdr: CmShake256InitReqHdr,
 }
 
 impl Default for CmShake256InitReq {
@@ -3346,13 +3439,16 @@ impl Default for CmShake256InitResp {
 impl Response for CmShake256InitResp {}
 
 // CM_SHAKE256_UPDATE
-#[repr(C)]
-#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
-pub struct CmShake256UpdateReq {
-    pub hdr: MailboxReqHeader,
-    pub context: [u8; CMB_SHAKE256_CONTEXT_SIZE],
-    pub input_size: u32,
-    pub input: [u8; MAX_CMB_DATA_SIZE],
+with_hdr! {
+    #[repr(C)]
+    #[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+    pub struct CmShake256UpdateReq {
+        pub hdr: MailboxReqHeader,
+        pub context: [u8; CMB_SHAKE256_CONTEXT_SIZE],
+        pub input_size: u32,
+        pub input: [u8; MAX_CMB_DATA_SIZE],
+    }
+    hdr: CmShake256UpdateReqHdr,
 }
 
 impl Default for CmShake256UpdateReq {
@@ -3390,13 +3486,16 @@ impl Request for CmShake256UpdateReq {
 }
 
 // CM_SHAKE256_FINAL
-#[repr(C)]
-#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
-pub struct CmShake256FinalReq {
-    pub hdr: MailboxReqHeader,
-    pub context: [u8; CMB_SHAKE256_CONTEXT_SIZE],
-    pub input_size: u32,
-    pub input: [u8; MAX_CMB_DATA_SIZE],
+with_hdr! {
+    #[repr(C)]
+    #[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+    pub struct CmShake256FinalReq {
+        pub hdr: MailboxReqHeader,
+        pub context: [u8; CMB_SHAKE256_CONTEXT_SIZE],
+        pub input_size: u32,
+        pub input: [u8; MAX_CMB_DATA_SIZE],
+    }
+    hdr: CmShake256FinalReqHdr,
 }
 
 impl Default for CmShake256FinalReq {
@@ -3452,14 +3551,20 @@ impl Default for CmShake256FinalResp {
 impl Response for CmShake256FinalResp {}
 
 // CM_SHA (one-shot SHA384/SHA512 hash)
-#[repr(C)]
-#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
-pub struct CmShaReq {
-    pub hdr: MailboxReqHeader,
-    pub hash_algorithm: u32,
-    pub input_size: u32,
-    pub input: [u8; MAX_CM_SHA_INPUT_SIZE],
+with_hdr! {
+    #[repr(C)]
+    #[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+    pub struct CmShaReq {
+        pub hdr: MailboxReqHeader,
+        pub hash_algorithm: u32,
+        pub input_size: u32,
+        pub input: [u8; MAX_CM_SHA_INPUT_SIZE],
+    }
+    hdr: CmShaReqHdr,
 }
+
+/// Size of the CmShaReqHdr in bytes (for computing input offset in mailbox).
+pub const CM_SHA_REQ_HDR_SIZE: usize = size_of::<CmShaReqHdr>();
 
 impl Default for CmShaReq {
     fn default() -> Self {
@@ -3512,20 +3617,6 @@ impl Default for CmShaResp {
 }
 
 impl ResponseVarSize for CmShaResp {}
-
-/// Header-only struct for CM_SHA request (for stack-efficient ROM handling).
-/// This contains only the fixed-size header fields, not the variable-length input data.
-/// The input data is read directly from the mailbox memory.
-#[repr(C)]
-#[derive(Debug, Default, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
-pub struct CmShaReqHdr {
-    pub hdr: MailboxReqHeader,
-    pub hash_algorithm: u32,
-    pub input_size: u32,
-}
-
-/// Size of the CmShaReqHdr in bytes (for computing input offset in mailbox).
-pub const CM_SHA_REQ_HDR_SIZE: usize = size_of::<CmShaReqHdr>();
 
 #[repr(C)]
 #[derive(Debug, Default, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
