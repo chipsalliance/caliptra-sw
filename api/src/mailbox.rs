@@ -3867,13 +3867,16 @@ impl ResponseVarSize for CmAesEncryptInitResp {
 }
 
 // CM_AES_ENCRYPT_UPDATE
-#[repr(C)]
-#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
-pub struct CmAesEncryptUpdateReq {
-    pub hdr: MailboxReqHeader,
-    pub context: [u8; CMB_AES_ENCRYPTED_CONTEXT_SIZE],
-    pub plaintext_size: u32,
-    pub plaintext: [u8; MAX_CMB_DATA_SIZE],
+with_hdr! {
+    #[repr(C)]
+    #[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+    pub struct CmAesEncryptUpdateReq {
+        pub hdr: MailboxReqHeader,
+        pub context: [u8; CMB_AES_ENCRYPTED_CONTEXT_SIZE],
+        pub plaintext_size: u32,
+        pub plaintext: [u8; MAX_CMB_DATA_SIZE],
+    }
+    hdr: CmAesEncryptUpdateReqHdr,
 }
 
 impl Default for CmAesEncryptUpdateReq {
@@ -3959,13 +3962,16 @@ impl Request for CmAesDecryptInitReq {
 }
 
 // CM_AES_DECRYPT_UPDATE
-#[repr(C)]
-#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
-pub struct CmAesDecryptUpdateReq {
-    pub hdr: MailboxReqHeader,
-    pub context: [u8; CMB_AES_ENCRYPTED_CONTEXT_SIZE],
-    pub ciphertext_size: u32,
-    pub ciphertext: [u8; MAX_CMB_DATA_SIZE],
+with_hdr! {
+    #[repr(C)]
+    #[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+    pub struct CmAesDecryptUpdateReq {
+        pub hdr: MailboxReqHeader,
+        pub context: [u8; CMB_AES_ENCRYPTED_CONTEXT_SIZE],
+        pub ciphertext_size: u32,
+        pub ciphertext: [u8; MAX_CMB_DATA_SIZE],
+    }
+    hdr: CmAesDecryptUpdateReqHdr,
 }
 
 impl Default for CmAesDecryptUpdateReq {
@@ -4188,13 +4194,16 @@ impl Default for CmAesGcmSpdmEncryptInitResp {
 impl Response for CmAesGcmSpdmEncryptInitResp {}
 
 // CM_AES_GCM_ENCRYPT_UPDATE
-#[repr(C)]
-#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
-pub struct CmAesGcmEncryptUpdateReq {
-    pub hdr: MailboxReqHeader,
-    pub context: [u8; CMB_AES_GCM_ENCRYPTED_CONTEXT_SIZE],
-    pub plaintext_size: u32,
-    pub plaintext: [u8; MAX_CMB_DATA_SIZE],
+with_hdr! {
+    #[repr(C)]
+    #[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+    pub struct CmAesGcmEncryptUpdateReq {
+        pub hdr: MailboxReqHeader,
+        pub context: [u8; CMB_AES_GCM_ENCRYPTED_CONTEXT_SIZE],
+        pub plaintext_size: u32,
+        pub plaintext: [u8; MAX_CMB_DATA_SIZE],
+    }
+    hdr: CmAesGcmEncryptUpdateReqHdr,
 }
 
 impl Default for CmAesGcmEncryptUpdateReq {
@@ -4284,13 +4293,16 @@ impl ResponseVarSize for CmAesGcmEncryptUpdateResp {
 }
 
 // CM_AES_GCM_ENCRYPT_FINAL
-#[repr(C)]
-#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
-pub struct CmAesGcmEncryptFinalReq {
-    pub hdr: MailboxReqHeader,
-    pub context: [u8; CMB_AES_GCM_ENCRYPTED_CONTEXT_SIZE],
-    pub plaintext_size: u32,
-    pub plaintext: [u8; MAX_CMB_DATA_SIZE],
+with_hdr! {
+    #[repr(C)]
+    #[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+    pub struct CmAesGcmEncryptFinalReq {
+        pub hdr: MailboxReqHeader,
+        pub context: [u8; CMB_AES_GCM_ENCRYPTED_CONTEXT_SIZE],
+        pub plaintext_size: u32,
+        pub plaintext: [u8; MAX_CMB_DATA_SIZE],
+    }
+    hdr: CmAesGcmEncryptFinalReqHdr,
 }
 
 impl Default for CmAesGcmEncryptFinalReq {
@@ -4504,13 +4516,16 @@ impl Default for CmAesGcmSpdmDecryptInitResp {
 impl Response for CmAesGcmSpdmDecryptInitResp {}
 
 // CM_AES_GCM_DECRYPT_UPDATE
-#[repr(C)]
-#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
-pub struct CmAesGcmDecryptUpdateReq {
-    pub hdr: MailboxReqHeader,
-    pub context: [u8; CMB_AES_GCM_ENCRYPTED_CONTEXT_SIZE],
-    pub ciphertext_size: u32,
-    pub ciphertext: [u8; MAX_CMB_DATA_SIZE],
+with_hdr! {
+    #[repr(C)]
+    #[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+    pub struct CmAesGcmDecryptUpdateReq {
+        pub hdr: MailboxReqHeader,
+        pub context: [u8; CMB_AES_GCM_ENCRYPTED_CONTEXT_SIZE],
+        pub ciphertext_size: u32,
+        pub ciphertext: [u8; MAX_CMB_DATA_SIZE],
+    }
+    hdr: CmAesGcmDecryptUpdateReqHdr,
 }
 
 impl Default for CmAesGcmDecryptUpdateReq {
@@ -4600,15 +4615,18 @@ impl ResponseVarSize for CmAesGcmDecryptUpdateResp {
 }
 
 // CM_AES_GCM_DECRYPT_FINAL
-#[repr(C)]
-#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
-pub struct CmAesGcmDecryptFinalReq {
-    pub hdr: MailboxReqHeader,
-    pub context: [u8; CMB_AES_GCM_ENCRYPTED_CONTEXT_SIZE],
-    pub tag_len: u32,
-    pub tag: [u32; 4],
-    pub ciphertext_size: u32,
-    pub ciphertext: [u8; MAX_CMB_DATA_SIZE],
+with_hdr! {
+    #[repr(C)]
+    #[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+    pub struct CmAesGcmDecryptFinalReq {
+        pub hdr: MailboxReqHeader,
+        pub context: [u8; CMB_AES_GCM_ENCRYPTED_CONTEXT_SIZE],
+        pub tag_len: u32,
+        pub tag: [u32; 4],
+        pub ciphertext_size: u32,
+        pub ciphertext: [u8; MAX_CMB_DATA_SIZE],
+    }
+    hdr: CmAesGcmDecryptFinalReqHdr,
 }
 
 impl Default for CmAesGcmDecryptFinalReq {
