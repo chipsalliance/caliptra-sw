@@ -3,12 +3,18 @@
 use std::cell::Cell;
 use std::collections::{hash_map::DefaultHasher, HashMap};
 use std::error::Error;
+#[cfg(feature = "profiling")]
 use std::fs::{create_dir_all, File};
 use std::hash::Hasher;
-use std::io::{BufWriter, Write};
-use std::path::{Path, PathBuf};
+#[cfg(feature = "profiling")]
+use std::io::BufWriter;
+use std::io::Write;
+#[cfg(feature = "profiling")]
+use std::path::Path;
+use std::path::PathBuf;
 use std::rc::Rc;
 
+#[cfg(feature = "profiling")]
 use caliptra_builder::{elf_symbols, Elfs};
 use caliptra_emu_bus::Clock;
 #[cfg(feature = "coverage")]
@@ -34,7 +40,9 @@ use crate::Output;
 use crate::TrngMode;
 use caliptra_emu_bus::{Bus, BusMmio};
 
+#[cfg(feature = "profiling")]
 use inferno::flamegraph;
+#[cfg(feature = "profiling")]
 use rustc_demangle::demangle;
 
 use caliptra_api::soc_mgr::SocManager;
@@ -75,6 +83,7 @@ pub struct ModelEmulated {
     _rom_image_tag: u64,
     iccm_image_tag: Option<u64>,
     trng_mode: TrngMode,
+    #[cfg(feature = "profiling")]
     elfs: Option<Elfs>,
 }
 
@@ -156,6 +165,12 @@ impl ModelEmulated {
         self.cpu.read_halted()
     }
 
+    /// Snapshot of the Caliptra Key Vault (keys, PCRs, and control registers).
+    /// For tools that display emulator state, such as caliptra-wasm.
+    pub fn key_vault_snapshot(&self) -> caliptra_emu_periph::KeyVaultSnapshot {
+        self.cpu.bus.bus.key_vault.snapshot()
+    }
+
     /// Fetch stack samples record so far.
     pub fn stack_samples(&self) -> Option<HashMap<StackSample, u64>> {
         self.cpu.stack_sampler.as_ref().map(|s| s.samples.clone())
@@ -169,6 +184,7 @@ impl ModelEmulated {
     }
 
     /// Generate a flamegraph named `name`.svg using the stack samples captured so far.
+    #[cfg(feature = "profiling")]
     pub fn gen_flamegraph(&self, name: &str) -> Result<(), Box<dyn Error>> {
         if self.cpu.stack_sampler.is_none() {
             return Ok(());
@@ -350,6 +366,7 @@ impl HwModel for ModelEmulated {
             _rom_image_tag: image_tag,
             iccm_image_tag: None,
             trng_mode,
+            #[cfg(feature = "profiling")]
             elfs: params.elfs,
         };
         // Turn tracing on if the trace path was set
