@@ -1,0 +1,15 @@
+# Licensed under the Apache-2.0 license
+schema_version = "1"
+repository = "chipsalliance/caliptra-sw"
+hw_major_version = "2.1"
+target_branch = "main"
+caliptra_variant = "core-rev-2_1-segmented"
+date = "2026-11-11T05:35:20.116392141+00:00"
+commit_hash = "62703e62767a948c0f780689869144d8dbc80c1a"
+job_id = "42929233535-build-bitstream"
+segmented = true
+name = "core-rev-2_1-segmented-bitstream"
+xsa_url = "https://storage.googleapis.com/caliptra-github-ci-bitstreams/v1/62703e62767a948c0f780689869144d8dbc80c1a/core-rev-2_1-segmented/caliptra_fpga.xsa"
+pdi_url = "https://storage.googleapis.com/caliptra-github-ci-bitstreams/v1/62703e62767a948c0f780689869144d8dbc80c1a/core-rev-2_1-segmented/runtime_62703e6.pdi"
+xsa_hash = "5411c61f80bba20bd08a74dc8674c614536396016a8d1dd144868ba00f345b8e"
+pdi_hash = "db3af530702f78960bb76513d371ec3c211d1962ab0c42b765df40009468a079"
