@@ -26,8 +26,12 @@ memoffset.workspace = true
 ufmt.workspace = true
 zerocopy.workspace = true
 zeroize.workspace = true
-riscv.workspace = true
 caliptra-x509 = { workspace = true, default-features = false }
+
+# The riscv crate's CSR definitions do not build for wasm32, and the PMP
+# helpers that use it are only used by firmware.
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+riscv.workspace = true
 
 [features]
 default = ["std"]

@@ -40,6 +40,9 @@ pub mod keys;
 pub mod lcc;
 pub mod mmio;
 mod model_emulated;
+// openocd uses Linux-specific syscalls (prctl PR_SET_PDEATHSIG via rustix) to
+// spawn the server process, so gate it to Linux rather than all unix.
+#[cfg(target_os = "linux")]
 pub mod openocd;
 pub mod otp_digest;
 pub mod otp_provision;

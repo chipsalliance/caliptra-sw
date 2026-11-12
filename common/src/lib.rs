@@ -17,6 +17,7 @@ pub mod fips;
 pub mod hmac_cm;
 pub mod keyids;
 pub mod macros;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod pmp;
 pub mod uds_fe_programming;
 pub mod verifier;
@@ -44,6 +45,7 @@ pub use caliptra_drivers::CptraGeneration;
 pub use error_handler::handle_fatal_error;
 pub use fuse::{FuseLogEntry, FuseLogEntryId};
 pub use pcr::{PcrLogEntry, PcrLogEntryId, RT_FW_CURRENT_PCR, RT_FW_JOURNEY_PCR};
+#[cfg(not(target_arch = "wasm32"))]
 pub use pmp::lock_datavault_region;
 
 pub const FMC_ORG: u32 = 0x40000000;

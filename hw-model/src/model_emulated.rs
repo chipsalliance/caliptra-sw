@@ -189,6 +189,12 @@ impl ModelEmulated {
     pub fn cpu_halted(&self) -> bool {
         self.cpu.read_halted()
     }
+
+    /// Snapshot of the Caliptra Key Vault (keys, PCRs, and control registers).
+    /// For tools that display emulator state, such as caliptra-wasm.
+    pub fn key_vault_snapshot(&self) -> caliptra_emu_periph::KeyVaultSnapshot {
+        self.cpu.bus.bus.key_vault.snapshot()
+    }
 }
 
 fn hash_slice(slice: &[u8]) -> u64 {
