@@ -11,7 +11,7 @@ child builds:
 ```sh
 cargo xtask --rev 2.1 build all
 cargo xtask --rev latest build rom
-cargo xtask --rev latest build test-fw --features emu
+cargo xtask --rev latest build test-fw
 ```
 
 `build features` exposes the same hardware/package feature policy used by the
@@ -22,8 +22,7 @@ and direct Cargo commands, and fails for an unsupported hardware selector:
 cargo xtask --rev latest build features --package caliptra-rom --features cfi,emu
 ```
 
-The existing `build test-fw` invocation is unchanged; `--features` adds optional
-test features such as `emu`. See the [firmware build guide](../builder/README.md#hardware-targeted-firmware-builds)
+See the [firmware build guide](../builder/README.md#hardware-targeted-firmware-builds)
 for separate target/output directories, image packaging and emulator tests.
 
 ## Commands

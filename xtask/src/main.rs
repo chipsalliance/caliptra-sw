@@ -118,11 +118,7 @@ pub enum BuildCommands {
     Rom,
     Fmc,
     Runtime,
-    TestFw {
-        /// Additional Cargo features for driver test firmware
-        #[arg(long, value_delimiter = ',')]
-        features: Vec<String>,
-    },
+    TestFw,
     All,
     /// Print the resolved firmware feature list for a Makefile or direct Cargo build
     Features {
@@ -210,7 +206,7 @@ fn main() {
             BuildCommands::Rom => build::build_rom(),
             BuildCommands::Fmc => build::build_fmc(),
             BuildCommands::Runtime => build::build_runtime(),
-            BuildCommands::TestFw { features } => build::build_driver_test_fw(features),
+            BuildCommands::TestFw => build::build_driver_test_fw(),
             BuildCommands::All => build::build_all(),
             BuildCommands::Features { package, features } => {
                 build::print_firmware_features(package, features)
@@ -270,22 +266,6 @@ mod firmware_features_tests {
                 assert_eq!(features, ["cfi", "emu"]);
             }
             _ => panic!("Expected firmware feature query"),
-        }
-    }
-
-    #[test]
-    fn test_firmware_features_driver_cli() {
-        for args in [
-            vec!["xtask", "build", "test-fw"],
-            vec!["xtask", "build", "test-fw", "--features", "emu"],
-        ] {
-            let cli = Xtask::try_parse_from(&args).unwrap();
-            match cli.xtask {
-                Commands::Build {
-                    command: BuildCommands::TestFw { features },
-                } => assert_eq!(features, if args.len() == 3 { vec![] } else { vec!["emu"] }),
-                _ => panic!("Expected driver firmware build"),
-            }
         }
     }
 }

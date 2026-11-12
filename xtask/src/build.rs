@@ -19,7 +19,7 @@ pub fn build_all() -> Result<()> {
     build_rom()?;
     build_fmc()?;
     build_runtime()?;
-    build_driver_test_fw(&[])?;
+    build_driver_test_fw()?;
     Ok(())
 }
 
@@ -103,11 +103,9 @@ pub fn build_runtime() -> Result<()> {
     Ok(())
 }
 
-pub fn build_driver_test_fw(extra_features: &[String]) -> Result<()> {
+pub fn build_driver_test_fw() -> Result<()> {
     info!("Building driver test-fw...");
-    let requested: Vec<&str> = extra_features.iter().map(String::as_str).collect();
-    let features =
-        caliptra_builder::firmware_features("caliptra-drivers-test-bin", &requested)?.join(",");
+    let features = caliptra_builder::firmware_features("caliptra-drivers-test-bin", &[])?.join(",");
     let args = vec![
         "build",
         "--locked",

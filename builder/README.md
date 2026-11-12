@@ -21,7 +21,7 @@ Makefiles share `caliptra_builder::firmware_features`. This function preserves
 requested features and adds the defaults for the selected hardware and firmware
 package. Currently both hardware targets add only `riscv`; new hardware-specific
 features must be registered here by the PR that introduces them. This plumbing
-does not enable any new HMAC or other 2.2 behavior.
+does not enable any new 2.2-specific behavior.
 
 From the repository root, build and test each target in separate directories:
 
@@ -37,16 +37,25 @@ From the repository root, build and test each target in separate directories:
             --rom-no-log "out/$rev/rom.bin" \
             --rom-with-log "out/$rev/rom-with-log.bin" \
             --fw "out/$rev/fw.bin"
-        cargo test --locked -p caliptra-drivers \
-            --test drivers_integration_tests test_hmac -- --exact
+        cargo test --locked
     done
 )
 ```
 
 The firmware bundle uses the builder's default development signing configuration.
 For ROM, FMC, Runtime and driver-test ELFs, use `cargo xtask build all` under the
-same environment.
-For the full default emulator test suite, use `cargo test --locked`.
+same environment. The test command runs the default emulator suite for the
+selected hardware revision. To run it without packaging images:
+
+```sh
+CALIPTRA_HW_REV=2.1 CARGO_TARGET_DIR="$PWD/target-2.1" cargo test --locked
+CALIPTRA_HW_REV=latest CARGO_TARGET_DIR="$PWD/target-latest" cargo test --locked
+```
+
+These commands select the hardware, not every optional Cargo feature. Feature
+PRs must add their firmware defaults to the shared policy. Host-side tests gated
+by `#[cfg(feature = "...")]` still require the corresponding Cargo `--features`
+argument; the firmware resolver does not change the parent test build's features.
 
 Prebuilt firmware directories must also be kept separate per hardware revision;
 `CALIPTRA_PREBUILT_FW_DIR` bypasses firmware compilation. Do not change the
@@ -66,9 +75,9 @@ Raw Cargo commands that supply their own feature list do not consult the
 resolver automatically. When using the standalone emulator, pass a matching
 `--hw-version`; the ROM/FMC Makefiles do this automatically.
 
-The existing CI build matrix exercises both targets and runs an xtask-built HMAC
-test ELF through `CALIPTRA_PREBUILT_FW_DIR`, without rebuilding the guest through
-another path. The 2.1 release/nightly policy is unchanged.
+The existing CI build matrix builds firmware and runs the generic feature-policy
+and CLI tests for both targets. Feature-specific behavioral tests belong to the
+PR that introduces the feature. The 2.1 release/nightly policy is unchanged.
 
 ## Options
 

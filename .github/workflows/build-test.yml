@@ -73,19 +73,6 @@ jobs:
       - name: Test firmware feature selection
         run: cargo --config "$EXTRA_CARGO_CONFIG" test --locked -p caliptra-builder -p xtask firmware_features
 
-      - name: Test xtask-built firmware without rebuilding it
-        timeout-minutes: 10
-        run: |
-          cargo xtask build test-fw --features emu
-          firmware_dir="$RUNNER_TEMP/xtask-firmware"
-          target_dir="${CARGO_TARGET_DIR:-$PWD/target}"
-          mkdir -p "$firmware_dir"
-          cp "$target_dir/riscv32imc-unknown-none-elf/firmware/hmac" \
-            "$firmware_dir/caliptra-drivers-test-bin--hmac--emu.elf"
-          CALIPTRA_PREBUILT_FW_DIR="$firmware_dir" \
-            cargo --config "$EXTRA_CARGO_CONFIG" test --locked -p caliptra-drivers \
-              --test drivers_integration_tests test_hmac -- --exact
-
       - name: Build with OpenSSL
         run: |
           for proj in caliptra-auth-manifest-app caliptra-builder caliptra-image-crypto caliptra-image-app; do
