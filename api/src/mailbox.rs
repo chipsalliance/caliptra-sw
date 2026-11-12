@@ -3904,6 +3904,61 @@ impl ResponseVarSize for CmAesEncryptInitResp {
     }
 }
 
+/// Header-only struct for CM_AES_ENCRYPT_UPDATE requests.
+/// This contains only the fixed-size header fields, not the variable-length input data,
+/// so the header and input can be written to / read from the mailbox separately.
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+pub struct CmAesEncryptUpdateReqHdr {
+    pub hdr: MailboxReqHeader,
+    pub context: [u8; CMB_AES_ENCRYPTED_CONTEXT_SIZE],
+    pub plaintext_size: u32,
+}
+
+impl Default for CmAesEncryptUpdateReqHdr {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxReqHeader::default(),
+            context: [0u8; CMB_AES_ENCRYPTED_CONTEXT_SIZE],
+            plaintext_size: 0,
+        }
+    }
+}
+
+/// Header-only struct for CM_AES_DECRYPT_UPDATE requests.
+/// This contains only the fixed-size header fields, not the variable-length input data,
+/// so the header and input can be written to / read from the mailbox separately.
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+pub struct CmAesDecryptUpdateReqHdr {
+    pub hdr: MailboxReqHeader,
+    pub context: [u8; CMB_AES_ENCRYPTED_CONTEXT_SIZE],
+    pub ciphertext_size: u32,
+}
+
+impl Default for CmAesDecryptUpdateReqHdr {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxReqHeader::default(),
+            context: [0u8; CMB_AES_ENCRYPTED_CONTEXT_SIZE],
+            ciphertext_size: 0,
+        }
+    }
+}
+
+assert_hdr_prefix!(
+    CmAesEncryptUpdateReq,
+    CmAesEncryptUpdateReqHdr,
+    [hdr, context, plaintext_size],
+    plaintext
+);
+assert_hdr_prefix!(
+    CmAesDecryptUpdateReq,
+    CmAesDecryptUpdateReqHdr,
+    [hdr, context, ciphertext_size],
+    ciphertext
+);
+
 // CM_AES_ENCRYPT_UPDATE
 #[repr(C)]
 #[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
@@ -4224,6 +4279,67 @@ impl Default for CmAesGcmSpdmEncryptInitResp {
 }
 
 impl Response for CmAesGcmSpdmEncryptInitResp {}
+
+/// Header-only struct for CM_AES_GCM_ENCRYPT_UPDATE / CM_AES_GCM_ENCRYPT_FINAL requests.
+/// This contains only the fixed-size header fields, not the variable-length input data,
+/// so the header and input can be written to / read from the mailbox separately.
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+pub struct CmAesGcmEncryptContextReqHdr {
+    pub hdr: MailboxReqHeader,
+    pub context: [u8; CMB_AES_GCM_ENCRYPTED_CONTEXT_SIZE],
+    pub plaintext_size: u32,
+}
+
+impl Default for CmAesGcmEncryptContextReqHdr {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxReqHeader::default(),
+            context: [0u8; CMB_AES_GCM_ENCRYPTED_CONTEXT_SIZE],
+            plaintext_size: 0,
+        }
+    }
+}
+
+/// Header-only struct for CM_AES_GCM_DECRYPT_UPDATE requests.
+/// This contains only the fixed-size header fields, not the variable-length input data,
+/// so the header and input can be written to / read from the mailbox separately.
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+pub struct CmAesGcmDecryptUpdateReqHdr {
+    pub hdr: MailboxReqHeader,
+    pub context: [u8; CMB_AES_GCM_ENCRYPTED_CONTEXT_SIZE],
+    pub ciphertext_size: u32,
+}
+
+impl Default for CmAesGcmDecryptUpdateReqHdr {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxReqHeader::default(),
+            context: [0u8; CMB_AES_GCM_ENCRYPTED_CONTEXT_SIZE],
+            ciphertext_size: 0,
+        }
+    }
+}
+
+assert_hdr_prefix!(
+    CmAesGcmEncryptUpdateReq,
+    CmAesGcmEncryptContextReqHdr,
+    [hdr, context, plaintext_size],
+    plaintext
+);
+assert_hdr_prefix!(
+    CmAesGcmEncryptFinalReq,
+    CmAesGcmEncryptContextReqHdr,
+    [hdr, context, plaintext_size],
+    plaintext
+);
+assert_hdr_prefix!(
+    CmAesGcmDecryptUpdateReq,
+    CmAesGcmDecryptUpdateReqHdr,
+    [hdr, context, ciphertext_size],
+    ciphertext
+);
 
 // CM_AES_GCM_ENCRYPT_UPDATE
 #[repr(C)]
@@ -4636,6 +4752,38 @@ impl ResponseVarSize for CmAesGcmDecryptUpdateResp {
         Ok(size_of::<CmAesGcmDecryptUpdateRespHeader>() + hdr.plaintext_size as usize)
     }
 }
+
+/// Header-only struct for CM_AES_GCM_DECRYPT_FINAL requests.
+/// This contains only the fixed-size header fields, not the variable-length input data,
+/// so the header and input can be written to / read from the mailbox separately.
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+pub struct CmAesGcmDecryptFinalReqHdr {
+    pub hdr: MailboxReqHeader,
+    pub context: [u8; CMB_AES_GCM_ENCRYPTED_CONTEXT_SIZE],
+    pub tag_len: u32,
+    pub tag: [u32; 4],
+    pub ciphertext_size: u32,
+}
+
+impl Default for CmAesGcmDecryptFinalReqHdr {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxReqHeader::default(),
+            context: [0u8; CMB_AES_GCM_ENCRYPTED_CONTEXT_SIZE],
+            tag_len: 0,
+            tag: [0u32; 4],
+            ciphertext_size: 0,
+        }
+    }
+}
+
+assert_hdr_prefix!(
+    CmAesGcmDecryptFinalReq,
+    CmAesGcmDecryptFinalReqHdr,
+    [hdr, context, tag_len, tag, ciphertext_size],
+    ciphertext
+);
 
 // CM_AES_GCM_DECRYPT_FINAL
 #[repr(C)]
