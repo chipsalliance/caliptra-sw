@@ -35,6 +35,22 @@ env:
   CALIPTRA_HW_REV: ${{ inputs.hw-revision || 'latest' }}
 
 jobs:
+  select_revisions:
+    runs-on: ubuntu-24.04
+    outputs:
+      revisions: ${{ steps.select.outputs.revisions }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Test hardware revision selection
+        run: cargo test -p xtask ci_selection --locked
+
+      - name: Select affected hardware revisions
+        id: select
+        run: cargo xtask ci select-revisions >> "$GITHUB_OUTPUT"
   lint:
     runs-on: ubuntu-24.04
     steps:
@@ -49,12 +65,12 @@ jobs:
         run: cargo xtask precheckin
 
   build:
-    needs: lint
+    needs: [lint, select_revisions]
     runs-on: ubuntu-24.04
     strategy:
       matrix:
-        # Always build for all HW-revisions
-        revision: ["latest", "2.1"]
+        # Build affected hardware revisions; shared changes require both.
+        revision: ${{ fromJSON(needs.select_revisions.outputs.revisions) }}
     env:
       CALIPTRA_HW_REV: ${{ matrix.revision }}
     steps:
