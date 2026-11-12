@@ -14,7 +14,8 @@ use caliptra_common::{
 };
 use caliptra_hw_model::{BootParams, DefaultHwModel, HwModel, InitParams};
 use caliptra_image_crypto::OsslCrypto as Crypto;
-use caliptra_image_gen::ImageGenerator;
+use caliptra_image_fake_keys::VENDOR_CONFIG_KEY_0;
+use caliptra_image_gen::{ImageGenerator, ImageGeneratorVendorConfig};
 use caliptra_image_types::RomInfo;
 
 use core::mem::size_of;
@@ -67,9 +68,18 @@ pub fn get_fwinfo(model: &mut DefaultHwModel) -> FwInfoResp {
     info
 }
 
+// Non-default, distinct key indices
+const TEST_VENDOR_ECC_KEY_IDX: u32 = 2;
+const TEST_VENDOR_LMS_KEY_IDX: u32 = 5;
+
 #[test]
 fn test_fw_info() {
     let mut image_opts = ImageOptions::default();
+    image_opts.vendor_config = ImageGeneratorVendorConfig {
+        ecc_key_idx: TEST_VENDOR_ECC_KEY_IDX,
+        lms_key_idx: TEST_VENDOR_LMS_KEY_IDX,
+        ..VENDOR_CONFIG_KEY_0
+    };
     image_opts.vendor_config.pl0_pauser = Some(0x1);
     image_opts.fmc_version = 0xaaaa;
     image_opts.app_version = 0xbbbbbbbb;
@@ -96,6 +106,7 @@ fn test_fw_info() {
 
     let fuses = caliptra_hw_model::Fuses {
         owner_pk_hash: owner_pub_key_hash,
+        lms_verify: true,
         ..Default::default()
     };
 
@@ -134,6 +145,9 @@ fn test_fw_info() {
     assert_eq!(info.runtime_sha384_digest, image.manifest.runtime.digest);
     // Check owner public key hash
     assert_eq!(info.owner_pub_key_hash, owner_pub_key_hash);
+    // Check vendor key indices
+    assert_eq!(info.vendor_ecc_pub_key_idx, TEST_VENDOR_ECC_KEY_IDX);
+    assert_eq!(info.vendor_lms_pub_key_idx, TEST_VENDOR_LMS_KEY_IDX);
 
     // Make image with newer SVN.
     let mut image_opts20 = image_opts.clone();

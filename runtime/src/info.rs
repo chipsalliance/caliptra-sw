@@ -48,6 +48,8 @@ impl FwInfoCmd {
             runtime_sha384_digest: pdata.manifest1.runtime.digest,
             owner_pub_key_hash: drivers.data_vault.owner_pk_hash().into(),
             authman_sha384_digest: pdata.auth_manifest_digest,
+            vendor_ecc_pub_key_idx: drivers.data_vault.ecc_vendor_pk_index(),
+            vendor_lms_pub_key_idx: drivers.data_vault.lms_vendor_pk_index(),
         };
         crate::packet::copy_to_mbox(drivers, resp.as_mut_bytes())
     }
