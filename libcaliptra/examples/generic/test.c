@@ -1574,6 +1574,152 @@ int upload_fw_piecewise(const test_info *info)
     return failure;
 }
 
+// Runtime errors expected from the negative GET_IMAGE_INFO test cases.
+static const uint32_t get_image_info_invalid_params = 0x000E0009;
+static const uint32_t get_image_info_not_found = 0x000E0061;
+
+// Check both the mailbox result and the Runtime error that explains the failure.
+static int check_get_image_info_error(int status, uint32_t expected_error, const char *message)
+{
+    if (status == MBX_STATUS_FAILED &&
+        caliptra_read_fw_non_fatal_error() == expected_error)
+    {
+        return 0;
+    }
+
+    printf("Get Image Info: %s: 0x%x\n", message, status);
+    dump_caliptra_error_codes();
+    return 1;
+}
+
+static int check_get_image_info_host_api(void)
+{
+    // Requests are sent as raw structures, so their layout must match the
+    // mailbox wire format exactly.
+    if (sizeof(struct caliptra_get_image_info_req) != 12 ||
+        offsetof(struct caliptra_get_image_info_req, fw_id) != 4 ||
+        offsetof(struct caliptra_get_image_info_req, flags) != 8 ||
+        sizeof(struct caliptra_get_image_info_resp) != 80 ||
+        offsetof(struct caliptra_get_image_info_resp, component_id) != 8 ||
+        offsetof(struct caliptra_get_image_info_resp, digest) != 32)
+    {
+        printf("Get Image Info: host structures do not match the wire format\n");
+        return 1;
+    }
+
+    struct caliptra_get_image_info_req req = {0};
+    struct caliptra_get_image_info_resp resp;
+    if (caliptra_get_image_info(NULL, &resp, false) != INVALID_PARAMS ||
+        caliptra_get_image_info(&req, NULL, false) != INVALID_PARAMS)
+    {
+        printf("Get Image Info: NULL parameter was not rejected\n");
+        return 1;
+    }
+
+    return 0;
+}
+
+static int boot_get_image_info_test(const test_info *info)
+{
+    // GET_IMAGE_INFO is a Runtime command, so boot and upload firmware before
+    // exercising the command.
+    int status = boot_to_ready_for_fw(info, false);
+    if (!status)
+    {
+        status = caliptra_upload_fw(&info->image_bundle, false);
+    }
+    if (!status)
+    {
+        status = caliptra_ready_for_runtime();
+    }
+    if (status)
+    {
+        printf("Get Image Info: firmware boot failed: 0x%x\n", status);
+    }
+
+    return status;
+}
+
+static int check_get_image_info_sync(void)
+{
+    struct caliptra_get_image_info_req req = {0};
+    struct caliptra_get_image_info_resp resp;
+
+    // Use an ID that is not present in the test image. This lets the test
+    // validate request handling without installing an authorization manifest.
+    req.fw_id = UINT32_MAX;
+
+    // Bit 0 is reserved. Runtime must reject it before looking up the image.
+    req.flags = 1U;
+    int status = caliptra_get_image_info(&req, &resp, false);
+    if (check_get_image_info_error(status, get_image_info_invalid_params,
+                                   "reserved flags were not rejected"))
+    {
+        return 1;
+    }
+
+    // With valid flags, the lookup reaches the manifest and reports that the
+    // requested image metadata is not installed.
+    req.flags = GET_IMAGE_INFO_MANIFEST_SOURCE_VENDOR_OWNER;
+    status = caliptra_get_image_info(&req, &resp, false);
+    return check_get_image_info_error(status, get_image_info_not_found,
+                                      "unexpected vendor-owner lookup result");
+}
+
+static int check_get_image_info_async(void)
+{
+    struct caliptra_get_image_info_req req = {0};
+    struct caliptra_get_image_info_resp resp;
+
+    req.fw_id = UINT32_MAX;
+
+    // Exercise the owner-only selector and the asynchronous libcaliptra path.
+    req.flags = GET_IMAGE_INFO_MANIFEST_SOURCE_OWNER_ONLY;
+    int status = caliptra_get_image_info(&req, &resp, true);
+    if (status)
+    {
+        printf("Get Image Info: asynchronous submission failed: 0x%x\n", status);
+        return 1;
+    }
+
+    // Bound the poll loop so a mailbox regression fails instead of hanging.
+    uint32_t polls = 0;
+    while (!caliptra_test_for_completion() && polls < 1000000U)
+    {
+        caliptra_wait();
+        polls++;
+    }
+    if (!caliptra_test_for_completion())
+    {
+        printf("Get Image Info: asynchronous lookup timed out\n");
+        return 1;
+    }
+
+    status = caliptra_complete();
+    return check_get_image_info_error(status, get_image_info_not_found,
+                                      "unexpected owner-only lookup result");
+}
+
+static int test_get_image_info(const test_info *info)
+{
+    if (check_get_image_info_host_api())
+    {
+        return 1;
+    }
+
+    if (boot_get_image_info_test(info))
+    {
+        return 1;
+    }
+
+    if (check_get_image_info_sync())
+    {
+        return 1;
+    }
+
+    return check_get_image_info_async();
+}
+
 // Test infrastructure
 
 int global_test_result = 0;
@@ -1606,6 +1752,7 @@ int run_tests(const test_info *info)
     run_test(legacy_boot_test, info, "Legacy boot test");
     run_test(rom_test_all_commands, info, "Test all ROM commands");
     run_test(rt_test_all_commands, info, "Test all Runtime commmands");
+    run_test(test_get_image_info, info, "Test Get Image Info");
     run_test(rom_test_idevid_csr, info, "Test ECC384 & MLDSA87 IDEV CSR GEN");
     run_test(upload_fw_piecewise, info, "Test Piecewise FW Load");
     run_test(sign_with_exported_ecdsa_cdi, info, "Test Sign with Exported ECDSA");
