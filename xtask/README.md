@@ -14,6 +14,11 @@ cargo xtask --rev latest build rom
 cargo xtask --rev latest build test-fw
 ```
 
+The ROM/FMC Makefiles and normal Build and Test CI jobs default to `2.1`. The CI
+build and workspace test matrices explicitly exercise both `2.1` and `latest`.
+For direct xtask/Cargo invocations with no hardware selection, the existing
+`latest` fallback is unchanged; use `--rev` or `CALIPTRA_HW_REV` explicitly.
+
 `build features` exposes the same hardware/package feature policy used by the
 firmware builder and xtask. It prints a comma-separated feature list for Makefiles
 and direct Cargo commands, and fails for an unsupported hardware selector:

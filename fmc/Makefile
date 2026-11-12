@@ -17,7 +17,7 @@ TARGET_DIR=../target/riscv32imc-unknown-none-elf/firmware
 CURRENT_DIR = $(shell pwd)
 GIT_REV = $(shell git rev-parse HEAD)
 
-CALIPTRA_HW_REV ?= latest
+CALIPTRA_HW_REV ?= 2.1
 export CALIPTRA_HW_REV
 
 default: build

@@ -14,7 +14,7 @@ on:
       hw-revision:
         description: 'Target hardware revision'
         type: choice
-        default: latest
+        default: "2.1"
         options:
           - "2.1"
           - latest
@@ -32,7 +32,7 @@ env:
 
   # Compiler warnings should fail to compile
   EXTRA_CARGO_CONFIG: "target.'cfg(all())'.rustflags = [\"-Dwarnings\"]"
-  CALIPTRA_HW_REV: ${{ inputs.hw-revision || 'latest' }}
+  CALIPTRA_HW_REV: ${{ inputs.hw-revision || '2.1' }}
 
 jobs:
   lint:
@@ -127,6 +127,12 @@ jobs:
   test_unit:
     needs: lint
     runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        revision: ["2.1", "latest"]
+    env:
+      CALIPTRA_HW_REV: ${{ matrix.revision }}
     steps:
       - name: Checkout repo
         uses: actions/checkout@v5

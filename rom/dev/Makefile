@@ -21,7 +21,7 @@ PQC_KEY_TYPE ?= 1
 # Device lifecycle state: unprovisioned, manufacturing, production
 DEVICE_LIFECYCLE ?= production
 
-CALIPTRA_HW_REV ?= latest
+CALIPTRA_HW_REV ?= 2.1
 export CALIPTRA_HW_REV
 
 default: build

@@ -12,9 +12,11 @@ Run `cargo build -p caliptra-builder --bin image` from the root repository direc
 
 Select `CALIPTRA_HW_REV=2.1` for the frozen hardware bindings or
 `CALIPTRA_HW_REV=latest` for the current development hardware (currently 2.2).
-The default is `latest`; the literal value `2.2` is not a supported selector.
-Select the revision before invoking Cargo so host tests, firmware and the default
-hardware model agree.
+The Build and Test workflow and ROM/FMC Makefiles default to `2.1`; `latest`
+remains an explicit selection. Outside these entry points, the existing raw
+Cargo, builder and xtask fallback remains `latest`. The literal value `2.2` is not
+a supported selector. Select the revision before invoking Cargo so host tests,
+firmware and the default hardware model agree.
 
 The builder's child Cargo invocations, `cargo xtask build`, and the ROM/FMC
 Makefiles share `caliptra_builder::firmware_features`. This function preserves
@@ -75,11 +77,14 @@ Raw Cargo commands that supply their own feature list do not consult the
 resolver automatically. When using the standalone emulator, pass a matching
 `--hw-version`; the ROM/FMC Makefiles do this automatically.
 
-The existing CI build matrix builds firmware for both targets. The generic
-feature-policy and CLI tests run in the normal workspace test job and explicitly
-exercise both hardware selectors; no additional workflow step is needed.
+The CI build and workspace/emulator test jobs each have a `2.1`/`latest` hardware
+matrix. Each test entry runs the existing workspace tests, coverage and OCP LOCK
+checks with the matching `CALIPTRA_HW_REV`; one failing revision does not cancel
+the other test entry. Other Build and Test jobs default to `2.1` unless a hardware
+selection is supplied. Generic feature-policy and CLI tests run in the normal
+workspace test job; no feature-specific workflow step is needed.
 Feature-specific behavioral tests belong to the PR that introduces the feature.
-The 2.1 release/nightly policy is unchanged.
+The separate 2.1 release/nightly and Verilator workflow policies are unchanged.
 
 ## Options
 
