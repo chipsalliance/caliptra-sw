@@ -114,6 +114,25 @@ enum authorize_and_stash_source {
 };
 
 /**
+ * get_image_info_manifest_source
+ *
+ * GET_IMAGE_INFO manifest source values.
+ */
+enum get_image_info_manifest_source {
+    GET_IMAGE_INFO_MANIFEST_SOURCE_VENDOR_OWNER = 0,
+    GET_IMAGE_INFO_MANIFEST_SOURCE_OWNER_ONLY = (1U << 1),
+};
+
+/**
+ * get_image_info_flags
+ *
+ * GET_IMAGE_INFO flags options.
+ */
+enum get_image_info_flags {
+    GET_IMAGE_INFO_MANIFEST_SOURCE_MASK = (3U << 1),
+};
+
+/**
  * authorize_and_stash_auth_req_result
  *
  * AUTHORIZE_AND_STASH auth_req_result values.
