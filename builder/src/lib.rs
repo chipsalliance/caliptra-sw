@@ -173,10 +173,15 @@ pub fn build_firmware_elf_uncached(workspace_dir: Option<&Path>, id: &FwId) -> i
     Ok(result.into_iter().next().unwrap().1)
 }
 
-fn default_features(hw_revision: CaliptraHwVersion, _crate_name: &str) -> Vec<&str> {
-    let features = vec![];
+fn default_features(hw_revision: CaliptraHwVersion, crate_name: &str) -> Vec<&str> {
+    let mut features = vec![];
     match hw_revision {
-        CaliptraHwVersion::Latest | CaliptraHwVersion::V2_2 => (),
+        CaliptraHwVersion::Latest | CaliptraHwVersion::V2_2 => {
+            features.push("caliptra-drivers/last-hmac-block");
+            if crate_name == "caliptra-drivers-test-bin" {
+                features.push("caliptra-drivers-test-bin/last-hmac-block");
+            }
+        }
         _ => (),
     }
     features
