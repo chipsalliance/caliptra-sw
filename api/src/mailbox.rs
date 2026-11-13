@@ -1910,12 +1910,15 @@ impl Default for CertifyKeyChunksResp {
 }
 
 // INVOKE_DPE_ECC384
-#[repr(C)]
-#[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
-pub struct InvokeDpeReq {
-    pub hdr: MailboxReqHeader,
-    pub data_size: u32,
-    pub data: [u8; InvokeDpeReq::DATA_MAX_SIZE], // variable length
+with_hdr! {
+    #[repr(C)]
+    #[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+    pub struct InvokeDpeReq {
+        pub hdr: MailboxReqHeader,
+        pub data_size: u32,
+        pub data: [u8; InvokeDpeReq::DATA_MAX_SIZE], // variable length
+    }
+    hdr: InvokeDpeReqHdr,
 }
 
 impl InvokeDpeReq {
@@ -1976,14 +1979,17 @@ pub struct AxiResponseInfo {
 }
 
 // INVOKE_DPE_MLDSA87
-#[repr(C)]
-#[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
-pub struct InvokeDpeMldsa87Req {
-    pub hdr: MailboxReqHeader,
-    pub flags: InvokeDpeMldsa87Flags,
-    pub axi_response: AxiResponseInfo,
-    pub data_size: u32,
-    pub data: [u8; InvokeDpeMldsa87Req::DATA_MAX_SIZE], // variable length
+with_hdr! {
+    #[repr(C)]
+    #[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+    pub struct InvokeDpeMldsa87Req {
+        pub hdr: MailboxReqHeader,
+        pub flags: InvokeDpeMldsa87Flags,
+        pub axi_response: AxiResponseInfo,
+        pub data_size: u32,
+        pub data: [u8; InvokeDpeMldsa87Req::DATA_MAX_SIZE], // variable length
+    }
+    hdr: InvokeDpeMldsa87ReqHdr,
 }
 
 impl InvokeDpeMldsa87Req {
@@ -2037,12 +2043,15 @@ impl Request for ExtendPcrReq {
 
 // No command-specific output args
 
-#[repr(C)]
-#[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
-pub struct InvokeDpeResp {
-    pub hdr: MailboxRespHeader,
-    pub data_size: u32,
-    pub data: [u8; InvokeDpeResp::DATA_MAX_SIZE], // variable length
+with_hdr! {
+    #[repr(C)]
+    #[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+    pub struct InvokeDpeResp {
+        pub hdr: MailboxRespHeader,
+        pub data_size: u32,
+        pub data: [u8; InvokeDpeResp::DATA_MAX_SIZE], // variable length
+    }
+    hdr: InvokeDpeRespHdr,
 }
 impl InvokeDpeResp {
     pub const DATA_MAX_SIZE: usize = 25168;
