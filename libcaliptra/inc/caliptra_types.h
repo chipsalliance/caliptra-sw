@@ -301,6 +301,14 @@ struct caliptra_quote_pcrs_mldsa87_resp
     uint8_t signature[4628];
 };
 
+// PCR log response; data_size counts log bytes, including unused entries
+struct caliptra_get_pcr_log_resp
+{
+    struct caliptra_resp_header hdr;
+    uint32_t data_size;
+    uint8_t data[9216];
+};
+
 struct caliptra_extend_pcr_req
 {
     struct caliptra_req_header hdr;

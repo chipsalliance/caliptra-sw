@@ -235,6 +235,16 @@ int caliptra_quote_pcrs_ecc384(struct caliptra_quote_pcrs_req *req, struct calip
 
 int caliptra_quote_pcrs_mldsa87(struct caliptra_quote_pcrs_req *req, struct caliptra_quote_pcrs_mldsa87_resp *resp, bool async);
 
+/**
+ * Retrieve the PCR measurement log. data_size is the number of log bytes,
+ * including unused entries, not the number of active entries.
+ *
+ * If async is true, resp must remain valid until caliptra_complete() returns.
+ * Returns 0 on success or a libcaliptra_error, including INVALID_PARAMS if
+ * resp is NULL. See the mailbox completion and error notes above.
+ */
+int caliptra_get_pcr_log(struct caliptra_get_pcr_log_resp *resp, bool async);
+
 // Extend PCR
 int caliptra_extend_pcr(struct caliptra_extend_pcr_req *req, bool async);
 
