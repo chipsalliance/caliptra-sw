@@ -74,6 +74,10 @@ pub trait SocManager {
     // Provide a time base for mailbox status polling loop.
     fn delay(&mut self);
 
+    /// Receives progress messages from the mailbox helpers [`Self::start_mailbox_exec`] and [`Self::finish_mailbox_exec`].
+    /// The default implementation discards them, hosted models must override it to write to their log.
+    fn log_mailbox(&mut self, _args: core::fmt::Arguments<'_>) {}
+
     /// Set up valid PAUSERs for mailbox access.
     fn setup_mailbox_users(&mut self, apb_pausers: &[u32]) -> Result<(), CaliptraApiError> {
         if apb_pausers.len() > NUM_PAUSERS {
@@ -226,6 +230,12 @@ pub trait SocManager {
         cmd: u32,
         buf: &[u8],
     ) -> core::result::Result<(), CaliptraApiError> {
+        // Logging for caliptra-sw hw model
+        self.log_mailbox(format_args!(
+            "<<< Executing Caliptra mbox cmd 0x{cmd:08x} ({} bytes) from SoC",
+            buf.len()
+        ));
+
         // Reject before taking the lock: once locked, the SoC can only release
         // it through a completed execute.
         if buf.len() > Self::MAILBOX_SIZE_LIMIT {
@@ -273,6 +283,8 @@ pub trait SocManager {
 
         let status = self.soc_mbox().status().read().status();
         let res = if status.cmd_failure() {
+            self.log_mailbox(format_args!(">>> Caliptra mbox cmd response: failed"));
+
             let soc_ifc = self.soc_ifc();
             Err(CaliptraApiError::MailboxCmdFailed(
                 if soc_ifc.cptra_fw_error_fatal().read() != 0 {
@@ -282,10 +294,13 @@ pub trait SocManager {
                 },
             ))
         } else if status.cmd_complete() {
+            self.log_mailbox(format_args!(">>> Caliptra mbox cmd response: success"));
             Ok(None)
         } else if !status.data_ready() {
             Err(CaliptraApiError::UnknownCommandStatus(status as u32))
         } else {
+            let dlen = self.soc_mbox().dlen().read();
+            self.log_mailbox(format_args!(">>> mbox cmd response data ({dlen} bytes)"));
             mbox_read_response(self.soc_mbox(), resp_data).map(Some)
         };
 
