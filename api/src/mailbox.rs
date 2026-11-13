@@ -1623,14 +1623,17 @@ impl Request for LmsVerifyReq {
 // No command-specific output args
 
 // MLDSA87_SIGNATURE_VERIFY
-#[repr(C)]
-#[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
-pub struct MldsaVerifyReq {
-    pub hdr: MailboxReqHeader,
-    pub pub_key: [u8; MLDSA87_PUB_KEY_BYTE_SIZE],
-    pub signature: [u8; MLDSA87_SIGNATURE_BYTE_SIZE],
-    pub message_size: u32,
-    pub message: [u8; MAX_CMB_DATA_SIZE],
+with_hdr! {
+    #[repr(C)]
+    #[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+    pub struct MldsaVerifyReq {
+        pub hdr: MailboxReqHeader,
+        pub pub_key: [u8; MLDSA87_PUB_KEY_BYTE_SIZE],
+        pub signature: [u8; MLDSA87_SIGNATURE_BYTE_SIZE],
+        pub message_size: u32,
+        pub message: [u8; MAX_CMB_DATA_SIZE],
+    }
+    hdr: MldsaVerifyReqHdr,
 }
 
 impl MldsaVerifyReq {
@@ -3649,12 +3652,15 @@ impl Default for CmRandomGenerateResp {
 impl ResponseVarSize for CmRandomGenerateResp {}
 
 // CM_RANDOM_STIR
-#[repr(C)]
-#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
-pub struct CmRandomStirReq {
-    pub hdr: MailboxReqHeader,
-    pub input_size: u32,
-    pub input: [u8; MAX_CMB_DATA_SIZE],
+with_hdr! {
+    #[repr(C)]
+    #[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+    pub struct CmRandomStirReq {
+        pub hdr: MailboxReqHeader,
+        pub input_size: u32,
+        pub input: [u8; MAX_CMB_DATA_SIZE],
+    }
+    hdr: CmRandomStirReqHdr,
 }
 
 impl Default for CmRandomStirReq {
@@ -4792,14 +4798,17 @@ pub struct CmEcdhFinishResp {
 impl Response for CmEcdhFinishResp {}
 
 // CM_HMAC
-#[repr(C)]
-#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
-pub struct CmHmacReq {
-    pub hdr: MailboxReqHeader,
-    pub cmk: Cmk,
-    pub hash_algorithm: u32,
-    pub data_size: u32,
-    pub data: [u8; MAX_CMB_DATA_SIZE],
+with_hdr! {
+    #[repr(C)]
+    #[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+    pub struct CmHmacReq {
+        pub hdr: MailboxReqHeader,
+        pub cmk: Cmk,
+        pub hash_algorithm: u32,
+        pub data_size: u32,
+        pub data: [u8; MAX_CMB_DATA_SIZE],
+    }
+    hdr: CmHmacReqHdr,
 }
 
 impl Default for CmHmacReq {
@@ -4856,16 +4865,19 @@ impl Default for CmHmacResp {
 impl ResponseVarSize for CmHmacResp {}
 
 // CM_HMAC_KDF_COUNTER
-#[repr(C)]
-#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
-pub struct CmHmacKdfCounterReq {
-    pub hdr: MailboxReqHeader,
-    pub kin: Cmk,
-    pub hash_algorithm: u32,
-    pub key_usage: u32,
-    pub key_size: u32,
-    pub label_size: u32,
-    pub label: [u8; MAX_CMB_DATA_SIZE],
+with_hdr! {
+    #[repr(C)]
+    #[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+    pub struct CmHmacKdfCounterReq {
+        pub hdr: MailboxReqHeader,
+        pub kin: Cmk,
+        pub hash_algorithm: u32,
+        pub key_usage: u32,
+        pub key_size: u32,
+        pub label_size: u32,
+        pub label: [u8; MAX_CMB_DATA_SIZE],
+    }
+    hdr: CmHmacKdfCounterReqHdr,
 }
 
 impl Default for CmHmacKdfCounterReq {
@@ -4939,16 +4951,19 @@ pub struct CmHkdfExtractResp {
 impl Response for CmHkdfExtractResp {}
 
 // CM_HKDF_EXPAND
-#[repr(C)]
-#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
-pub struct CmHkdfExpandReq {
-    pub hdr: MailboxReqHeader,
-    pub prk: Cmk,
-    pub hash_algorithm: u32,
-    pub key_usage: u32,
-    pub key_size: u32,
-    pub info_size: u32,
-    pub info: [u8; MAX_CMB_DATA_SIZE],
+with_hdr! {
+    #[repr(C)]
+    #[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+    pub struct CmHkdfExpandReq {
+        pub hdr: MailboxReqHeader,
+        pub prk: Cmk,
+        pub hash_algorithm: u32,
+        pub key_usage: u32,
+        pub key_size: u32,
+        pub info_size: u32,
+        pub info: [u8; MAX_CMB_DATA_SIZE],
+    }
+    hdr: CmHkdfExpandReqHdr,
 }
 
 impl Default for CmHkdfExpandReq {
@@ -5029,13 +5044,16 @@ impl Default for CmMldsaPublicKeyResp {
 impl Response for CmMldsaPublicKeyResp {}
 
 // CM_MLDSA_SIGN
-#[repr(C)]
-#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
-pub struct CmMldsaSignReq {
-    pub hdr: MailboxReqHeader,
-    pub cmk: Cmk,
-    pub message_size: u32,
-    pub message: [u8; MAX_CMB_DATA_SIZE],
+with_hdr! {
+    #[repr(C)]
+    #[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+    pub struct CmMldsaSignReq {
+        pub hdr: MailboxReqHeader,
+        pub cmk: Cmk,
+        pub message_size: u32,
+        pub message: [u8; MAX_CMB_DATA_SIZE],
+    }
+    hdr: CmMldsaSignReqHdr,
 }
 
 impl Default for CmMldsaSignReq {
@@ -5091,14 +5109,17 @@ impl Default for CmMldsaSignResp {
 impl Response for CmMldsaSignResp {}
 
 // CM_MLDSA_VERIFY
-#[repr(C)]
-#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
-pub struct CmMldsaVerifyReq {
-    pub hdr: MailboxReqHeader,
-    pub cmk: Cmk,
-    pub signature: [u8; MLDSA87_SIGNATURE_BYTE_SIZE],
-    pub message_size: u32,
-    pub message: [u8; MAX_CMB_DATA_SIZE],
+with_hdr! {
+    #[repr(C)]
+    #[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+    pub struct CmMldsaVerifyReq {
+        pub hdr: MailboxReqHeader,
+        pub cmk: Cmk,
+        pub signature: [u8; MLDSA87_SIGNATURE_BYTE_SIZE],
+        pub message_size: u32,
+        pub message: [u8; MAX_CMB_DATA_SIZE],
+    }
+    hdr: CmMldsaVerifyReqHdr,
 }
 
 impl Default for CmMldsaVerifyReq {
@@ -5170,13 +5191,16 @@ impl Default for CmEcdsaPublicKeyResp {
 impl Response for CmEcdsaPublicKeyResp {}
 
 // CM_ECDSA_SIGN
-#[repr(C)]
-#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
-pub struct CmEcdsaSignReq {
-    pub hdr: MailboxReqHeader,
-    pub cmk: Cmk,
-    pub message_size: u32,
-    pub message: [u8; MAX_CMB_DATA_SIZE],
+with_hdr! {
+    #[repr(C)]
+    #[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+    pub struct CmEcdsaSignReq {
+        pub hdr: MailboxReqHeader,
+        pub cmk: Cmk,
+        pub message_size: u32,
+        pub message: [u8; MAX_CMB_DATA_SIZE],
+    }
+    hdr: CmEcdsaSignReqHdr,
 }
 
 impl Default for CmEcdsaSignReq {
@@ -5245,15 +5269,18 @@ pub struct FeProgReq {
 }
 
 // CM_ECDSA_VERIFY
-#[repr(C)]
-#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
-pub struct CmEcdsaVerifyReq {
-    pub hdr: MailboxReqHeader,
-    pub cmk: Cmk,
-    pub signature_r: [u8; ECC384_SCALAR_BYTE_SIZE],
-    pub signature_s: [u8; ECC384_SCALAR_BYTE_SIZE],
-    pub message_size: u32,
-    pub message: [u8; MAX_CMB_DATA_SIZE],
+with_hdr! {
+    #[repr(C)]
+    #[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+    pub struct CmEcdsaVerifyReq {
+        pub hdr: MailboxReqHeader,
+        pub cmk: Cmk,
+        pub signature_r: [u8; ECC384_SCALAR_BYTE_SIZE],
+        pub signature_s: [u8; ECC384_SCALAR_BYTE_SIZE],
+        pub message_size: u32,
+        pub message: [u8; MAX_CMB_DATA_SIZE],
+    }
+    hdr: CmEcdsaVerifyReqHdr,
 }
 
 impl Default for CmEcdsaVerifyReq {
