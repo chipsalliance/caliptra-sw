@@ -301,6 +301,25 @@ struct caliptra_quote_pcrs_mldsa87_resp
     uint8_t signature[4628];
 };
 
+struct caliptra_get_image_info_req
+{
+    struct caliptra_req_header hdr;
+    uint32_t fw_id;
+    uint32_t flags;
+};
+
+struct caliptra_get_image_info_resp
+{
+    struct caliptra_resp_header hdr;
+    uint32_t component_id;
+    uint32_t flags;
+    uint32_t image_load_address_high;
+    uint32_t image_load_address_low;
+    uint32_t image_staging_address_high;
+    uint32_t image_staging_address_low;
+    uint8_t digest[48];
+};
+
 struct caliptra_extend_pcr_req
 {
     struct caliptra_req_header hdr;
