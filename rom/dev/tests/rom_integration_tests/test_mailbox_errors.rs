@@ -1,17 +1,164 @@
 // Licensed under the Apache-2.0 license
 
 use caliptra_api::SocManager;
-use caliptra_builder::ImageOptions;
-use caliptra_common::mailbox_api::{CommandId, MailboxReqHeader, StashMeasurementReq};
+use caliptra_builder::{firmware, ImageOptions};
+use caliptra_common::mailbox_api::{
+    CommandId, MailboxReqHeader, MailboxRespHeader, StashMeasurementReq,
+};
+use caliptra_drivers::FipsTestHook;
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{BootParams, Fuses, HwModel, InitParams, ModelError, SecurityState};
 use zerocopy::IntoBytes;
 
-use crate::helpers;
+use crate::{helpers, test_derive_stable_key::HW_MODEL_MODES_SUBSYSTEM};
 
 // Since the boot takes less than 30M cycles, we know something is wrong if
 // we're stuck at the same state for that duration.
 const MAX_WAIT_CYCLES: u32 = 30_000_000;
+
+fn assert_self_test_command(
+    hw: &mut impl HwModel,
+    command: CommandId,
+    expected_error: Option<CaliptraError>,
+) {
+    let command = u32::from(command);
+    let request = MailboxReqHeader {
+        chksum: caliptra_common::checksum::calc_checksum(command, &[]),
+    };
+    hw.start_mailbox_execute(command, request.as_bytes())
+        .unwrap();
+    hw.step_until_or_timeout("self-test command completion", MAX_WAIT_CYCLES, |model| {
+        !model.soc_mbox().status().read().status().cmd_busy()
+    });
+
+    assert_eq!(hw.soc_ifc().cptra_fw_error_fatal().read(), 0);
+    assert_eq!(
+        hw.soc_ifc().cptra_fw_error_non_fatal().read(),
+        expected_error.map(u32::from).unwrap_or(0)
+    );
+    if let Some(error) = expected_error {
+        assert_eq!(
+            hw.finish_mailbox_execute(),
+            Err(ModelError::MailboxCmdFailed(error.into()))
+        );
+    } else {
+        assert_eq!(
+            hw.finish_mailbox_execute().unwrap().as_deref(),
+            Some(MailboxRespHeader::default().as_bytes())
+        );
+    }
+}
+
+#[test]
+fn test_self_test_get_results_without_start() {
+    let rom = caliptra_builder::build_firmware_rom(helpers::rom_from_env()).unwrap();
+    for &subsystem_mode in &HW_MODEL_MODES_SUBSYSTEM {
+        let mut hw = caliptra_hw_model::new(
+            InitParams {
+                rom: &rom,
+                subsystem_mode,
+                ..Default::default()
+            },
+            BootParams::default(),
+        )
+        .unwrap();
+        assert_self_test_command(
+            &mut hw,
+            CommandId::SELF_TEST_GET_RESULTS,
+            Some(CaliptraError::FW_PROC_MAILBOX_SELF_TEST_NOT_STARTED),
+        );
+        assert_self_test_command(&mut hw, CommandId::SELF_TEST_START, None);
+        assert_self_test_command(&mut hw, CommandId::SELF_TEST_GET_RESULTS, None);
+        assert_self_test_command(
+            &mut hw,
+            CommandId::SELF_TEST_GET_RESULTS,
+            Some(CaliptraError::FW_PROC_MAILBOX_SELF_TEST_NOT_STARTED),
+        );
+        assert_self_test_command(&mut hw, CommandId::SELF_TEST_START, None);
+        assert_self_test_command(&mut hw, CommandId::SELF_TEST_GET_RESULTS, None);
+    }
+}
+
+#[test]
+fn test_self_test_duplicate_start_preserves_result() {
+    let rom = caliptra_builder::build_firmware_rom(helpers::rom_from_env()).unwrap();
+    for &subsystem_mode in &HW_MODEL_MODES_SUBSYSTEM {
+        let mut hw = caliptra_hw_model::new(
+            InitParams {
+                rom: &rom,
+                subsystem_mode,
+                ..Default::default()
+            },
+            BootParams::default(),
+        )
+        .unwrap();
+        assert_self_test_command(&mut hw, CommandId::SELF_TEST_START, None);
+        for _ in 0..2 {
+            assert_self_test_command(
+                &mut hw,
+                CommandId::SELF_TEST_START,
+                Some(CaliptraError::FW_PROC_MAILBOX_SELF_TEST_RESULT_PENDING),
+            );
+        }
+        assert_self_test_command(&mut hw, CommandId::SELF_TEST_GET_RESULTS, None);
+        assert_self_test_command(&mut hw, CommandId::SELF_TEST_START, None);
+        assert_self_test_command(&mut hw, CommandId::SELF_TEST_GET_RESULTS, None);
+    }
+}
+
+#[test]
+fn test_self_test_kat_failure_is_fatal() {
+    let rom = caliptra_builder::build_firmware_rom(
+        if cfg!(any(feature = "fpga_realtime", feature = "fpga_subsystem")) {
+            &firmware::ROM_WITH_FIPS_TEST_HOOKS_FPGA
+        } else {
+            &firmware::ROM_WITH_FIPS_TEST_HOOKS
+        },
+    )
+    .unwrap();
+    for &subsystem_mode in &HW_MODEL_MODES_SUBSYSTEM {
+        let mut hw = caliptra_hw_model::new(
+            InitParams {
+                rom: &rom,
+                subsystem_mode,
+                ..Default::default()
+            },
+            BootParams::default(),
+        )
+        .unwrap();
+        assert_self_test_command(&mut hw, CommandId::SELF_TEST_START, None);
+        hw.soc_ifc()
+            .cptra_dbg_manuf_service_reg()
+            .write(|_| u32::from(FipsTestHook::SHA256_DIGEST_FAILURE) << 16);
+        assert_self_test_command(
+            &mut hw,
+            CommandId::SELF_TEST_START,
+            Some(CaliptraError::FW_PROC_MAILBOX_SELF_TEST_RESULT_PENDING),
+        );
+        assert_self_test_command(&mut hw, CommandId::SELF_TEST_GET_RESULTS, None);
+
+        let request = MailboxReqHeader {
+            chksum: caliptra_common::checksum::calc_checksum(
+                CommandId::SELF_TEST_START.into(),
+                &[],
+            ),
+        };
+        let expected_error = u32::from(CaliptraError::KAT_SHA256_DIGEST_FAILURE);
+        assert_eq!(
+            hw.mailbox_execute(CommandId::SELF_TEST_START.into(), request.as_bytes()),
+            Err(ModelError::MailboxCmdFailed(expected_error))
+        );
+        assert_eq!(hw.soc_ifc().cptra_fw_error_fatal().read(), expected_error);
+        assert_eq!(
+            hw.soc_ifc().cptra_fw_error_non_fatal().read(),
+            expected_error
+        );
+        assert_eq!(
+            hw.mailbox_execute(CommandId::SELF_TEST_START.into(), request.as_bytes()),
+            Err(ModelError::MailboxCmdFailed(expected_error))
+        );
+    }
+}
 
 #[test]
 fn test_unknown_command_is_fatal() {
