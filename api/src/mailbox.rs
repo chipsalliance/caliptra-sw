@@ -1880,6 +1880,18 @@ impl Default for CertifyKeyChunksResp {
 }
 
 // INVOKE_DPE_ECC384
+/// Header-only struct for INVOKE_DPE_COMMAND requests.
+/// This contains only the fixed-size header fields, not the variable-length data,
+/// so the header and data can be written to / read from the mailbox separately.
+#[repr(C)]
+#[derive(Debug, Default, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+pub struct InvokeDpeReqHdr {
+    pub hdr: MailboxReqHeader,
+    pub data_size: u32,
+}
+
+assert_hdr_prefix!(InvokeDpeReq, InvokeDpeReqHdr, [hdr, data_size], data);
+
 #[repr(C)]
 #[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
 pub struct InvokeDpeReq {
@@ -1946,6 +1958,25 @@ pub struct AxiResponseInfo {
 }
 
 // INVOKE_DPE_MLDSA87
+/// Header-only struct for INVOKE_DPE_MLDSA87 requests.
+/// This contains only the fixed-size header fields, not the variable-length data,
+/// so the header and data can be written to / read from the mailbox separately.
+#[repr(C)]
+#[derive(Debug, Default, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+pub struct InvokeDpeMldsa87ReqHdr {
+    pub hdr: MailboxReqHeader,
+    pub flags: InvokeDpeMldsa87Flags,
+    pub axi_response: AxiResponseInfo,
+    pub data_size: u32,
+}
+
+assert_hdr_prefix!(
+    InvokeDpeMldsa87Req,
+    InvokeDpeMldsa87ReqHdr,
+    [hdr, flags, axi_response, data_size],
+    data
+);
+
 #[repr(C)]
 #[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
 pub struct InvokeDpeMldsa87Req {
@@ -2006,6 +2037,19 @@ impl Request for ExtendPcrReq {
 }
 
 // No command-specific output args
+
+/// Header-only struct for INVOKE_DPE_COMMAND / INVOKE_DPE_MLDSA87 responses.
+/// This contains only the fixed-size header fields, not the variable-length data,
+/// so a requester can read the header and data from the mailbox separately without
+/// materializing the full (~25 KiB) `InvokeDpeResp`.
+#[repr(C)]
+#[derive(Debug, Default, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+pub struct InvokeDpeRespHdr {
+    pub hdr: MailboxRespHeader,
+    pub data_size: u32,
+}
+
+assert_hdr_prefix!(InvokeDpeResp, InvokeDpeRespHdr, [hdr, data_size], data);
 
 #[repr(C)]
 #[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
