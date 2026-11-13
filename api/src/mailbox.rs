@@ -4763,13 +4763,16 @@ impl Default for CmEcdhGenerateResp {
 
 impl Response for CmEcdhGenerateResp {}
 // CM_ECDH_FINISH
-#[repr(C)]
-#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
-pub struct CmEcdhFinishReq {
-    pub hdr: MailboxReqHeader,
-    pub context: [u8; CMB_ECDH_ENCRYPTED_CONTEXT_SIZE],
-    pub key_usage: u32,
-    pub incoming_exchange_data: [u8; CMB_ECDH_EXCHANGE_DATA_MAX_SIZE],
+with_hdr! {
+    #[repr(C)]
+    #[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+    pub struct CmEcdhFinishReq {
+        pub hdr: MailboxReqHeader,
+        pub context: [u8; CMB_ECDH_ENCRYPTED_CONTEXT_SIZE],
+        pub key_usage: u32,
+        pub incoming_exchange_data: [u8; CMB_ECDH_EXCHANGE_DATA_MAX_SIZE],
+    }
+    hdr: CmEcdhFinishReqHdr,
 }
 
 impl Default for CmEcdhFinishReq {
@@ -5351,12 +5354,15 @@ impl Default for CmMlkemKeyGenResp {
 impl Response for CmMlkemKeyGenResp {}
 
 // CM_MLKEM_ENCAPSULATE
-#[repr(C)]
-#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
-pub struct CmMlkemEncapsulateReq {
-    pub hdr: MailboxReqHeader,
-    pub key_usage: u32,
-    pub encaps_key: [u8; MLKEM1024_ENCAPS_KEY_SIZE],
+with_hdr! {
+    #[repr(C)]
+    #[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+    pub struct CmMlkemEncapsulateReq {
+        pub hdr: MailboxReqHeader,
+        pub key_usage: u32,
+        pub encaps_key: [u8; MLKEM1024_ENCAPS_KEY_SIZE],
+    }
+    hdr: CmMlkemEncapsulateReqHdr,
 }
 
 impl Default for CmMlkemEncapsulateReq {
@@ -5395,13 +5401,16 @@ impl Default for CmMlkemEncapsulateResp {
 impl Response for CmMlkemEncapsulateResp {}
 
 // CM_MLKEM_DECAPSULATE
-#[repr(C)]
-#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
-pub struct CmMlkemDecapsulateReq {
-    pub hdr: MailboxReqHeader,
-    pub key_usage: u32,
-    pub cmk: Cmk,
-    pub ciphertext: [u8; MLKEM1024_CIPHERTEXT_SIZE],
+with_hdr! {
+    #[repr(C)]
+    #[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+    pub struct CmMlkemDecapsulateReq {
+        pub hdr: MailboxReqHeader,
+        pub key_usage: u32,
+        pub cmk: Cmk,
+        pub ciphertext: [u8; MLKEM1024_CIPHERTEXT_SIZE],
+    }
+    hdr: CmMlkemDecapsulateReqHdr,
 }
 
 impl Default for CmMlkemDecapsulateReq {
@@ -5462,12 +5471,15 @@ impl From<CmStableKeyType> for u32 {
     }
 }
 
-#[repr(C)]
-#[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
-pub struct CmDeriveStableKeyReq {
-    pub hdr: MailboxReqHeader,
-    pub key_type: u32,
-    pub info: [u8; CM_STABLE_KEY_INFO_SIZE_BYTES],
+with_hdr! {
+    #[repr(C)]
+    #[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+    pub struct CmDeriveStableKeyReq {
+        pub hdr: MailboxReqHeader,
+        pub key_type: u32,
+        pub info: [u8; CM_STABLE_KEY_INFO_SIZE_BYTES],
+    }
+    hdr: CmDeriveStableKeyReqHdr,
 }
 impl Default for CmDeriveStableKeyReq {
     fn default() -> Self {
