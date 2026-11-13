@@ -118,6 +118,7 @@ Checks the limit on the number of active DPE contexts belonging to PL1 by callin
 Checks that PopulateIdevIdCert cannot be called from PL1 | **test_populate_idev_cannot_be_called_from_pl1** | RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL
 +Checks that StashMeasurement cannot be called from PL1 | **test_stash_measurement_cannot_be_called_from_pl1** | RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL
 Checks that CertifyKeyExtended cannot be called from PL1 | **test_certify_key_extended_cannot_be_called_from_pl1** | RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL
+Checks that AddSubjectAltName cannot be called from PL1 | **test_add_subject_alt_name_cannot_be_called_from_pl1** | RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL
 Checks that InvokeDpe::DeriveContext cannot be called from PL1 if it attempts to change locality to P0 | **test_derive_context_cannot_be_called_from_pl1_if_changes_locality_to_pl0** | RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL
 Checks that InvokeDpe::CertifyKey cannot be called from PL1 if it requests X509 | **test_certify_key_x509_cannot_be_called_from_pl1** | RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL
 Checks the limit on the number of active DPE contexts belonging to PL0 by calling the stash_measurement mailbox command | **test_stash_measurement_pl_context_thresholds** | RUNTIME_PL0_USED_DPE_CONTEXT_THRESHOLD_EXCEEDED
