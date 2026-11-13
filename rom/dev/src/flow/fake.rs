@@ -61,8 +61,6 @@ impl FakeRomFlow {
                 // Zeroize the key vault in the fake ROM flow
                 unsafe { KeyVault::zeroize() };
 
-                env.soc_ifc.flow_status_set_ready_for_mb_processing();
-
                 fht::initialize_fht(env);
 
                 // SKIP Execute IDEVID layer

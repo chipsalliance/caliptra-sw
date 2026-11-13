@@ -22,21 +22,17 @@ const DEFAULT_CSR_HMAC_KEY: [u8; 64] = [
 
 #[test]
 fn test_get_ecc_csr() {
-    let (mut hw, _) = helpers::build_hw_model_and_image_bundle(
+    let (mut hw, _) = helpers::build_hw_model_and_image_bundle_with_mfg_flags(
         Fuses {
             life_cycle: DeviceLifecycle::Manufacturing,
             debug_locked: true,
             ..Default::default()
         },
         ImageOptions::default(),
+        MfgFlags::GENERATE_IDEVID_CSR,
     );
 
     let ecc_csr_bytes = {
-        let flags = MfgFlags::GENERATE_IDEVID_CSR;
-        hw.soc_ifc()
-            .cptra_dbg_manuf_service_reg()
-            .write(|_| flags.bits());
-
         let csr_envelop = helpers::get_csr_envelop(&mut hw).unwrap();
 
         hw.step_until(|m| {
@@ -110,21 +106,17 @@ fn test_get_csr_generate_csr_flag_not_set() {
 
 #[test]
 fn test_validate_csr_mac() {
-    let (mut hw, _) = helpers::build_hw_model_and_image_bundle(
+    let (mut hw, _) = helpers::build_hw_model_and_image_bundle_with_mfg_flags(
         Fuses {
             life_cycle: DeviceLifecycle::Manufacturing,
             debug_locked: true,
             ..Default::default()
         },
         ImageOptions::default(),
+        MfgFlags::GENERATE_IDEVID_CSR,
     );
 
     let csr_envelop = {
-        let flags = MfgFlags::GENERATE_IDEVID_CSR;
-        hw.soc_ifc()
-            .cptra_dbg_manuf_service_reg()
-            .write(|_| flags.bits());
-
         let csr_envelop = helpers::get_csr_envelop(&mut hw).unwrap();
 
         hw.step_until(|m| {
@@ -157,21 +149,17 @@ fn test_validate_csr_mac() {
 
 #[test]
 fn test_get_mldsa_csr() {
-    let (mut hw, _) = helpers::build_hw_model_and_image_bundle(
+    let (mut hw, _) = helpers::build_hw_model_and_image_bundle_with_mfg_flags(
         Fuses {
             life_cycle: DeviceLifecycle::Manufacturing,
             debug_locked: true,
             ..Default::default()
         },
         ImageOptions::default(),
+        MfgFlags::GENERATE_IDEVID_CSR,
     );
 
     let mldsa_csr_bytes = {
-        let flags = MfgFlags::GENERATE_IDEVID_CSR;
-        hw.soc_ifc()
-            .cptra_dbg_manuf_service_reg()
-            .write(|_| flags.bits());
-
         let csr_envelop = helpers::get_csr_envelop(&mut hw).unwrap();
 
         assert_eq!(csr_envelop.marker, IDEVID_CSR_ENVELOP_MARKER);
