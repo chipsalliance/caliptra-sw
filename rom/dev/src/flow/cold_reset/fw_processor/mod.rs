@@ -718,7 +718,7 @@ impl FirmwareProcessor {
                 );
                 dma_recovery.set_recovery_status(
                     DmaRecovery::RECOVERY_STATUS_IMAGE_AUTHENTICATION_ERROR,
-                    0,
+                    DmaRecovery::CALIPTRA_FW_IMAGE_INDEX,
                 )?;
                 dma_recovery.set_boot_failure_reason(recovery_reason)?;
             } else {
@@ -731,8 +731,10 @@ impl FirmwareProcessor {
                     DmaRecovery::RECOVERY_STATUS_AWAITING_RECOVERY_IMAGE,
                     DmaRecovery::DEVICE_STATUS_READY_TO_ACCEPT_RECOVERY_IMAGE_VALUE
                 );
-                dma_recovery
-                    .set_recovery_status(DmaRecovery::RECOVERY_STATUS_AWAITING_RECOVERY_IMAGE, 1)?;
+                dma_recovery.set_recovery_status(
+                    DmaRecovery::RECOVERY_STATUS_AWAITING_RECOVERY_IMAGE,
+                    DmaRecovery::SOC_MANIFEST_IMAGE_INDEX,
+                )?;
                 dma_recovery.set_device_status(
                     DmaRecovery::DEVICE_STATUS_READY_TO_ACCEPT_RECOVERY_IMAGE_VALUE,
                 )?;
@@ -1147,7 +1149,6 @@ impl FirmwareProcessor {
         dma: &mut Dma,
         soc_ifc: &mut SocIfc,
     ) -> CaliptraResult<u32> {
-        const FW_IMAGE_INDEX: u32 = 0x0;
         let recovery_interface_base_addr = soc_ifc.recovery_interface_base_addr().into();
 
         let mci_base_addr = soc_ifc.mci_base_addr().into();
@@ -1159,7 +1160,7 @@ impl FirmwareProcessor {
             mci_base_addr,
             dma,
         );
-        dma_recovery.download_image_to_mcu(FW_IMAGE_INDEX, AesDmaMode::None)
+        dma_recovery.download_image_to_mcu(DmaRecovery::CALIPTRA_FW_IMAGE_INDEX, AesDmaMode::None)
     }
 
     pub(crate) fn derive_stable_key<A: AesCmacOp + AesGcmOp>(
