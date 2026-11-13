@@ -64,28 +64,17 @@ impl<'a> MeasurementFormat<'a> {
         }
     }
 
-    /// Encode measurement format using a caller-provided scratch buffer
-    pub fn encode(
-        &self,
-        encoder: &mut CborEncoder,
-        evidence_scratch_buffer: &mut [u8],
-    ) -> Result<(), EatError> {
+    /// Encode measurement format
+    pub fn encode(&self, encoder: &mut CborEncoder) -> Result<(), EatError> {
         encoder.encode_array_header(2)?; // [content_type, content_format]
         encoder.encode_uint(self.content_type as u64)?;
+        encoder.encode_bytes_deferred(|enc| self.concise_evidence.encode(enc))
+    }
+}
 
-        let mut evidence_encoder = CborEncoder::new(evidence_scratch_buffer);
-
-        // Encode the structured concise evidence
-        self.concise_evidence.encode(&mut evidence_encoder)?;
-        let encoded_len = evidence_encoder.len();
-
-        // Encode the structured concise evidence as a byte string
-        let evidence_slice = evidence_scratch_buffer
-            .get(..encoded_len)
-            .ok_or(EatError::BufferTooSmall)?;
-        encoder.encode_bytes(evidence_slice)?;
-
-        Ok(())
+impl CborEncodable for MeasurementFormat<'_> {
+    fn encode(&self, encoder: &mut CborEncoder) -> Result<(), EatError> {
+        MeasurementFormat::encode(self, encoder)
     }
 }
 
@@ -426,12 +415,8 @@ impl<'a> OcpEatClaims<'a> {
         encoder.encode_uint(self.dbgstat as u64)
     }
 
-    /// Encode OCP EAT claims using a caller-provided evidence scratch buffer
-    pub fn encode(
-        &self,
-        encoder: &mut CborEncoder,
-        evidence_scratch_buffer: &mut [u8],
-    ) -> Result<(), EatError> {
+    /// Encode OCP EAT claims
+    pub fn encode(&self, encoder: &mut CborEncoder) -> Result<(), EatError> {
         let claim_count = self.count_map_entries()?;
         encoder.encode_map_header(claim_count)?;
 
@@ -455,7 +440,7 @@ impl<'a> OcpEatClaims<'a> {
         encoder.encode_int(CLAIM_KEY_MEASUREMENTS)?;
         encoder.encode_array_header(self.measurements.len() as u64)?;
         for measurement in self.measurements {
-            measurement.encode(encoder, evidence_scratch_buffer)?;
+            measurement.encode(encoder)?;
         }
 
         // Encode optional claims in deterministic order
@@ -528,6 +513,12 @@ impl<'a> OcpEatClaims<'a> {
         }
 
         Ok(())
+    }
+}
+
+impl CborEncodable for OcpEatClaims<'_> {
+    fn encode(&self, encoder: &mut CborEncoder) -> Result<(), EatError> {
+        OcpEatClaims::encode(self, encoder)
     }
 }
 
