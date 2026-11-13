@@ -43,6 +43,14 @@ on:
       ocp-lock:
         default: true
         type: boolean
+      hw-version:
+        description: 'Target hardware revision'
+        type: choice
+        default: all
+        options:
+          - all
+          - latest
+          - "2.1"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}-${{ inputs.artifact-suffix }}
@@ -52,45 +60,58 @@ permissions:
   contents: read
 
 jobs:
-  check_cache:
-    runs-on: ubuntu-22.04
-
-    env:
-      CACHE_BUSTER: 79cee50b6134
-
+  # Determine which RTL revisions the jobs run for. By default run for all revisions.
+  # Or run only for the selected revision if this workflow is invoked manually.
+  setup:
+    runs-on: ubuntu-24.04
     outputs:
-      rtl_cache_key: ${{ steps.cache_key.outputs.rtl_cache_key }}
-      rtl_cache_hit: ${{ steps.restore_rtl_bitstream_cache.outputs.cache-hit }}
-
+      build_matrix: ${{ steps.revisions.outputs.build_matrix }}
+      test_matrix:  ${{ steps.revisions.outputs.test_matrix }}
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #v5
-        with:
-          ref: ${{ inputs.branch }}
-          submodules: recursive
-      - name: Compute cache-keys
-        id: cache_key
+      - name: Select HW revisions
+        id: revisions
+        env:
+          HW_REV: ${{ inputs.hw-version }}
         run: |
-          # Compute the key from the tree hash of the fpga directory and the rtl
-          # root directory.
-          if [ "${{ inputs.workflow_call }}" ]; then
-            RTL_VERSION="${{ inputs.hw-version }}"
-          else
-            RTL_VERSION="latest"
-          fi
-          echo "rtl_cache_key=$(git rev-parse HEAD:hw/fpga/src)-$(git hash-object hw/fpga/fpga_configuration.tcl)-$(cd hw/${RTL_VERSION}/caliptra-ss/third_party/caliptra-rtl && git rev-parse HEAD)-${{ inputs.fpga-itrng }}-${{ env.CACHE_BUSTER }}" >> $GITHUB_OUTPUT
+          MATRIX=$(cat <<EOF
+          {
+            "include": [
+    # These two variants should be enabled once the necessary driver
+    # fixes are landed on main.
+    #
+    #          { "variant": "core-latest-segmented",  "hw_rev": "latest", "partition": 1 },
+    #          { "variant": "core-latest-segmented",  "hw_rev": "latest", "partition": 2 },
+              { "variant": "core-rev-2_1-segmented", "hw_rev": "2.1",    "partition": 1 },
+              { "variant": "core-rev-2_1-segmented", "hw_rev": "2.1",    "partition": 2 }
+            ]
+          }
+          EOF
+          )
 
+          BUILD=$(echo "$MATRIX" | jq -c '.include |= (map(del(.partition)) | unique)')
+          TEST=$(echo "$MATRIX" | jq -c .)
+
+          if [ -z "$HW_REV" ] || [ "$HW_REV" = "all" ]; then
+            echo "build_matrix=$BUILD" >> "$GITHUB_OUTPUT"
+            echo "test_matrix=$TEST" >> "$GITHUB_OUTPUT"
+          else
+            OUTPUT=$(echo "$BUILD" | jq -c ".include |= map(select(.hw_rev == \"$HW_REV\"))")
+            echo "build_matrix=$OUTPUT" >> "$GITHUB_OUTPUT"
+            OUTPUT=$(echo "$TEST" | jq -c ".include |= map(select(.hw_rev == \"$HW_REV\"))")
+            echo "test_matrix=$OUTPUT" >> "$GITHUB_OUTPUT"
+          fi
 
   build_test_binaries:
+    needs: [setup]
     runs-on: [e2-standard-8]
     timeout-minutes: 60
+    strategy:
+      matrix: ${{ fromJson(needs.setup.outputs.build_matrix) }}
 
     env:
       # Change this to a new random value if you suspect the cache is corrupted
       CACHE_BUSTER: 9ff0db888988
-      # Note that currently we don't have a bitstream for the latest RTL, so
-      # use the pinned one for CI tests.
-      CALIPTRA_HW_REV: "2.1"
+      CALIPTRA_HW_REV: ${{ matrix.hw_rev }}
 
     steps:
       - name: Checkout repo
@@ -161,9 +182,6 @@ jobs:
           else
             FEATURES=fpga_realtime,itrng
           fi
-          if [[ "${{ inputs.workflow_call }}" && "${{ inputs.hw-version }}" != "latest" ]]; then
-            FEATURES=$FEATURES,hw-${{ inputs.hw-version }}
-          fi
           cargo nextest archive \
             --features=${FEATURES} \
             --release \
@@ -176,20 +194,20 @@ jobs:
 
       - name: Download bitstream
         run: |
-          cargo xtask ci bitstream-downloader hw/fpga/bitstream_manifests/core.toml
-          mv core.pdi /tmp/caliptra-bitstream.pdi
+          cargo xtask ci bitstream-downloader hw/fpga/bitstream_manifests/${{ matrix.variant }}.toml
+          mv ${{ matrix.variant }}.pdi /tmp/caliptra-bitstream.pdi
 
       - name: 'Upload bitstream'
         uses: actions/upload-artifact@v4
         with:
-          name: caliptra-bitstream${{ inputs.artifact-suffix }}
+          name: caliptra-bitstream-${{ matrix.hw_rev }}${{ inputs.artifact-suffix }}
           path: /tmp/caliptra-bitstream.pdi
           retention-days: 1
 
       - name: 'Upload test binaries artifact'
         uses: actions/upload-artifact@v4
         with:
-          name: caliptra-test-binaries${{ inputs.artifact-suffix }}
+          name: caliptra-test-binaries-${{ matrix.hw_rev }}${{ inputs.artifact-suffix }}
           path: /tmp/caliptra-test-binaries.sqsh
           retention-days: 1
 
@@ -198,32 +216,25 @@ jobs:
           rustup target add riscv32imc-unknown-none-elf
           mkdir /tmp/caliptra-test-firmware
 
-          FEATURES=""
-          if [[ "${{ inputs.workflow_call }}" && "${{ inputs.hw-version }}" != "latest" ]]; then
-            FEATURES=hw-${{ inputs.hw-version }}
-          fi
-          cargo run --release -p caliptra-builder --features=${FEATURES} -- --all_elfs /tmp/caliptra-test-firmware
+          cargo run --release -p caliptra-builder -- --all_elfs /tmp/caliptra-test-firmware
 
       - name: 'Upload test firmware artifact'
         uses: actions/upload-artifact@v4
         with:
-          name: caliptra-test-firmware${{ inputs.artifact-suffix }}
+          name: caliptra-test-firmware-${{ matrix.hw_rev }}${{ inputs.artifact-suffix }}
           path: /tmp/caliptra-test-firmware
           retention-days: 1
 
   test_artifacts:
     runs-on: vck190
-    needs: [check_cache, build_test_binaries]
+    needs: [setup, build_test_binaries]
     timeout-minutes: 120
     strategy:
       fail-fast: false
-      matrix:
-        partition: [1, 2]
+      matrix: ${{ fromJson(needs.setup.outputs.test_matrix) }}
     if: |
       !cancelled() &&
-      needs.check_cache.result == 'success' &&
       (needs.build_test_binaries.result == 'success' || needs.build_test_binaries.result == 'skipped')
-
 
     steps:
       - name: 'Print image metadata'
@@ -240,19 +251,19 @@ jobs:
       - name: 'Download Test Binaries Artifact'
         uses: actions/download-artifact@v8
         with:
-          name: caliptra-test-binaries${{ inputs.artifact-suffix }}
+          name: caliptra-test-binaries-${{ matrix.hw_rev }}${{ inputs.artifact-suffix }}
           path: /tmp/caliptra-test-binaries.sqsh
 
       - name: 'Download Test Firmware Artifact'
         uses: actions/download-artifact@v8
         with:
-          name: caliptra-test-firmware${{ inputs.artifact-suffix }}
+          name: caliptra-test-firmware-${{ matrix.hw_rev }}${{ inputs.artifact-suffix }}
           path: /tmp/caliptra-test-firmware
 
       - name: 'Download Bitstream'
         uses: actions/download-artifact@v8
         with:
-          name: caliptra-bitstream${{ inputs.artifact-suffix }}
+          name: caliptra-bitstream-${{ matrix.hw_rev }}${{ inputs.artifact-suffix }}
           path: /tmp/caliptra-bitstream
 
       - name: Mount binaries
@@ -326,7 +337,7 @@ jobs:
           cargo-nextest nextest list \
               "${COMMON_ARGS[@]}" \
               --partition count:${{ matrix.partition }}/2 \
-              --message-format json > /tmp/nextest-list-${{ matrix.partition }}.json
+              --message-format json > /tmp/nextest-list-${{ matrix.hw_rev }}-${{ matrix.partition }}.json
 
           sudo env ${VARS} cargo-nextest nextest run \
               "${COMMON_ARGS[@]}" \
@@ -337,16 +348,16 @@ jobs:
       - name: Copy junit.xml
         if: success() || failure()
         run: |
-          sudo mv /tmp/junit.xml /tmp/junit-${{ matrix.partition }}.xml
+          sudo mv /tmp/junit.xml /tmp/junit-${{ matrix.hw_rev }}-${{ matrix.partition }}.xml
 
       - name: 'Upload test results'
         uses: actions/upload-artifact@v4
         if: success() || failure()
         with:
-          name: caliptra-test-results${{ inputs.artifact-suffix }}-${{ matrix.partition }}
+          name: caliptra-test-results${{ inputs.artifact-suffix }}-${{ matrix.hw_rev }}-${{ matrix.partition }}
           path: |
-            /tmp/junit-${{ matrix.partition }}.xml
-            /tmp/nextest-list-${{ matrix.partition }}.json
+            /tmp/junit-${{ matrix.hw_rev }}-${{ matrix.partition }}.xml
+            /tmp/nextest-list-${{ matrix.hw_rev }}-${{ matrix.partition }}.json
 
   print_test_results:
     runs-on: ubuntu-22.04
@@ -370,5 +381,6 @@ jobs:
           cargo install --git https://github.com/chipsalliance/caliptra-infra test-printer --root /tmp/test-printer --rev 3db904cf9cd704fcf890da32fd61dd30bfce8d11
           echo "## Test Results" >> $GITHUB_STEP_SUMMARY
           for xml in /tmp/junit/junit-*.xml; do
+            echo "### Results from $(basename $xml)" >> $GITHUB_STEP_SUMMARY
             /tmp/test-printer/bin/test-printer --xml-path "$xml" >> $GITHUB_STEP_SUMMARY
           done
