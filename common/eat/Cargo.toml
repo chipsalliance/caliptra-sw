@@ -16,7 +16,6 @@ std = []
 crypto = ["dep:p384", "dep:ecdsa", "dep:sha2", "dep:rand"]
 
 [dependencies]
-arrayvec.workspace = true
 # Core dependencies (no_std compatible - none needed for basic CBOR encoding)
 
 # Cryptographic dependencies (optional, used by binary example)

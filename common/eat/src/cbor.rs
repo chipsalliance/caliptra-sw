@@ -37,16 +37,6 @@ pub mod tag {
     pub const BYTES: u64 = 560;
 }
 
-/// CBOR byte string header constants (RFC 8949)
-pub mod bstr_header {
-    use super::{cbor_initial_byte, MajorType};
-
-    pub const MAX_INLINE_LEN: usize = 23;
-    pub const TINY_BASE: u8 = cbor_initial_byte(MajorType::ByteString, 0); // 0x40
-    pub const LEN_1BYTE: u8 = cbor_initial_byte(MajorType::ByteString, 24); // 0x58
-    pub const LEN_2BYTE: u8 = cbor_initial_byte(MajorType::ByteString, 25); // 0x59
-}
-
 /// Construct a CBOR initial byte from major type and additional info
 #[inline]
 pub const fn cbor_initial_byte(major_type: MajorType, additional_info: u8) -> u8 {
@@ -77,6 +67,288 @@ impl<T: CborEncodable + ?Sized> CborEncodable for &mut T {
 pub struct CborEncoder<'a> {
     buffer: &'a mut [u8],
     pos: usize,
+}
+
+pub use bstr::encode_bstr_deferred;
+
+mod bstr {
+    use super::{CborEncoder, EatError, MajorType};
+
+    const MIN_BSTR_HEADER_SIZE: usize = 1;
+
+    struct BstrSpan {
+        header_start: usize,
+        content_start: usize,
+    }
+
+    /// Encode a CBOR byte string (major type 2) into `buffer` from raw bytes written by `f`.
+    pub fn encode_bstr_deferred<F, E>(
+        buffer: &mut [u8],
+        map_err: fn(EatError) -> E,
+        f: F,
+    ) -> Result<usize, E>
+    where
+        F: FnOnce(&mut [u8]) -> Result<usize, E>,
+    {
+        let mut encoder = CborEncoder::new(buffer);
+        let span = encoder.begin_bstr().map_err(map_err)?;
+        let content_buf = encoder
+            .buffer
+            .get_mut(span.content_start..)
+            .ok_or_else(|| map_err(EatError::BufferTooSmall))?;
+        let max_content_len = content_buf.len();
+        let content_len = f(content_buf)?;
+        if content_len > max_content_len {
+            return Err(map_err(EatError::BufferTooSmall));
+        }
+        encoder.pos = span
+            .content_start
+            .checked_add(content_len)
+            .ok_or_else(|| map_err(EatError::BufferTooSmall))?;
+        encoder.end_bstr(span).map_err(map_err)?;
+        Ok(encoder.len())
+    }
+
+    impl<'a> CborEncoder<'a> {
+        /// Encode a CBOR byte string (major type 2) whose content is written by `f`.
+        pub fn encode_bytes_deferred<F>(&mut self, f: F) -> Result<(), EatError>
+        where
+            F: FnOnce(&mut Self) -> Result<(), EatError>,
+        {
+            let span = self.begin_bstr()?;
+            f(self)?;
+            self.end_bstr(span)
+        }
+
+        #[inline(never)]
+        fn begin_bstr(&mut self) -> Result<BstrSpan, EatError> {
+            let header_start = self.pos;
+            self.write_byte(0)?;
+            Ok(BstrSpan {
+                header_start,
+                content_start: self.pos,
+            })
+        }
+
+        #[inline(never)]
+        fn end_bstr(&mut self, span: BstrSpan) -> Result<(), EatError> {
+            let content_len = self
+                .pos
+                .checked_sub(span.content_start)
+                .ok_or(EatError::InvalidData)?;
+            let header_size = Self::estimate_type_value_size(content_len as u64);
+            let shift = header_size - MIN_BSTR_HEADER_SIZE;
+
+            self.shift_bytes_right(span.content_start, content_len, shift)?;
+
+            let end_pos = self.pos;
+            self.pos = span.header_start;
+            self.encode_type_value(MajorType::ByteString, content_len as u64)?;
+            self.pos = end_pos;
+            Ok(())
+        }
+
+        #[inline(never)]
+        fn shift_bytes_right(
+            &mut self,
+            start: usize,
+            len: usize,
+            shift: usize,
+        ) -> Result<(), EatError> {
+            let dst_end = start
+                .checked_add(len)
+                .and_then(|end| end.checked_add(shift))
+                .ok_or(EatError::BufferTooSmall)?;
+            let window = self
+                .buffer
+                .get_mut(start..dst_end)
+                .ok_or(EatError::BufferTooSmall)?;
+            if shift == 0 {
+                return Ok(());
+            }
+            for i in (0..len).rev() {
+                if let (Some(b), Some(dst)) = (
+                    window.get(i).copied(),
+                    i.checked_add(shift).and_then(|d| window.get_mut(d)),
+                ) {
+                    *dst = b;
+                }
+            }
+            self.pos = self
+                .pos
+                .checked_add(shift)
+                .ok_or(EatError::BufferTooSmall)?;
+            Ok(())
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn test_shift_bytes_right() {
+            // Shift by 0 is a no-op
+            let mut buf = [1, 2, 3, 4, 0, 0];
+            let mut enc = CborEncoder {
+                buffer: &mut buf,
+                pos: 4,
+            };
+            enc.shift_bytes_right(1, 3, 0).unwrap();
+            assert_eq!(enc.pos, 4);
+            assert_eq!(&enc.buffer[..4], &[1, 2, 3, 4]);
+
+            // Shift overlapping slice right by 1 and 2 bytes
+            enc.shift_bytes_right(1, 3, 2).unwrap();
+            assert_eq!(enc.pos, 6);
+            assert_eq!(enc.buffer, &[1, 2, 3, 2, 3, 4]);
+
+            // Shift empty slice (len == 0) advances pos by shift
+            let mut buf = [0xAA, 0, 0];
+            let mut enc = CborEncoder {
+                buffer: &mut buf,
+                pos: 1,
+            };
+            enc.shift_bytes_right(1, 0, 2).unwrap();
+            assert_eq!(enc.pos, 3);
+
+            // Out-of-bounds destination fails with BufferTooSmall (including shift == 0)
+            let mut buf = [1, 2, 3, 4];
+            let mut enc = CborEncoder {
+                buffer: &mut buf,
+                pos: 4,
+            };
+            assert_eq!(
+                enc.shift_bytes_right(1, 4, 0),
+                Err(EatError::BufferTooSmall)
+            );
+            assert_eq!(
+                enc.shift_bytes_right(1, 3, 1),
+                Err(EatError::BufferTooSmall)
+            );
+            assert_eq!(enc.pos, 4);
+
+            // Arithmetic overflow fails with BufferTooSmall
+            let mut buf = [0u8; 4];
+            let mut enc = CborEncoder {
+                buffer: &mut buf,
+                pos: 2,
+            };
+            assert_eq!(
+                enc.shift_bytes_right(usize::MAX, 1, 1),
+                Err(EatError::BufferTooSmall)
+            );
+            assert_eq!(
+                enc.shift_bytes_right(1, 1, usize::MAX),
+                Err(EatError::BufferTooSmall)
+            );
+        }
+
+        #[test]
+        fn test_encode_bytes_deferred_sizes() {
+            // Verify deferred encoding matches direct encode_bytes across 0B, 23B (1B hdr), 24B (2B hdr), 300B (3B hdr)
+            let mut raw = [0u8; 300];
+            for (i, b) in raw.iter_mut().enumerate() {
+                *b = (i & 0xff) as u8;
+            }
+            for len in [0usize, 1, 23, 24, 255, 256, 300] {
+                let data = &raw[..len];
+                let mut direct_buf = [0u8; 512];
+                let direct_len = {
+                    let mut enc = CborEncoder::new(&mut direct_buf);
+                    enc.encode_bytes(data).unwrap();
+                    enc.len()
+                };
+
+                let mut deferred_buf = [0u8; 512];
+                let deferred_len = {
+                    let mut enc = CborEncoder::new(&mut deferred_buf);
+                    enc.encode_bytes_deferred(|inner| inner.write_bytes(data))
+                        .unwrap();
+                    enc.len()
+                };
+
+                assert_eq!(deferred_len, direct_len);
+                assert_eq!(&deferred_buf[..deferred_len], &direct_buf[..direct_len]);
+            }
+        }
+
+        #[test]
+        fn test_encode_bytes_deferred_nested() {
+            let mut buf = [0u8; 512];
+            let len = {
+                let mut enc = CborEncoder::new(&mut buf);
+                enc.encode_bytes_deferred(|outer| {
+                    outer.encode_uint(42)?;
+                    outer.encode_bytes_deferred(|inner| inner.write_bytes(&[0x55; 300]))
+                })
+                .unwrap();
+                enc.len()
+            };
+            // Inner is 3B header + 300B = 303B; plus 2B for uint(42) = 305B; outer is 3B header + 305B = 308B
+            assert_eq!(len, 308);
+            assert_eq!(&buf[..3], &[0x59, 0x01, 0x31]); // outer bstr(305)
+            assert_eq!(&buf[3..5], &[0x18, 42]); // uint(42)
+            assert_eq!(&buf[5..8], &[0x59, 0x01, 0x2c]); // inner bstr(300)
+            assert!(buf[8..308].iter().all(|&b| b == 0x55));
+        }
+
+        #[test]
+        fn test_encode_bstr_deferred_bounds() {
+            // Closure returning content_len <= 23 (1B header, shift == 0) that exceeds
+            // content_buf.len() (10 > 7 in an 8-byte buffer) fails with BufferTooSmall.
+            let mut buf = [0u8; 8];
+            assert_eq!(
+                encode_bstr_deferred(&mut buf, |e| e, |_content_buf| Ok(10)),
+                Err(EatError::BufferTooSmall)
+            );
+
+            // Exact-fit case for 1B header (content_len == 7 in an 8-byte buffer).
+            let mut buf = [0u8; 8];
+            let len = encode_bstr_deferred(
+                &mut buf,
+                |e| e,
+                |content_buf| {
+                    content_buf[..7].fill(0xAB);
+                    Ok(7)
+                },
+            )
+            .unwrap();
+            assert_eq!(len, 8);
+            assert_eq!(buf[0], 0x47); // bstr(7)
+            assert_eq!(&buf[1..8], &[0xAB; 7]);
+
+            // Content fits in content_buf (24B in a 25-byte buffer), but 2B CBOR header
+            // requires shifting right by 1B (needs 26B total) -> BufferTooSmall.
+            let mut buf = [0u8; 25];
+            assert_eq!(
+                encode_bstr_deferred(
+                    &mut buf,
+                    |e| e,
+                    |content_buf| {
+                        content_buf[..24].fill(0xCD);
+                        Ok(24)
+                    }
+                ),
+                Err(EatError::BufferTooSmall)
+            );
+
+            // Exact-fit case for 2B header (24B content in a 26-byte buffer).
+            let mut buf = [0u8; 26];
+            let len = encode_bstr_deferred(
+                &mut buf,
+                |e| e,
+                |content_buf| {
+                    content_buf[..24].fill(0xCD);
+                    Ok(24)
+                },
+            )
+            .unwrap();
+            assert_eq!(len, 26);
+            assert_eq!(&buf[..2], &[0x58, 24]); // bstr(24)
+            assert_eq!(&buf[2..26], &[0xCD; 24]);
+        }
+    }
 }
 
 impl<'a> CborEncoder<'a> {
