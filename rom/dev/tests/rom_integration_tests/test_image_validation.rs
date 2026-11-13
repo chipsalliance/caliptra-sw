@@ -950,6 +950,9 @@ fn test_preamble_vendor_mldsa_pubkey_revocation() {
             ..Default::default()
         };
 
+        // Build before starting the MCU watchdog.
+        let image_bundle = crate::helpers::build_image_bundle(image_options.clone());
+
         let mut hw = caliptra_hw_model::new(
             InitParams {
                 fuses,
@@ -965,8 +968,6 @@ fn test_preamble_vendor_mldsa_pubkey_revocation() {
             },
         )
         .unwrap();
-
-        let image_bundle = crate::helpers::build_image_bundle(image_options.clone());
 
         if key_idx == LAST_KEY_IDX {
             // Last key is never revoked.
