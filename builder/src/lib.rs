@@ -173,13 +173,50 @@ pub fn build_firmware_elf_uncached(workspace_dir: Option<&Path>, id: &FwId) -> i
     Ok(result.into_iter().next().unwrap().1)
 }
 
-fn default_features(hw_revision: CaliptraHwVersion, _crate_name: &str) -> Vec<&str> {
-    let features = vec![];
+fn default_features(hw_revision: CaliptraHwVersion, crate_name: &str) -> Vec<&'static str> {
+    let mut features = vec![];
     match hw_revision {
-        CaliptraHwVersion::Latest | CaliptraHwVersion::V2_2 => (),
+        CaliptraHwVersion::Latest | CaliptraHwVersion::V2_2 => {
+            features.push("caliptra-drivers/last-hmac-block");
+            if crate_name == "caliptra-drivers-test-bin" {
+                features.push("caliptra-drivers-test-bin/last-hmac-block");
+            }
+        }
         _ => (),
     }
     features
+}
+
+/// Resolve the features for a firmware Cargo invocation targeting the selected hardware.
+pub fn firmware_features<'a>(crate_name: &str, requested: &[&'a str]) -> io::Result<Vec<&'a str>> {
+    let revision = match env::var("CALIPTRA_HW_REV") {
+        Ok(revision) => revision,
+        Err(env::VarError::NotPresent) => "latest".into(),
+        Err(err) => return Err(other_err(err)),
+    };
+    firmware_features_for_hw(&revision, crate_name, requested)
+}
+
+fn firmware_features_for_hw<'a>(
+    revision: &str,
+    crate_name: &str,
+    requested: &[&'a str],
+) -> io::Result<Vec<&'a str>> {
+    let hw_revision = match revision.parse::<CaliptraHwVersion>() {
+        Ok(revision @ (CaliptraHwVersion::V2_1 | CaliptraHwVersion::Latest)) => revision,
+        _ => {
+            return Err(other_err(format!(
+                "Unsupported CALIPTRA_HW_REV={revision:?} for {crate_name}; expected 2.1 or latest"
+            )))
+        }
+    };
+    let mut features = requested.to_vec();
+    for feature in std::iter::once("riscv").chain(default_features(hw_revision, crate_name)) {
+        if !features.contains(&feature) {
+            features.push(feature);
+        }
+    }
+    Ok(features)
 }
 
 /// Calls out to Cargo to build a firmware elf file, combining targets to
@@ -199,18 +236,7 @@ pub fn build_firmware_elfs_uncached<'a>(
     let mut result_map = HashMap::new();
 
     for invocation in cargo_invocations {
-        let mut features = invocation.features.to_vec();
-        if !invocation.features.contains(&"riscv") {
-            features.push("riscv");
-        }
-
-        // Append the default features depending on the RTL revision.
-        let hw_revision = std::env::var("CALIPTRA_HW_REV").unwrap_or("latest".to_string());
-        let hw_revision = hw_revision
-            .parse()
-            .unwrap_or_else(|_| panic!("Unsupported CALIPTRA_HW_REV: {}", hw_revision));
-        let defaults = default_features(hw_revision, invocation.crate_name);
-        features.extend_from_slice(defaults.as_slice());
+        let features = firmware_features(invocation.crate_name, invocation.features)?;
 
         let workspace_dir = workspace_dir.unwrap_or_else(|| Path::new(THIS_WORKSPACE_DIR));
 
@@ -243,7 +269,7 @@ pub fn build_firmware_elfs_uncached<'a>(
             .arg("--target")
             .arg(TARGET)
             .arg("--features")
-            .arg(features.as_slice().join(","))
+            .arg(features.join(","))
             .arg("--no-default-features")
             .arg("--profile")
             .arg(PROFILE);
@@ -767,6 +793,90 @@ fn image_revision_from_str(commit_id_str: &str, is_clean: bool) -> io::Result<Im
 mod test {
 
     use super::*;
+
+    #[test]
+    fn test_firmware_features_preserve_requested_features() {
+        for revision in ["2.1", "latest"] {
+            for crate_name in [
+                "caliptra-rom",
+                "caliptra-fmc",
+                "caliptra-runtime",
+                "caliptra-drivers-test-bin",
+            ] {
+                let (requested, with_riscv, defaults): (&[&str], &[&str], &[&str]) =
+                    match (revision, crate_name) {
+                        ("2.1", _) => (&["cfi", "emu", "riscv"], &["emu", "riscv"], &["riscv"]),
+                        ("latest", "caliptra-drivers-test-bin") => (
+                            &[
+                                "cfi",
+                                "emu",
+                                "riscv",
+                                "caliptra-drivers/last-hmac-block",
+                                "caliptra-drivers-test-bin/last-hmac-block",
+                            ],
+                            &[
+                                "emu",
+                                "riscv",
+                                "caliptra-drivers/last-hmac-block",
+                                "caliptra-drivers-test-bin/last-hmac-block",
+                            ],
+                            &[
+                                "riscv",
+                                "caliptra-drivers/last-hmac-block",
+                                "caliptra-drivers-test-bin/last-hmac-block",
+                            ],
+                        ),
+                        ("latest", _) => (
+                            &["cfi", "emu", "riscv", "caliptra-drivers/last-hmac-block"],
+                            &["emu", "riscv", "caliptra-drivers/last-hmac-block"],
+                            &["riscv", "caliptra-drivers/last-hmac-block"],
+                        ),
+                        _ => unreachable!(),
+                    };
+                assert_eq!(
+                    firmware_features_for_hw(revision, crate_name, &["cfi", "emu"]).unwrap(),
+                    requested
+                );
+                assert_eq!(
+                    firmware_features_for_hw(revision, crate_name, &["emu", "riscv"]).unwrap(),
+                    with_riscv
+                );
+                assert_eq!(
+                    firmware_features_for_hw(revision, crate_name, &[]).unwrap(),
+                    defaults
+                );
+            }
+        }
+        assert_eq!(
+            firmware_features_for_hw(
+                "latest",
+                "caliptra-drivers-test-bin",
+                &[
+                    "riscv",
+                    "caliptra-drivers/last-hmac-block",
+                    "caliptra-drivers-test-bin/last-hmac-block",
+                ],
+            )
+            .unwrap(),
+            [
+                "riscv",
+                "caliptra-drivers/last-hmac-block",
+                "caliptra-drivers-test-bin/last-hmac-block",
+            ]
+        );
+    }
+
+    #[test]
+    fn test_firmware_features_reject_unsupported_hardware() {
+        for revision in ["", "2.0", "2.2", "latset"] {
+            let err = firmware_features_for_hw(revision, "caliptra-rom", &["cfi"])
+                .unwrap_err()
+                .to_string();
+            assert!(err.contains("Unsupported CALIPTRA_HW_REV"));
+            assert!(err.contains("caliptra-rom"));
+            assert!(err.contains("expected 2.1 or latest"));
+        }
+    }
 
     #[test]
     fn test_build_firmware() {
