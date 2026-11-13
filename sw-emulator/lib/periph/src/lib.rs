@@ -49,7 +49,7 @@ pub use emu_ctrl::EmuCtrl;
 pub use hash_sha256::HashSha256;
 pub use hash_sha3::HashSha3;
 pub use hash_sha512::HashSha512;
-pub use hmac::HmacSha;
+pub use hmac::{HmacSha, HmacShaLatest};
 pub use iccm::Iccm;
 pub use key_vault::KeyUsage;
 pub use key_vault::KeyVault;

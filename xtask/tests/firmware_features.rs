@@ -11,7 +11,20 @@ fn xtask_command() -> Command {
 
 #[test]
 fn firmware_features_query_has_machine_readable_stdout() {
-    for revision in ["2.1", "latest"] {
+    for (revision, package, expected) in [
+        ("2.1", "caliptra-rom", "cfi,emu,riscv\n"),
+        (
+            "latest",
+            "caliptra-rom",
+            "cfi,emu,riscv,caliptra-drivers/last-hmac-block\n",
+        ),
+        ("2.1", "caliptra-drivers-test-bin", "cfi,emu,riscv\n"),
+        (
+            "latest",
+            "caliptra-drivers-test-bin",
+            "cfi,emu,riscv,caliptra-drivers/last-hmac-block,caliptra-drivers-test-bin/last-hmac-block\n",
+        ),
+    ] {
         let output = xtask_command()
             .env("CALIPTRA_HW_REV", revision)
             .args([
@@ -19,14 +32,14 @@ fn firmware_features_query_has_machine_readable_stdout() {
                 "build",
                 "features",
                 "--package",
-                "caliptra-rom",
+                package,
                 "--features",
                 "cfi,emu",
             ])
             .output()
             .unwrap();
         assert!(output.status.success());
-        assert_eq!(output.stdout, b"cfi,emu,riscv\n");
+        assert_eq!(output.stdout, expected.as_bytes());
         assert!(output.stderr.is_empty());
     }
 }

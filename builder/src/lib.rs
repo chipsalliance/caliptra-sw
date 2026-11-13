@@ -173,10 +173,15 @@ pub fn build_firmware_elf_uncached(workspace_dir: Option<&Path>, id: &FwId) -> i
     Ok(result.into_iter().next().unwrap().1)
 }
 
-fn default_features(hw_revision: CaliptraHwVersion, _crate_name: &str) -> Vec<&'static str> {
-    let features = vec![];
+fn default_features(hw_revision: CaliptraHwVersion, crate_name: &str) -> Vec<&'static str> {
+    let mut features = vec![];
     match hw_revision {
-        CaliptraHwVersion::Latest | CaliptraHwVersion::V2_2 => (),
+        CaliptraHwVersion::Latest | CaliptraHwVersion::V2_2 => {
+            features.push("caliptra-drivers/last-hmac-block");
+            if crate_name == "caliptra-drivers-test-bin" {
+                features.push("caliptra-drivers-test-bin/last-hmac-block");
+            }
+        }
         _ => (),
     }
     features
@@ -798,20 +803,67 @@ mod test {
                 "caliptra-runtime",
                 "caliptra-drivers-test-bin",
             ] {
+                let (requested, with_riscv, defaults): (&[&str], &[&str], &[&str]) =
+                    match (revision, crate_name) {
+                        ("2.1", _) => (&["cfi", "emu", "riscv"], &["emu", "riscv"], &["riscv"]),
+                        ("latest", "caliptra-drivers-test-bin") => (
+                            &[
+                                "cfi",
+                                "emu",
+                                "riscv",
+                                "caliptra-drivers/last-hmac-block",
+                                "caliptra-drivers-test-bin/last-hmac-block",
+                            ],
+                            &[
+                                "emu",
+                                "riscv",
+                                "caliptra-drivers/last-hmac-block",
+                                "caliptra-drivers-test-bin/last-hmac-block",
+                            ],
+                            &[
+                                "riscv",
+                                "caliptra-drivers/last-hmac-block",
+                                "caliptra-drivers-test-bin/last-hmac-block",
+                            ],
+                        ),
+                        ("latest", _) => (
+                            &["cfi", "emu", "riscv", "caliptra-drivers/last-hmac-block"],
+                            &["emu", "riscv", "caliptra-drivers/last-hmac-block"],
+                            &["riscv", "caliptra-drivers/last-hmac-block"],
+                        ),
+                        _ => unreachable!(),
+                    };
                 assert_eq!(
                     firmware_features_for_hw(revision, crate_name, &["cfi", "emu"]).unwrap(),
-                    ["cfi", "emu", "riscv"]
+                    requested
                 );
                 assert_eq!(
                     firmware_features_for_hw(revision, crate_name, &["emu", "riscv"]).unwrap(),
-                    ["emu", "riscv"]
+                    with_riscv
                 );
                 assert_eq!(
                     firmware_features_for_hw(revision, crate_name, &[]).unwrap(),
-                    ["riscv"]
+                    defaults
                 );
             }
         }
+        assert_eq!(
+            firmware_features_for_hw(
+                "latest",
+                "caliptra-drivers-test-bin",
+                &[
+                    "riscv",
+                    "caliptra-drivers/last-hmac-block",
+                    "caliptra-drivers-test-bin/last-hmac-block",
+                ],
+            )
+            .unwrap(),
+            [
+                "riscv",
+                "caliptra-drivers/last-hmac-block",
+                "caliptra-drivers-test-bin/last-hmac-block",
+            ]
+        );
     }
 
     #[test]

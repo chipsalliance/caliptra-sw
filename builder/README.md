@@ -23,8 +23,11 @@ Makefiles share `caliptra_builder::firmware_features`. This function preserves
 requested features, adds `riscv` once, and includes the existing `default_features`
 collector's RTL-dependent defaults for the selected firmware package. New
 hardware-specific features belong in that collector, not a second feature table.
-The collector currently enables no RTL-specific flags; this wiring does not
-enable any new 2.2-specific behavior.
+For `latest`, the collector enables `caliptra-drivers/last-hmac-block`.
+Driver-test firmware also enables `caliptra-drivers-test-bin/last-hmac-block`,
+which forwards the driver feature and selects the final-only key-vault test.
+Neither flag is automatically enabled for `2.1`; its legacy HMAC protocol
+remains active.
 
 From the repository root, build and test each target in separate directories:
 
