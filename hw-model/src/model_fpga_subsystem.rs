@@ -16,6 +16,7 @@ use crate::otp_provision::{
     otp_generate_manuf_debug_unlock_token_mem, otp_generate_sw_manuf_partition_mem,
     LifecycleControllerState, OtpSwManufPartition,
 };
+use crate::recovery::{DeviceStatus, ProtCap2};
 use crate::xi3c::XI3cError;
 use crate::{
     xi3c, BootParams, Error, HwModel, InitParams, ModelCallback, ModelError, Output, TrngMode,
@@ -464,6 +465,8 @@ pub struct ModelFpgaSubsystem {
     pub recovery_ctrl_len: usize,
     pub recovery_ctrl_written: bool,
     pub bmc_step_counter: usize,
+    pub bmc_ready: bool,
+    pub bmc_last_poll: Option<Instant>,
     pub blocks_sent: usize,
     pub enable_mcu_uart_log: bool,
     pub bootfsm_break: bool,
@@ -970,7 +973,9 @@ impl ModelFpgaSubsystem {
                     .read()
                     .dev_status();
 
-                if status != 3 && self.bmc_step_counter % 65536 == 0 {
+                if status != DeviceStatus::Status::RecoveryMode.value
+                    && self.bmc_step_counter % 65536 == 0
+                {
                     println!("Waiting for device status to be 3, currently: {}", status);
                     return;
                 }
@@ -1040,18 +1045,50 @@ impl ModelFpgaSubsystem {
             return;
         }
 
-        // don't run the BMC every time as it can spam requests
-        if self.bmc_step_counter < 100_000 || self.bmc_step_counter % 10_000 != 0 {
+        // The BMC has nothing to do while an image is still being streamed.
+        if !self.recovery_fifo_blocks.is_empty() {
+            return;
+        }
+
+        // Before the first BMC poll, wait for the device to publish its recovery
+        // capabilities and enter recovery mode. Fall back to a fixed number of
+        // steps if that never happens.
+        if !self.bmc_ready {
+            const BMC_START_FALLBACK_STEPS: usize = 100_000;
+            let i3c_core = self.i3c_core().unwrap();
+            let caps = u32::from(i3c_core.sec_fw_recovery_if().prot_cap_2().read());
+            let status = i3c_core
+                .sec_fw_recovery_if()
+                .device_status_0()
+                .read()
+                .dev_status();
+            let ready = ProtCap2::AgentCapabilities::DeviceStatus.any_matching_bits_set(caps)
+                && status == DeviceStatus::Status::RecoveryMode.value;
+            if !ready && self.bmc_step_counter < BMC_START_FALLBACK_STEPS {
+                return;
+            }
+            self.bmc_ready = true;
+        }
+
+        // Don't run the BMC on every step, as each poll is a blocking I3C
+        // transfer. Wait 1ms wall clock time.
+        const BMC_POLL_INTERVAL: Duration = Duration::from_millis(1);
+        if self
+            .bmc_last_poll
+            .is_some_and(|t| t.elapsed() < BMC_POLL_INTERVAL)
+        {
             return;
         }
         self.bmc.step();
 
         // we need to translate from the BMC events to the I3C controller block reads and writes
         let Ok(event) = self.from_bmc.try_recv() else {
+            self.bmc_last_poll = Some(Instant::now());
             return;
         };
         // ignore messages that aren't meant for Caliptra core.
         if !matches!(event.dest, Device::CaliptraCore) {
+            self.bmc_last_poll = Some(Instant::now());
             return;
         }
         match event.event {
@@ -1118,6 +1155,7 @@ impl ModelFpgaSubsystem {
             }
             _ => todo!(),
         }
+        self.bmc_last_poll = Some(Instant::now());
     }
 
     fn command_code_to_u8(command: RecoveryCommandCode) -> u8 {
@@ -2002,6 +2040,8 @@ impl HwModel for ModelFpgaSubsystem {
             to_bmc,
             recovery_fifo_blocks: vec![],
             bmc_step_counter: 0,
+            bmc_ready: false,
+            bmc_last_poll: None,
             blocks_sent: 0,
             recovery_ctrl_written: false,
             recovery_ctrl_len: 0,
@@ -2504,6 +2544,8 @@ impl HwModel for ModelFpgaSubsystem {
         self.recovery_ctrl_len = 0;
         self.recovery_ctrl_written = false;
         self.bmc_step_counter = 0;
+        self.bmc_ready = false;
+        self.bmc_last_poll = None;
         self.blocks_sent = 0;
 
         // If Caliptra has already enabled MCU SRAM execution (FW_EXEC_CTRL[2]),
@@ -2702,6 +2744,8 @@ impl HwModel for ModelFpgaSubsystem {
         self.recovery_ctrl_len = 0;
         self.recovery_ctrl_written = false;
         self.bmc_step_counter = 0;
+        self.bmc_ready = false;
+        self.bmc_last_poll = None;
         self.blocks_sent = 0;
 
         // wait some cycles for MCU to finish setting the fatal error
