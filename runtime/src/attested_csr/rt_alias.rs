@@ -2,13 +2,14 @@
 
 use crate::Drivers;
 use caliptra_common::{crypto::PubKey, x509};
-use caliptra_drivers::{KeyReadArgs, Mldsa87Seed, Mldsa87SignRnd};
+use caliptra_drivers::{KeyReadArgs, Mldsa87PubKey, Mldsa87Seed, Mldsa87SignRnd};
 use caliptra_error::{CaliptraError, CaliptraResult};
 use caliptra_x509::{
     Ecdsa384CsrBuilder, Ecdsa384Signature, MlDsa87CsrBuilder, MlDsa87Signature,
     RtAliasCsrTbsEcc384, RtAliasCsrTbsEcc384Params, RtAliasCsrTbsMlDsa87,
     RtAliasCsrTbsMlDsa87Params,
 };
+use core::mem::size_of;
 use zerocopy::IntoBytes;
 
 /// Generate an RT Alias ECC384 CSR, signed with the RT Alias ECC private key.
@@ -58,28 +59,32 @@ pub fn generate_rt_alias_ecc_csr(
 }
 
 /// Generate an RT Alias ML-DSA-87 CSR, signed with the RT Alias ML-DSA private key.
+#[inline(never)]
 pub fn generate_rt_alias_mldsa_csr(
     drivers: &mut Drivers,
     csr_buf: &mut [u8],
 ) -> CaliptraResult<usize> {
     let pub_key = Drivers::get_key_id_rt_mldsa_pub_key(drivers);
     let pub_key = caliptra_drivers::okref(&pub_key)?;
-    let subject_sn = x509::subj_sn(&mut drivers.sha256, &PubKey::Mldsa(pub_key))?;
-    let ueid = x509::ueid(&drivers.soc_ifc)?;
+    let tbs = {
+        let subject_sn = x509::subj_sn(&mut drivers.sha256, &PubKey::Mldsa(pub_key))?;
+        let ueid = x509::ueid(&drivers.soc_ifc)?;
 
-    let data_vault = &drivers.persistent_data.get().rom.data_vault;
-    let rt_tci: [u8; 48] = data_vault.rt_tci().into();
-    let fw_svn = data_vault.fw_svn() as u8;
+        let data_vault = &drivers.persistent_data.get().rom.data_vault;
+        let rt_tci: [u8; 48] = data_vault.rt_tci().into();
+        let fw_svn = data_vault.fw_svn() as u8;
+        let pub_key_bytes: [u8; size_of::<Mldsa87PubKey>()] = pub_key.into();
 
-    let params = RtAliasCsrTbsMlDsa87Params {
-        public_key: &pub_key.into(),
-        subject_sn: &subject_sn,
-        ueid: &ueid,
-        tcb_info_rt_tci: &rt_tci,
-        tcb_info_fw_svn: &fw_svn.to_be_bytes(),
+        let params = RtAliasCsrTbsMlDsa87Params {
+            public_key: &pub_key_bytes,
+            subject_sn: &subject_sn,
+            ueid: &ueid,
+            tcb_info_rt_tci: &rt_tci,
+            tcb_info_fw_svn: &fw_svn.to_be_bytes(),
+        };
+
+        RtAliasCsrTbsMlDsa87::new(&params)
     };
-
-    let tbs = RtAliasCsrTbsMlDsa87::new(&params);
 
     // Sign the TBS with RT Alias ML-DSA private key
     // ML-DSA handles its own internal hashing, so pass raw TBS data
@@ -97,7 +102,7 @@ pub fn generate_rt_alias_mldsa_csr(
     })?;
 
     let mldsa_sig = MlDsa87Signature {
-        sig: signature.as_bytes()[..4627]
+        sig: signature.as_bytes()[..size_of::<MlDsa87Signature>()]
             .try_into()
             .map_err(|_| CaliptraError::RUNTIME_INTERNAL)?,
     };

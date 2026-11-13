@@ -12,7 +12,7 @@ use std::path::Path;
 
 // Use the caliptra_ocp_eat library (defined in lib.rs) instead of recompiling modules
 use caliptra_ocp_eat::{
-    cbor_tags, header_params, CborEncoder, CoseHeaderPair, CoseSign1, EatError, ProtectedHeader,
+    cbor_tags, header_params, CoseHeaderPair, CoseSign1, EatError, ProtectedHeader,
 };
 
 #[cfg(feature = "crypto")]
@@ -241,41 +241,19 @@ pub fn create_example_eat(
     };
     let unprotected_headers = [x5chain_header];
 
-    // Encode payload (claims)
-    const MAX_PAYLOAD_SIZE: usize = 8192;
-    let mut payload_buffer = [0u8; MAX_PAYLOAD_SIZE];
-    let mut evidence_scratch_buf = [0u8; 1024];
-    let payload_len = {
-        let mut encoder = CborEncoder::new(&mut payload_buffer);
-        claims
-            .encode(&mut encoder, &mut evidence_scratch_buf)
-            .map_err(|_| EatError::EncodingError)?;
-        encoder.len()
-    };
-
-    // Initialize COSE Sign1 encoder with protected header, unprotected headers, and payload
-    let cose_sign1 = CoseSign1::new(buffer)
+    // Encode and sign COSE_Sign1 token
+    CoseSign1::new(buffer)
         .protected_header(&protected_header)
         .unprotected_headers(&unprotected_headers)
-        .payload(&payload_buffer[..payload_len]);
-
-    // Get signature context for signing
-    const MAX_SIG_CONTEXT_SIZE: usize = 16384;
-    let mut sig_context_buffer = [0u8; MAX_SIG_CONTEXT_SIZE];
-    let sig_context_len = cose_sign1
-        .get_signature_context(&mut sig_context_buffer)
-        .map_err(|_| EatError::EncodingError)?;
-
-    // Generate signature
-    let signature = device_key
-        .sign(&sig_context_buffer[..sig_context_len])
-        .map_err(|_| EatError::EncodingError)?;
-
-    // Complete encoding with signature and EAT tags [55799, 61] + automatic COSE_Sign1 tag [18]
-    cose_sign1
-        .signature(&signature)
-        .encode(Some(&[cbor_tags::SELF_DESCRIBED_CBOR, cbor_tags::CWT]))
-        .map_err(|_| EatError::EncodingError)
+        .encode(
+            Some(&[cbor_tags::SELF_DESCRIBED_CBOR, cbor_tags::CWT]),
+            |encoder| claims.encode(encoder),
+            |sig_context| {
+                device_key
+                    .sign(sig_context)
+                    .map_err(|_| EatError::EncodingError)
+            },
+        )
 }
 
 // Create mock structured concise evidence (similar to CBOR version but returns structured data)

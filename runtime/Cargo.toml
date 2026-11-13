@@ -36,6 +36,7 @@ zeroize.workspace = true
 bitflags.workspace = true
 memoffset.workspace = true
 caliptra-ureg.workspace = true
+caliptra-ocp-eat.workspace = true
 
 [build-dependencies]
 caliptra-common = { workspace = true, default-features = false }
