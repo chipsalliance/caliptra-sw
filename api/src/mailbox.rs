@@ -1565,6 +1565,36 @@ impl Request for LmsVerifyReq {
 }
 // No command-specific output args
 
+/// Header-only struct for MLDSA87_SIGNATURE_VERIFY requests.
+/// This contains only the fixed-size header fields, not the variable-length data,
+/// so the header and data can be written to / read from the mailbox separately.
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+pub struct MldsaVerifyReqHdr {
+    pub hdr: MailboxReqHeader,
+    pub pub_key: [u8; MLDSA87_PUB_KEY_BYTE_SIZE],
+    pub signature: [u8; MLDSA87_SIGNATURE_BYTE_SIZE],
+    pub message_size: u32,
+}
+
+impl Default for MldsaVerifyReqHdr {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxReqHeader::default(),
+            pub_key: [0u8; MLDSA87_PUB_KEY_BYTE_SIZE],
+            signature: [0u8; MLDSA87_SIGNATURE_BYTE_SIZE],
+            message_size: 0,
+        }
+    }
+}
+
+assert_hdr_prefix!(
+    MldsaVerifyReq,
+    MldsaVerifyReqHdr,
+    [hdr, pub_key, signature, message_size],
+    message
+);
+
 // MLDSA87_SIGNATURE_VERIFY
 #[repr(C)]
 #[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
@@ -3686,6 +3716,23 @@ impl Default for CmRandomGenerateResp {
 
 impl ResponseVarSize for CmRandomGenerateResp {}
 
+/// Header-only struct for CM_RANDOM_STIR requests.
+/// This contains only the fixed-size header fields, not the variable-length data,
+/// so the header and data can be written to / read from the mailbox separately.
+#[repr(C)]
+#[derive(Debug, Default, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+pub struct CmRandomStirReqHdr {
+    pub hdr: MailboxReqHeader,
+    pub input_size: u32,
+}
+
+assert_hdr_prefix!(
+    CmRandomStirReq,
+    CmRandomStirReqHdr,
+    [hdr, input_size],
+    input
+);
+
 // CM_RANDOM_STIR
 #[repr(C)]
 #[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
@@ -5068,6 +5115,25 @@ pub struct CmEcdhFinishResp {
 
 impl Response for CmEcdhFinishResp {}
 
+/// Header-only struct for CM_HMAC requests.
+/// This contains only the fixed-size header fields, not the variable-length data,
+/// so the header and data can be written to / read from the mailbox separately.
+#[repr(C)]
+#[derive(Debug, Default, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+pub struct CmHmacReqHdr {
+    pub hdr: MailboxReqHeader,
+    pub cmk: Cmk,
+    pub hash_algorithm: u32,
+    pub data_size: u32,
+}
+
+assert_hdr_prefix!(
+    CmHmacReq,
+    CmHmacReqHdr,
+    [hdr, cmk, hash_algorithm, data_size],
+    data
+);
+
 // CM_HMAC
 #[repr(C)]
 #[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
@@ -5131,6 +5197,27 @@ impl Default for CmHmacResp {
 }
 
 impl ResponseVarSize for CmHmacResp {}
+
+/// Header-only struct for CM_HMAC_KDF_COUNTER requests.
+/// This contains only the fixed-size header fields, not the variable-length data,
+/// so the header and data can be written to / read from the mailbox separately.
+#[repr(C)]
+#[derive(Debug, Default, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+pub struct CmHmacKdfCounterReqHdr {
+    pub hdr: MailboxReqHeader,
+    pub kin: Cmk,
+    pub hash_algorithm: u32,
+    pub key_usage: u32,
+    pub key_size: u32,
+    pub label_size: u32,
+}
+
+assert_hdr_prefix!(
+    CmHmacKdfCounterReq,
+    CmHmacKdfCounterReqHdr,
+    [hdr, kin, hash_algorithm, key_usage, key_size, label_size],
+    label
+);
 
 // CM_HMAC_KDF_COUNTER
 #[repr(C)]
@@ -5214,6 +5301,27 @@ pub struct CmHkdfExtractResp {
 }
 
 impl Response for CmHkdfExtractResp {}
+
+/// Header-only struct for CM_HKDF_EXPAND requests.
+/// This contains only the fixed-size header fields, not the variable-length data,
+/// so the header and data can be written to / read from the mailbox separately.
+#[repr(C)]
+#[derive(Debug, Default, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+pub struct CmHkdfExpandReqHdr {
+    pub hdr: MailboxReqHeader,
+    pub prk: Cmk,
+    pub hash_algorithm: u32,
+    pub key_usage: u32,
+    pub key_size: u32,
+    pub info_size: u32,
+}
+
+assert_hdr_prefix!(
+    CmHkdfExpandReq,
+    CmHkdfExpandReqHdr,
+    [hdr, prk, hash_algorithm, key_usage, key_size, info_size],
+    info
+);
 
 // CM_HKDF_EXPAND
 #[repr(C)]
@@ -5305,6 +5413,30 @@ impl Default for CmMldsaPublicKeyResp {
 
 impl Response for CmMldsaPublicKeyResp {}
 
+/// Header-only struct for CM_ECDSA_SIGN / CM_MLDSA_SIGN requests.
+/// This contains only the fixed-size header fields, not the variable-length data,
+/// so the header and data can be written to / read from the mailbox separately.
+#[repr(C)]
+#[derive(Debug, Default, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+pub struct CmSignReqHdr {
+    pub hdr: MailboxReqHeader,
+    pub cmk: Cmk,
+    pub message_size: u32,
+}
+
+assert_hdr_prefix!(
+    CmMldsaSignReq,
+    CmSignReqHdr,
+    [hdr, cmk, message_size],
+    message
+);
+assert_hdr_prefix!(
+    CmEcdsaSignReq,
+    CmSignReqHdr,
+    [hdr, cmk, message_size],
+    message
+);
+
 // CM_MLDSA_SIGN
 #[repr(C)]
 #[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
@@ -5366,6 +5498,36 @@ impl Default for CmMldsaSignResp {
 }
 
 impl Response for CmMldsaSignResp {}
+
+/// Header-only struct for CM_MLDSA_VERIFY requests.
+/// This contains only the fixed-size header fields, not the variable-length data,
+/// so the header and data can be written to / read from the mailbox separately.
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+pub struct CmMldsaVerifyReqHdr {
+    pub hdr: MailboxReqHeader,
+    pub cmk: Cmk,
+    pub signature: [u8; MLDSA87_SIGNATURE_BYTE_SIZE],
+    pub message_size: u32,
+}
+
+impl Default for CmMldsaVerifyReqHdr {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxReqHeader::default(),
+            cmk: Cmk::default(),
+            signature: [0u8; MLDSA87_SIGNATURE_BYTE_SIZE],
+            message_size: 0,
+        }
+    }
+}
+
+assert_hdr_prefix!(
+    CmMldsaVerifyReq,
+    CmMldsaVerifyReqHdr,
+    [hdr, cmk, signature, message_size],
+    message
+);
 
 // CM_MLDSA_VERIFY
 #[repr(C)]
@@ -5520,6 +5682,38 @@ pub struct FeProgReq {
     pub hdr: MailboxReqHeader,
     pub partition: u32,
 }
+
+/// Header-only struct for CM_ECDSA_VERIFY requests.
+/// This contains only the fixed-size header fields, not the variable-length data,
+/// so the header and data can be written to / read from the mailbox separately.
+#[repr(C)]
+#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+pub struct CmEcdsaVerifyReqHdr {
+    pub hdr: MailboxReqHeader,
+    pub cmk: Cmk,
+    pub signature_r: [u8; ECC384_SCALAR_BYTE_SIZE],
+    pub signature_s: [u8; ECC384_SCALAR_BYTE_SIZE],
+    pub message_size: u32,
+}
+
+impl Default for CmEcdsaVerifyReqHdr {
+    fn default() -> Self {
+        Self {
+            hdr: MailboxReqHeader::default(),
+            cmk: Cmk::default(),
+            signature_r: [0u8; ECC384_SCALAR_BYTE_SIZE],
+            signature_s: [0u8; ECC384_SCALAR_BYTE_SIZE],
+            message_size: 0,
+        }
+    }
+}
+
+assert_hdr_prefix!(
+    CmEcdsaVerifyReq,
+    CmEcdsaVerifyReqHdr,
+    [hdr, cmk, signature_r, signature_s, message_size],
+    message
+);
 
 // CM_ECDSA_VERIFY
 #[repr(C)]
