@@ -2,10 +2,17 @@
 
 use std::process::Command;
 
+fn xtask_command() -> Command {
+    // nextest remaps this executable path when running an archived test build.
+    let executable = std::env::var_os("NEXTEST_BIN_EXE_xtask")
+        .unwrap_or_else(|| env!("CARGO_BIN_EXE_xtask").into());
+    Command::new(executable)
+}
+
 #[test]
 fn firmware_features_query_has_machine_readable_stdout() {
     for revision in ["2.1", "latest"] {
-        let output = Command::new(env!("CARGO_BIN_EXE_xtask"))
+        let output = xtask_command()
             .env("CALIPTRA_HW_REV", revision)
             .args([
                 "--verbose",
@@ -26,7 +33,7 @@ fn firmware_features_query_has_machine_readable_stdout() {
 
 #[test]
 fn firmware_features_query_reports_errors_on_stderr() {
-    let output = Command::new(env!("CARGO_BIN_EXE_xtask"))
+    let output = xtask_command()
         .env("CALIPTRA_HW_REV", "2.1")
         .args([
             "--rev",
