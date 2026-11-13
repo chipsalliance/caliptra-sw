@@ -316,6 +316,21 @@ impl HwModel for ModelEmulated {
         };
         let mut root_bus = CaliptraRootBus::new(bus_args);
 
+        if let Some(metadata) = params.ss_init_params.fe_metadata {
+            const FE_PARTITIONS_OFFSET_BYTES: usize = 80;
+            const FE_PARTITION_SIZE_BYTES: usize = 24;
+            const FE_SEED_SIZE_BYTES: usize = 8;
+
+            let bank = root_bus.dma.axi.otp_fc.fuse_bank_mut();
+            for (partition, words) in metadata.into_iter().enumerate() {
+                let offset = (FE_PARTITIONS_OFFSET_BYTES
+                    + partition * FE_PARTITION_SIZE_BYTES
+                    + FE_SEED_SIZE_BYTES)
+                    / std::mem::size_of::<u32>();
+                bank[offset..offset + words.len()].copy_from_slice(&words);
+            }
+        }
+
         let trng_mode = TrngMode::resolve(params.trng_mode);
         let hw_config = {
             let mut hw_config = 0;
