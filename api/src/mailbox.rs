@@ -3767,14 +3767,17 @@ impl From<CmAesMode> for u32 {
 }
 
 // CM_AES_ENCRYPT_INIT
-#[repr(C)]
-#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
-pub struct CmAesEncryptInitReq {
-    pub hdr: MailboxReqHeader,
-    pub cmk: Cmk,
-    pub mode: u32,
-    pub plaintext_size: u32,
-    pub plaintext: [u8; MAX_CMB_DATA_SIZE],
+with_hdr! {
+    #[repr(C)]
+    #[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+    pub struct CmAesEncryptInitReq {
+        pub hdr: MailboxReqHeader,
+        pub cmk: Cmk,
+        pub mode: u32,
+        pub plaintext_size: u32,
+        pub plaintext: [u8; MAX_CMB_DATA_SIZE],
+    }
+    hdr: CmAesEncryptInitReqHdr,
 }
 
 impl Default for CmAesEncryptInitReq {
@@ -3914,15 +3917,18 @@ impl Request for CmAesEncryptUpdateReq {
 }
 
 // CM_AES_DECRYPT_INIT
-#[repr(C)]
-#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
-pub struct CmAesDecryptInitReq {
-    pub hdr: MailboxReqHeader,
-    pub cmk: Cmk,
-    pub mode: u32,
-    pub iv: [u8; 16],
-    pub ciphertext_size: u32,
-    pub ciphertext: [u8; MAX_CMB_DATA_SIZE],
+with_hdr! {
+    #[repr(C)]
+    #[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+    pub struct CmAesDecryptInitReq {
+        pub hdr: MailboxReqHeader,
+        pub cmk: Cmk,
+        pub mode: u32,
+        pub iv: [u8; 16],
+        pub ciphertext_size: u32,
+        pub ciphertext: [u8; MAX_CMB_DATA_SIZE],
+    }
+    hdr: CmAesDecryptInitReqHdr,
 }
 
 impl Default for CmAesDecryptInitReq {
@@ -4062,14 +4068,17 @@ impl ResponseVarSize for CmAesResp {
 }
 
 // CM_AES_GCM_ENCRYPT_INIT
-#[repr(C)]
-#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
-pub struct CmAesGcmEncryptInitReq {
-    pub hdr: MailboxReqHeader,
-    pub flags: u32,
-    pub cmk: Cmk,
-    pub aad_size: u32,
-    pub aad: [u8; MAX_CMB_DATA_SIZE],
+with_hdr! {
+    #[repr(C)]
+    #[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+    pub struct CmAesGcmEncryptInitReq {
+        pub hdr: MailboxReqHeader,
+        pub flags: u32,
+        pub cmk: Cmk,
+        pub aad_size: u32,
+        pub aad: [u8; MAX_CMB_DATA_SIZE],
+    }
+    hdr: CmAesGcmEncryptInitReqHdr,
 }
 
 impl Default for CmAesGcmEncryptInitReq {
@@ -4128,15 +4137,18 @@ impl Default for CmAesGcmEncryptInitResp {
 impl Response for CmAesGcmEncryptInitResp {}
 
 // CM_AES_GCM_SPDM_ENCRYPT_INIT
-#[repr(C)]
-#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
-pub struct CmAesGcmSpdmEncryptInitReq {
-    pub hdr: MailboxReqHeader,
-    pub spdm_flags: u32,
-    pub spdm_counter: [u8; 8],
-    pub cmk: Cmk,
-    pub aad_size: u32,
-    pub aad: [u8; MAX_CMB_DATA_SIZE],
+with_hdr! {
+    #[repr(C)]
+    #[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+    pub struct CmAesGcmSpdmEncryptInitReq {
+        pub hdr: MailboxReqHeader,
+        pub spdm_flags: u32,
+        pub spdm_counter: [u8; 8],
+        pub cmk: Cmk,
+        pub aad_size: u32,
+        pub aad: [u8; MAX_CMB_DATA_SIZE],
+    }
+    hdr: CmAesGcmSpdmEncryptInitReqHdr,
 }
 
 impl Default for CmAesGcmSpdmEncryptInitReq {
@@ -4382,15 +4394,18 @@ impl ResponseVarSize for CmAesGcmEncryptFinalResp {
 }
 
 // CM_AES_GCM_DECRYPT_INIT
-#[repr(C)]
-#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
-pub struct CmAesGcmDecryptInitReq {
-    pub hdr: MailboxReqHeader,
-    pub flags: u32,
-    pub cmk: Cmk,
-    pub iv: [u32; 3],
-    pub aad_size: u32,
-    pub aad: [u8; MAX_CMB_DATA_SIZE],
+with_hdr! {
+    #[repr(C)]
+    #[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+    pub struct CmAesGcmDecryptInitReq {
+        pub hdr: MailboxReqHeader,
+        pub flags: u32,
+        pub cmk: Cmk,
+        pub iv: [u32; 3],
+        pub aad_size: u32,
+        pub aad: [u8; MAX_CMB_DATA_SIZE],
+    }
+    hdr: CmAesGcmDecryptInitReqHdr,
 }
 
 impl Default for CmAesGcmDecryptInitReq {
@@ -4450,15 +4465,18 @@ impl Default for CmAesGcmDecryptInitResp {
 impl Response for CmAesGcmDecryptInitResp {}
 
 // CM_AES_GCM_SPDM_DECRYPT_INIT
-#[repr(C)]
-#[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
-pub struct CmAesGcmSpdmDecryptInitReq {
-    pub hdr: MailboxReqHeader,
-    pub spdm_flags: u32,
-    pub spdm_counter: [u8; 8],
-    pub cmk: Cmk,
-    pub aad_size: u32,
-    pub aad: [u8; MAX_CMB_DATA_SIZE],
+with_hdr! {
+    #[repr(C)]
+    #[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+    pub struct CmAesGcmSpdmDecryptInitReq {
+        pub hdr: MailboxReqHeader,
+        pub spdm_flags: u32,
+        pub spdm_counter: [u8; 8],
+        pub cmk: Cmk,
+        pub aad_size: u32,
+        pub aad: [u8; MAX_CMB_DATA_SIZE],
+    }
+    hdr: CmAesGcmSpdmDecryptInitReqHdr,
 }
 
 impl Default for CmAesGcmSpdmDecryptInitReq {
