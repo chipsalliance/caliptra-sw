@@ -1159,7 +1159,17 @@ impl FirmwareProcessor {
             mci_base_addr,
             dma,
         );
-        dma_recovery.download_image_to_mcu(FW_IMAGE_INDEX, AesDmaMode::None)
+        dma_recovery
+            .download_image_to_mcu(FW_IMAGE_INDEX, AesDmaMode::None)
+            .inspect_err(|_err| {
+                // Write RECOVERY_STATUS 0xC 'Recovery failed', so the Recovery
+                // Agent stops polling. The download error says why the
+                // recovery failed, so the closure discards the error of the
+                // status write, and the fatal error handler writes the
+                // download error to CPTRA_FW_ERROR_FATAL.
+                let _ = dma_recovery
+                    .set_recovery_status(DmaRecovery::RECOVERY_STATUS_FAILED, FW_IMAGE_INDEX);
+            })
     }
 
     pub(crate) fn derive_stable_key<A: AesCmacOp + AesGcmOp>(
