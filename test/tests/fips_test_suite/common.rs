@@ -38,8 +38,9 @@ pub struct HwExpVals {
 
 const HW_EXP_2_0_0: HwExpVals = HwExpVals { hw_revision: 0x2 };
 const HW_EXP_2_1_0: HwExpVals = HwExpVals { hw_revision: 0x112 };
+const HW_EXP_2_2_0: HwExpVals = HwExpVals { hw_revision: 0x22 };
 
-const HW_EXP_CURRENT: HwExpVals = HwExpVals { hw_revision: 0x112 };
+const HW_EXP_CURRENT: HwExpVals = HwExpVals { hw_revision: 0x22 };
 
 // ===  ROM  ===
 pub struct RomExpVals {
@@ -131,6 +132,7 @@ impl HwExpVals {
         if let Ok(version) = std::env::var("FIPS_TEST_HW_EXP_VERSION") {
             match version.as_str() {
                 // Add more versions here
+                "2_2_0" => HW_EXP_2_2_0,
                 "2_1_0" => HW_EXP_2_1_0,
                 "2_0_0" => HW_EXP_2_0_0,
                 _ => panic!(

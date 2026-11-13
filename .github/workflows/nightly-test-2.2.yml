@@ -1,8 +1,11 @@
 name: Nightly Tests HW 2.2
 
 on:
-  pull_request:
-
+  workflow_dispatch:
+  schedule:
+    # 10:00 PM PST monday-friday
+    - cron: '0 6 * * 2-6'
+    
 permissions:
   contents: read
 
