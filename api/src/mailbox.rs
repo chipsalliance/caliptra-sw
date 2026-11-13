@@ -5794,6 +5794,23 @@ impl Default for CmMlkemKeyGenResp {
 
 impl Response for CmMlkemKeyGenResp {}
 
+/// Header-only struct for CM_MLKEM_ENCAPSULATE requests.
+/// This contains only the fixed-size header fields, not the fixed-size payload,
+/// so the header and payload can be written to / read from the mailbox separately.
+#[repr(C)]
+#[derive(Debug, Default, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+pub struct CmMlkemEncapsulateReqHdr {
+    pub hdr: MailboxReqHeader,
+    pub key_usage: u32,
+}
+
+assert_hdr_prefix!(
+    CmMlkemEncapsulateReq,
+    CmMlkemEncapsulateReqHdr,
+    [hdr, key_usage],
+    encaps_key
+);
+
 // CM_MLKEM_ENCAPSULATE
 #[repr(C)]
 #[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
@@ -5837,6 +5854,24 @@ impl Default for CmMlkemEncapsulateResp {
 }
 
 impl Response for CmMlkemEncapsulateResp {}
+
+/// Header-only struct for CM_MLKEM_DECAPSULATE requests.
+/// This contains only the fixed-size header fields, not the fixed-size payload,
+/// so the header and payload can be written to / read from the mailbox separately.
+#[repr(C)]
+#[derive(Debug, Default, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
+pub struct CmMlkemDecapsulateReqHdr {
+    pub hdr: MailboxReqHeader,
+    pub key_usage: u32,
+    pub cmk: Cmk,
+}
+
+assert_hdr_prefix!(
+    CmMlkemDecapsulateReq,
+    CmMlkemDecapsulateReqHdr,
+    [hdr, key_usage, cmk],
+    ciphertext
+);
 
 // CM_MLKEM_DECAPSULATE
 #[repr(C)]
