@@ -52,8 +52,8 @@ pub use key_vault::KeyVaultSnapshot;
 pub use mailbox::{MailboxExternal, MailboxInternal, MailboxRam, MailboxRequester};
 pub use mci::Mci;
 pub use root_bus::{
-    ActionCb, CaliptraRootBus, CaliptraRootBusArgs, DownloadIdevidCsrCb, ReadyForFwCb,
-    SocToCaliptraBus, TbServicesCb, UploadUpdateFwCb,
+    ActionCb, CaliptraRootBus, CaliptraRootBusArgs, DbgManufServiceCb, DownloadIdevidCsrCb,
+    ReadyForFwCb, SocToCaliptraBus, TbServicesCb, UploadUpdateFwCb,
 };
 pub use sha512_acc::Sha512Accelerator;
 pub use soc_reg::SocRegistersInternal;
