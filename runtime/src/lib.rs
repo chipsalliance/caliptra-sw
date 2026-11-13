@@ -47,6 +47,7 @@ mod recovery_flow;
 mod revoke_exported_cdi_handle;
 mod set_auth_manifest;
 mod set_owner_auth_manifest;
+mod sha_dma;
 mod sign_with_exported_ecdsa;
 mod sign_with_exported_mldsa;
 mod stash_measurement;
@@ -75,6 +76,7 @@ pub use drivers::{Drivers, PauserPrivileges};
 use fe_programming::FeProgrammingCmd;
 use mailbox::Mailbox;
 use populate_idev::PopulateIDevIdMldsa87CertCmd;
+use sha_dma::ShaDmaCmd;
 use zerocopy::{FromBytes, IntoBytes, KnownLayout};
 use zeroize_uds_fe::ZeroizeUdsFeCmd;
 
@@ -519,6 +521,7 @@ fn execute_command(
         }
         CommandId::GET_IMAGE_INFO => GetImageInfoCmd::execute(drivers, cmd_bytes, resp),
         CommandId::GET_MCU_FW_SIZE => get_mcu_fw_size::GetMcuFwSizeCmd::execute(drivers, resp),
+        CommandId::SHA_DMA => ShaDmaCmd::execute(drivers, cmd_bytes, resp),
         // Cryptographic mailbox commands
         CommandId::CM_IMPORT => cryptographic_mailbox::Commands::import(drivers, cmd_bytes, resp),
         CommandId::CM_KEY_GEN => cryptographic_mailbox::Commands::key_gen(drivers, cmd_bytes, resp),

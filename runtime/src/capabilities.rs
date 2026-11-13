@@ -30,6 +30,10 @@ impl CapabilitiesCmd {
             capabilities |= Capabilities::RT_OCP_LOCK;
         }
 
+        if drivers.soc_ifc.subsystem_mode() {
+            capabilities |= Capabilities::RT_SHA_DMA;
+        }
+
         let resp = mutrefbytes::<CapabilitiesResp>(resp)?;
         resp.hdr = MailboxRespHeader::default();
         resp.capabilities = capabilities.to_bytes();

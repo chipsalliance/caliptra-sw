@@ -469,6 +469,7 @@ Command Code: `0x4341_5053` ("CAPS")
 | --------------- | ------- | ---------------
 | `RT_BASE`       | 64      | Base capabilities for Caliptra Runtime v2.1.
 | `RT_OCP_LOCK`   | 65      | Runtime firmware and hardware supports OCP LOCK.
+| `RT_SHA_DMA`    | 66      | Runtime firmware supports `SHA_DMA`. Set only in subsystem mode.
 
 ### GET\_IDEV\_ECC384\_CERT
 
@@ -1720,6 +1721,72 @@ Command Code: `0x474D_4653` ("GMFS")
 | fips_status    | u32            | Indicates if the command is FIPS approved or an error.                     |
 | size           | u32            | Size of the MCU firmware image in bytes.                                   |
 | sha384         | u8[48]         | SHA-384 digest of the encrypted MCU firmware image.                        |
+
+### SHA\_DMA
+
+Computes the SHA-384 or SHA-512 digest of a range of AXI memory. Caliptra reads
+the range with its DMA engine and streams it into the SHA accelerator, so the
+data does not pass through the mailbox. This is intended for the MCU, for
+example to check staged firmware against a manifest digest during an update.
+
+**Important restrictions:**
+- This command is only available in subsystem mode.
+- This command is only available for PL0. PL0 is expected to be the MCU.
+- `flags` must be 0.
+- `axi_addr_lo` and `length` must be multiples of 4, and `length` must not be 0.
+- The range must not cross a 4 GiB-aligned boundary.
+- The range must not overlap Caliptra's own AXI aperture (512 KiB from
+  `SS_CALIPTRA_BASE_ADDR`) or the OCP LOCK key release window
+  (`SS_KEY_RELEASE_SIZE` bytes from `SS_KEY_RELEASE_BASE_ADDR`). Only these
+  ranges are refused. An integration that decodes a larger window to Caliptra
+  leaves aliases of Caliptra's registers reachable, and reading them has side
+  effects.
+- If the DMA address width is below 32 bits, a range that crosses 2^width wraps
+  to address 0 and is not checked against the refused ranges. Integrators with
+  such a width must not place Caliptra's aperture or the key release window
+  where a wrapped read can reach them.
+- MCI mailbox registers and the recovery interface are not valid sources:
+  reading them changes their state.
+- If the SHA accelerator is locked, the command fails with
+  `DRIVER_DMA_SHA_ACCELERATOR_NOT_LOCKED` and nothing is changed.
+
+The range must be readable by Caliptra's DMA. A read that returns an AXI error,
+is not mapped, or lies beyond the DMA's address width stops the command. On
+debug-locked devices the command watchdog (see
+[Command watchdog](#command-watchdog)) then raises a hardware fatal error
+(`nmi_pin` in `CPTRA_HW_ERROR_FATAL`). Caliptra's DMA still holds the SHA
+accelerator lock, so firmware does not record a fatal error code or complete
+the mailbox command. The caller needs its own timeout, and Caliptra must be
+reset. Debug-unlocked devices have no command watchdog. A subordinate that
+returns zeros for a denied read without an error yields the digest of zeros.
+The watchdog timeout also limits how large a single range can be.
+
+The digest is returned to the caller, so the PL0 caller can hash any memory
+that Caliptra's DMA can read, down to 4-byte ranges. Integrators must not let
+Caliptra's DMA (its AXI user and its AxPROT attributes) read data that the PL0
+caller must not learn.
+
+Command Code: `0x5348_4144` ("SHAD")
+
+*Table: `SHA_DMA` input arguments*
+
+| **Name**       | **Type** | **Description**
+| --------       | -------- | ---------------
+| chksum         | u32      | Checksum over other input arguments, computed by the caller. Little endian.
+| flags          | u32      | Reserved. Must be 0.
+| hash_algorithm | u32      | 1 = SHA-384, 2 = SHA-512.
+| axi_addr_lo    | u32      | Lower 32 bits of the AXI address.
+| axi_addr_hi    | u32      | Upper 32 bits of the AXI address.
+| length         | u32      | Number of bytes to hash.
+
+*Table: `SHA_DMA` output arguments*
+
+| **Name**    | **Type**      | **Description**
+| --------    | --------      | ---------------
+| chksum      | u32           | Checksum over other output arguments, computed by Caliptra. Little endian.
+| fips_status | u32           | Indicates if the command is FIPS approved or an error.
+| data_len    | u32           | Length of the digest in bytes: 48 for SHA-384, 64 for SHA-512.
+| hash        | u8[data_len]  | Digest of the range.
 
 ### ACTIVATE_FIRMWARE
 
