@@ -83,6 +83,9 @@ verilator = ["caliptra-hw-model/verilator"]
 no-fmc = []
 fake-rom = ["caliptra-drivers/fake-rom"]
 skip-clear-sram = []
+# TODO: remove rom-activate-rec-img-clear-0xf once the Caliptra TAC approves a
+# new frozen ROM image that writes 0xF.
+rom-activate-rec-img-clear-0xf = ["caliptra-drivers/rom-activate-rec-img-clear-0xf"]
 cfi = [
   "caliptra-image-verify/cfi",
   "caliptra-image-types/cfi",

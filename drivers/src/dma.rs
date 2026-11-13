@@ -1161,12 +1161,34 @@ impl<'a> DmaRecovery<'a> {
         while self.dma.payload_available() {}
     }
 
+    /// Clears the RECOVERY_CTRL Activate Recovery Image field.
+    ///
+    /// The field is write-1-to-clear over the whole byte (`onwrite = woclr` in
+    /// `secure_firmware_recovery_interface.rdl`), so clearing the Activate
+    /// command of 0xF means writing 0xF back.
+    ///
+    /// The ROM writes 0x1 unless the build enables
+    /// `rom-activate-rec-img-clear-0xf`, so the frozen ROM image stays the
+    /// same. A write of 0x1 leaves 0xE, a value the OCP spec does not define.
+    /// The 0xE still ends the activation, because the i3c-core recovery
+    /// receiver raises `image_activated_o` only for 0xF.
     pub fn reset_recovery_ctrl_activate_rec_img(&self) -> CaliptraResult<()> {
+        // TODO: once the Caliptra TAC approves a new frozen ROM image, write 0xF
+        // in every build, remove `rom-activate-rec-img-clear-0xf` and drop the
+        // 0x1 paragraph from the doc comment above.
+        let clear_val = if cfg!(all(
+            feature = "rom",
+            not(feature = "rom-activate-rec-img-clear-0xf")
+        )) {
+            Self::RESET_VAL
+        } else {
+            Self::ACTIVATE_RECOVERY_IMAGE_CMD
+        };
         self.with_regs_mut(|regs_mut| {
             let recovery = regs_mut.sec_fw_recovery_if();
             recovery
                 .recovery_ctrl()
-                .modify(|recovery_ctrl_val| recovery_ctrl_val.activate_rec_img(Self::RESET_VAL));
+                .modify(|recovery_ctrl_val| recovery_ctrl_val.activate_rec_img(clear_val));
         })
     }
 

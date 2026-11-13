@@ -191,6 +191,21 @@ impl ModelEmulated {
     pub fn key_vault_snapshot(&self) -> caliptra_emu_periph::KeyVaultSnapshot {
         self.cpu.bus.inner().bus.key_vault.snapshot()
     }
+
+    /// Every word Caliptra wrote to RECOVERY_CTRL, in order. The register
+    /// holds only the last write, so a test that checks what Caliptra wrote
+    /// reads these words instead.
+    pub fn recovery_ctrl_writes(&mut self) -> &[u32] {
+        &self
+            .cpu
+            .bus
+            .inner_mut()
+            .bus
+            .dma
+            .axi
+            .recovery
+            .recovery_ctrl_writes
+    }
 }
 
 fn hash_slice(slice: &[u8]) -> u64 {
