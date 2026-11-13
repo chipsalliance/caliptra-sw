@@ -2860,6 +2860,10 @@ impl SocManager for ModelFpgaSubsystem {
     fn delay(&mut self) {
         self.step();
     }
+
+    fn log_mailbox(&mut self, args: core::fmt::Arguments<'_>) {
+        writeln!(self.output().logger(), "{args}").unwrap()
+    }
 }
 
 impl Drop for ModelFpgaSubsystem {
