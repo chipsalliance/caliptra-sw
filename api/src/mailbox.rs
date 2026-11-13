@@ -1273,12 +1273,15 @@ impl Default for MailboxRespHeader {
 }
 
 // Generic variable-sized data response type
-#[repr(C)]
-#[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq, Clone)]
-pub struct VarSizeDataResp {
-    pub hdr: MailboxRespHeader,
-    pub data_size: u32,
-    pub data: [u8; VarSizeDataResp::DATA_MAX_SIZE], // variable length
+with_hdr! {
+    #[repr(C)]
+    #[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq, Clone)]
+    pub struct VarSizeDataResp {
+        pub hdr: MailboxRespHeader,
+        pub data_size: u32,
+        pub data: [u8; VarSizeDataResp::DATA_MAX_SIZE], // variable length
+    }
+    hdr: VarSizeDataRespHdr,
 }
 
 impl VarSizeDataResp {
@@ -1807,12 +1810,15 @@ impl CertifyKeyExtendedFlags {
     }
 }
 
-#[repr(C)]
-#[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
-pub struct CertifyKeyExtendedResp {
-    pub hdr: MailboxRespHeader,
-    pub size: u32,
-    pub certify_key_resp: [u8; CertifyKeyExtendedResp::CERTIFY_KEY_RESP_SIZE],
+with_hdr! {
+    #[repr(C)]
+    #[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+    pub struct CertifyKeyExtendedResp {
+        pub hdr: MailboxRespHeader,
+        pub size: u32,
+        pub certify_key_resp: [u8; CertifyKeyExtendedResp::CERTIFY_KEY_RESP_SIZE],
+    }
+    hdr: CertifyKeyExtendedRespHdr,
 }
 impl CertifyKeyExtendedResp {
     pub const CERTIFY_KEY_RESP_SIZE: usize = 25152;
@@ -2403,12 +2409,15 @@ impl Request for QuotePcrsMldsa87Req {
     type Resp = QuotePcrsMldsa87Resp;
 }
 
-#[repr(C)]
-#[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq, Clone)]
-pub struct AttestedCsrResp {
-    pub hdr: MailboxRespHeader,
-    pub data_size: u32,
-    pub data: [u8; AttestedCsrResp::DATA_MAX_SIZE],
+with_hdr! {
+    #[repr(C)]
+    #[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq, Clone)]
+    pub struct AttestedCsrResp {
+        pub hdr: MailboxRespHeader,
+        pub data_size: u32,
+        pub data: [u8; AttestedCsrResp::DATA_MAX_SIZE],
+    }
+    hdr: AttestedCsrRespHdr,
 }
 
 impl AttestedCsrResp {
