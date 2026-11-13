@@ -117,6 +117,19 @@ const fn size_of_field<S, F>(_f: fn(&S) -> &F) -> usize {
     size_of::<F>()
 }
 
+/// Compile-time check for structs whose fixed header is a single nested field
+/// (e.g. `hdr: MailboxRespHeader`) followed directly by the payload: the header
+/// field is at offset 0, is exactly `$hdr_ty` sized, and `$tail` starts right after it.
+macro_rules! assert_nested_hdr {
+    ($full:ty, $hdr_field:ident: $hdr_ty:ty, $tail:ident) => {
+        const _: () = {
+            assert!(core::mem::offset_of!($full, $hdr_field) == 0);
+            assert!(size_of_field(|f: &$full| &f.$hdr_field) == size_of::<$hdr_ty>());
+            assert!(core::mem::offset_of!($full, $tail) == size_of::<$hdr_ty>());
+        };
+    };
+}
+
 #[derive(PartialEq, Eq)]
 pub struct CommandId(pub u32);
 
@@ -1490,6 +1503,8 @@ pub struct GetIdevMldsa87InfoResp {
     pub idev_pub_key: [u8; MLDSA87_PUB_KEY_BYTE_SIZE],
 }
 
+assert_nested_hdr!(GetIdevMldsa87InfoResp, hdr: MailboxRespHeader, idev_pub_key);
+
 // GET_LDEV_CERT
 #[repr(C)]
 #[derive(Default, Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
@@ -1895,13 +1910,7 @@ pub struct CertifyKeyChunksResp {
     pub certify_key_resp: [u8; Self::MAX_CHUNK_SIZE],
 }
 
-// `CertifyKeyChunksRespInfo` is the standalone header for `CertifyKeyChunksResp`;
-// verify the payload starts immediately after it.
-const _: () = assert!(core::mem::offset_of!(CertifyKeyChunksResp, info) == 0);
-const _: () = assert!(
-    core::mem::offset_of!(CertifyKeyChunksResp, certify_key_resp)
-        == size_of::<CertifyKeyChunksRespInfo>()
-);
+assert_nested_hdr!(CertifyKeyChunksResp, info: CertifyKeyChunksRespInfo, certify_key_resp);
 
 impl CertifyKeyChunksResp {
     pub const MAX_CHUNK_SIZE: usize = 15 * 1024;
@@ -3316,6 +3325,8 @@ pub struct CmShaInitResp {
     pub context: [u8; CMB_SHA_CONTEXT_SIZE],
 }
 
+assert_nested_hdr!(CmShaInitResp, hdr: MailboxRespHeader, context);
+
 impl Default for CmShaInitResp {
     fn default() -> Self {
         Self {
@@ -3483,6 +3494,8 @@ pub struct CmShake256InitResp {
     pub hdr: MailboxRespHeader,
     pub context: [u8; CMB_SHAKE256_CONTEXT_SIZE],
 }
+
+assert_nested_hdr!(CmShake256InitResp, hdr: MailboxRespHeader, context);
 
 impl Default for CmShake256InitResp {
     fn default() -> Self {
@@ -4519,6 +4532,8 @@ pub struct CmAesGcmSpdmEncryptInitResp {
     pub context: [u8; CMB_AES_GCM_ENCRYPTED_CONTEXT_SIZE],
 }
 
+assert_nested_hdr!(CmAesGcmSpdmEncryptInitResp, hdr: MailboxRespHeader, context);
+
 impl Default for CmAesGcmSpdmEncryptInitResp {
     fn default() -> Self {
         Self {
@@ -4915,6 +4930,8 @@ pub struct CmAesGcmSpdmDecryptInitResp {
     pub hdr: MailboxRespHeader,
     pub context: [u8; CMB_AES_GCM_ENCRYPTED_CONTEXT_SIZE],
 }
+
+assert_nested_hdr!(CmAesGcmSpdmDecryptInitResp, hdr: MailboxRespHeader, context);
 
 impl Default for CmAesGcmSpdmDecryptInitResp {
     fn default() -> Self {
@@ -5498,6 +5515,8 @@ pub struct CmMldsaPublicKeyResp {
     pub public_key: [u8; MLDSA87_PUB_KEY_BYTE_SIZE],
 }
 
+assert_nested_hdr!(CmMldsaPublicKeyResp, hdr: MailboxRespHeader, public_key);
+
 impl Default for CmMldsaPublicKeyResp {
     fn default() -> Self {
         Self {
@@ -5583,6 +5602,8 @@ pub struct CmMldsaSignResp {
     pub hdr: MailboxRespHeader,
     pub signature: [u8; MLDSA87_SIGNATURE_BYTE_SIZE],
 }
+
+assert_nested_hdr!(CmMldsaSignResp, hdr: MailboxRespHeader, signature);
 
 impl Default for CmMldsaSignResp {
     fn default() -> Self {
@@ -5878,6 +5899,8 @@ pub struct CmMlkemKeyGenResp {
     pub hdr: MailboxRespHeader,
     pub encaps_key: [u8; MLKEM1024_ENCAPS_KEY_SIZE],
 }
+
+assert_nested_hdr!(CmMlkemKeyGenResp, hdr: MailboxRespHeader, encaps_key);
 
 impl Default for CmMlkemKeyGenResp {
     fn default() -> Self {
