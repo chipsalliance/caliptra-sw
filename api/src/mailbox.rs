@@ -1215,6 +1215,19 @@ impl Default for MailboxRespHeader {
     }
 }
 
+/// Header-only struct for generic variable-sized data (`VarSizeDataResp`) responses.
+/// This contains only the fixed-size header fields, not the variable-length data,
+/// so a requester can read the header and data from the mailbox separately without
+/// materializing the full `VarSizeDataResp`.
+#[repr(C)]
+#[derive(Debug, Default, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+pub struct VarSizeDataRespHdr {
+    pub hdr: MailboxRespHeader,
+    pub data_size: u32,
+}
+
+assert_hdr_prefix!(VarSizeDataResp, VarSizeDataRespHdr, [hdr, data_size], data);
+
 // Generic variable-sized data response type
 #[repr(C)]
 #[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq, Clone)]
@@ -1777,6 +1790,24 @@ impl CertifyKeyExtendedFlags {
     }
 }
 
+/// Header-only struct for CERTIFY_KEY_EXTENDED responses.
+/// This contains only the fixed-size header fields, not the variable-length data,
+/// so a requester can read the header and data from the mailbox separately without
+/// materializing the full `CertifyKeyExtendedResp`.
+#[repr(C)]
+#[derive(Debug, Default, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+pub struct CertifyKeyExtendedRespHdr {
+    pub hdr: MailboxRespHeader,
+    pub size: u32,
+}
+
+assert_hdr_prefix!(
+    CertifyKeyExtendedResp,
+    CertifyKeyExtendedRespHdr,
+    [hdr, size],
+    certify_key_resp
+);
+
 #[repr(C)]
 #[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
 pub struct CertifyKeyExtendedResp {
@@ -1863,6 +1894,14 @@ pub struct CertifyKeyChunksResp {
     pub info: CertifyKeyChunksRespInfo,
     pub certify_key_resp: [u8; Self::MAX_CHUNK_SIZE],
 }
+
+// `CertifyKeyChunksRespInfo` is the standalone header for `CertifyKeyChunksResp`;
+// verify the payload starts immediately after it.
+const _: () = assert!(core::mem::offset_of!(CertifyKeyChunksResp, info) == 0);
+const _: () = assert!(
+    core::mem::offset_of!(CertifyKeyChunksResp, certify_key_resp)
+        == size_of::<CertifyKeyChunksRespInfo>()
+);
 
 impl CertifyKeyChunksResp {
     pub const MAX_CHUNK_SIZE: usize = 15 * 1024;
@@ -2407,6 +2446,19 @@ impl Request for QuotePcrsMldsa87Req {
     const ID: CommandId = CommandId::QUOTE_PCRS_MLDSA87;
     type Resp = QuotePcrsMldsa87Resp;
 }
+
+/// Header-only struct for attested CSR (`AttestedCsrResp`) responses.
+/// This contains only the fixed-size header fields, not the variable-length data,
+/// so a requester can read the header and data from the mailbox separately without
+/// materializing the full `AttestedCsrResp`.
+#[repr(C)]
+#[derive(Debug, Default, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
+pub struct AttestedCsrRespHdr {
+    pub hdr: MailboxRespHeader,
+    pub data_size: u32,
+}
+
+assert_hdr_prefix!(AttestedCsrResp, AttestedCsrRespHdr, [hdr, data_size], data);
 
 #[repr(C)]
 #[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq, Clone)]
