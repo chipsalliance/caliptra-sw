@@ -428,6 +428,7 @@ pub fn start_rt_test_pqc_model(
             soc_manifest,
             mcu_fw_image,
             encrypted_boot: args.encrypted_boot,
+            simulate_mcu_rom_decrypt: args.successful_reach_rt,
             ..Default::default()
         },
     )

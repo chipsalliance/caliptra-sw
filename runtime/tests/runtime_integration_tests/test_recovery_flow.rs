@@ -446,6 +446,13 @@ fn test_recovery_flow_debug_auth_manifest_disabled_by_strap() {
             CaliptraError::RUNTIME_AUTH_MANIFEST_DEBUG_IMAGE_NOT_ALLOWED.into(),
             30_000_000,
         );
+
+        #[cfg(not(feature = "fpga_subsystem"))]
+        assert_auth_failure_reported(
+            &mut model,
+            SOC_MANIFEST_INDEX,
+            DmaRecovery::RECOVERY_REASON_DEBUG_IMAGE_NOT_ALLOWED,
+        );
     }
 }
 
@@ -501,6 +508,51 @@ fn test_mcu_fw_bad_signature() {
     model.step_until_fatal_error(
         CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_DIGEST_MISMATCH.into(),
         30_000_000,
+    );
+
+    #[cfg(not(feature = "fpga_subsystem"))]
+    assert_auth_failure_reported(
+        &mut model,
+        MCU_FIRMWARE_INDEX,
+        DmaRecovery::RECOVERY_REASON_MAIN_FIRMWARE_AUTHENTICATION_FAILURE,
+    );
+}
+
+#[cfg(not(feature = "fpga_subsystem"))]
+const SOC_MANIFEST_INDEX: u32 = 1;
+#[cfg(not(feature = "fpga_subsystem"))]
+pub(crate) const MCU_FIRMWARE_INDEX: u32 = 2;
+
+/// Asserts what `report_failure` writes after an authentication failure
+/// on `image_idx`: RECOVERY_STATUS 0xD 'Recovery image authentication error'
+/// with `image_idx`, and DEVICE_STATUS 0xE 'Boot failure' with
+/// `recovery_reason`. The 0xD write succeeds in the tests that call this
+/// helper. `report_failure` writes 0xC 'Recovery failed' only after a failed
+/// 0xD write, so RECOVERY_STATUS still holds 0xD when the helper reads it.
+#[cfg(not(feature = "fpga_subsystem"))]
+fn assert_auth_failure_reported(model: &mut DefaultHwModel, image_idx: u32, recovery_reason: u32) {
+    use crate::test_encrypted_firmware::read_recovery_register;
+    use caliptra_emu_bus::RecoveryCommandCode;
+
+    // RECOVERY_STATUS byte 0 holds the status in bits [3:0] and the image
+    // index in bits [7:4]. `set_recovery_status` modifies the status and index
+    // fields only, so byte 1 stays 0.
+    let recovery_status = read_recovery_register(model, RecoveryCommandCode::RecoveryStatus);
+    assert_eq!(
+        u32::from(u16::from_le_bytes(recovery_status[..2].try_into().unwrap())),
+        (image_idx << 4) | DmaRecovery::RECOVERY_STATUS_IMAGE_AUTHENTICATION_ERROR
+    );
+
+    // DEVICE_STATUS byte 0 holds the device status, bytes 2-3 the recovery
+    // reason.
+    let device_status = read_recovery_register(model, RecoveryCommandCode::DeviceStatus);
+    assert_eq!(
+        u32::from(device_status[0]),
+        DmaRecovery::DEVICE_STATUS_BOOT_FAILURE
+    );
+    assert_eq!(
+        u32::from(u16::from_le_bytes(device_status[2..4].try_into().unwrap())),
+        recovery_reason
     );
 }
 
