@@ -14,10 +14,11 @@ on:
       hw-revision:
         description: 'Target hardware revision'
         type: choice
-        default: "2.1"
+        default: all
         options:
-          - "2.1"
+          - all
           - latest
+          - "2.1"
 
 permissions:
   contents: read
@@ -32,11 +33,34 @@ env:
 
   # Compiler warnings should fail to compile
   EXTRA_CARGO_CONFIG: "target.'cfg(all())'.rustflags = [\"-Dwarnings\"]"
-  CALIPTRA_HW_REV: ${{ inputs.hw-revision || '2.1' }}
 
 jobs:
-  lint:
+  # Determine which RTL revisions the jobs run for. By default run for all revisions.
+  # Or run only for the selected revision if this workflow is invoked manually.
+  setup:
     runs-on: ubuntu-24.04
+    outputs:
+      revisions: ${{ steps.revisions.outputs.revisions }}
+    steps:
+      - name: Select HW revisions
+        id: revisions
+        env:
+          HW_REVISION: ${{ inputs.hw-revision }}
+        run: |
+          if [ -z "$HW_REVISION" ] || [ "$HW_REVISION" = "all" ]; then
+            echo 'revisions=["latest","2.1"]' >> "$GITHUB_OUTPUT"
+          else
+            echo "revisions=[\"$HW_REVISION\"]" >> "$GITHUB_OUTPUT"
+          fi
+
+  lint:
+    needs: setup
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        revision: ${{ fromJSON(needs.setup.outputs.revisions) }}
+    env:
+      CALIPTRA_HW_REV: ${{ matrix.revision }}
     steps:
       - name: Checkout repo
         uses: actions/checkout@v5
@@ -49,12 +73,11 @@ jobs:
         run: cargo xtask precheckin
 
   build:
-    needs: lint
+    needs: [setup, lint]
     runs-on: ubuntu-24.04
     strategy:
       matrix:
-        # Always build for all HW-revisions
-        revision: ["latest", "2.1"]
+        revision: ${{ fromJSON(needs.setup.outputs.revisions) }}
     env:
       CALIPTRA_HW_REV: ${{ matrix.revision }}
     steps:
@@ -125,12 +148,11 @@ jobs:
           done
 
   test_unit:
-    needs: lint
+    needs: [setup, lint]
     runs-on: ubuntu-24.04
     strategy:
-      fail-fast: false
       matrix:
-        revision: ["2.1", "latest"]
+        revision: ${{ fromJSON(needs.setup.outputs.revisions) }}
     env:
       CALIPTRA_HW_REV: ${{ matrix.revision }}
     steps:
@@ -157,8 +179,13 @@ jobs:
           cargo --config "$EXTRA_CARGO_CONFIG" run --locked -p compliance-test -- --test_root_path /tmp/riscv-arch-test
 
   test_rom:
-    needs: lint
+    needs: [setup, lint]
     runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        revision: ${{ fromJSON(needs.setup.outputs.revisions) }}
+    env:
+      CALIPTRA_HW_REV: ${{ matrix.revision }}
     steps:
       - name: Checkout repo
         uses: actions/checkout@v5
@@ -176,8 +203,13 @@ jobs:
           (cd rom/dev && DEVICE_LIFECYCLE=production make run-active)
 
   test_integration:
-    needs: lint
+    needs: [setup, lint]
     runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        revision: ${{ fromJSON(needs.setup.outputs.revisions) }}
+    env:
+      CALIPTRA_HW_REV: ${{ matrix.revision }}
     steps:
       - name: Checkout repo
         uses: actions/checkout@v5

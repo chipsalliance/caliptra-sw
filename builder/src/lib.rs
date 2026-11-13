@@ -13,6 +13,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex};
 
+use caliptra_hw_model_types::CaliptraHwVersion;
 #[cfg(feature = "openssl")]
 use caliptra_image_crypto::OsslCrypto as Crypto;
 #[cfg(feature = "rustcrypto")]
@@ -172,6 +173,15 @@ pub fn build_firmware_elf_uncached(workspace_dir: Option<&Path>, id: &FwId) -> i
     Ok(result.into_iter().next().unwrap().1)
 }
 
+fn default_features(hw_revision: CaliptraHwVersion, _crate_name: &str) -> Vec<&'static str> {
+    let features = vec![];
+    match hw_revision {
+        CaliptraHwVersion::Latest | CaliptraHwVersion::V2_2 => (),
+        _ => (),
+    }
+    features
+}
+
 /// Resolve the features for a firmware Cargo invocation targeting the selected hardware.
 pub fn firmware_features<'a>(crate_name: &str, requested: &[&'a str]) -> io::Result<Vec<&'a str>> {
     let revision = match env::var("CALIPTRA_HW_REV") {
@@ -187,8 +197,8 @@ fn firmware_features_for_hw<'a>(
     crate_name: &str,
     requested: &[&'a str],
 ) -> io::Result<Vec<&'a str>> {
-    let defaults: &[&str] = match (revision, crate_name) {
-        ("2.1" | "latest", _) => &["riscv"],
+    let hw_revision = match revision.parse::<CaliptraHwVersion>() {
+        Ok(revision @ (CaliptraHwVersion::V2_1 | CaliptraHwVersion::Latest)) => revision,
         _ => {
             return Err(other_err(format!(
                 "Unsupported CALIPTRA_HW_REV={revision:?} for {crate_name}; expected 2.1 or latest"
@@ -196,7 +206,7 @@ fn firmware_features_for_hw<'a>(
         }
     };
     let mut features = requested.to_vec();
-    for &feature in defaults {
+    for feature in std::iter::once("riscv").chain(default_features(hw_revision, crate_name)) {
         if !features.contains(&feature) {
             features.push(feature);
         }

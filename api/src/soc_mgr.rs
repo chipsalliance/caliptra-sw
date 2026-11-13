@@ -226,6 +226,12 @@ pub trait SocManager {
         cmd: u32,
         buf: &[u8],
     ) -> core::result::Result<(), CaliptraApiError> {
+        // Reject before taking the lock: once locked, the SoC can only release
+        // it through a completed execute.
+        if buf.len() > Self::MAILBOX_SIZE_LIMIT {
+            return Err(CaliptraApiError::BufferTooLargeForMailbox);
+        }
+
         // Read a 0 to get the lock
         if self.soc_mbox().lock().read().lock() {
             return Err(CaliptraApiError::UnableToLockMailbox);
@@ -246,6 +252,8 @@ pub trait SocManager {
         Ok(())
     }
 
+    /// Wait for the response to [`Self::start_mailbox_exec`] and release the
+    /// mailbox.
     fn finish_mailbox_exec<'r>(
         &mut self,
         resp_data: &'r mut [u8],
@@ -256,36 +264,35 @@ pub trait SocManager {
             self.delay();
             timeout_cycles -= 1;
             if timeout_cycles == 0 {
+                // Don't clear execute here: while the uC is busy the mailbox FSM
+                // is in MBOX_EXECUTE_UC, and a SoC write to it is a protocol error
+                // that leaves the mailbox locked in MBOX_ERROR.
                 return Err(CaliptraApiError::MailboxTimeout);
             }
         }
+
         let status = self.soc_mbox().status().read().status();
-        if status.cmd_failure() {
-            self.soc_mbox().execute().write(|w| w.execute(false));
+        let res = if status.cmd_failure() {
             let soc_ifc = self.soc_ifc();
-            return Err(CaliptraApiError::MailboxCmdFailed(
+            Err(CaliptraApiError::MailboxCmdFailed(
                 if soc_ifc.cptra_fw_error_fatal().read() != 0 {
                     soc_ifc.cptra_fw_error_fatal().read()
                 } else {
                     soc_ifc.cptra_fw_error_non_fatal().read()
                 },
-            ));
-        }
-        if status.cmd_complete() {
-            self.soc_mbox().execute().write(|w| w.execute(false));
-            return Ok(None);
-        }
-        if !status.data_ready() {
-            return Err(CaliptraApiError::UnknownCommandStatus(status as u32));
-        }
+            ))
+        } else if status.cmd_complete() {
+            Ok(None)
+        } else if !status.data_ready() {
+            Err(CaliptraApiError::UnknownCommandStatus(status as u32))
+        } else {
+            mbox_read_response(self.soc_mbox(), resp_data).map(Some)
+        };
 
-        let res = mbox_read_response(self.soc_mbox(), resp_data);
-
+        // The uC has responded, so clearing execute is now legal and releases
+        // the lock. Do it on every path out, including errors.
         self.soc_mbox().execute().write(|w| w.execute(false));
-
-        let buf = res?;
-
-        Ok(Some(buf))
+        res
     }
 
     /// Executes a typed request and (if success), returns the typed response.
