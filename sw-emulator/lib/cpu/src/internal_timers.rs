@@ -183,7 +183,7 @@ impl InternalTimers {
     }
 
     pub fn read_mitb1(&self) -> u32 {
-        self.timer0.bound
+        self.timer1.bound
     }
 
     pub fn write_mitb0(&mut self, val: u32) {
