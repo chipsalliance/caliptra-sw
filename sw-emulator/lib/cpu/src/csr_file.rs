@@ -121,8 +121,8 @@ impl Csr {
     /// Internal Timer Control 0
     pub const MITCTL0: RvAddr = 0x7D4;
 
-    /// Internal Timer Control 0
-    pub const MITCTL1: RvAddr = 0x7D5;
+    /// Internal Timer Control 1
+    pub const MITCTL1: RvAddr = 0x7D7;
 
     /// PMP configuration register range start, inclusive
     pub const PMPCFG_START: RvAddr = 0x3A0;
@@ -1148,6 +1148,23 @@ mod tests {
 
         assert_eq!(csrs.read(RvPrivMode::M, Csr::MCYCLE), Ok(0x5678_9abc));
         assert_eq!(csrs.read(RvPrivMode::M, Csr::MCYCLEH), Ok(0x1234));
+    }
+
+    #[test]
+    fn test_internal_timer_1_csrs() {
+        let clock = Rc::new(Clock::new());
+        let pic = Rc::new(Pic::new());
+        let mut csrs = CsrFile::new(clock, pic, Rc::new(Cell::new(0)));
+
+        // Timer 1 counter (0x7D5), bound (0x7D6) and control (0x7D7) are separate registers.
+        assert_eq!(csrs.write(RvPrivMode::M, 0x7D7, 0xF), Ok(()));
+        assert_eq!(csrs.write(RvPrivMode::M, 0x7D5, 0x1234), Ok(()));
+        assert_eq!(csrs.write(RvPrivMode::M, 0x7D6, 0x5678), Ok(()));
+        assert_eq!(csrs.write(RvPrivMode::M, Csr::MITB0, 0x9ABC), Ok(()));
+        assert_eq!(csrs.read(RvPrivMode::M, 0x7D7), Ok(0xF));
+        assert_eq!(csrs.read(RvPrivMode::M, 0x7D5), Ok(0x1234));
+        assert_eq!(csrs.read(RvPrivMode::M, 0x7D6), Ok(0x5678));
+        assert_eq!(csrs.read(RvPrivMode::M, Csr::MITB0), Ok(0x9ABC));
     }
 
     #[test]
