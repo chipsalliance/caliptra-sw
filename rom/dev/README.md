@@ -24,6 +24,21 @@ following topics:
 ## Spec Opens
 - Describe in-memory logs
 
+## Branch-prediction workaround
+
+The development ROM sets VeeR `MFDC[3]` at entry, before executing branches,
+to disable branch prediction. Debug-locked FPGA bring-up reproduced a
+prediction-dependent `CPTRA_HW_ERROR_FATAL.kv_error` (`0x10`) followed by an
+ML-KEM KAT readiness hang. A matched ROM experiment avoided the failure with
+prediction disabled. The boot-flow monitor observes raw ICCM bank reads;
+the exact boot-flow/key-vault violation still requires hardware tracing.
+
+This is a workaround, not a proven RTL fix. It preserves lifecycle/debug-lock,
+boot-flow/key-vault enforcement, authentication and KATs. It adds no diagnostic
+logging and does not change frozen ROM images or the separately pinned 2.1
+firmware. Broader FPGA validation and hardware review are required before
+considering this a qualified production configuration.
+
 ## Glossary
 
 | Term                | Description                                                               |

@@ -22,6 +22,11 @@ _start:
    .cfi_startproc
    .cfi_undefined ra
 
+   // Avoid speculative ICCM reads triggering boot-flow/key-vault enforcement.
+   // Workaround pending the hardware fix; MFDC[3] disables branch prediction.
+   csrsi 0x7f9, 8
+   fence.i
+
    // Clear minstret
    csrw minstret, zero
    csrw minstreth, zero
