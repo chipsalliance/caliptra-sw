@@ -3,6 +3,14 @@
 name: Core FPGA Bitstream build 2.2
 
 on:
+  pull_request:
+    branches:
+      - caliptra-2.2-dev
+    paths:
+      - ".github/workflows/bitstream-build.yml"
+      - ".github/workflows/bitstream-build_2.2.yml"
+      - "hw/fpga/**"
+      - "hw/latest/**"
   push:
     branches:
       - caliptra-2.2-dev

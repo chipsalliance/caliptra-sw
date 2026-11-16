@@ -125,13 +125,13 @@ jobs:
           retention-days: 7
           if-no-files-found: error
 
-      # Both matrix jobs would otherwise upload a manifest to the same GCS path
-      # (v1/<sha>/manifest.toml); only the segmented build is used by the FPGA CI.
-      - name: Clean up bundle for non-segmented build
-        if: always() && matrix.segmented == false
+      # Only publish segmented builds from non-PR runs through the runner hook.
+      - name: Clean up unpublished bundle
+        if: always() && (matrix.segmented == false || github.event_name == 'pull_request')
         run: rm -rf manifest-bundle
 
   open-pr:
+    if: github.event_name != 'pull_request'
     needs: build-bitstream
     runs-on: ubuntu-latest
     permissions:

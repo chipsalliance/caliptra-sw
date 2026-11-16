@@ -7,7 +7,8 @@ The Caliptra CI infrastructure utilizes FPGA emulation to verify hardware and fi
 Core bitstream production uses two workflows:
 
 - `.github/workflows/bitstream-build_2.2.yml` is the 2.2 entry point. It runs on
-  relevant pushes to `caliptra-2.2-dev` and supports manual dispatch.
+  relevant pull requests targeting and pushes to `caliptra-2.2-dev`, and supports
+  manual dispatch.
 - `.github/workflows/bitstream-build.yml` is the reusable builder. The caller
   explicitly supplies the hardware version, source commit, RTL directory
   selector, and manifest-update target branch. The 2.2 caller selects `hw/latest`
@@ -28,11 +29,19 @@ default branch as well. The push trigger can build changes merged into
 The builder produces standard and segmented artifacts with `2.2` in their names.
 The segmented build must contain a runtime PDI. Its manifest records the actual
 checked-out source commit, subsystem RTL commit, hardware version, and target
-branch. Only the segmented bundle is left for the builder runner's post-job hook
-to publish to GCS at `v1/<source-commit>/manifest.toml`. Uploading a GitHub Actions
-artifact alone does not publish it to GCS.
+branch. On non-PR runs, only the segmented bundle is left for the builder runner's
+post-job hook to publish to GCS at `v1/<source-commit>/manifest.toml`. Uploading a
+GitHub Actions artifact alone does not publish it to GCS.
 
-Once that manifest is available, the workflow opens a PR against
+PR runs build the merge revision and upload the standard and segmented GitHub
+artifacts for pre-merge validation. Both bundles are removed from the checkout
+after artifact upload, including on failure, so they are not left for the
+publication hook. The manifest-update job is skipped for PR events. Maintainers
+must verify the runner hook honors this bundle-removal contract and require
+approval before running fork PR code on the self-hosted builder; a read-only
+workflow token does not isolate persistent runner credentials or state.
+
+On non-PR runs, once the published manifest is available, the workflow opens a PR against
 `caliptra-2.2-dev` updating `hw/fpga/bitstream_manifests/core.toml`. If publication
 does not complete within 30 download attempts, the job fails without replacing
 the existing manifest or opening a PR. The GitHub Actions configuration must
