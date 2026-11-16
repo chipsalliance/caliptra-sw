@@ -18,14 +18,15 @@ Abstract:
 use caliptra_cfi_lib::CfiCounter;
 use caliptra_drivers::{
     Array4x12, Ecc384, Ecc384PrivKeyIn, Ecc384PrivKeyOut, Ecc384PubKey, Ecc384Result, Ecc384Scalar,
-    Ecc384Seed, KeyId, KeyReadArgs, KeyUsage, KeyWriteArgs, PersistentDataAccessor, Sha2_512_384,
-    Trng,
+    Ecc384Seed, KeyId, KeyReadArgs, KeyUsage, KeyVault, KeyWriteArgs, PersistentDataAccessor,
+    Sha2_512_384, Trng,
 };
 use caliptra_error::CaliptraError;
 use caliptra_kat::{Ecc384Kat, EcdhKat};
 use caliptra_registers::csrng::CsrngReg;
 use caliptra_registers::ecc::EccReg;
 use caliptra_registers::entropy_src::EntropySrcReg;
+use caliptra_registers::kv::KvReg;
 use caliptra_registers::sha512::Sha512Reg;
 use caliptra_registers::soc_ifc::SocIfcReg;
 use caliptra_registers::soc_ifc_trng::SocIfcTrngReg;
@@ -629,6 +630,66 @@ fn test_ecdh_with_key_vault() {
     // Is there a way to test we have a valid key inside keyvault
 }
 
+// A key vault write failure must leave the engine usable for the next operation.
+fn test_kv_write_failure_recovers() {
+    let mut ecc = unsafe { Ecc384::new(EccReg::new()) };
+    let mut trng = unsafe {
+        Trng::new(
+            CsrngReg::new(),
+            EntropySrcReg::new(),
+            SocIfcTrngReg::new(),
+            &SocIfcReg::new(),
+            PersistentDataAccessor::new(),
+        )
+        .unwrap()
+    };
+    let mut vault = unsafe { KeyVault::new(KvReg::new()) };
+    let locked = KeyId::KeyId5;
+    vault.set_key_write_lock(locked);
+    let key_out = KeyWriteArgs {
+        id: locked,
+        usage: KeyUsage::default().set_ecc_private_key_en(),
+    };
+    let seed = Ecc384Scalar::from([0u8; 48]);
+
+    let result = ecc.key_pair(
+        Ecc384Seed::from(&seed),
+        &Array4x12::default(),
+        &mut trng,
+        Ecc384PrivKeyOut::from(key_out),
+    );
+    assert!(result.is_err());
+
+    let mut priv_key = Array4x12::default();
+    let pub_key = ecc
+        .key_pair(
+            Ecc384Seed::from(&seed),
+            &Array4x12::default(),
+            &mut trng,
+            Ecc384PrivKeyOut::from(&mut priv_key),
+        )
+        .unwrap();
+    assert_eq!(pub_key.x, Ecc384Scalar::from(PUB_KEY_X));
+    assert_eq!(pub_key.y, Ecc384Scalar::from(PUB_KEY_Y));
+
+    let result = ecc.ecdh(
+        Ecc384PrivKeyIn::from(&priv_key),
+        &pub_key,
+        &mut trng,
+        Ecc384PrivKeyOut::from(key_out),
+    );
+    assert!(result.is_err());
+
+    let mut shared_secret = Array4x12::default();
+    ecc.ecdh(
+        Ecc384PrivKeyIn::from(&priv_key),
+        &pub_key,
+        &mut trng,
+        Ecc384PrivKeyOut::from(&mut shared_secret),
+    )
+    .unwrap();
+}
+
 test_suite! {
     test_kat,
     test_gen_key_pair,
@@ -642,4 +703,5 @@ test_suite! {
     test_no_private_key_usage,
     test_ecdh,
     test_ecdh_with_key_vault,
+    test_kv_write_failure_recovers,
 }
