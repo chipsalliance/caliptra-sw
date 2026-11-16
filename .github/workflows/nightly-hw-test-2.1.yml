@@ -1,0 +1,114 @@
+name: Nightly HW Tests 2.1
+
+on:
+  workflow_dispatch:
+  workflow_call:
+  pull_request:
+  schedule:
+    - cron: '0 6 * * 2-6'
+
+permissions:
+  contents: read
+
+jobs:
+  validate-target:
+    name: Validate HW 2.1 test target
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Require main and record tested SHA
+        run: |
+          if [[ "$GITHUB_REF" != "refs/heads/main" ]]; then
+            echo "::error::HW 2.1 nightly tests must run on main."
+            exit 1
+          fi
+          {
+            echo "## HW 2.1 test target"
+            echo "Repository: $GITHUB_REPOSITORY"
+            echo "Commit: $GITHUB_SHA"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  fpga:
+    name: HW 2.1 Core FPGA (${{ matrix.config.name }}, ${{ matrix.log.name }}, ${{ matrix.ocp_lock.name }})
+    needs: validate-target
+    uses: ./.github/workflows/fpga.yml
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          # Current ROM source and historical ROMs use the existing HW 2.1 bitstream.
+          - { name: "rom-2.1.0", rom: "2.1.0" }
+          - { name: "rom-2.1.1", rom: "2.1.1" }
+          - { name: "rom-2.1.2", rom: "2.1.2" }
+          - { name: "rom-current", rom: "latest" }
+        log:
+          - { name: "log", rom_logging: true }
+          - { name: "nolog", rom_logging: false }
+        ocp_lock:
+          - { name: "ocp-unlocked", ocp_lock: false }
+          - { name: "ocp-lock", ocp_lock: true }
+    with:
+      artifact-suffix: -hw-2.1-fpga-realtime-${{ matrix.config.name }}-itrng-${{ matrix.log.name }}-${{ matrix.ocp_lock.name }}-${{ github.sha }}
+      extra-features: "slow_tests,itrng"
+      hw-version: "latest"
+      rom-logging: ${{ matrix.log.rom_logging }}
+      fpga-itrng: true
+      ocp-lock: ${{ matrix.ocp_lock.ocp_lock }}
+      rom-version: ${{ matrix.config.rom }}
+      branch: ${{ github.sha }}
+
+  fpga-subsystem:
+    name: HW 2.1 Subsystem FPGA (${{ matrix.config.name }}, ${{ matrix.ocp_lock.name }}, ${{ matrix.flash_boot.name }})
+    needs: validate-target
+    uses: ./.github/workflows/fpga-subsystem.yml
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          - { name: "rom-2.1.0", rom: "2.1.0" }
+          - { name: "rom-2.1.1", rom: "2.1.1" }
+          - { name: "rom-2.1.2", rom: "2.1.2" }
+          - { name: "rom-current", rom: "latest" }
+        ocp_lock:
+          - { name: "ocp-unlocked", ocp_lock: false }
+          - { name: "ocp-lock", ocp_lock: true }
+        flash_boot:
+          - { name: "no-flash-boot", flash_boot: false }
+          - { name: "flash-boot", flash_boot: true }
+    with:
+      artifact-suffix: -hw-2.1-fpga-subsystem-realtime-${{ matrix.config.name }}-itrng-nolog-${{ matrix.ocp_lock.name }}-${{ matrix.flash_boot.name }}-${{ github.sha }}
+      extra-features: "slow_tests,itrng"
+      hw-version: "latest"
+      rom-logging: false
+      fpga-itrng: true
+      ocp-lock: ${{ matrix.ocp_lock.ocp_lock }}
+      rom-version: ${{ matrix.config.rom }}
+      flash-boot: ${{ matrix.flash_boot.flash_boot }}
+      branch: ${{ github.sha }}
+      repository: ${{ github.repository }}
+
+  report-results:
+    name: HW 2.1 test result
+    needs: [validate-target, fpga, fpga-subsystem]
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Report suite results
+        env:
+          TARGET_RESULT: ${{ needs.validate-target.result }}
+          CORE_RESULT: ${{ needs.fpga.result }}
+          SUBSYSTEM_RESULT: ${{ needs.fpga-subsystem.result }}
+        run: |
+          {
+            echo "## HW 2.1 test results"
+            echo "Commit: $GITHUB_SHA"
+            echo ""
+            echo "| Suite | Result |"
+            echo "| --- | --- |"
+            echo "| Target validation | $TARGET_RESULT |"
+            echo "| Core FPGA | $CORE_RESULT |"
+            echo "| Subsystem FPGA | $SUBSYSTEM_RESULT |"
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [[ "$TARGET_RESULT" != "success" || "$CORE_RESULT" != "success" || "$SUBSYSTEM_RESULT" != "success" ]]; then
+            echo "::error::HW 2.1 hardware testing did not pass all suites."
+            exit 1
+          fi
