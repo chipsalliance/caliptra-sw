@@ -76,8 +76,11 @@ This script provides a number of configuration options for features that can be 
 | GUI         | Open the Vivado GUI.
 | ITRNG       | Enable Caliptra's ITRNG.
 | CG_EN       | Removes FPGA optimizations and allows clock gating.
-| RTL_VERSION | Hardware revision directory under `hw/`. `latest` or `rev-2_1`.
+| RTL_VERSION | Hardware revision directory under `hw/`. Use `latest` for the 2.2 core wrapper.
 | BOARD       | VCK190 or VMK180 (TODO: VMK180 not fully enabled)
+
+The 2.2 core wrapper connects the existing entropy FIFO to TRNG source 0.
+Source 1 and dual-TRNG operation are disabled; the FIFO/register interface is unchanged.
 
  - Build FPGA image without GUI
     - `vivado -mode batch -source fpga_configuration.tcl -tclargs BUILD=TRUE`

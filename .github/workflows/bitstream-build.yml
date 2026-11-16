@@ -3,102 +3,135 @@
 name: FPGA Bitstream build
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - ".github/workflows/bitstream-build.yml"
-      - "hw/**/*"
+  workflow_call:
+    inputs:
+      hw-version:
+        description: Hardware version recorded in the bitstream manifest
+        required: true
+        type: string
+      ref:
+        description: Commit SHA to build
+        required: true
+        type: string
+      rtl-version:
+        description: RTL directory selector under hw, such as latest
+        required: true
+        type: string
+      target-branch:
+        description: Branch for the manifest and its update PR
+        required: true
+        type: string
 
-  workflow_dispatch:
+permissions:
+  contents: read
 
 jobs:
   build-bitstream:
     runs-on: [bitstream-builder]
-    timeout-minutes: 1440 
+    timeout-minutes: 1440
     strategy:
+      fail-fast: false
       matrix:
         segmented: [true, false]
     steps:
       - name: Checkout repo
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
         with:
+          ref: ${{ inputs.ref }}
           submodules: 'recursive'
 
       - name: Create Core bitstream
         env:
           STAGING_DIR: ${{ runner.temp }}/bitstream
+          RTL_VERSION: ${{ inputs.rtl-version }}
+          SEGMENTED: ${{ matrix.segmented }}
         run: |
           source /vck190-tools/Vivado/2024.2/settings64.sh
           mkdir -p "$STAGING_DIR"
           cd hw/fpga/
-          /vck190-tools/Vivado/2024.2/bin/vivado -mode batch -source fpga_configuration.tcl -tclargs BUILD=TRUE SEGMENTED=${{ matrix.segmented }}
-          cp caliptra_build/*.xsa "$STAGING_DIR/" || true
-          cp caliptra_build/*.pdi "$STAGING_DIR/" || true
+          /vck190-tools/Vivado/2024.2/bin/vivado -mode batch -source fpga_configuration.tcl \
+            -tclargs BUILD=TRUE "RTL_VERSION=$RTL_VERSION" "SEGMENTED=$SEGMENTED"
+          cp caliptra_build/*.xsa "$STAGING_DIR/"
+          shopt -s nullglob
+          PDI_FILES=(caliptra_build/*.pdi)
+          if [ "${#PDI_FILES[@]}" -gt 0 ]; then
+            cp "${PDI_FILES[@]}" "$STAGING_DIR/"
+          fi
 
       - name: 'Upload bitstream'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a #v7.0.1
         with:
-          name: caliptra-bitstream-${{ matrix.segmented }}
+          name: caliptra-bitstream-${{ inputs.hw-version }}-${{ matrix.segmented }}
           path: |
             ${{ runner.temp }}/bitstream/*.xsa
             ${{ runner.temp }}/bitstream/*.pdi
           retention-days: 7
+          if-no-files-found: error
 
       - name: Bundle bitstream
         env:
           STAGING_DIR: ${{ runner.temp }}/bitstream
+          HW_VERSION: ${{ inputs.hw-version }}
+          RTL_VERSION: ${{ inputs.rtl-version }}
+          TARGET_BRANCH: ${{ inputs.target-branch }}
+          REPOSITORY: ${{ github.repository }}
+          SEGMENTED: ${{ matrix.segmented }}
         run: |
-          SEGMENTED_ARG=""
-          if [ "${{ matrix.segmented }}" = "true" ]; then
-            SEGMENTED_ARG="--segmented"
+          COMMIT=$(git rev-parse HEAD)
+          SS_COMMIT=$(git -C "hw/$RTL_VERSION/caliptra-ss" rev-parse HEAD)
+          EXTRA_ARGS=()
+          if [ "$SEGMENTED" = "true" ]; then
+            EXTRA_ARGS+=(--segmented)
           fi
-          
-          # Find the xsa and pdi files in the staging directory
-          XSA_FILE=$(ls "$STAGING_DIR"/*.xsa 2>/dev/null | head -n 1)
-          PDI_FILE=$(ls "$STAGING_DIR"/*.pdi 2>/dev/null | head -n 1)
 
-          if [ -z "$XSA_FILE" ]; then
-            echo "Error: no .xsa file produced by the bitstream build"
+          shopt -s nullglob
+          XSA_FILES=("$STAGING_DIR"/*.xsa)
+          PDI_FILES=("$STAGING_DIR"/*.pdi)
+          if [ "${#XSA_FILES[@]}" -ne 1 ]; then
+            echo "Error: expected exactly one .xsa file from the bitstream build"
             exit 1
           fi
 
-          PDI_ARG=""
-          if [ -n "$PDI_FILE" ]; then
-            PDI_ARG="--pdi-file $PDI_FILE"
+          if [ "${#PDI_FILES[@]}" -gt 1 ] || \
+             { [ "$SEGMENTED" = "true" ] && [ "${#PDI_FILES[@]}" -ne 1 ]; }; then
+            echo "Error: expected exactly one runtime .pdi for a segmented build, and at most one for a standard build"
+            exit 1
+          fi
+          if [ "${#PDI_FILES[@]}" -eq 1 ]; then
+            EXTRA_ARGS+=(--pdi-file "${PDI_FILES[0]}")
           fi
 
           # The bundle is left in the checkout (inside the runner's _work volume)
           # so the host-side post-job hook can find it and upload it to GCS.
           mkdir manifest-bundle
-          
+
           caliptra-bitstream-downloader bundle-manifest \
-            --repository "${{ github.repository }}" \
-            --hw-major-version "2.1" \
-            --target-branch "${{ github.base_ref || github.ref_name }}" \
+            --repository "$REPOSITORY" \
+            --hw-major-version "$HW_VERSION" \
+            --target-branch "$TARGET_BRANCH" \
             --caliptra-variant "core" \
-            --commit-hash "${{ github.sha }}" \
+            --commit-hash "$COMMIT" \
+            --caliptra-ss-commit "$SS_COMMIT" \
             --job-id "${{ github.run_id }}-${{ github.job }}" \
-            $SEGMENTED_ARG \
-            ${{ github.event.pull_request.number && format('--github-pr {0}', github.event.pull_request.number) || '' }} \
-            --xsa-file "$XSA_FILE" \
-            $PDI_ARG \
+            "${EXTRA_ARGS[@]}" \
+            --xsa-file "${XSA_FILES[0]}" \
             --output-dir manifest-bundle
 
       - name: 'Upload bitstream bundle'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a #v7.0.1
         with:
-          name: caliptra-bitstream-bundle-${{ matrix.segmented && 'segmented' || 'standard' }}
+          name: caliptra-bitstream-bundle-${{ inputs.hw-version }}-${{ matrix.segmented && 'segmented' || 'standard' }}
           path: manifest-bundle/caliptra-bitstream.tar.gz
           retention-days: 7
+          if-no-files-found: error
 
-      # Both matrix jobs would otherwise upload a manifest to the same GCS path
-      # (v1/<sha>/manifest.toml); only the segmented build is used by the FPGA CI.
-      - name: Clean up bundle for non-segmented build
-        if: matrix.segmented == false
+      # Only publish segmented builds from non-PR runs through the runner hook.
+      - name: Clean up unpublished bundle
+        if: always() && (matrix.segmented == false || github.event_name == 'pull_request')
         run: rm -rf manifest-bundle
 
   open-pr:
+    if: github.event_name != 'pull_request'
     needs: build-bitstream
     runs-on: ubuntu-latest
     permissions:
@@ -108,32 +141,36 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #v5
         with:
-          submodules: 'recursive'
+          ref: ${{ inputs.ref }}
 
       - name: Download updated manifest from GCS
         run: |
-          URL="https://storage.googleapis.com/caliptra-github-ci-bitstreams/v1/${{ github.sha }}/manifest.toml"
+          SOURCE_COMMIT=$(git rev-parse HEAD)
+          URL="https://storage.googleapis.com/caliptra-github-ci-bitstreams/v1/$SOURCE_COMMIT/manifest.toml"
           TARGET_PATH="hw/fpga/bitstream_manifests/core.toml"
+          DOWNLOADED_MANIFEST=$(mktemp)
+          trap 'rm -f "$DOWNLOADED_MANIFEST"' EXIT
           echo "Downloading manifest from $URL to $TARGET_PATH"
-          
-          # Retry for up to 5 minutes (30 * 10s)
+          echo "MANIFEST_URL=$URL" >> "$GITHUB_ENV"
+
           for i in {1..30}; do
-            if curl -s -f -o "$TARGET_PATH" "$URL"; then
+            if curl --silent --show-error --fail --max-time 30 -o "$DOWNLOADED_MANIFEST" "$URL"; then
+              cp "$DOWNLOADED_MANIFEST" "$TARGET_PATH"
               echo "Successfully downloaded manifest!"
-              break
+              exit 0
             fi
             echo "Waiting for manifest to be uploaded... (attempt $i)"
-            sleep 10
+            if [ "$i" -lt 30 ]; then
+              sleep 10
+            fi
           done
-          
-          if [ ! -f "$TARGET_PATH" ]; then
-            echo "Error: Failed to download manifest after 5 minutes."
-            exit 1
-          fi
+
+          echo "Error: Failed to download manifest after 30 attempts."
+          exit 1
 
       - name: Commit and Push changes
         run: |
-          BRANCH_NAME="update-bitstream-${{ github.run_id }}-${{ github.run_attempt }}"
+          BRANCH_NAME="update-bitstream-${{ inputs.hw-version }}-${{ github.run_id }}-${{ github.run_attempt }}"
           git checkout -b "$BRANCH_NAME"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -141,13 +178,16 @@ jobs:
           git add hw/fpga/bitstream_manifests/core.toml
           git commit -m "Update bitstream manifest for run ${{ github.run_id }}"
           git push origin "$BRANCH_NAME"
-          echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_ENV
+          echo "BRANCH_NAME=$BRANCH_NAME" >> "$GITHUB_ENV"
 
       - name: Create Pull Request
         env:
           GH_TOKEN: ${{ github.token }}
+          TARGET_BRANCH: ${{ inputs.target-branch }}
+          HW_VERSION: ${{ inputs.hw-version }}
         run: |
           gh pr create \
-            --title "Update bitstream manifest: Run ${{ github.run_id }}" \
-            --body "Automated update for run ${{ github.run_id }}. [GCS Manifest](https://storage.googleapis.com/caliptra-github-ci-bitstreams/v1/${{ github.sha }}/manifest.toml)" \
-            --head "${{ env.BRANCH_NAME }}" \
+            --title "Update HW $HW_VERSION core bitstream manifest: Run ${{ github.run_id }}" \
+            --body "Automated update for run ${{ github.run_id }}. [GCS Manifest]($MANIFEST_URL)" \
+            --base "$TARGET_BRANCH" \
+            --head "$BRANCH_NAME"

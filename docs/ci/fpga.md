@@ -2,6 +2,63 @@
 
 The Caliptra CI infrastructure utilizes FPGA emulation to verify hardware and firmware interactions on real hardware. This process involves building a bootable SD card image for the FPGA and then running specific test suites on it.
 
+## Building 2.2 Bitstreams
+
+Core bitstream production uses two workflows:
+
+- `.github/workflows/bitstream-build_2.2.yml` is the 2.2 entry point. It runs on
+  relevant pull requests targeting and pushes to `caliptra-2.2-dev`, and supports
+  manual dispatch.
+- `.github/workflows/bitstream-build.yml` is the reusable builder. The caller
+  explicitly supplies the hardware version, source commit, RTL directory
+  selector, and manifest-update target branch. The 2.2 caller selects `hw/latest`
+  from the pinned source commit; `latest` is a directory selector, not a hardware
+  version.
+
+After the workflow is available on GitHub, dispatch a core build with:
+
+```sh
+gh workflow run bitstream-build_2.2.yml \
+  --repo chipsalliance/caliptra-sw --ref caliptra-2.2-dev
+```
+
+Manual dispatch requires the entry workflow to be registered on the repository's
+default branch as well. The push trigger can build changes merged into
+`caliptra-2.2-dev` without that registration.
+
+The builder produces standard and segmented artifacts with `2.2` in their names.
+The segmented build must contain a runtime PDI. Its manifest records the actual
+checked-out source commit, subsystem RTL commit, hardware version, and target
+branch. On non-PR runs, only the segmented bundle is left for the builder runner's
+post-job hook to publish to GCS at `v1/<source-commit>/manifest.toml`. Uploading a
+GitHub Actions artifact alone does not publish it to GCS.
+
+PR runs build the merge revision and upload the standard and segmented GitHub
+artifacts for pre-merge validation. Both bundles are removed from the checkout
+after artifact upload, including on failure, so they are not left for the
+publication hook. The manifest-update job is skipped for PR events. Maintainers
+must verify the runner hook honors this bundle-removal contract and require
+approval before running fork PR code on the self-hosted builder; a read-only
+workflow token does not isolate persistent runner credentials or state.
+
+On non-PR runs, once the published manifest is available, the workflow opens a PR against
+`caliptra-2.2-dev` updating `hw/fpga/bitstream_manifests/core.toml`. If publication
+does not complete within 30 download attempts, the job fails without replacing
+the existing manifest or opening a PR. The GitHub Actions configuration must
+allow the workflow token to create pull requests.
+
+Subsystem bitstreams are built in `chipsalliance/caliptra-mcu-sw` by
+`.github/workflows/bitstream-build_2.2.yml` on `caliptra-mcu-dev-2.2`. Use its
+generated segmented manifest for a subsequent subsystem manifest-update PR;
+there is no second subsystem builder in this repository.
+
+This builder setup does not migrate FPGA tests to 2.2. Before adopting the
+generated manifests, verify their published URLs and hashes, select a compatible
+MCU firmware commit from `caliptra-mcu-dev-2.2`, update the MCU ancestry check and
+FPGA hardware-selection logic, and verify runner boot-image compatibility.
+Validate both core and subsystem FPGA tests before enabling the 2.2 nightly FPGA
+jobs. Do not relabel an existing 2.1 manifest as 2.2.
+
 ## 1. Building the FPGA Image
 
 The FPGA image creation is handled by the workflow defined in `.github/workflows/fpga-image.yml`. This workflow produces the necessary artifacts to boot the Xilinx VCK190 evaluation kit.

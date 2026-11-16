@@ -1,0 +1,37 @@
+# Licensed under the Apache-2.0 license
+
+name: Core FPGA Bitstream build 2.2
+
+on:
+  pull_request:
+    branches:
+      - caliptra-2.2-dev
+    paths:
+      - ".github/workflows/bitstream-build.yml"
+      - ".github/workflows/bitstream-build_2.2.yml"
+      - "hw/fpga/**"
+      - "hw/latest/**"
+  push:
+    branches:
+      - caliptra-2.2-dev
+    paths:
+      - ".github/workflows/bitstream-build.yml"
+      - ".github/workflows/bitstream-build_2.2.yml"
+      - "hw/fpga/**"
+      - "hw/latest/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-bitstream:
+    permissions:
+      contents: write
+      pull-requests: write
+    uses: ./.github/workflows/bitstream-build.yml
+    with:
+      hw-version: "2.2"
+      ref: ${{ github.sha }}
+      rtl-version: latest
+      target-branch: caliptra-2.2-dev

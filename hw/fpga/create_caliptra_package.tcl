@@ -30,10 +30,6 @@ add_files [ glob $rtlDir/src/*/rtl/caliptra_reg/*.svh ]
 add_files [ glob $rtlDir/src/*/rtl/*.sv ]
 add_files [ glob $rtlDir/src/*/rtl/*.v ]
 
-# Remove spi_host files that aren't used yet and are flagged as having syntax errors
-# TODO: Re-include these files when spi_host is used.
-remove_files [ glob $rtlDir/src/spi_host/rtl/*.sv ]
-
 # Add FPGA specific sources
 add_files [ glob $fpgaDir/src/*.sv]
 add_files [ glob $fpgaDir/src/*.v]
@@ -72,6 +68,23 @@ close_bd_design [get_bd_designs caliptra_package_bd]
 puts "Fileset when packaging: [current_fileset]"
 puts "\n\nVERILOG DEFINES: [get_property verilog_define [current_fileset]]"
 ipx::package_project -root_dir $caliptrapackageDir -vendor design -library user -taxonomy /UserIP -import_files
+
+# IP import flattens sources, but VEER includes lib/el2_assert.sv by relative path.
+set rtlFileGroups [concat \
+    [ipx::get_file_groups xilinx_anylanguagesynthesis* -of_objects [ipx::current_core]] \
+    [ipx::get_file_groups xilinx_anylanguagebehavioralsimulation* -of_objects [ipx::current_core]]]
+if {[llength $rtlFileGroups] != 2} {
+    error "Expected synthesis and simulation file groups in the packaged Caliptra IP"
+}
+set assertPath src/lib/el2_assert.sv
+file mkdir [file dirname $caliptrapackageDir/$assertPath]
+file copy -force $rtlDir/src/riscv_core/veer_el2/rtl/lib/el2_assert.sv $caliptrapackageDir/$assertPath
+foreach group $rtlFileGroups {
+    set header [ipx::add_file $assertPath $group]
+    set_property type systemVerilogSource $header
+    set_property is_include true $header
+}
+
 # Infer interfaces
 ipx::infer_bus_interfaces xilinx.com:interface:bram_rtl:1.0 [ipx::current_core]
 ipx::add_bus_parameter MASTER_TYPE [ipx::get_bus_interfaces rom_backdoor -of_objects [ipx::current_core]]
