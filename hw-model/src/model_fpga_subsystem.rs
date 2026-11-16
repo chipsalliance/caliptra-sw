@@ -152,6 +152,8 @@ const FPGA_MEMORY_MAP: McuMemoryMap = McuMemoryMap {
 
 // Set to core_clk cycles per ITRNG sample.
 const ITRNG_DIVISOR: u32 = 400;
+// At least 32 core clocks are required: 1 us is too short at VCK190's ~18 MHz.
+const FPGA_WARM_RESET_HOLD_TIME: Duration = Duration::from_micros(10);
 const DEFAULT_AXI_PAUSER: u32 = 0x1;
 // we split the OTP memory into two parts: the OTP half and a simulated flash half.
 const OTP_FULL_SIZE: usize = 16384;
@@ -166,6 +168,17 @@ const I3C_CLK_HZ: u32 = 12_500_000;
 // ITRNG FIFO stores 1024 DW and outputs 4 bits at a time to Caliptra.
 const FPGA_ITRNG_FIFO_SIZE: usize = 1024;
 const I3C_WRITE_FIFO_SIZE: u16 = 128;
+
+#[cfg(test)]
+mod warm_reset_timing_tests {
+    use super::FPGA_WARM_RESET_HOLD_TIME;
+
+    #[test]
+    fn reset_hold_covers_32_core_clocks() {
+        const CORE_HZ: u128 = 17_910_431;
+        assert!(FPGA_WARM_RESET_HOLD_TIME.as_nanos() * CORE_HZ >= 32 * 1_000_000_000);
+    }
+}
 
 pub struct Wrapper {
     pub ptr: *mut u32,
@@ -938,8 +951,10 @@ impl ModelFpgaSubsystem {
                     .read()
                     .dev_status();
 
-                if status != 3 && self.bmc_step_counter % 65536 == 0 {
-                    println!("Waiting for device status to be 3, currently: {}", status);
+                if status != 3 {
+                    if self.bmc_step_counter % 65536 == 0 {
+                        println!("Waiting for device status to be 3, currently: {}", status);
+                    }
                     return;
                 }
 
@@ -2496,7 +2511,9 @@ impl HwModel for ModelFpgaSubsystem {
 
             // Toggle reset pin
             self.set_cptra_ss_rst_b(false);
-            std::thread::sleep(std::time::Duration::from_micros(1));
+            // Flush the assertion before starting the minimum reset hold.
+            assert!(!wrapper.regs().control.is_set(Control::CptraSsRstB));
+            std::thread::sleep(FPGA_WARM_RESET_HOLD_TIME);
             self.set_cptra_ss_rst_b(true);
         }
 
