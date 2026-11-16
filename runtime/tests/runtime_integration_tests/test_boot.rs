@@ -5,8 +5,9 @@ use caliptra_builder::{
     ImageOptions,
 };
 use caliptra_common::mailbox_api::{CommandId, MailboxReq, MailboxReqHeader, StashMeasurementReq};
+use caliptra_error::CaliptraError;
 use caliptra_hw_model::{
-    BootParams, Fuses, HwModel, InitParams, SecurityState, SubsystemInitParams,
+    BootParams, Fuses, HwModel, InitParams, ModelError, SecurityState, SubsystemInitParams,
 };
 use caliptra_runtime::RtBootStatus;
 use sha2::{Digest, Sha384};
@@ -245,6 +246,9 @@ fn test_measurement_in_measurement_log_added_to_dpe() {
             },
         )
         .unwrap();
+        let stash_measurement_registers_enabled =
+            caliptra_builder::default_features(model.hw_revision(), "caliptra-rom")
+                .contains(&"caliptra-rom/stash-measurement-registers");
 
         let image_bundle = caliptra_builder::build_and_sign_image(
             &FMC_WITH_UART,
@@ -264,9 +268,17 @@ fn test_measurement_in_measurement_log_added_to_dpe() {
         });
         measurement_log_entry.populate_chksum().unwrap();
 
-        model
-            .upload_measurement(measurement_log_entry.as_bytes().unwrap())
-            .unwrap();
+        let result = model.upload_measurement(measurement_log_entry.as_bytes().unwrap());
+
+        if stash_measurement_registers_enabled {
+            assert_eq!(
+                result,
+                Err(ModelError::MailboxCmdFailed(
+                    CaliptraError::FW_PROC_MAILBOX_INVALID_COMMAND.into()
+                ))
+            );
+            break;
+        }
 
         crate::common::test_upload_firmware(
             &mut model,

@@ -459,6 +459,7 @@ int rom_test_all_commands(const test_info *info)
 
     // NOTE: Response structs are uninitialized to confirm libcaliptra handles this properly
     // STASH_MEASUREMENT
+#ifndef STASH_MEASUREMENT_REGISTERS
     struct caliptra_stash_measurement_req stash_req = {};
     struct caliptra_stash_measurement_resp stash_resp;
 
@@ -474,6 +475,7 @@ int rom_test_all_commands(const test_info *info)
     {
         printf("Stash Measurement: OK\n");
     }
+#endif
 
     // CAPABILITIES
     struct caliptra_capabilities_resp cap_resp;

@@ -41,6 +41,10 @@ endif
 
 export RTL_SOC_IFC_INCLUDE_PATH
 
+ifneq ($(filter latest 2.2,$(CALIPTRA_HW_REV)),)
+DEFINES += -DSTASH_MEASUREMENT_REGISTERS
+endif
+
 # HW MODEL
 HWMODEL_DIR = $(OUTPUT_DIR)
 HWMODEL_HEADER_DIR = ../../../hw-model/c-binding/out
