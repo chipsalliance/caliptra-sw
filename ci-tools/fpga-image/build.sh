@@ -11,12 +11,15 @@ mkdir -p out
 
 cp ${KERNEL_ARCHIVE} out/system-boot.tar.gz
 cp ${KERNEL_MODULE_ARCHIVE}  out/io-module.ko
+if [[ -n "${USB_HCD_MODULE_ARCHIVE}" && -f "${USB_HCD_MODULE_ARCHIVE}" ]]; then
+  cp "${USB_HCD_MODULE_ARCHIVE}" out/caliptra_fpga_hcd.ko
+fi
 
 # Build the rootfs
 if [[ -z "${SKIP_DEBOOTSTRAP}" ]]; then
   (rm -rf out/rootfs || true)
   mkdir -p out/rootfs
-  PACKAGES="git,curl,ca-certificates,locales,libicu72,sudo,vmtouch,fping,rdnssd,dbus,systemd-timesyncd,libboost-regex1.74.0,openocd,gdb-multiarch,macchanger"
+  PACKAGES="git,curl,ca-certificates,locales,libicu72,sudo,vmtouch,fping,rdnssd,dbus,systemd-timesyncd,libboost-regex1.74.0,openocd,gdb-multiarch,macchanger,libusb-1.0-0,usbutils"
   if [[ "$BUILD_DEV_IMAGE" == "true" ]]; then
     PACKAGES="$PACKAGES,ssh,tmux,cloud-guest-utils"
   fi
@@ -145,6 +148,9 @@ cp startup-script.service out/rootfs/etc/systemd/system/
 chroot out/rootfs systemctl enable startup-script.service
 
 cp out/io-module.ko out/rootfs/home/runner/io-module.ko
+if [[ -f "out/caliptra_fpga_hcd.ko" ]]; then
+  cp out/caliptra_fpga_hcd.ko out/rootfs/home/runner/caliptra_fpga_hcd.ko
+fi
 
 
 CURRDATE=`date`
@@ -161,6 +167,10 @@ chroot out/rootfs bash -c "echo \"Workflow branch : ${LOCAL_GH_HEAD_REF}\" >> /e
 chroot out/rootfs bash -c "echo \"Workflow build commit : ${LOCAL_GH_WORKFLOW_SHA}\" >> /etc/caliptra-build-info"
 HASH=`md5sum out/io-module.ko | awk '{print $1}'`
 chroot out/rootfs bash -c "echo \"Hash io-module.ko : ${HASH}\" >> /etc/caliptra-build-info"
+if [[ -f "out/caliptra_fpga_hcd.ko" ]]; then
+  HASH=`md5sum out/caliptra_fpga_hcd.ko | awk '{print $1}'`
+  chroot out/rootfs bash -c "echo \"Hash caliptra_fpga_hcd.ko : ${HASH}\" >> /etc/caliptra-build-info"
+fi
 HASH=`md5sum out/system-boot.tar.gz | awk '{print $1}'`
 chroot out/rootfs bash -c "echo \"Hash system-boot.tar.gz : ${HASH}\" >> /etc/caliptra-build-info"
 

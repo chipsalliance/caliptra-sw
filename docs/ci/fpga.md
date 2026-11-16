@@ -39,8 +39,8 @@ This workflow runs on a schedule (Tuesday/Thursday) or when changes are made to 
     1.  **Downloads the Bitstream:** Fetches the specific `.xsa` (Xilinx Support Archive) file (either `core` or `subsystem` variant) from a Google Cloud Storage bucket.
     2.  **Verifies Hash:** Ensures the downloaded bitstream matches the expected SHA256 hash.
     3.  **Builds Kernel:** Uses Petalinux tools (mounted from a pre-configured volume) to build the kernel (`BOOT.BIN`, `Image`, `image.ub`, etc.).
-    4.  **Compiles Modules:** Builds the custom `io-module` kernel driver.
-    5.  **Artifacts:** Uploads the kernel tarball (`vck190-kernel-*.tar.gz`) and the kernel module (`io-module-*.ko`) as artifacts.
+    4.  **Compiles Modules:** Builds the custom `io-module` (UIO) and `caliptra-fpga-hcd` (in-fabric USB 2.0 Host Controller Driver) kernel modules.
+    5.  **Artifacts:** Uploads the kernel tarball (`vck190-kernel-*.tar.gz`) and the kernel modules (`io-module-*.ko`, `caliptra_fpga_hcd-*.ko`) as artifacts.
 
 #### **Job: `build_sd_image`**
 - **Purpose:** Packages the kernel and a Debian-based root filesystem into a bootable SD card image (`.img`).

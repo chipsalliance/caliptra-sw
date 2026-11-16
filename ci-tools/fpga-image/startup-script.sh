@@ -6,7 +6,9 @@
 # connect to this UART (via on-board FTDI chip) and send commands.
 
 
-# Load the IO module if it exists
+# Load the IO module if it exists. Note: caliptra_fpga_hcd.ko (/home/runner/caliptra_fpga_hcd.ko)
+# is intentionally NOT loaded at boot because it polls 0xA401_4000 and must only be active
+# while a USB-enabled segmented bitstream is programmed and not undergoing AXI reset.
 if [[ -f "/home/runner/io-module.ko" ]]; then
     echo "Installing io-module.ko..."
     insmod /home/runner/io-module.ko
