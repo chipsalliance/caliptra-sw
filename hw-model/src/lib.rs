@@ -1859,7 +1859,10 @@ mod tests {
     use caliptra_builder::firmware;
     use caliptra_emu_bus::Bus;
     use caliptra_emu_types::RvSize;
-    use caliptra_registers::{mbox::enums::MboxStatusE, soc_ifc};
+    use caliptra_registers::{
+        mbox::enums::{MboxFsmE, MboxStatusE},
+        soc_ifc,
+    };
     use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
 
     use crate as caliptra_hw_model;
@@ -2326,6 +2329,33 @@ mod tests {
         .unwrap()
     }
 
+    /// Current mailbox FSM state. Steps once first because the model does not
+    /// reflect a just-written `execute` in `mbox_fsm_ps` immediately.
+    fn mbox_fsm_ps(model: &mut DefaultHwModel) -> MboxFsmE {
+        model.step();
+        model.soc_mbox().status().read().mbox_fsm_ps()
+    }
+
+    /// Clearing `execute` must not hand the lock back before Caliptra has
+    /// responded: the FSM is not idle and the lock is still held by us.
+    ///
+    /// Before the command has been fully written the RTL treats a write to
+    /// `execute` as a protocol error and parks the FSM in MBOX_ERROR. The SW
+    /// emulator does not model that and just ignores the write, so the
+    /// MBOX_ERROR check only applies to the verilated model.
+    fn assert_unlock_mailbox_keeps_lock(model: &mut DefaultHwModel) {
+        use caliptra_api::CaliptraApiError;
+        model.unlock_mailbox();
+        assert!(!mbox_fsm_ps(model).mbox_idle());
+        if cfg!(feature = "verilator") {
+            assert!(mbox_fsm_ps(model).mbox_error());
+        }
+        assert_eq!(
+            model.lock_mailbox(),
+            Err(CaliptraApiError::UnableToLockMailbox)
+        );
+    }
+
     #[test]
     /// An oversized request must be rejected without leaking the mailbox lock.
     fn test_soc_mgr_mbox_oversized_buf_does_not_leak_lock() {
@@ -2355,6 +2385,100 @@ mod tests {
         let max = vec![0u8; <DefaultHwModel as SocManager>::MAILBOX_SIZE_LIMIT];
         assert_eq!(
             model.mailbox_exec(0x2000_0000, &max, &mut resp_data),
+            Ok(None)
+        );
+    }
+
+    #[test]
+    /// `lock_mailbox` takes the lock once; a second attempt reports it busy.
+    fn test_soc_mgr_lock_mailbox_busy() {
+        use caliptra_api::CaliptraApiError;
+        let mut model = new_mailbox_responder_model();
+
+        assert_eq!(model.lock_mailbox(), Ok(()));
+        assert!(mbox_fsm_ps(&mut model).mbox_rdy_for_cmd());
+
+        assert_eq!(
+            model.lock_mailbox(),
+            Err(CaliptraApiError::UnableToLockMailbox)
+        );
+        assert!(mbox_fsm_ps(&mut model).mbox_rdy_for_cmd());
+    }
+
+    #[test]
+    /// The SoC cannot abort a request it has locked but not yet executed: in
+    /// RDY_FOR_CMD the lock is not released (and the RTL goes to MBOX_ERROR).
+    fn test_soc_mgr_unlock_mailbox_after_lock_keeps_lock() {
+        let mut model = new_mailbox_responder_model();
+        model.lock_mailbox().unwrap();
+        assert_unlock_mailbox_keeps_lock(&mut model);
+    }
+
+    #[test]
+    /// Same as above once the command has been written (RDY_FOR_DLEN).
+    fn test_soc_mgr_unlock_mailbox_after_cmd_keeps_lock() {
+        let mut model = new_mailbox_responder_model();
+        model.lock_mailbox().unwrap();
+        model.soc_mbox().cmd().write(|_| 0x2000_0000);
+        assert!(mbox_fsm_ps(&mut model).mbox_rdy_for_dlen());
+        assert_unlock_mailbox_keeps_lock(&mut model);
+    }
+
+    #[test]
+    /// During the data phase (RDY_FOR_DATA) clearing `execute` is accepted but
+    /// there is no transition back to idle: the lock stays held, the request is
+    /// undisturbed, and it can still be completed.
+    fn test_soc_mgr_unlock_mailbox_in_data_phase_is_noop() {
+        use caliptra_api::CaliptraApiError;
+        let mut model = new_mailbox_responder_model();
+        model.lock_mailbox().unwrap();
+        model.soc_mbox().cmd().write(|_| 0x2000_0000);
+        model.soc_mbox().dlen().write(|_| 8);
+        model.soc_mbox().datain().write(|_| 0x1122_3344);
+        assert!(mbox_fsm_ps(&mut model).mbox_rdy_for_data());
+
+        model.unlock_mailbox();
+        assert!(mbox_fsm_ps(&mut model).mbox_rdy_for_data());
+        assert_eq!(
+            model.lock_mailbox(),
+            Err(CaliptraApiError::UnableToLockMailbox)
+        );
+
+        // The request was not aborted: send the rest of it and execute.
+        model.soc_mbox().datain().write(|_| 0x5566_7788);
+        model.soc_mbox().execute().write(|w| w.execute(true));
+        let mut resp_data = [0u8; 128];
+        assert_eq!(model.finish_mailbox_exec(&mut resp_data), Ok(None));
+
+        // ...and the mailbox is usable again afterwards.
+        assert_eq!(
+            model.mailbox_exec(0x2000_0000, &[], &mut resp_data),
+            Ok(None)
+        );
+    }
+
+    #[test]
+    /// Once Caliptra has responded (MBOX_EXECUTE_SOC) clearing `execute`
+    /// releases the mailbox. `is_mailbox_busy` only tests for the CMD_BUSY
+    /// status, which is also the reset value, so it is true whenever no
+    /// response is pending (including idle), not only while Caliptra executes.
+    fn test_soc_mgr_unlock_mailbox_after_response_releases() {
+        let mut model = new_mailbox_responder_model();
+        assert!(mbox_fsm_ps(&mut model).mbox_idle());
+        assert!(model.is_mailbox_busy());
+
+        model.start_mailbox_exec(0x2000_0000, &[]).unwrap();
+        model.step_until_or_timeout("mailbox response", 1_000_000, |m| !m.is_mailbox_busy());
+        assert!(mbox_fsm_ps(&mut model).mbox_execute_soc());
+
+        model.unlock_mailbox();
+        assert!(mbox_fsm_ps(&mut model).mbox_idle());
+        assert!(model.is_mailbox_busy());
+
+        // The lock is free again.
+        let mut resp_data = [0u8; 128];
+        assert_eq!(
+            model.mailbox_exec(0x2000_0000, &[], &mut resp_data),
             Ok(None)
         );
     }
