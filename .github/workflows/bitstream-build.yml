@@ -1,6 +1,6 @@
 # Licensed under the Apache-2.0 license
 
-name: Reusable Core FPGA Bitstream build
+name: FPGA Bitstream build
 
 on:
   workflow_call:
