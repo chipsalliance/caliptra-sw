@@ -30,10 +30,6 @@ add_files [ glob $rtlDir/src/*/rtl/caliptra_reg/*.svh ]
 add_files [ glob $rtlDir/src/*/rtl/*.sv ]
 add_files [ glob $rtlDir/src/*/rtl/*.v ]
 
-# Remove spi_host files that aren't used yet and are flagged as having syntax errors
-# TODO: Re-include these files when spi_host is used.
-remove_files [ glob $rtlDir/src/spi_host/rtl/*.sv ]
-
 # Add FPGA specific sources
 add_files [ glob $fpgaDir/src/*.sv]
 add_files [ glob $fpgaDir/src/*.v]
