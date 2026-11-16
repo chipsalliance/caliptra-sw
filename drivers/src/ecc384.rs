@@ -392,8 +392,11 @@ impl Ecc384 {
         match &mut priv_key {
             Ecc384PrivKeyOut::Array4x12(arr) => KvAccess::end_copy_to_arr(ecc.privkey_out(), arr)?,
             Ecc384PrivKeyOut::Key(key) => {
-                KvAccess::end_copy_to_kv(ecc.kv_wr_pkey_status(), *key)
-                    .map_err(|err| err.into_write_priv_key_err())?;
+                KvAccess::end_copy_to_kv(ecc.kv_wr_pkey_status(), *key).map_err(|err| {
+                    // The operation completed, so the engine stays busy until zeroized.
+                    ecc.ctrl().write(|w| w.zeroize(true));
+                    err.into_write_priv_key_err()
+                })?;
             }
         }
 
@@ -401,6 +404,8 @@ impl Ecc384 {
             x: Array4x12::read_from_reg(ecc.pubkey_x()),
             y: Array4x12::read_from_reg(ecc.pubkey_y()),
         };
+
+        self.zeroize_internal();
 
         // Pairwise consistency check.
         #[cfg(feature = "fips-test-hooks")]
@@ -473,10 +478,12 @@ impl Ecc384 {
             ecc.ctrl().write(|w| w.ctrl(|w| w.keygen()));
             Ecc384::wait(ecc, || ecc.status().read().valid())?;
             KvAccess::end_copy_to_arr(ecc.privkey_out(), &mut eph_priv_key)?;
-            Ecc384PubKey {
+            let pub_key = Ecc384PubKey {
                 x: Array4x12::read_from_reg(ecc.pubkey_x()),
                 y: Array4x12::read_from_reg(ecc.pubkey_y()),
-            }
+            };
+            ecc.ctrl().write(|w| w.zeroize(true));
+            pub_key
         };
 
         #[cfg(feature = "fips-test-hooks")]
@@ -750,11 +757,8 @@ impl Ecc384 {
         // Program the command register
         ecc.ctrl().write(|w| w.ctrl(|w| w.verifying()));
 
-        // VERIFY_PASS is gated by READY in addition to operation completion.
-        Ecc384::wait(ecc, || {
-            let status = ecc.status().read();
-            status.valid() && status.ready()
-        })?;
+        // READY stays low after completion until zeroize, so wait for VALID.
+        Ecc384::wait(ecc, || ecc.status().read().valid())?;
 
         // Capture both outputs before zeroize clears the hardware verdict.
         let verify_pass = ecc.status().read().verify_pass();
@@ -860,8 +864,11 @@ impl Ecc384 {
                 KvAccess::end_copy_to_arr(ecc.dh_shared_key(), arr)?
             }
             Ecc384PrivKeyOut::Key(key) => {
-                KvAccess::end_copy_to_kv(ecc.kv_wr_pkey_status(), *key)
-                    .map_err(|err| err.into_write_priv_key_err())?;
+                KvAccess::end_copy_to_kv(ecc.kv_wr_pkey_status(), *key).map_err(|err| {
+                    // The operation completed, so the engine stays busy until zeroized.
+                    ecc.ctrl().write(|w| w.zeroize(true));
+                    err.into_write_priv_key_err()
+                })?;
             }
         }
 
