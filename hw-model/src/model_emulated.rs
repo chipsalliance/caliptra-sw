@@ -29,7 +29,7 @@ use caliptra_emu_periph::{
     CaliptraRootBus, CaliptraRootBusArgs, MailboxRequester, SocToCaliptraBus, TbServicesCb,
 };
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
-use caliptra_hw_model_types::ErrorInjectionMode;
+use caliptra_hw_model_types::{CaliptraHwVersion, ErrorInjectionMode};
 use caliptra_image_types::IMAGE_MANIFEST_BYTE_SIZE;
 use caliptra_registers::i3ccsr::regs::DeviceStatus0ReadVal;
 use tock_registers::interfaces::{ReadWriteable, Readable};
@@ -118,6 +118,8 @@ pub struct ModelEmulated {
     // this one feature to prevent compiler errors when using other models.
     #[allow(dead_code)]
     rom_callback: Option<ModelCallback>,
+
+    hw_revision: CaliptraHwVersion,
 }
 
 impl Drop for ModelEmulated {
@@ -409,6 +411,7 @@ impl HwModel for ModelEmulated {
             collected_events_from_caliptra: vec![],
             mci: mci_regs,
             rom_callback: params.rom_callback,
+            hw_revision: params.hw_version,
         };
         // Turn tracing on if the trace path was set
         m.tracing_hint(true);
@@ -708,5 +711,9 @@ impl HwModel for ModelEmulated {
         } else {
             None
         }
+    }
+
+    fn hw_revision(&self) -> CaliptraHwVersion {
+        self.hw_revision
     }
 }

@@ -1834,6 +1834,9 @@ pub trait HwModel: SocManager {
     fn mci(&mut self) -> caliptra_registers::mci::RegisterBlock<Self::TMmio<'_>> {
         panic!("mci unimplemented");
     }
+
+    /// Get the RTL revision this model targets
+    fn hw_revision(&self) -> CaliptraHwVersion;
 }
 
 #[cfg(test)]

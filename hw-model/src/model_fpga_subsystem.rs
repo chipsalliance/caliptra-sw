@@ -26,7 +26,9 @@ use anyhow::Result;
 use caliptra_api::SocManager;
 use caliptra_emu_bus::{Bus, BusError, BusMmio, Device, Event, EventData, RecoveryCommandCode};
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
-use caliptra_hw_model_types::{HexSlice, DEFAULT_FIELD_ENTROPY, DEFAULT_UDS_SEED};
+use caliptra_hw_model_types::{
+    CaliptraHwVersion, HexSlice, DEFAULT_FIELD_ENTROPY, DEFAULT_UDS_SEED,
+};
 use caliptra_image_types::FwVerificationPqcKeyType;
 use sensitive_mmio::{SensitiveMmio, SensitiveMmioArgs};
 use std::io::Write;
@@ -493,6 +495,7 @@ pub struct ModelFpgaSubsystem {
     saved_security_state: SecurityState,
     saved_lc_state: Option<LifecycleControllerState>,
     saved_use_strap_secrets: bool,
+    saved_hw_revision: CaliptraHwVersion,
 }
 
 impl ModelFpgaSubsystem {
@@ -2083,6 +2086,7 @@ impl HwModel for ModelFpgaSubsystem {
             saved_security_state: params.security_state,
             saved_lc_state: params.ss_init_params.lc_state,
             saved_use_strap_secrets: params.ss_init_params.use_strap_secrets,
+            saved_hw_revision: params.hw_version,
         };
 
         if m.flash_boot && m.use_external_i3c_host {
@@ -2791,6 +2795,10 @@ impl HwModel for ModelFpgaSubsystem {
     fn boot_complete_mcu(&mut self) -> bool {
         self.mci_boot_milestones()
             .contains(McuBootMilestones::FIRMWARE_BOOT_FLOW_COMPLETE)
+    }
+
+    fn hw_revision(&self) -> CaliptraHwVersion {
+        self.saved_hw_revision
     }
 }
 

@@ -10,7 +10,7 @@ use caliptra_emu_bus::Bus;
 use caliptra_emu_bus::BusMmio;
 use caliptra_emu_bus::Event;
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
-use caliptra_hw_model_types::ErrorInjectionMode;
+use caliptra_hw_model_types::{CaliptraHwVersion, ErrorInjectionMode};
 use caliptra_verilated::CaliptraVerilated;
 use std::cell::{Cell, RefCell};
 use std::ffi::OsStr;
@@ -93,6 +93,7 @@ pub struct ModelVerilated {
     log: Rc<RefCell<BusLogger<NullBus>>>,
 
     soc_axi_user: u32,
+    hw_revision: CaliptraHwVersion,
 }
 
 impl ModelVerilated {
@@ -204,6 +205,7 @@ impl HwModel for ModelVerilated {
             log,
 
             soc_axi_user: DEFAULT_AXI_USER,
+            hw_revision: params.hw_version,
         };
 
         m.tracing_hint(true);
@@ -354,6 +356,10 @@ impl HwModel for ModelVerilated {
 
     fn set_fuses(&mut self, fuses: Fuses) {
         self.fuses = fuses;
+    }
+
+    fn hw_revision(&self) -> CaliptraHwVersion {
+        self.hw_revision
     }
 }
 impl ModelVerilated {
