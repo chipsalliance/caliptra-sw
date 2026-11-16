@@ -9,7 +9,7 @@ use caliptra_drivers::{Array4x12, Array4xN, Ecc384PubKey};
 use caliptra_drivers_test_bin::DoeTestResults;
 use caliptra_hw_model::{
     BootParams, DefaultHwModel, DeviceLifecycle, HwModel, InitParams, ModelError, SecurityState,
-    TrngMode,
+    TrngMode, GENERIC_INPUT_EXTERNAL_DIRECT,
 };
 use caliptra_hw_model_types::EtrngResponse;
 use caliptra_registers::mbox::enums::MboxStatusE;
@@ -22,7 +22,7 @@ use caliptra_test::{
     derive::{DoeInput, DoeOutput},
 };
 use openssl::{hash::MessageDigest, pkey::PKey};
-use ureg::{MmioMut, ResettableReg};
+use ureg::ResettableReg;
 use zerocopy::{FromBytes, IntoBytes};
 
 fn default_init_params() -> InitParams<'static> {
@@ -1054,15 +1054,7 @@ fn test_trng_in_itrng_mode() {
     );
 }
 
-#[test]
-#[cfg_attr(
-    all(
-        any(feature = "verilator", feature = "fpga_realtime"),
-        feature = "itrng"
-    ),
-    ignore
-)]
-fn test_trng_in_etrng_mode() {
+fn run_etrng_test(trng_mode: TrngMode, external_direct: bool) {
     let block0: [u32; 12] = [
         0x65b11c74, 0xd4bd4965, 0x5031ec6a, 0x2deaad1e, 0xc0c5508f, 0xe7258dc9, 0xa0af9e7f,
         0x43e173f0, 0xc614d147, 0x3a31be1b, 0x91227cd7, 0xfe61ed6c,
@@ -1092,7 +1084,15 @@ fn test_trng_in_etrng_mode() {
                 ]
                 .into_iter(),
             ),
-            trng_mode: Some(TrngMode::External),
+            trng_mode: Some(trng_mode),
+            generic_input_wires: [
+                if external_direct {
+                    GENERIC_INPUT_EXTERNAL_DIRECT
+                } else {
+                    0
+                },
+                0,
+            ],
             ..default_init_params()
         },
         BootParams::default(),
@@ -1107,47 +1107,27 @@ fn test_trng_in_etrng_mode() {
 }
 
 #[test]
-#[cfg_attr(any(feature = "verilator", feature = "fpga_realtime"), ignore)]
-fn test_trng_in_external_direct_mode() {
-    let rom = caliptra_builder::build_firmware_rom(&firmware::driver_tests::TRNG_DRIVER_RESPONDER)
-        .unwrap();
-    let block0: [u32; 12] = [
-        0x01020304, 0x11121314, 0x21222324, 0x31323334, 0x41424344, 0x51525354, 0x61626364,
-        0x71727374, 0x81828384, 0x91929394, 0xa1a2a3a4, 0xb1b2b3b4,
-    ];
-    let block1 = block0.map(|word| !word);
+#[cfg_attr(
+    all(
+        any(feature = "verilator", feature = "fpga_realtime"),
+        feature = "itrng"
+    ),
+    ignore
+)]
+fn test_trng_in_etrng_mode() {
+    run_etrng_test(TrngMode::External, false);
+}
 
-    for trng_mode in [TrngMode::Internal, TrngMode::External] {
-        let mut model = caliptra_hw_model::new_unbooted(InitParams {
-            rom: &rom,
-            itrng_nibbles: Box::new(iter::from_fn(|| panic!("unexpected iTRNG request"))),
-            etrng_responses: Box::new(iter::from_fn(|| panic!("unexpected eTRNG request"))),
-            trng_mode: Some(trng_mode),
-            ..default_init_params()
-        })
-        .unwrap();
-
-        // The emulator allows injection of the otherwise read-only generic input wires.
-        let generic_input = model.soc_ifc().cptra_generic_input_wires().at(0).ptr;
-        unsafe {
-            model.mmio_mut().write_volatile(generic_input, 1);
-        }
-        model.soc_ifc_trng().cptra_trng_data().write(&block0);
-        model.boot(BootParams::default()).unwrap();
-
-        for _ in 0..2 {
-            let trng_block = model.mailbox_execute(0, &[]).unwrap();
-            assert_eq!(trng_block, Some(block0.as_bytes().to_vec()));
-        }
-
-        model.soc_ifc_trng().cptra_trng_data().write(&block1);
-        let trng_block = model.mailbox_execute(0, &[]).unwrap();
-        assert_eq!(trng_block, Some(block1.as_bytes().to_vec()));
-        assert_eq!(
-            u32::from(model.soc_ifc_trng().cptra_trng_status().read()),
-            0
-        );
-    }
+#[test]
+#[cfg_attr(
+    all(
+        any(feature = "verilator", feature = "fpga_realtime"),
+        not(feature = "itrng")
+    ),
+    ignore
+)]
+fn test_trng_in_etrng_mode_external_direct() {
+    run_etrng_test(TrngMode::Internal, true);
 }
 
 #[test]

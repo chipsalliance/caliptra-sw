@@ -7,14 +7,12 @@ use caliptra_registers::{
     csrng::CsrngReg, entropy_src::EntropySrcReg, soc_ifc::SocIfcReg, soc_ifc_trng::SocIfcTrngReg,
 };
 
-use crate::{trng_ext::TrngExt, Array4x12, Csrng, MfgFlags, SocIfc};
+use crate::{soc_ifc::internal_trng, trng_ext::TrngExt, Array4x12, Csrng, MfgFlags};
 
 #[repr(u32)]
 pub enum Trng {
     Internal(Csrng) = 0xb714a2b1,
     External(TrngExt) = 0xf3702ce3,
-    /// Read preloaded external data without requesting fresh entropy.
-    ExternalDirect(SocIfcTrngReg) = 0xa9d14b6c,
     MfgMode() = 0x0c702ce3,
 
     // Teach the compiler that "other" values are possible to encourage it not
@@ -31,17 +29,13 @@ impl Trng {
         soc_ifc_trng: SocIfcTrngReg,
         soc_ifc: &SocIfcReg,
     ) -> CaliptraResult<Self> {
-        // ExternalDirect: read CPTRA_TRNG_DATA directly, bypassing entropy_src/CSRNG init.
-        if SocIfc::new(unsafe { SocIfcReg::new() }).external_direct() {
-            return Ok(Self::ExternalDirect(soc_ifc_trng));
-        }
         // If device is unlocked for debug and RNG support is unavailable, return a fake RNG.
         let flags: MfgFlags = (soc_ifc.regs().cptra_dbg_manuf_service_reg().read() & 0xffff).into();
         if !soc_ifc.regs().cptra_security_state().read().debug_locked()
             & flags.contains(MfgFlags::RNG_SUPPORT_UNAVAILABLE)
         {
             Ok(Self::MfgMode())
-        } else if soc_ifc.regs().cptra_hw_config().read().i_trng_en() {
+        } else if internal_trng(soc_ifc) {
             Ok(Self::Internal(Csrng::new(csrng, entropy_src, soc_ifc)?))
         } else {
             Ok(Self::External(TrngExt::new(soc_ifc_trng)))
@@ -59,7 +53,7 @@ impl Trng {
         soc_ifc_trng: SocIfcTrngReg,
         soc_ifc: &SocIfcReg,
     ) -> Self {
-        if soc_ifc.regs().cptra_hw_config().read().i_trng_en() {
+        if internal_trng(soc_ifc) {
             Self::Internal(Csrng::assume_initialized(csrng, entropy_src))
         } else {
             Self::External(TrngExt::new(soc_ifc_trng))
@@ -74,9 +68,6 @@ impl Trng {
         match self {
             Self::Internal(csrng) => Ok(csrng.generate12()?.into()),
             Self::External(trng_ext) => trng_ext.generate(),
-            Self::ExternalDirect(soc_ifc_trng) => Ok(Array4x12::read_from_reg(
-                soc_ifc_trng.regs().cptra_trng_data(),
-            )),
             Self::MfgMode() => {
                 unsafe {
                     let soc_ifc = SocIfcReg::new();

@@ -38,6 +38,8 @@ struct caliptra_verilated_sig_in {
   uint32_t ext_xccm_addr;
   // 4 39-bit ECC words shoved together
   uint32_t ext_xccm_wdata[5];
+
+  uint64_t generic_input_wires;
 };
 
 struct caliptra_verilated_sig_out {

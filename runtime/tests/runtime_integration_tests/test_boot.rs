@@ -5,12 +5,17 @@ use caliptra_builder::{
     ImageOptions,
 };
 use caliptra_common::{
-    mailbox_api::{CommandId, MailboxReq, MailboxReqHeader, StashMeasurementReq},
+    mailbox_api::{CommandId, MailboxReq, MailboxReqHeader, QuotePcrsReq, StashMeasurementReq},
     RomBootStatus,
 };
-use caliptra_hw_model::{BootParams, Fuses, HwModel, InitParams, SecurityState};
+use caliptra_hw_model::{
+    BootParams, Fuses, HwModel, InitParams, SecurityState, TrngMode, GENERIC_INPUT_EXTERNAL_DIRECT,
+};
 use caliptra_runtime::RtBootStatus;
 use sha2::{Digest, Sha384};
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
+use std::{iter, mem};
 use zerocopy::IntoBytes;
 
 use crate::common::{
@@ -28,6 +33,50 @@ fn test_standard() {
     let mut model = run_rt_test(RuntimeTestArgs::default());
 
     model.step_until_boot_status(RT_READY_FOR_COMMANDS, true);
+}
+
+#[test]
+#[cfg_attr(any(feature = "verilator", feature = "fpga_realtime"), ignore)]
+fn test_external_direct_trng() {
+    // With the iTRNG enabled, EXTERNAL_DIRECT makes ROM, FMC and runtime use the
+    // external TRNG. Any iTRNG use would panic in the nibble iterator.
+    let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
+    let mut init_params = InitParams {
+        rom: &rom,
+        itrng_nibbles: Box::new(iter::from_fn(|| panic!("unexpected iTRNG request"))),
+        trng_mode: Some(TrngMode::Internal),
+        generic_input_wires: [GENERIC_INPUT_EXTERNAL_DIRECT, 0],
+        ..Default::default()
+    };
+    let etrng_requests = Arc::new(AtomicUsize::new(0));
+    let counter = etrng_requests.clone();
+    init_params.etrng_responses = Box::new(
+        mem::replace(&mut init_params.etrng_responses, Box::new(iter::empty())).inspect(
+            move |_| {
+                counter.fetch_add(1, Ordering::Relaxed);
+            },
+        ),
+    );
+
+    let mut model = run_rt_test(RuntimeTestArgs {
+        init_params: Some(init_params),
+        ..Default::default()
+    });
+    model.step_until_boot_status(RT_READY_FOR_COMMANDS, true);
+    let boot_requests = etrng_requests.load(Ordering::Relaxed);
+    assert_ne!(boot_requests, 0);
+
+    // The runtime chose its TRNG when it started; signing a quote must use it.
+    let mut cmd = MailboxReq::QuotePcrs(QuotePcrsReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        nonce: [0xf5; 32],
+    });
+    cmd.populate_chksum().unwrap();
+    model
+        .mailbox_execute(u32::from(CommandId::QUOTE_PCRS), cmd.as_bytes().unwrap())
+        .unwrap()
+        .unwrap();
+    assert!(etrng_requests.load(Ordering::Relaxed) > boot_requests);
 }
 
 #[test]

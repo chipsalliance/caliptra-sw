@@ -140,6 +140,10 @@ impl TrngMode {
     }
 }
 
+// CPTRA_GENERIC_INPUT_WIRES[0] bit 1: select the external TRNG even when
+// soc_ifc_reg.CPTRA_HW_CONFIG.iTRNG_en is true.
+pub const GENERIC_INPUT_EXTERNAL_DIRECT: u32 = 1 << 1;
+
 const EXPECTED_CALIPTRA_BOOT_TIME_IN_CYCLES: u64 = 40_000_000; // 40 million cycles
 
 pub struct InitParams<'a> {
@@ -169,6 +173,11 @@ pub struct InitParams<'a> {
 
     // When None, use the itrng compile-time feature to decide which mode to use.
     pub trng_mode: Option<TrngMode>,
+
+    // The values the SoC drives on CPTRA_GENERIC_INPUT_WIRES[0..2] from power
+    // up. Setting GENERIC_INPUT_EXTERNAL_DIRECT in word 0 makes Caliptra use
+    // the external TRNG even when trng_mode is Internal.
+    pub generic_input_wires: [u32; 2],
 
     // If true (and the HwModel supports it), initialize the SRAM with random
     // data. This will likely result in a ECC double-bit error if the CPU
@@ -226,6 +235,7 @@ impl<'a> Default for InitParams<'a> {
             } else {
                 TrngMode::External
             }),
+            generic_input_wires: [0; 2],
             random_sram_puf: true,
             trace_path: None,
             stack_info: None,
