@@ -78,6 +78,29 @@ pub trait SocManager {
     /// The default implementation discards them, hosted models must override it to write to their log.
     fn log_mailbox(&mut self, _args: core::fmt::Arguments<'_>) {}
 
+    /// Lock the mailbox and verify that it can be read.
+    fn lock_mailbox(&mut self) -> Result<(), CaliptraApiError> {
+        if self.soc_mbox().lock().read().lock() {
+            return Err(CaliptraApiError::UnableToLockMailbox);
+        }
+
+        if !self.soc_mbox().lock().read().lock() {
+            return Err(CaliptraApiError::UnableToReadMailbox);
+        }
+
+        Ok(())
+    }
+
+    /// Abort the mailbox request and transfer the RTL FSM back to IDLE, implicitly releasing the mailbox lock.
+    fn unlock_mailbox(&mut self) {
+        self.soc_mbox().execute().write(|w| w.execute(false));
+    }
+
+    /// Verify whether the mailbox status is busy or not.
+    fn is_mailbox_busy(&mut self) -> bool {
+        self.soc_mbox().status().read().status().cmd_busy()
+    }
+
     /// Set up valid PAUSERs for mailbox access.
     fn setup_mailbox_users(&mut self, apb_pausers: &[u32]) -> Result<(), CaliptraApiError> {
         if apb_pausers.len() > NUM_PAUSERS {
@@ -242,16 +265,7 @@ pub trait SocManager {
             return Err(CaliptraApiError::BufferTooLargeForMailbox);
         }
 
-        // Read a 0 to get the lock
-        if self.soc_mbox().lock().read().lock() {
-            return Err(CaliptraApiError::UnableToLockMailbox);
-        }
-
-        // Mailbox lock value should read 1 now
-        // If not, the reads are likely being blocked by the PAUSER check or some other issue
-        if !(self.soc_mbox().lock().read().lock()) {
-            return Err(CaliptraApiError::UnableToReadMailbox);
-        }
+        self.lock_mailbox()?;
 
         self.soc_mbox().cmd().write(|_| cmd);
         mbox_write_fifo_with_limit(&self.soc_mbox(), buf, Self::MAILBOX_SIZE_LIMIT)?;
