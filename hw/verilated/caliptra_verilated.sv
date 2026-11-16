@@ -53,6 +53,8 @@ module caliptra_verilated (
 
     input bit [3:0] sram_error_injection_mode,
 
+    input bit [63:0] generic_input_wires,
+
     output bit ready_for_fuses,
     output bit ready_for_fw_push,
 
@@ -167,7 +169,7 @@ caliptra_top caliptra_top_dut (
     .mailbox_flow_done(),
     .BootFSM_BrkPoint('x), //FIXME TIE-OFF
 
-    .generic_input_wires('x), //FIXME TIE-OFF
+    .generic_input_wires(generic_input_wires),
     .generic_output_wires(generic_output_wires),
 
     .scan_mode(),

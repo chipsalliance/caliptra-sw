@@ -43,7 +43,6 @@ elf.workspace = true
 hex.workspace = true
 memoffset.workspace = true
 openssl.workspace = true
-ureg.workspace = true
 
 [features]
 riscv = []

@@ -6,11 +6,15 @@ use caliptra_builder::firmware::rom_tests::{TEST_FMC_INTERACTIVE, TEST_FMC_WITH_
 use caliptra_builder::firmware::APP_WITH_UART;
 use caliptra_builder::ImageOptions;
 use caliptra_common::RomBootStatus::*;
+use caliptra_drivers::MfgFlags;
 use caliptra_hw_model::BootParams;
 use caliptra_hw_model::HwModel;
 use caliptra_hw_model::InitParams;
 use caliptra_hw_model::TrngMode;
-use ureg::MmioMut;
+use caliptra_hw_model::GENERIC_INPUT_EXTERNAL_DIRECT;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
+use std::{iter, mem};
 
 #[test]
 #[cfg_attr(any(feature = "verilator", feature = "fpga_realtime"), ignore)]
@@ -25,26 +29,25 @@ fn test_cold_reset_external_direct() {
     let image_bytes = image_bundle.to_bytes().unwrap();
 
     for trng_mode in [TrngMode::Internal, TrngMode::External] {
-        for initial_dbg_manuf_service_reg in [0, 0x2] {
-            let mut hw = caliptra_hw_model::new_unbooted(InitParams {
+        for initial_dbg_manuf_service_reg in [0, MfgFlags::RNG_SUPPORT_UNAVAILABLE.bits()] {
+            // EXTERNAL_DIRECT selects the eTRNG, so any iTRNG use panics.
+            let mut init_params = InitParams {
                 rom: &rom,
-                itrng_nibbles: Box::new(std::iter::from_fn(|| panic!("unexpected iTRNG request"))),
-                etrng_responses: Box::new(std::iter::from_fn(|| {
-                    panic!("unexpected eTRNG request")
-                })),
+                itrng_nibbles: Box::new(iter::from_fn(|| panic!("unexpected iTRNG request"))),
                 trng_mode: Some(trng_mode),
+                generic_input_wires: [GENERIC_INPUT_EXTERNAL_DIRECT, 0],
                 ..Default::default()
-            })
-            .unwrap();
-
-            // The emulator allows injection of the otherwise read-only generic input wires.
-            let generic_input = hw.soc_ifc().cptra_generic_input_wires().at(0).ptr;
-            unsafe {
-                hw.mmio_mut().write_volatile(generic_input, 1);
-            }
-            hw.soc_ifc_trng()
-                .cptra_trng_data()
-                .write(&[0x1234_5678; 12]);
+            };
+            let etrng_requests = Arc::new(AtomicUsize::new(0));
+            let counter = etrng_requests.clone();
+            init_params.etrng_responses = Box::new(
+                mem::replace(&mut init_params.etrng_responses, Box::new(iter::empty())).inspect(
+                    move |_| {
+                        counter.fetch_add(1, Ordering::Relaxed);
+                    },
+                ),
+            );
+            let mut hw = caliptra_hw_model::new_unbooted(init_params).unwrap();
             hw.boot(BootParams {
                 initial_dbg_manuf_service_reg,
                 ..Default::default()
@@ -59,6 +62,11 @@ fn test_cold_reset_external_direct() {
             hw.step_until_boot_status(ColdResetComplete.into(), true);
             hw.step_until_exit_success().unwrap();
             assert_eq!(u32::from(hw.soc_ifc_trng().cptra_trng_status().read()), 0);
+
+            // The manufacturing RNG-unavailable flag still selects the fake RNG,
+            // which makes no eTRNG requests.
+            let used_etrng = etrng_requests.load(Ordering::Relaxed) != 0;
+            assert_eq!(used_etrng, initial_dbg_manuf_service_reg == 0);
         }
     }
 }

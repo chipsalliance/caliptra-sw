@@ -1013,7 +1013,6 @@ dependencies = [
  "memoffset 0.8.0",
  "openssl",
  "ufmt",
- "ureg",
  "x509-parser",
  "zerocopy",
  "zeroize",
