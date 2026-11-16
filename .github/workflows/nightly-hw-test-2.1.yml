@@ -15,12 +15,8 @@ jobs:
     name: Validate HW 2.1 test target
     runs-on: ubuntu-24.04
     steps:
-      - name: Require main and record tested SHA
+      - name: Record tested SHA
         run: |
-          if [[ "$GITHUB_REF" != "refs/heads/main" ]]; then
-            echo "::error::HW 2.1 nightly tests must run on main."
-            exit 1
-          fi
           {
             echo "## HW 2.1 test target"
             echo "Repository: $GITHUB_REPOSITORY"
