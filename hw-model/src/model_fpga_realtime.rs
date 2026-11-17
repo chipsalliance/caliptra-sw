@@ -12,6 +12,7 @@ use std::{env, slice, str::FromStr};
 use bitfield::bitfield;
 use caliptra_emu_bus::{Bus, BusError, BusMmio, Event};
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
+use caliptra_hw_model_types::CaliptraHwVersion;
 use libc;
 use nix;
 use std::time::{Duration, Instant};
@@ -138,6 +139,8 @@ pub struct ModelFpgaRealtime {
 
     trng_mode: TrngMode,
     openocd: Option<Child>,
+
+    hw_revision: CaliptraHwVersion,
 }
 
 impl ModelFpgaRealtime {
@@ -529,6 +532,8 @@ impl HwModel for ModelFpgaRealtime {
             trng_mode: desired_trng_mode,
 
             openocd: None,
+
+            hw_revision: params.hw_version,
         };
 
         // Check if the FPGA image is valid
@@ -719,6 +724,10 @@ impl HwModel for ModelFpgaRealtime {
 
     fn set_fuses(&mut self, fuses: Fuses) {
         self.fuses = fuses;
+    }
+
+    fn hw_revision(&self) -> CaliptraHwVersion {
+        self.hw_revision
     }
 }
 
