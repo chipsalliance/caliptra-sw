@@ -28,7 +28,9 @@ use caliptra_registers::csrng::CsrngReg;
 use caliptra_registers::entropy_src::{self, regs::AlertFailCountsReadVal, EntropySrcReg};
 use caliptra_registers::soc_ifc::{self, SocIfcReg};
 #[allow(unused_imports)]
-use caliptra_registers::{EntropySrcRegisterBlockFacade, EntropyThresholdWriteValFacade};
+use caliptra_registers::{
+    EntropyConfig1ReadValFacade, EntropySrcRegisterBlockFacade, EntropyThresholdWriteValFacade,
+};
 
 // https://opentitan.org/book/hw/ip/csrng/doc/theory_of_operation.html#command-description
 pub const MAX_SEED_WORDS: usize = 12;
@@ -635,7 +637,10 @@ fn read_entropy_configuration(
     // Default alert threshold value
     const DEFAULT_ALERT_THRESHOLD: u32 = 2;
 
-    let alert_threshold = soc_ifc.cptra_i_trng_entropy_config_1().read().rsvd();
+    let alert_threshold = soc_ifc
+        .cptra_i_trng_entropy_config_1()
+        .read()
+        .alert_threshold();
 
     let alert_threshold = if alert_threshold == 0 {
         DEFAULT_ALERT_THRESHOLD
