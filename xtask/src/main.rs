@@ -110,6 +110,11 @@ pub enum CICommands {
     BitstreamDownloader {
         path: String,
     },
+    /// Validate a segmented 2.2 FPGA manifest before building test artifacts.
+    CheckBitstream {
+        path: String,
+        variant: String,
+    },
     TestMatrix,
 }
 
@@ -183,6 +188,7 @@ fn main() {
         Commands::CI { command } => match command {
             CICommands::SizeHistory => ci::size_history(),
             CICommands::BitstreamDownloader { path } => ci::bitstream_download(path.clone()),
+            CICommands::CheckBitstream { path, variant } => ci::check_bitstream(path, variant),
             CICommands::TestMatrix => Ok(()),
         },
         Commands::Build { command } => match command {

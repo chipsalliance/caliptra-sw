@@ -22,7 +22,8 @@ on:
         default: true
         type: boolean
       hw-version:
-        default: "latest"
+        description: Hardware revision (2.2 or latest); both use hw/latest
+        default: "2.2"
         type: string
       rom-version:
         default: "latest"
@@ -51,6 +52,9 @@ concurrency:
 permissions:
   contents: read
 
+env:
+  CALIPTRA_HW_REV: ${{ inputs.hw-version || '2.2' }}
+
 jobs:
   check_cache:
     runs-on: ubuntu-22.04
@@ -71,17 +75,17 @@ jobs:
       - name: Compute cache-keys
         id: cache_key
         run: |
-          # Compute the key from the tree hash of the fpga directory and the rtl
-          # root directory.
-          if [ "${{ inputs.workflow_call }}" ]; then
-            RTL_VERSION="${{ inputs.hw-version }}"
-          else
-            RTL_VERSION="latest"
-          fi
+          case "$CALIPTRA_HW_REV" in
+            2.2|latest) RTL_VERSION=latest ;;
+            *) echo "Unsupported FPGA hardware revision: $CALIPTRA_HW_REV"; exit 1 ;;
+          esac
           echo "rtl_cache_key=$(git rev-parse HEAD:hw/fpga/src)-$(git hash-object hw/fpga/fpga_configuration.tcl)-$(cd hw/${RTL_VERSION}/caliptra-ss/third_party/caliptra-rtl && git rev-parse HEAD)-${{ inputs.fpga-itrng }}-${{ env.CACHE_BUSTER }}" >> $GITHUB_OUTPUT
 
+      - name: Validate bitstream manifest
+        run: cargo xtask ci check-bitstream hw/fpga/bitstream_manifests/core.toml core
 
   build_test_binaries:
+    needs: check_cache
     runs-on: [e2-standard-8]
     timeout-minutes: 60
 
@@ -158,9 +162,6 @@ jobs:
           else
             FEATURES=fpga_realtime,itrng
           fi
-          if [[ "${{ inputs.workflow_call }}" && "${{ inputs.hw-version }}" != "latest" ]]; then
-            FEATURES=$FEATURES,hw-${{ inputs.hw-version }}
-          fi
           cargo nextest archive \
             --features=${FEATURES} \
             --release \
@@ -195,11 +196,7 @@ jobs:
           rustup target add riscv32imc-unknown-none-elf
           mkdir /tmp/caliptra-test-firmware
 
-          FEATURES=""
-          if [[ "${{ inputs.workflow_call }}" && "${{ inputs.hw-version }}" != "latest" ]]; then
-            FEATURES=hw-${{ inputs.hw-version }}
-          fi
-          cargo run --release -p caliptra-builder --features=${FEATURES} -- --all_elfs /tmp/caliptra-test-firmware
+          cargo run --release -p caliptra-builder -- --all_elfs /tmp/caliptra-test-firmware
 
       - name: 'Upload test firmware artifact'
         uses: actions/upload-artifact@v4

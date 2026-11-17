@@ -30,7 +30,7 @@ The builder produces standard and segmented artifacts with `2.2` in their names.
 The segmented build must contain a runtime PDI. Its manifest records the actual
 checked-out source commit, subsystem RTL commit, hardware version, and target
 branch. On non-PR runs, only the segmented bundle is left for the builder runner's
-post-job hook to publish to GCS at `v1/<source-commit>/manifest.toml`. Uploading a
+post-job hook to publish to GCS at `v1/<source-commit>/core/manifest.toml`. Uploading a
 GitHub Actions artifact alone does not publish it to GCS.
 
 PR runs build the merge revision and upload the standard and segmented GitHub
@@ -52,12 +52,49 @@ Subsystem bitstreams are built in `chipsalliance/caliptra-mcu-sw` by
 generated segmented manifest for a subsequent subsystem manifest-update PR;
 there is no second subsystem builder in this repository.
 
-This builder setup does not migrate FPGA tests to 2.2. Before adopting the
-generated manifests, verify their published URLs and hashes, select a compatible
-MCU firmware commit from `caliptra-mcu-dev-2.2`, update the MCU ancestry check and
-FPGA hardware-selection logic, and verify runner boot-image compatibility.
-Validate both core and subsystem FPGA tests before enabling the 2.2 nightly FPGA
-jobs. Do not relabel an existing 2.1 manifest as 2.2.
+### Consuming the 2.2 bitstreams
+
+The committed core and subsystem manifests select segmented 2.2 PDIs. Published
+objects use `v1/<source-commit>/<core|subsystem>/`; the embedded manifest in a
+GitHub bundle has hashes and provenance but no download URLs. Use the published
+manifest, and verify the PDI and XSA SHA-256 hashes before updating a pin.
+
+The FPGA test workflows accept `hw-version: "2.2"` or `"latest"`, both selecting
+`hw/latest` and the 2.2 register model. They do not append `hw-2.2` Cargo features.
+Other hardware versions are rejected before test artifacts are built. The
+`cargo xtask ci check-bitstream <manifest> <core|subsystem>` check rejects the
+wrong hardware version, variant, source repository/branch, non-segmented builds,
+and missing PDI URLs or hashes. The downloader verifies the PDI hash.
+
+Subsystem testing pins `CALIPTRA_MCU_COMMIT` to the MCU source used to build the
+selected subsystem bitstream. Overrides must belong to `caliptra-mcu-dev-2.2`
+and require compatibility testing. Both ROM and fuse definitions come from that
+pin; the fuse file is `hw/latest/fuses.hjson`. This MCU revision uses
+`CALIPTRA_HW_REV=latest` rather than `2.2` and names its generated ROM
+`latest-caliptra-mcu-rom-fpga-core_test,ocp-lock.bin`. The workflow copies it to
+the stable test-artifact name `mcu-rom-fpga.bin`.
+
+The two pinned manifests currently reference the same subsystem RTL commit.
+Their source commits and the MCU firmware pin are intentionally immutable;
+updating a source branch does not update a running board's hardware.
+
+### Hardware validation handoff
+
+Before enabling 2.2 nightly FPGA jobs:
+
+1. Verify the runner's static boot configuration, device tree, UIO mappings,
+   and kernel modules are compatible with the new segmented PDI. The
+   `fpga-image.yml` XSA pins are separate from these runtime manifests and have
+   not been migrated; rebuild/provision boot images if needed.
+2. Run core smoke/version tests and subsystem MCU boot/recovery tests, then the
+   core and subsystem FPGA suites. Check OCP LOCK and flash/streaming boot
+   configurations where supported.
+3. Coordinate the ROM/runtime/FIPS hardware-expectation fixes with the nightly
+   PR so they expect revision `0x22` without duplicate changes.
+4. Enable the guarded nightly FPGA jobs only after hardware validation passes.
+
+Updating manifests and building firmware does not by itself establish board
+compatibility. Historical 2.1 ROM matrices are not certified by this migration.
 
 ## 1. Building the FPGA Image
 

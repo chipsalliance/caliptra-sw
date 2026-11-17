@@ -10,7 +10,7 @@ use caliptra_hw_model::HwModel;
 use caliptra_runtime::FipsVersionCmd;
 use zerocopy::{FromBytes, IntoBytes};
 
-const HW_REV_ID: u32 = 0x112;
+const HW_REV_ID: u32 = 0x22;
 
 #[test]
 fn test_fips_version() {
