@@ -2,16 +2,16 @@
 
 //! Tests for encrypted firmware flow using RI_DOWNLOAD_ENCRYPTED_FIRMWARE and CM_AES_GCM_DECRYPT_DMA
 
+#[cfg(not(feature = "fpga_subsystem"))]
+use crate::common::read_recovery_register;
 use crate::common::{assert_error, run_rt_test, RuntimeTestArgs};
 use crate::test_set_auth_manifest::create_auth_manifest_with_metadata;
 use aes_gcm::{aead::AeadMutInPlace, Key, KeyInit};
 use caliptra_api::mailbox::{CmAesGcmDecryptDmaReq, CommandId, MailboxReq};
 use caliptra_auth_man_types::{AuthManifestImageMetadata, ImageMetadataFlags};
-use caliptra_drivers::CaliptraError;
+use caliptra_drivers::{CaliptraError, DmaRecovery};
 #[cfg(not(feature = "fpga_subsystem"))]
-use caliptra_emu_bus::{Device, Event, EventData, RecoveryCommandCode};
-#[cfg(not(feature = "fpga_subsystem"))]
-use caliptra_hw_model::DefaultHwModel;
+use caliptra_emu_bus::RecoveryCommandCode;
 use caliptra_hw_model::{HwModel, InitParams, SubsystemInitParams, MCU_TEST_AES_KEY, MCU_TEST_IV};
 use caliptra_image_crypto::OsslCrypto as Crypto;
 use caliptra_image_gen::from_hw_format;
@@ -19,41 +19,6 @@ use caliptra_image_gen::ImageGeneratorCrypto;
 use zerocopy::IntoBytes;
 
 const RT_READY_FOR_COMMANDS: u32 = 0x600;
-
-#[cfg(not(feature = "fpga_subsystem"))]
-fn read_recovery_register(
-    model: &mut DefaultHwModel,
-    command_code: RecoveryCommandCode,
-) -> Vec<u8> {
-    model
-        .events_to_caliptra()
-        .send(Event::new(
-            Device::BMC,
-            Device::CaliptraCore,
-            EventData::RecoveryBlockReadRequest {
-                source_addr: 0,
-                target_addr: 0,
-                command_code,
-            },
-        ))
-        .unwrap();
-
-    loop {
-        model.step();
-        for event in model.events_from_caliptra() {
-            if let EventData::RecoveryBlockReadResponse {
-                command_code: response_command_code,
-                payload,
-                ..
-            } = event.event
-            {
-                if response_command_code == command_code {
-                    return payload;
-                }
-            }
-        }
-    }
-}
 
 /// Encrypt data using AES-256-GCM, returning `ciphertext || 16-byte tag`.
 fn aes_gcm_encrypt(key: &[u8; 32], iv: &[u8; 12], aad: &[u8], plaintext: &[u8]) -> Vec<u8> {
@@ -141,16 +106,15 @@ fn test_encrypted_firmware_decrypt_dma() {
     {
         let device_status = read_recovery_register(&mut model, RecoveryCommandCode::DeviceStatus);
         assert_eq!(
-            u32::from_le_bytes(device_status[..4].try_into().unwrap()),
-            0x1
+            u32::from(device_status[0]),
+            DmaRecovery::DEVICE_STATUS_HEALTHY
         );
 
         let recovery_status =
             read_recovery_register(&mut model, RecoveryCommandCode::RecoveryStatus);
-        assert_eq!(
-            u16::from_le_bytes(recovery_status[..2].try_into().unwrap()),
-            0x3
-        );
+        let status_byte = u32::from(recovery_status[0]);
+        assert_eq!(status_byte & 0xF, DmaRecovery::RECOVERY_STATUS_SUCCESSFUL);
+        assert_eq!(status_byte >> 4, DmaRecovery::MCU_FIRMWARE_IMAGE_INDEX);
     }
 }
 
