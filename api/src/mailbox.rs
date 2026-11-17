@@ -265,7 +265,7 @@ impl CommandId {
     pub const CM_MLKEM_DECAPSULATE: Self = Self(0x434D_4C44); // "CMLD"
     pub const CM_AES_GCM_DECRYPT_DMA: Self = Self(0x434D_4444); // "CMDD"
     pub const GET_MCU_FW_SIZE: Self = Self(0x474D_4653); // "GMFS"
-    pub const SHA_DMA: Self = Self(0x5348_4144); // "SHAD"
+    pub const CM_SHA_DMA: Self = Self(0x434D_5341); // "CMSA"
 
     // OCP LOCK Commands
     pub const OCP_LOCK_REPORT_HEK_METADATA: Self = Self(0x5248_4D54); // "RHMT"
@@ -434,7 +434,7 @@ pub enum MailboxResp {
     CmDeriveStableKey(CmDeriveStableKeyResp),
     CmAesGcmDecryptDma(CmAesGcmDecryptDmaResp),
     GetMcuFwSize(GetMcuFwSizeResp),
-    ShaDma(ShaDmaResp),
+    CmShaDma(CmShaDmaResp),
     ProductionAuthDebugUnlockChallenge(ProductionAuthDebugUnlockChallenge),
     GetPcrLog(GetPcrLogResp),
     ReallocateDpeContextLimits(ReallocateDpeContextLimitsResp),
@@ -526,7 +526,7 @@ impl MailboxResp {
             MailboxResp::CmDeriveStableKey(resp) => Ok(resp.as_bytes()),
             MailboxResp::CmAesGcmDecryptDma(resp) => Ok(resp.as_bytes()),
             MailboxResp::GetMcuFwSize(resp) => Ok(resp.as_bytes()),
-            MailboxResp::ShaDma(resp) => resp.as_bytes_partial(),
+            MailboxResp::CmShaDma(resp) => resp.as_bytes_partial(),
             MailboxResp::ProductionAuthDebugUnlockChallenge(resp) => Ok(resp.as_bytes()),
             MailboxResp::GetPcrLog(resp) => Ok(resp.as_bytes()),
             MailboxResp::ReallocateDpeContextLimits(resp) => Ok(resp.as_bytes()),
@@ -616,7 +616,7 @@ impl MailboxResp {
             MailboxResp::CmDeriveStableKey(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::CmAesGcmDecryptDma(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::GetMcuFwSize(resp) => Ok(resp.as_mut_bytes()),
-            MailboxResp::ShaDma(resp) => resp.as_bytes_partial_mut(),
+            MailboxResp::CmShaDma(resp) => resp.as_bytes_partial_mut(),
             MailboxResp::ProductionAuthDebugUnlockChallenge(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::GetPcrLog(resp) => Ok(resp.as_mut_bytes()),
             MailboxResp::ReallocateDpeContextLimits(resp) => Ok(resp.as_mut_bytes()),
@@ -777,7 +777,7 @@ pub enum MailboxReq {
     CmDeriveStableKey(CmDeriveStableKeyReq),
     CmAesGcmDecryptDma(CmAesGcmDecryptDmaReq),
     GetMcuFwSize(MailboxReqHeader),
-    ShaDma(ShaDmaReq),
+    CmShaDma(CmShaDmaReq),
     OcpLockReportHekMetadata(OcpLockReportHekMetadataReq),
     OcpLockGetAlgorithms(OcpLockGetAlgorithmsReq),
     OcpLockEnumerateHpkeHandles(OcpLockEnumerateHpkeHandlesReq),
@@ -891,7 +891,7 @@ impl MailboxReq {
             MailboxReq::CmDeriveStableKey(req) => Ok(req.as_bytes()),
             MailboxReq::CmAesGcmDecryptDma(req) => req.as_bytes_partial(),
             MailboxReq::GetMcuFwSize(req) => Ok(req.as_bytes()),
-            MailboxReq::ShaDma(req) => Ok(req.as_bytes()),
+            MailboxReq::CmShaDma(req) => Ok(req.as_bytes()),
             MailboxReq::OcpLockReportHekMetadata(req) => Ok(req.as_bytes()),
             MailboxReq::OcpLockGetAlgorithms(req) => Ok(req.as_bytes()),
             MailboxReq::OcpLockEnumerateHpkeHandles(req) => Ok(req.as_bytes()),
@@ -1003,7 +1003,7 @@ impl MailboxReq {
             MailboxReq::CmDeriveStableKey(req) => Ok(req.as_mut_bytes()),
             MailboxReq::CmAesGcmDecryptDma(req) => req.as_bytes_partial_mut(),
             MailboxReq::GetMcuFwSize(req) => Ok(req.as_mut_bytes()),
-            MailboxReq::ShaDma(req) => Ok(req.as_mut_bytes()),
+            MailboxReq::CmShaDma(req) => Ok(req.as_mut_bytes()),
             MailboxReq::OcpLockReportHekMetadata(req) => Ok(req.as_mut_bytes()),
             MailboxReq::OcpLockGetAlgorithms(req) => Ok(req.as_mut_bytes()),
             MailboxReq::OcpLockInitializeMekSecret(req) => Ok(req.as_mut_bytes()),
@@ -1115,7 +1115,7 @@ impl MailboxReq {
             MailboxReq::CmDeriveStableKey(_) => CommandId::CM_DERIVE_STABLE_KEY,
             MailboxReq::CmAesGcmDecryptDma(_) => CommandId::CM_AES_GCM_DECRYPT_DMA,
             MailboxReq::GetMcuFwSize(_) => CommandId::GET_MCU_FW_SIZE,
-            MailboxReq::ShaDma(_) => CommandId::SHA_DMA,
+            MailboxReq::CmShaDma(_) => CommandId::CM_SHA_DMA,
             MailboxReq::GetPcrLog(_) => CommandId::GET_PCR_LOG,
             MailboxReq::FeProg(_) => CommandId::FE_PROG,
             MailboxReq::ProductionAuthDebugUnlockReq(_) => {
@@ -5452,12 +5452,12 @@ impl Default for GetMcuFwSizeResp {
 
 impl Response for GetMcuFwSizeResp {}
 
-// SHA_DMA
+// CM_SHA_DMA
 // Hashes a range of AXI memory by streaming it from the DMA engine into the
 // SHA accelerator.
 #[repr(C)]
 #[derive(Debug, Default, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
-pub struct ShaDmaReq {
+pub struct CmShaDmaReq {
     pub hdr: MailboxReqHeader,
     /// Reserved, must be 0
     pub flags: u32,
@@ -5471,19 +5471,19 @@ pub struct ShaDmaReq {
     pub length: u32,
 }
 
-impl Request for ShaDmaReq {
-    const ID: CommandId = CommandId::SHA_DMA;
-    type Resp = ShaDmaResp;
+impl Request for CmShaDmaReq {
+    const ID: CommandId = CommandId::CM_SHA_DMA;
+    type Resp = CmShaDmaResp;
 }
 
 #[repr(C)]
 #[derive(Debug, IntoBytes, FromBytes, KnownLayout, Immutable, PartialEq, Eq)]
-pub struct ShaDmaResp {
+pub struct CmShaDmaResp {
     pub hdr: MailboxRespHeaderVarSize,
     pub hash: [u8; SHA512_DIGEST_BYTE_SIZE],
 }
 
-impl Default for ShaDmaResp {
+impl Default for CmShaDmaResp {
     fn default() -> Self {
         Self {
             hdr: MailboxRespHeaderVarSize::default(),
@@ -5492,7 +5492,7 @@ impl Default for ShaDmaResp {
     }
 }
 
-impl ResponseVarSize for ShaDmaResp {}
+impl ResponseVarSize for CmShaDmaResp {}
 
 // OCP_LOCK_REPORT_HEK_METADATA
 #[repr(C)]

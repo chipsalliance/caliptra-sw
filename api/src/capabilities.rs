@@ -26,7 +26,7 @@ bitflags::bitflags! {
         const RT_BASE = 0b1 << 64;
         // RT firmware and hardware supports OCP LOCK
         const RT_OCP_LOCK = 0b1 << 65;
-        // RT firmware supports the SHA_DMA command
+        // RT firmware supports the CM_SHA_DMA command
         const RT_SHA_DMA = 0b1 << 66;
     }
 }

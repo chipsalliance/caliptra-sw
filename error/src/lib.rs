@@ -2059,12 +2059,12 @@ impl CaliptraError {
             "Runtime Error: Invalid or unsupported autonomous self-test configuration"
         ),
         (
-            RUNTIME_SHA_DMA_NOT_SUBSYSTEM_MODE,
+            RUNTIME_CM_SHA_DMA_NOT_SUBSYSTEM_MODE,
             0x000E00B8,
             "Runtime Error: SHA DMA requires subsystem mode"
         ),
         (
-            RUNTIME_SHA_DMA_RANGE_NOT_ALLOWED,
+            RUNTIME_CM_SHA_DMA_RANGE_NOT_ALLOWED,
             0x000E00B9,
             "Runtime Error: SHA DMA range overlaps a protected AXI region"
         ),

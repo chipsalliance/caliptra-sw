@@ -5,8 +5,8 @@ use crate::test_activate_firmware::TEST_SRAM_BASE;
 use crate::test_capabilities::get_capabilities;
 use caliptra_api::{
     mailbox::{
-        CmHashAlgorithm, CommandId, MailboxReq, MailboxReqHeader, MailboxRespHeader,
-        MailboxRespHeaderVarSize, ResponseVarSize, ShaDmaReq, ShaDmaResp,
+        CmHashAlgorithm, CmShaDmaReq, CmShaDmaResp, CommandId, MailboxReq, MailboxReqHeader,
+        MailboxRespHeader, MailboxRespHeaderVarSize, ResponseVarSize,
     },
     Capabilities, SocManager,
 };
@@ -33,8 +33,8 @@ fn subsystem_model() -> DefaultHwModel {
     })
 }
 
-fn request(algorithm: CmHashAlgorithm, axi_addr: u64, length: u32) -> ShaDmaReq {
-    ShaDmaReq {
+fn request(algorithm: CmHashAlgorithm, axi_addr: u64, length: u32) -> CmShaDmaReq {
+    CmShaDmaReq {
         hash_algorithm: algorithm.into(),
         axi_addr_lo: axi_addr as u32,
         axi_addr_hi: (axi_addr >> 32) as u32,
@@ -43,12 +43,12 @@ fn request(algorithm: CmHashAlgorithm, axi_addr: u64, length: u32) -> ShaDmaReq 
     }
 }
 
-fn sha_dma(model: &mut DefaultHwModel, req: ShaDmaReq) -> Result<Vec<u8>, ModelError> {
-    let mut cmd = MailboxReq::ShaDma(req);
+fn cm_sha_dma(model: &mut DefaultHwModel, req: CmShaDmaReq) -> Result<Vec<u8>, ModelError> {
+    let mut cmd = MailboxReq::CmShaDma(req);
     cmd.populate_chksum().unwrap();
     model
-        .mailbox_execute(CommandId::SHA_DMA.into(), cmd.as_bytes().unwrap())
-        .map(|resp| resp.expect("SHA_DMA should return a response"))
+        .mailbox_execute(CommandId::CM_SHA_DMA.into(), cmd.as_bytes().unwrap())
+        .map(|resp| resp.expect("CM_SHA_DMA should return a response"))
 }
 
 fn expected_digest(algorithm: CmHashAlgorithm, data: &[u8]) -> Vec<u8> {
@@ -66,13 +66,13 @@ fn assert_digest(
     data: &[u8],
 ) {
     let expected = expected_digest(algorithm, data);
-    let bytes = sha_dma(model, request(algorithm, axi_addr, data.len() as u32)).unwrap();
+    let bytes = cm_sha_dma(model, request(algorithm, axi_addr, data.len() as u32)).unwrap();
     assert_eq!(
         bytes.len(),
         size_of::<MailboxRespHeaderVarSize>() + expected.len()
     );
 
-    let mut resp = ShaDmaResp::default();
+    let mut resp = CmShaDmaResp::default();
     resp.as_mut_bytes()[..bytes.len()].copy_from_slice(&bytes);
     assert!(verify_checksum(resp.hdr.hdr.chksum, 0, &bytes[4..]));
     assert_eq!(
@@ -83,28 +83,28 @@ fn assert_digest(
     assert_eq!(resp.data().unwrap(), &expected[..]);
 }
 
-fn assert_rejected(model: &mut DefaultHwModel, req: ShaDmaReq, expected: CaliptraError) {
-    let err = sha_dma(model, req).unwrap_err();
+fn assert_rejected(model: &mut DefaultHwModel, req: CmShaDmaReq, expected: CaliptraError) {
+    let err = cm_sha_dma(model, req).unwrap_err();
     assert_error(model, expected, err);
 }
 
 fn assert_raw_rejected(model: &mut DefaultHwModel, raw: &[u8], expected: CaliptraError) {
     let err = model
-        .mailbox_execute(CommandId::SHA_DMA.into(), raw)
+        .mailbox_execute(CommandId::CM_SHA_DMA.into(), raw)
         .unwrap_err();
     assert_error(model, expected, err);
 }
 
 fn request_bytes(data: &[u8]) -> Vec<u8> {
     let header = MailboxReqHeader {
-        chksum: calc_checksum(CommandId::SHA_DMA.into(), data),
+        chksum: calc_checksum(CommandId::CM_SHA_DMA.into(), data),
     };
     let mut raw = header.as_bytes().to_vec();
     raw.extend_from_slice(data);
     raw
 }
 
-fn payload(req: &ShaDmaReq) -> Vec<u8> {
+fn payload(req: &CmShaDmaReq) -> Vec<u8> {
     req.as_bytes()[size_of::<MailboxReqHeader>()..].to_vec()
 }
 
@@ -137,13 +137,13 @@ fn check_staged_digest(algorithm: CmHashAlgorithm) {
 
 #[cfg_attr(any(feature = "verilator", feature = "fpga_realtime"), ignore)]
 #[test]
-fn test_sha_dma_sha384() {
+fn test_cm_sha_dma_sha384() {
     check_staged_digest(CmHashAlgorithm::Sha384);
 }
 
 #[cfg_attr(any(feature = "verilator", feature = "fpga_realtime"), ignore)]
 #[test]
-fn test_sha_dma_sha512() {
+fn test_cm_sha_dma_sha512() {
     check_staged_digest(CmHashAlgorithm::Sha512);
 }
 
@@ -158,7 +158,7 @@ fn test_sha_dma_sha512() {
     ignore
 )]
 #[test]
-fn test_sha_dma_larger_than_1mib() {
+fn test_cm_sha_dma_larger_than_1mib() {
     const OFFSET: usize = 4;
     const LEN: usize = 2 * 1024 * 1024 + 3 * 1024;
     // A prime period, so every 1 MiB chunk holds different data.
@@ -178,7 +178,7 @@ fn test_sha_dma_larger_than_1mib() {
 
 #[cfg_attr(any(feature = "verilator", feature = "fpga_realtime"), ignore)]
 #[test]
-fn test_sha_dma_rejects_zero_length() {
+fn test_cm_sha_dma_rejects_zero_length() {
     let mut model = subsystem_model();
     let axi_addr = model.staging_physical_address().unwrap();
     for algorithm in ALGORITHMS {
@@ -192,7 +192,7 @@ fn test_sha_dma_rejects_zero_length() {
 
 #[cfg_attr(any(feature = "verilator", feature = "fpga_realtime"), ignore)]
 #[test]
-fn test_sha_dma_rejects_unaligned() {
+fn test_cm_sha_dma_rejects_unaligned() {
     let mut model = subsystem_model();
     let axi_addr = model.staging_physical_address().unwrap();
     for (addr, length) in [(axi_addr + 2, 64), (axi_addr, 65)] {
@@ -206,11 +206,11 @@ fn test_sha_dma_rejects_unaligned() {
 
 #[cfg_attr(any(feature = "verilator", feature = "fpga_realtime"), ignore)]
 #[test]
-fn test_sha_dma_rejects_unknown_algorithm() {
+fn test_cm_sha_dma_rejects_unknown_algorithm() {
     let mut model = subsystem_model();
     let axi_addr = model.staging_physical_address().unwrap();
     for hash_algorithm in [0, 3] {
-        let req = ShaDmaReq {
+        let req = CmShaDmaReq {
             hash_algorithm,
             ..request(CmHashAlgorithm::Sha384, axi_addr, 64)
         };
@@ -224,10 +224,10 @@ fn test_sha_dma_rejects_unknown_algorithm() {
 
 #[cfg_attr(any(feature = "verilator", feature = "fpga_realtime"), ignore)]
 #[test]
-fn test_sha_dma_rejects_nonzero_flags() {
+fn test_cm_sha_dma_rejects_nonzero_flags() {
     let mut model = subsystem_model();
     let axi_addr = model.staging_physical_address().unwrap();
-    let req = ShaDmaReq {
+    let req = CmShaDmaReq {
         flags: 1,
         ..request(CmHashAlgorithm::Sha384, axi_addr, 64)
     };
@@ -240,7 +240,7 @@ fn test_sha_dma_rejects_nonzero_flags() {
 
 #[cfg_attr(any(feature = "verilator", feature = "fpga_realtime"), ignore)]
 #[test]
-fn test_sha_dma_rejects_bad_size() {
+fn test_cm_sha_dma_rejects_bad_size() {
     let mut model = subsystem_model();
     let axi_addr = model.staging_physical_address().unwrap();
     let mut bytes = payload(&request(CmHashAlgorithm::Sha384, axi_addr, 64));
@@ -256,7 +256,7 @@ fn test_sha_dma_rejects_bad_size() {
 
 #[cfg_attr(any(feature = "verilator", feature = "fpga_realtime"), ignore)]
 #[test]
-fn test_sha_dma_rejects_invalid_checksum() {
+fn test_cm_sha_dma_rejects_invalid_checksum() {
     let mut model = subsystem_model();
     let axi_addr = model.staging_physical_address().unwrap();
     let mut raw = request_bytes(&payload(&request(CmHashAlgorithm::Sha384, axi_addr, 64)));
@@ -266,7 +266,7 @@ fn test_sha_dma_rejects_invalid_checksum() {
 
 #[cfg_attr(any(feature = "verilator", feature = "fpga_realtime"), ignore)]
 #[test]
-fn test_sha_dma_rejects_4gib_crossing() {
+fn test_cm_sha_dma_rejects_4gib_crossing() {
     let mut model = subsystem_model();
     for axi_addr in [0xFFFF_F000, 0xFFFF_FFFF_FFFF_F000] {
         assert_rejected(
@@ -279,7 +279,7 @@ fn test_sha_dma_rejects_4gib_crossing() {
 
 #[cfg_attr(any(feature = "verilator", feature = "fpga_realtime"), ignore)]
 #[test]
-fn test_sha_dma_rejects_caliptra_aperture() {
+fn test_cm_sha_dma_rejects_caliptra_aperture() {
     let mut model = subsystem_model();
     let base = caliptra_base(&mut model);
     assert!(base as u32 >= 4, "base - 4 would cross a 4 GiB boundary");
@@ -292,7 +292,7 @@ fn test_sha_dma_rejects_caliptra_aperture() {
         assert_rejected(
             &mut model,
             request(CmHashAlgorithm::Sha384, axi_addr, length),
-            CaliptraError::RUNTIME_SHA_DMA_RANGE_NOT_ALLOWED,
+            CaliptraError::RUNTIME_CM_SHA_DMA_RANGE_NOT_ALLOWED,
         );
     }
 
@@ -303,7 +303,7 @@ fn test_sha_dma_rejects_caliptra_aperture() {
 
 #[cfg_attr(any(feature = "verilator", feature = "fpga_realtime"), ignore)]
 #[test]
-fn test_sha_dma_rejects_key_release_window() {
+fn test_cm_sha_dma_rejects_key_release_window() {
     let mut model = subsystem_model();
     let soc_ifc = model.soc_ifc();
     let base = (u64::from(soc_ifc.ss_key_release_base_addr_h().read()) << 32)
@@ -316,13 +316,13 @@ fn test_sha_dma_rejects_key_release_window() {
     assert_rejected(
         &mut model,
         request(CmHashAlgorithm::Sha384, base, 4),
-        CaliptraError::RUNTIME_SHA_DMA_RANGE_NOT_ALLOWED,
+        CaliptraError::RUNTIME_CM_SHA_DMA_RANGE_NOT_ALLOWED,
     );
 }
 
 #[cfg_attr(any(feature = "verilator", feature = "fpga_realtime"), ignore)]
 #[test]
-fn test_sha_dma_rejects_pl1() {
+fn test_cm_sha_dma_rejects_pl1() {
     let mut image_options = ImageOptions::default();
     image_options.vendor_config.pl0_pauser = None;
     let mut model = run_rt_test(RuntimeTestArgs {
@@ -340,7 +340,7 @@ fn test_sha_dma_rejects_pl1() {
 
 #[cfg_attr(feature = "fpga_subsystem", ignore)]
 #[test]
-fn test_sha_dma_rejects_passive_mode() {
+fn test_cm_sha_dma_rejects_passive_mode() {
     let mut model = run_rt_test(RuntimeTestArgs {
         subsystem_mode: false,
         ..Default::default()
@@ -349,6 +349,6 @@ fn test_sha_dma_rejects_passive_mode() {
     assert_rejected(
         &mut model,
         request(CmHashAlgorithm::Sha384, 0x1000, 64),
-        CaliptraError::RUNTIME_SHA_DMA_NOT_SUBSYSTEM_MODE,
+        CaliptraError::RUNTIME_CM_SHA_DMA_NOT_SUBSYSTEM_MODE,
     );
 }

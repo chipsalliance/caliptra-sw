@@ -4,18 +4,18 @@ Licensed under the Apache-2.0 license.
 
 File Name:
 
-    sha_dma.rs
+    cm_sha_dma.rs
 
 Abstract:
 
-    File contains the SHA_DMA mailbox command.
+    File contains the CM_SHA_DMA mailbox command.
 
 --*/
 
 use crate::{mutrefbytes, Drivers};
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_common::mailbox_api::{
-    CmHashAlgorithm, MailboxRespHeaderVarSize, ResponseVarSize, ShaDmaReq, ShaDmaResp,
+    CmHashAlgorithm, CmShaDmaReq, CmShaDmaResp, MailboxRespHeaderVarSize, ResponseVarSize,
 };
 use caliptra_drivers::{AesDmaMode, AxiAddr, CaliptraError, CaliptraResult, DmaRecovery};
 use caliptra_image_types::{SHA384_DIGEST_BYTE_SIZE, SHA512_DIGEST_BYTE_SIZE};
@@ -24,9 +24,9 @@ use zerocopy::FromBytes;
 /// Size of Caliptra's AXI subordinate aperture (2^`SOC_IFC_ADDR_W` in the RTL).
 const CALIPTRA_AXI_APERTURE_SIZE: u64 = 1 << 19;
 
-pub struct ShaDmaCmd;
+pub struct CmShaDmaCmd;
 
-impl ShaDmaCmd {
+impl CmShaDmaCmd {
     #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub(crate) fn execute(
@@ -35,14 +35,14 @@ impl ShaDmaCmd {
         resp: &mut [u8],
     ) -> CaliptraResult<usize> {
         drivers.ensure_pl0()?;
-        let cmd = ShaDmaReq::ref_from_bytes(cmd_bytes)
+        let cmd = CmShaDmaReq::ref_from_bytes(cmd_bytes)
             .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
         if cmd.flags != 0 {
             return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS);
         }
         // SoC-AXI access to the SHA accelerator is only supported in subsystem mode.
         if !drivers.soc_ifc.subsystem_mode() {
-            return Err(CaliptraError::RUNTIME_SHA_DMA_NOT_SUBSYSTEM_MODE);
+            return Err(CaliptraError::RUNTIME_CM_SHA_DMA_NOT_SUBSYSTEM_MODE);
         }
         let algorithm = CmHashAlgorithm::from(cmd.hash_algorithm);
         if !matches!(algorithm, CmHashAlgorithm::Sha384 | CmHashAlgorithm::Sha512) {
@@ -71,7 +71,7 @@ impl ShaDmaCmd {
             soc_ifc.ocp_lock_get_key_release_addr(),
             u64::from(soc_ifc.ocp_lock_get_key_size()),
         ) {
-            return Err(CaliptraError::RUNTIME_SHA_DMA_RANGE_NOT_ALLOWED);
+            return Err(CaliptraError::RUNTIME_CM_SHA_DMA_RANGE_NOT_ALLOWED);
         }
 
         let dma = DmaRecovery::new(
@@ -80,7 +80,7 @@ impl ShaDmaCmd {
             soc_ifc.mci_base_addr().into(),
             &drivers.dma,
         );
-        let resp = mutrefbytes::<ShaDmaResp>(resp)?;
+        let resp = mutrefbytes::<CmShaDmaResp>(resp)?;
         resp.hdr = MailboxRespHeaderVarSize::default();
         if algorithm == CmHashAlgorithm::Sha384 {
             let digest = dma.sha384_image(

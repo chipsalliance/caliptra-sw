@@ -469,7 +469,7 @@ Command Code: `0x4341_5053` ("CAPS")
 | --------------- | ------- | ---------------
 | `RT_BASE`       | 64      | Base capabilities for Caliptra Runtime v2.1.
 | `RT_OCP_LOCK`   | 65      | Runtime firmware and hardware supports OCP LOCK.
-| `RT_SHA_DMA`    | 66      | Runtime firmware supports `SHA_DMA`. Set only in subsystem mode.
+| `RT_SHA_DMA`    | 66      | Runtime firmware supports `CM_SHA_DMA`. Set only in subsystem mode.
 
 ### GET\_IDEV\_ECC384\_CERT
 
@@ -1722,7 +1722,7 @@ Command Code: `0x474D_4653` ("GMFS")
 | size           | u32            | Size of the MCU firmware image in bytes.                                   |
 | sha384         | u8[48]         | SHA-384 digest of the encrypted MCU firmware image.                        |
 
-### SHA\_DMA
+### CM\_SHA\_DMA
 
 Computes the SHA-384 or SHA-512 digest of a range of AXI memory. Caliptra reads
 the range with its DMA engine and streams it into the SHA accelerator, so the
@@ -1766,9 +1766,9 @@ that Caliptra's DMA can read, down to 4-byte ranges. Integrators must not let
 Caliptra's DMA (its AXI user and its AxPROT attributes) read data that the PL0
 caller must not learn.
 
-Command Code: `0x5348_4144` ("SHAD")
+Command Code: `0x434D_5341` ("CMSA")
 
-*Table: `SHA_DMA` input arguments*
+*Table: `CM_SHA_DMA` input arguments*
 
 | **Name**       | **Type** | **Description**
 | --------       | -------- | ---------------
@@ -1779,7 +1779,7 @@ Command Code: `0x5348_4144` ("SHAD")
 | axi_addr_hi    | u32      | Upper 32 bits of the AXI address.
 | length         | u32      | Number of bytes to hash.
 
-*Table: `SHA_DMA` output arguments*
+*Table: `CM_SHA_DMA` output arguments*
 
 | **Name**    | **Type**      | **Description**
 | --------    | --------      | ---------------
