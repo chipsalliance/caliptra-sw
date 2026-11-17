@@ -286,6 +286,20 @@ impl SocIfc {
         Ok(())
     }
 
+    /// Locks the CSR HMAC key.
+    ///
+    /// Once set, the CSR HMAC key is removed from the HMAC engine
+    /// (`HMAC512_CTRL.CSR_MODE` uses an all-zero key). The lock can't be
+    /// cleared by firmware; it survives an update reset and is cleared only by
+    /// a warm or cold reset. ROM must set it before handing off to FMC.
+    pub fn set_csr_hmac_key_lock(&mut self) {
+        // RW1S register: writing 0 to the other bits has no effect.
+        self.soc_ifc
+            .regs_mut()
+            .internal_csr_hmac_key_lock()
+            .write(|w| w.lock(true));
+    }
+
     /// Retrieve reset reason
     pub fn reset_reason(&mut self) -> ResetReason {
         reset_reason()
