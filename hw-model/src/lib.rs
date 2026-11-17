@@ -808,15 +808,6 @@ fn mbox_read_fifo(mbox: mbox::RegisterBlock<impl MmioMut>) -> Vec<u8> {
     buf
 }
 
-/// Firmware Load Command Opcode
-const FW_LOAD_CMD_OPCODE: u32 = 0x4657_4C44;
-
-/// The download firmware from recovery interface Opcode
-const RI_DOWNLOAD_FIRMWARE_OPCODE: u32 = 0x5249_4644;
-
-/// The download encrypted firmware from recovery interface Opcode
-const RI_DOWNLOAD_ENCRYPTED_FIRMWARE_OPCODE: u32 = 0x5249_4645;
-
 /// Boot status value indicating Runtime is ready for mailbox commands.
 const RT_READY_FOR_COMMANDS: u32 = 0x600;
 
@@ -828,9 +819,6 @@ pub const MCU_TEST_AES_KEY: [u8; 32] = [0xaa; 32];
 pub const MCU_TEST_IV: [u8; 12] = [
     0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c,
 ];
-
-/// Stash Measurement Command Opcode.
-const STASH_MEASUREMENT_CMD_OPCODE: u32 = 0x4D45_4153;
 
 const SUBSYSTEM_MBOX_LOCK_MAX_ATTEMPTS: u32 = 100;
 const SUBSYSTEM_MBOX_LOCK_STEPS_PER_ATTEMPT: u32 = 1000;
@@ -1568,7 +1556,8 @@ pub trait HwModel: SocManager {
     }
 
     fn upload_firmware_to_mbox(&mut self, firmware: &[u8]) -> Result<(), ModelError> {
-        let response = self.mailbox_execute(FW_LOAD_CMD_OPCODE, firmware)?;
+        let response =
+            self.mailbox_execute(api::mailbox::CommandId::FIRMWARE_LOAD.into(), firmware)?;
         if response.is_some() {
             return Err(ModelError::UploadFirmwareUnexpectedResponse);
         }
@@ -1597,7 +1586,8 @@ pub trait HwModel: SocManager {
         mcu_firmware: Option<&[u8]>,
     ) -> Result<(), ModelError> {
         self.put_firmware_in_rri(firmware, soc_manifest, mcu_firmware)?;
-        let response = self.mailbox_execute(RI_DOWNLOAD_FIRMWARE_OPCODE, &[])?;
+        let response =
+            self.mailbox_execute(api::mailbox::CommandId::RI_DOWNLOAD_FIRMWARE.into(), &[])?;
         if response.is_some() {
             return Err(ModelError::UploadFirmwareUnexpectedResponse);
         }
@@ -1613,7 +1603,10 @@ pub trait HwModel: SocManager {
         mcu_firmware: Option<&[u8]>,
     ) -> Result<(), ModelError> {
         self.put_firmware_in_rri(firmware, soc_manifest, mcu_firmware)?;
-        let response = self.mailbox_execute(RI_DOWNLOAD_ENCRYPTED_FIRMWARE_OPCODE, &[])?;
+        let response = self.mailbox_execute(
+            api::mailbox::CommandId::RI_DOWNLOAD_ENCRYPTED_FIRMWARE.into(),
+            &[],
+        )?;
         if response.is_some() {
             return Err(ModelError::UploadFirmwareUnexpectedResponse);
         }
@@ -1807,7 +1800,10 @@ pub trait HwModel: SocManager {
 
     /// Upload measurement to the mailbox.
     fn upload_measurement(&mut self, measurement: &[u8]) -> Result<(), ModelError> {
-        let response = self.mailbox_execute(STASH_MEASUREMENT_CMD_OPCODE, measurement)?;
+        let response = self.mailbox_execute(
+            api::mailbox::CommandId::STASH_MEASUREMENT.into(),
+            measurement,
+        )?;
 
         // We expect a response
         let response = response.ok_or(ModelError::UploadMeasurementResponseError)?;
@@ -1854,12 +1850,18 @@ pub trait HwModel: SocManager {
 #[cfg(test)]
 mod tests {
     use crate::{mmio::Rv32GenMmio, BootParams, DefaultHwModel, HwModel, InitParams, ModelError};
+    use caliptra_api::calc_checksum;
     use caliptra_api::mailbox::{self, CommandId, MailboxReqHeader, MailboxRespHeader};
     use caliptra_api::soc_mgr::SocManager;
     use caliptra_builder::firmware;
     use caliptra_emu_bus::Bus;
     use caliptra_emu_types::RvSize;
     use caliptra_registers::{mbox::enums::MboxStatusE, soc_ifc};
+    use caliptra_test_harness_types::mailbox_responder::{
+        FIXED_RESPONSE_LEN, FIXED_RESPONSE_WORDS, MBOX_CMD_ECHO, MBOX_CMD_EMPTY_RESPONSE,
+        MBOX_CMD_FAIL, MBOX_CMD_FIXED_RESPONSE, MBOX_CMD_GET_RESPONSE, MBOX_CMD_NODATA,
+        MBOX_CMD_SET_RESPONSE,
+    };
     use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
 
     use crate as caliptra_hw_model;
@@ -1867,6 +1869,93 @@ mod tests {
     const MBOX_ADDR_BASE: u32 = 0x3002_0000;
     const MBOX_ADDR_LOCK: u32 = MBOX_ADDR_BASE;
     const MBOX_ADDR_CMD: u32 = MBOX_ADDR_BASE + 0x0000_0008;
+
+    /// An arbitrary value that the tests write to `MBOX_CMD` and read back.
+    const TEST_MBOX_CMD: u32 = 4242;
+
+    /// The AXI user the tests configure as valid for the mailbox.
+    const VALID_AXI_USER: u32 = 0x1;
+
+    /// An AXI user that is not configured as valid for the mailbox.
+    #[cfg(feature = "verilator")]
+    const INVALID_AXI_USER: u32 = 0x2;
+
+    /// A FIPS status that no command reports.
+    const INVALID_FIPS_STATUS: u32 = 0x2001;
+
+    /// The response data of `MBOX_CMD_FIXED_RESPONSE`.
+    fn fixed_response() -> Vec<u8> {
+        FIXED_RESPONSE_WORDS
+            .iter()
+            .flat_map(|word| word.to_le_bytes())
+            .take(FIXED_RESPONSE_LEN as usize)
+            .collect()
+    }
+
+    /// Request of `MBOX_CMD_GET_RESPONSE`. The responder answers it with the
+    /// response that was set with `MBOX_CMD_SET_RESPONSE`.
+    #[repr(C)]
+    #[derive(IntoBytes, FromBytes, Default, Immutable, KnownLayout)]
+    struct TestReq {
+        hdr: MailboxReqHeader,
+        data: [u8; 4],
+    }
+    impl mailbox::Request for TestReq {
+        const ID: CommandId = CommandId(MBOX_CMD_GET_RESPONSE);
+        type Resp = TestResp;
+    }
+
+    #[repr(C)]
+    #[derive(IntoBytes, Immutable, KnownLayout, Debug, FromBytes, PartialEq, Eq)]
+    struct TestResp {
+        hdr: MailboxRespHeader,
+        data: [u8; 4],
+    }
+    impl mailbox::Response for TestResp {}
+
+    /// Request of `MBOX_CMD_NODATA`: the responder completes it without
+    /// response data, which is an error for a request that expects a `TestResp`.
+    #[repr(C)]
+    #[derive(IntoBytes, FromBytes, Immutable, KnownLayout, Default)]
+    struct TestReqNoData {
+        hdr: MailboxReqHeader,
+        data: [u8; 4],
+    }
+    impl mailbox::Request for TestReqNoData {
+        const ID: CommandId = CommandId(MBOX_CMD_NODATA);
+        type Resp = TestResp;
+    }
+
+    /// A `TestResp` as the bytes to store with `MBOX_CMD_SET_RESPONSE`: a
+    /// response header with `fips_status` and a valid checksum, followed by
+    /// `data`.
+    fn canned_response(fips_status: u32, data: &[u8; 4]) -> Vec<u8> {
+        let mut resp = MailboxRespHeader {
+            chksum: 0,
+            fips_status,
+        }
+        .as_bytes()
+        .to_vec();
+        resp.extend_from_slice(data);
+        mailbox::populate_checksum(&mut resp);
+        resp
+    }
+
+    /// The line the responder prints on the UART for a `MBOX_CMD_GET_RESPONSE`
+    /// request carrying `data`: the bytes of the request in hex.
+    fn get_response_uart_line(data: &[u8; 4]) -> String {
+        let mut req = TestReq {
+            data: *data,
+            ..Default::default()
+        };
+        req.hdr.chksum = calc_checksum(MBOX_CMD_GET_RESPONSE, data);
+        let hex: String = req
+            .as_bytes()
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect();
+        format!("|{hex}|")
+    }
 
     fn gen_image_hi() -> Vec<u8> {
         let rv32_gen = Rv32GenMmio::new();
@@ -1981,7 +2070,7 @@ mod tests {
             .soc_ifc()
             .cptra_mbox_valid_axi_user()
             .at(0)
-            .write(|_| 0x1);
+            .write(|_| VALID_AXI_USER);
         model
             .soc_ifc()
             .cptra_mbox_axi_user_lock()
@@ -2000,11 +2089,11 @@ mod tests {
 
         model
             .apb_bus()
-            .write(RvSize::Word, MBOX_ADDR_CMD, 4242)
+            .write(RvSize::Word, MBOX_ADDR_CMD, TEST_MBOX_CMD)
             .unwrap();
         assert_eq!(
             model.apb_bus().read(RvSize::Word, MBOX_ADDR_CMD).unwrap(),
-            4242
+            TEST_MBOX_CMD
         );
     }
 
@@ -2025,7 +2114,7 @@ mod tests {
             .soc_ifc()
             .cptra_mbox_valid_axi_user()
             .at(0)
-            .write(|_| 0x1);
+            .write(|_| VALID_AXI_USER);
         model
             .soc_ifc()
             .cptra_mbox_axi_user_lock()
@@ -2035,8 +2124,8 @@ mod tests {
         assert!(!model.soc_mbox().lock().read().lock());
         assert!(model.soc_mbox().lock().read().lock());
 
-        model.soc_mbox().cmd().write(|_| 4242);
-        assert_eq!(model.soc_mbox().cmd().read(), 4242);
+        model.soc_mbox().cmd().write(|_| TEST_MBOX_CMD);
+        assert_eq!(model.soc_mbox().cmd().read(), TEST_MBOX_CMD);
     }
 
     #[test]
@@ -2056,7 +2145,7 @@ mod tests {
             .soc_ifc()
             .cptra_mbox_valid_axi_user()
             .at(0)
-            .write(|_| 0x1);
+            .write(|_| VALID_AXI_USER);
         model
             .soc_ifc()
             .cptra_mbox_axi_user_lock()
@@ -2066,8 +2155,8 @@ mod tests {
         assert!(!model.soc_mbox().lock().read().lock());
         assert!(model.soc_mbox().lock().read().lock());
 
-        model.soc_mbox().cmd().write(|_| 4242);
-        assert_eq!(model.soc_mbox().cmd().read(), 4242);
+        model.soc_mbox().cmd().write(|_| TEST_MBOX_CMD);
+        assert_eq!(model.soc_mbox().cmd().read(), TEST_MBOX_CMD);
 
         model.soc_mbox().execute().write(|w| w.execute(true));
         model.soc_mbox().dlen().write(|_| [1, 2, 3].len() as u32);
@@ -2097,7 +2186,7 @@ mod tests {
             .soc_ifc()
             .cptra_mbox_valid_axi_user()
             .at(0)
-            .write(|_| 0x1);
+            .write(|_| VALID_AXI_USER);
         model
             .soc_ifc()
             .cptra_mbox_axi_user_lock()
@@ -2105,22 +2194,22 @@ mod tests {
             .write(|w| w.lock(true));
 
         // Set the AXI_USER to something invalid
-        model.set_axi_user(0x2);
+        model.set_axi_user(INVALID_AXI_USER);
 
         assert!(!model.soc_mbox().lock().read().lock());
         // Should continue to read 0 because the reads are being blocked by valid AXI_USER
         assert!(!model.soc_mbox().lock().read().lock());
 
         // Set the AXI_USER back to valid
-        model.set_axi_user(0x1);
+        model.set_axi_user(VALID_AXI_USER);
 
         // Should read 0 the first time still for lock available
         assert!(!model.soc_mbox().lock().read().lock());
         // Should read 1 now for lock taken
         assert!(model.soc_mbox().lock().read().lock());
 
-        model.soc_mbox().cmd().write(|_| 4242);
-        assert_eq!(model.soc_mbox().cmd().read(), 4242);
+        model.soc_mbox().cmd().write(|_| TEST_MBOX_CMD);
+        assert_eq!(model.soc_mbox().cmd().read(), TEST_MBOX_CMD);
     }
 
     #[test]
@@ -2181,41 +2270,44 @@ mod tests {
 
         // Send command that echoes the command and input message
         assert_eq!(
-            model.mailbox_execute(0x1000_0000, &message),
+            model.mailbox_execute(MBOX_CMD_ECHO, &message),
             Ok(Some(
-                [[0x00, 0x00, 0x00, 0x10].as_slice(), &message].concat()
+                [MBOX_CMD_ECHO.to_le_bytes().as_slice(), &message].concat()
             )),
         );
 
         // Send command that echoes the command and input message
         assert_eq!(
-            model.mailbox_execute(0x1000_0000, &message[..8]),
-            Ok(Some(vec![
-                0x00, 0x00, 0x00, 0x10, 0x90, 0x5e, 0x1f, 0xad, 0x8b, 0x60, 0xb0, 0xbf
-            ])),
+            model.mailbox_execute(MBOX_CMD_ECHO, &message[..8]),
+            Ok(Some(
+                [MBOX_CMD_ECHO.to_le_bytes().as_slice(), &message[..8]].concat()
+            )),
         );
 
         // Send command that returns 7 bytes of output
         assert_eq!(
-            model.mailbox_execute(0x1000_1000, &[]),
-            Ok(Some(vec![0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd]))
+            model.mailbox_execute(MBOX_CMD_FIXED_RESPONSE, &[]),
+            Ok(Some(fixed_response()))
         );
 
         // Send command that returns 7 bytes of output, and doesn't consume input
         assert_eq!(
-            model.mailbox_execute(0x1000_1000, &[42]),
-            Ok(Some(vec![0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd])),
+            model.mailbox_execute(MBOX_CMD_FIXED_RESPONSE, &[42]),
+            Ok(Some(fixed_response())),
         );
 
         // Send command that returns 0 bytes of output
-        assert_eq!(model.mailbox_execute(0x1000_2000, &[]), Ok(Some(vec![])));
+        assert_eq!(
+            model.mailbox_execute(MBOX_CMD_EMPTY_RESPONSE, &[]),
+            Ok(Some(vec![]))
+        );
 
         // Send command that returns success with no output
-        assert_eq!(model.mailbox_execute(0x2000_0000, &[]), Ok(None));
+        assert_eq!(model.mailbox_execute(MBOX_CMD_NODATA, &[]), Ok(None));
 
         // Send command that returns failure
         assert_eq!(
-            model.mailbox_execute(0x4000_0000, &message),
+            model.mailbox_execute(MBOX_CMD_FAIL, &message),
             Err(ModelError::MailboxCmdFailed(0))
         );
     }
@@ -2237,7 +2329,7 @@ mod tests {
             .soc_ifc()
             .cptra_mbox_valid_axi_user()
             .at(0)
-            .write(|_| 0x1);
+            .write(|_| VALID_AXI_USER);
         model
             .soc_ifc()
             .cptra_mbox_axi_user_lock()
@@ -2245,7 +2337,7 @@ mod tests {
             .write(|w| w.lock(true));
 
         assert_eq!(
-            model.setup_mailbox_users(&[1]),
+            model.setup_mailbox_users(&[VALID_AXI_USER]),
             Err(caliptra_api::CaliptraApiError::UnableToSetPauser)
         );
     }
@@ -2273,9 +2365,9 @@ mod tests {
         let mut resp_data = [0u8; 128];
 
         assert_eq!(
-            model.mailbox_exec(0x1000_0000, &message, &mut resp_data),
+            model.mailbox_exec(MBOX_CMD_ECHO, &message, &mut resp_data),
             Ok(Some(
-                [[0x00, 0x00, 0x00, 0x10].as_slice(), &message]
+                [MBOX_CMD_ECHO.to_le_bytes().as_slice(), &message]
                     .concat()
                     .as_bytes()
             )),
@@ -2284,9 +2376,11 @@ mod tests {
         // Send command that echoes the command and input message
         let mut resp_data = [0u8; 128];
         assert_eq!(
-            model.mailbox_exec(0x1000_0000, &message[..8], resp_data.as_mut_bytes()),
+            model.mailbox_exec(MBOX_CMD_ECHO, &message[..8], resp_data.as_mut_bytes()),
             Ok(Some(
-                [0x00, 0x00, 0x00, 0x10, 0x90, 0x5e, 0x1f, 0xad, 0x8b, 0x60, 0xb0, 0xbf].as_slice()
+                [MBOX_CMD_ECHO.to_le_bytes().as_slice(), &message[..8]]
+                    .concat()
+                    .as_bytes()
             )),
         );
 
@@ -2295,19 +2389,19 @@ mod tests {
         let mut resp_data = [0u8; 128];
 
         assert_eq!(
-            model.mailbox_exec(0x1000_1000, &[42], resp_data.as_mut_bytes()),
-            Ok(Some([0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd].as_slice())),
+            model.mailbox_exec(MBOX_CMD_FIXED_RESPONSE, &[42], resp_data.as_mut_bytes()),
+            Ok(Some(fixed_response().as_slice())),
         );
 
         // Send command that returns success with no output
         assert_eq!(
-            model.mailbox_exec(0x2000_0000, &[], resp_data.as_mut_bytes()),
+            model.mailbox_exec(MBOX_CMD_NODATA, &[], resp_data.as_mut_bytes()),
             Ok(None)
         );
 
         // Send command that returns failure
         assert_eq!(
-            model.mailbox_exec(0x4000_0000, &message, resp_data.as_mut_bytes()),
+            model.mailbox_exec(MBOX_CMD_FAIL, &message, resp_data.as_mut_bytes()),
             Err(CaliptraApiError::MailboxCmdFailed(0))
         );
     }
@@ -2335,13 +2429,13 @@ mod tests {
 
         let oversized = vec![0u8; <DefaultHwModel as SocManager>::MAILBOX_SIZE_LIMIT + 1];
         assert_eq!(
-            model.mailbox_exec(0x1000_0000, &oversized, &mut resp_data),
+            model.mailbox_exec(MBOX_CMD_ECHO, &oversized, &mut resp_data),
             Err(CaliptraApiError::BufferTooLargeForMailbox)
         );
 
         // The lock must still be free, so a following command succeeds.
         assert_eq!(
-            model.mailbox_exec(0x2000_0000, &[], &mut resp_data),
+            model.mailbox_exec(MBOX_CMD_NODATA, &[], &mut resp_data),
             Ok(None)
         );
     }
@@ -2354,7 +2448,7 @@ mod tests {
 
         let max = vec![0u8; <DefaultHwModel as SocManager>::MAILBOX_SIZE_LIMIT];
         assert_eq!(
-            model.mailbox_exec(0x2000_0000, &max, &mut resp_data),
+            model.mailbox_exec(MBOX_CMD_NODATA, &max, &mut resp_data),
             Ok(None)
         );
     }
@@ -2406,41 +2500,10 @@ mod tests {
 
     #[test]
     pub fn test_soc_mgr_exec_req() {
-        const NO_DATA_CMD: u32 = 0x2000_0000;
-        const SET_RESPONSE_CMD: u32 = 0x3000_0000;
-        const GET_RESPONSE_CMD: u32 = 0x3000_0001;
-
-        #[repr(C)]
-        #[derive(IntoBytes, FromBytes, Default, Immutable, KnownLayout)]
-        struct TestReq {
-            hdr: MailboxReqHeader,
-            data: [u8; 4],
-        }
-        impl mailbox::Request for TestReq {
-            const ID: CommandId = CommandId(GET_RESPONSE_CMD);
-            type Resp = TestResp;
-        }
-        #[repr(C)]
-        #[derive(IntoBytes, Immutable, KnownLayout, Debug, FromBytes, PartialEq, Eq)]
-        struct TestResp {
-            hdr: MailboxRespHeader,
-            data: [u8; 4],
-        }
-        impl mailbox::Response for TestResp {}
-
-        #[repr(C)]
-        #[derive(IntoBytes, FromBytes, Immutable, KnownLayout, Default)]
-        struct TestReqNoData {
-            hdr: MailboxReqHeader,
-            data: [u8; 4],
-        }
-        impl mailbox::Request for TestReqNoData {
-            const ID: CommandId = CommandId(NO_DATA_CMD);
-            type Resp = TestResp;
-        }
-
-        fn set_response(model: &mut DefaultHwModel, data: &[u8]) {
-            model.mailbox_execute(SET_RESPONSE_CMD, data).unwrap();
+        fn set_response(model: &mut DefaultHwModel, response: &[u8]) {
+            model
+                .mailbox_execute(MBOX_CMD_SET_RESPONSE, response)
+                .unwrap();
         }
 
         let rom =
@@ -2455,13 +2518,11 @@ mod tests {
         )
         .unwrap();
 
+        let good_response = canned_response(0, b"HI!!");
+        let good_chksum = u32::from_le_bytes(good_response[..4].try_into().unwrap());
+
         // Success
-        set_response(
-            &mut model,
-            &[
-                0x2d, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00, 0x00, b'H', b'I', b'!', b'!',
-            ],
-        );
+        set_response(&mut model, &good_response);
 
         let mut packet = [0u8; 256];
         let resp = model
@@ -2474,13 +2535,13 @@ mod tests {
             )
             .unwrap();
         model
-            .step_until_output_and_take("|dcfeffff48692121|")
+            .step_until_output_and_take(&get_response_uart_line(b"Hi!!"))
             .unwrap();
         assert_eq!(
             resp,
             TestResp {
                 hdr: MailboxRespHeader {
-                    chksum: 0xffffff2d,
+                    chksum: good_chksum,
                     fips_status: 0
                 },
                 data: *b"HI!!",
@@ -2488,12 +2549,7 @@ mod tests {
         );
 
         // Set wrong length in response
-        set_response(
-            &mut model,
-            &[
-                0x2d, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00, 0x00, b'H', b'I', b'!',
-            ],
-        );
+        set_response(&mut model, &good_response[..good_response.len() - 1]);
         let resp = model
             .mailbox_exec_req(
                 TestReq {
@@ -2506,19 +2562,17 @@ mod tests {
         assert_eq!(
             resp,
             Err(ModelError::MailboxUnexpectedResponseLen {
-                expected_min: 12,
-                expected_max: 12,
-                actual: 11
+                expected_min: size_of::<TestResp>() as u32,
+                expected_max: size_of::<TestResp>() as u32,
+                actual: size_of::<TestResp>() as u32 - 1,
             })
         );
 
         // Set bad checksum in response
-        set_response(
-            &mut model,
-            &[
-                0x2e, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00, 0x00, b'H', b'I', b'!', b'!',
-            ],
-        );
+        let bad_chksum = good_chksum.wrapping_add(1);
+        let mut bad_chksum_response = good_response.clone();
+        bad_chksum_response[..4].copy_from_slice(&bad_chksum.to_le_bytes());
+        set_response(&mut model, &bad_chksum_response);
         let resp = model
             .mailbox_exec_req(
                 TestReq {
@@ -2531,19 +2585,14 @@ mod tests {
         assert_eq!(
             resp,
             Err(ModelError::MailboxRespInvalidChecksum {
-                expected: 0xffffff2e,
-                actual: 0xffffff2d
+                expected: bad_chksum,
+                actual: good_chksum,
             })
         );
 
         // Set bad FIPS status in response
-        set_response(
-            &mut model,
-            &[
-                0x0c, 0xff, 0xff, 0xff, 0x01, 0x20, 0x00, 0x00, b'H', b'I', b'!', b'!',
-            ],
-        );
-        let mut packet = [0u8; 12];
+        set_response(&mut model, &canned_response(INVALID_FIPS_STATUS, b"HI!!"));
+        let mut packet = [0u8; size_of::<TestResp>()];
         let resp = model
             .mailbox_exec_req(
                 TestReq {
@@ -2553,7 +2602,12 @@ mod tests {
                 &mut packet,
             )
             .map_err(ModelError::from);
-        assert_eq!(resp, Err(ModelError::MailboxRespInvalidFipsStatus(0x2001)));
+        assert_eq!(
+            resp,
+            Err(ModelError::MailboxRespInvalidFipsStatus(
+                INVALID_FIPS_STATUS
+            ))
+        );
 
         // Set no data in response
         let resp = model
@@ -2570,41 +2624,10 @@ mod tests {
 
     #[test]
     pub fn test_mailbox_execute_req() {
-        const NO_DATA_CMD: u32 = 0x2000_0000;
-        const SET_RESPONSE_CMD: u32 = 0x3000_0000;
-        const GET_RESPONSE_CMD: u32 = 0x3000_0001;
-
-        #[repr(C)]
-        #[derive(IntoBytes, FromBytes, Immutable, KnownLayout, Default)]
-        struct TestReq {
-            hdr: MailboxReqHeader,
-            data: [u8; 4],
-        }
-        impl mailbox::Request for TestReq {
-            const ID: CommandId = CommandId(GET_RESPONSE_CMD);
-            type Resp = TestResp;
-        }
-        #[repr(C)]
-        #[derive(IntoBytes, Debug, FromBytes, PartialEq, Eq)]
-        struct TestResp {
-            hdr: MailboxRespHeader,
-            data: [u8; 4],
-        }
-        impl mailbox::Response for TestResp {}
-
-        #[repr(C)]
-        #[derive(IntoBytes, FromBytes, Immutable, KnownLayout, Default)]
-        struct TestReqNoData {
-            hdr: MailboxReqHeader,
-            data: [u8; 4],
-        }
-        impl mailbox::Request for TestReqNoData {
-            const ID: CommandId = CommandId(NO_DATA_CMD);
-            type Resp = TestResp;
-        }
-
-        fn set_response(model: &mut DefaultHwModel, data: &[u8]) {
-            model.mailbox_execute(SET_RESPONSE_CMD, data).unwrap();
+        fn set_response(model: &mut DefaultHwModel, response: &[u8]) {
+            model
+                .mailbox_execute(MBOX_CMD_SET_RESPONSE, response)
+                .unwrap();
         }
 
         let rom =
@@ -2619,13 +2642,11 @@ mod tests {
         )
         .unwrap();
 
+        let good_response = canned_response(0, b"HI!!");
+        let good_chksum = u32::from_le_bytes(good_response[..4].try_into().unwrap());
+
         // Success
-        set_response(
-            &mut model,
-            &[
-                0x2d, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00, 0x00, b'H', b'I', b'!', b'!',
-            ],
-        );
+        set_response(&mut model, &good_response);
         let resp = model
             .mailbox_execute_req(TestReq {
                 data: *b"Hi!!",
@@ -2633,13 +2654,13 @@ mod tests {
             })
             .unwrap();
         model
-            .step_until_output_and_take("|dcfeffff48692121|")
+            .step_until_output_and_take(&get_response_uart_line(b"Hi!!"))
             .unwrap();
         assert_eq!(
             resp,
             TestResp {
                 hdr: MailboxRespHeader {
-                    chksum: 0xffffff2d,
+                    chksum: good_chksum,
                     fips_status: 0
                 },
                 data: *b"HI!!",
@@ -2647,12 +2668,7 @@ mod tests {
         );
 
         // Set wrong length in response
-        set_response(
-            &mut model,
-            &[
-                0x2d, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00, 0x00, b'H', b'I', b'!',
-            ],
-        );
+        set_response(&mut model, &good_response[..good_response.len() - 1]);
         let resp = model.mailbox_execute_req(TestReq {
             data: *b"Hi!!",
             ..Default::default()
@@ -2660,19 +2676,17 @@ mod tests {
         assert_eq!(
             resp,
             Err(ModelError::MailboxUnexpectedResponseLen {
-                expected_min: 12,
-                expected_max: 12,
-                actual: 11
+                expected_min: size_of::<TestResp>() as u32,
+                expected_max: size_of::<TestResp>() as u32,
+                actual: size_of::<TestResp>() as u32 - 1,
             })
         );
 
         // Set bad checksum in response
-        set_response(
-            &mut model,
-            &[
-                0x2e, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00, 0x00, b'H', b'I', b'!', b'!',
-            ],
-        );
+        let bad_chksum = good_chksum.wrapping_add(1);
+        let mut bad_chksum_response = good_response.clone();
+        bad_chksum_response[..4].copy_from_slice(&bad_chksum.to_le_bytes());
+        set_response(&mut model, &bad_chksum_response);
         let resp = model.mailbox_execute_req(TestReq {
             data: *b"Hi!!",
             ..Default::default()
@@ -2680,23 +2694,23 @@ mod tests {
         assert_eq!(
             resp,
             Err(ModelError::MailboxRespInvalidChecksum {
-                expected: 0xffffff2e,
-                actual: 0xffffff2d
+                expected: bad_chksum,
+                actual: good_chksum,
             })
         );
 
         // Set bad FIPS status in response
-        set_response(
-            &mut model,
-            &[
-                0x0c, 0xff, 0xff, 0xff, 0x01, 0x20, 0x00, 0x00, b'H', b'I', b'!', b'!',
-            ],
-        );
+        set_response(&mut model, &canned_response(INVALID_FIPS_STATUS, b"HI!!"));
         let resp = model.mailbox_execute_req(TestReq {
             data: *b"Hi!!",
             ..Default::default()
         });
-        assert_eq!(resp, Err(ModelError::MailboxRespInvalidFipsStatus(0x2001)));
+        assert_eq!(
+            resp,
+            Err(ModelError::MailboxRespInvalidFipsStatus(
+                INVALID_FIPS_STATUS
+            ))
+        );
 
         // Set no data in response
         let resp = model.mailbox_execute_req(TestReqNoData {
