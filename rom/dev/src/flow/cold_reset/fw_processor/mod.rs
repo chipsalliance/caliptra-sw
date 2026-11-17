@@ -286,7 +286,7 @@ impl FirmwareProcessor {
         env: &mut KatsEnv<'_, '_>,
         persistent_data: &mut PersistentData,
     ) -> CaliptraResult<(Option<ManuallyDrop<MailboxRecvTxn<'a>>>, u32)> {
-        let mut self_test_in_progress = false;
+        let mut self_test_result_pending = false;
         let subsystem_mode = soc_ifc.subsystem_mode();
 
         cprintln!("[fwproc] Wait for Commands...");
@@ -388,15 +388,22 @@ impl FirmwareProcessor {
                 let resp_len = match CommandId::from(cmd) {
                     CommandId::VERSION => VersionCmd::execute(cmd_bytes, soc_ifc, resp)?,
                     CommandId::SELF_TEST_START => {
-                        let (in_progress, len) =
-                            SelfTestStartCmd::execute(cmd_bytes, env, self_test_in_progress, resp)?;
-                        self_test_in_progress = in_progress;
+                        let (result_pending, len) = SelfTestStartCmd::execute(
+                            cmd_bytes,
+                            env,
+                            self_test_result_pending,
+                            resp,
+                        )?;
+                        self_test_result_pending = result_pending;
                         len
                     }
                     CommandId::SELF_TEST_GET_RESULTS => {
-                        let (in_progress, len) =
-                            SelfTestGetResultsCmd::execute(cmd_bytes, self_test_in_progress, resp)?;
-                        self_test_in_progress = in_progress;
+                        let (result_pending, len) = SelfTestGetResultsCmd::execute(
+                            cmd_bytes,
+                            self_test_result_pending,
+                            resp,
+                        )?;
+                        self_test_result_pending = result_pending;
                         len
                     }
                     CommandId::SHUTDOWN => ShutdownCmd::execute(cmd_bytes, resp)?,

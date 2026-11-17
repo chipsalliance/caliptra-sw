@@ -13,7 +13,7 @@ Abstract:
 --*/
 
 use caliptra_common::mailbox_api::{MailboxReqHeader, MailboxRespHeader};
-use caliptra_drivers::{CaliptraError, CaliptraResult};
+use caliptra_drivers::{report_fw_error_non_fatal, CaliptraError, CaliptraResult};
 use caliptra_kat::KatsEnv;
 use zerocopy::FromBytes;
 
@@ -26,16 +26,18 @@ impl SelfTestStartCmd {
     pub(crate) fn execute(
         cmd_bytes: &[u8],
         env: &mut KatsEnv<'_, '_>,
-        self_test_in_progress: bool,
+        self_test_result_pending: bool,
         _resp: &mut [u8],
     ) -> CaliptraResult<(bool, usize)> {
         MailboxReqHeader::ref_from_bytes(cmd_bytes)
             .map_err(|_| CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH)?;
 
-        if self_test_in_progress {
-            // TODO: set non-fatal error register?
+        if self_test_result_pending {
+            report_fw_error_non_fatal(
+                CaliptraError::FW_PROC_MAILBOX_SELF_TEST_RESULT_PENDING.into(),
+            );
             // Return 0 for response length, will cause txn.complete(false)
-            Ok((false, 0))
+            Ok((true, 0))
         } else {
             #[cfg(not(feature = "fake-rom"))]
             run_fips_tests(env)?;
@@ -52,14 +54,14 @@ impl SelfTestGetResultsCmd {
     #[inline(always)]
     pub(crate) fn execute(
         cmd_bytes: &[u8],
-        self_test_in_progress: bool,
+        self_test_result_pending: bool,
         _resp: &mut [u8],
     ) -> CaliptraResult<(bool, usize)> {
         MailboxReqHeader::ref_from_bytes(cmd_bytes)
             .map_err(|_| CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH)?;
 
-        if !self_test_in_progress {
-            // TODO: set non-fatal error register?
+        if !self_test_result_pending {
+            report_fw_error_non_fatal(CaliptraError::FW_PROC_MAILBOX_SELF_TEST_NOT_STARTED.into());
             // Return 0 for response length, will cause txn.complete(false)
             Ok((false, 0))
         } else {
