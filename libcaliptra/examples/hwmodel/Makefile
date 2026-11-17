@@ -24,6 +24,23 @@ BUILDER_PATH = ../../../builder
 DEFINES  = -DROM_PATH=\"$(ROM_FILE)\"
 DEFINES += -DFW_PATH=\"$(FW_FILE)\"
 
+ifndef CALIPTRA_HW_REV
+DEFINES += -DHW_VERSION=CALIPTRA_HW_VERSION_LATEST
+RTL_SOC_IFC_INCLUDE_PATH = ../../../hw/latest/caliptra-ss/third_party/caliptra-rtl/src/soc_ifc/rtl/caliptra_top_reg
+else
+ifeq ($(CALIPTRA_HW_REV),2.1)
+DEFINES += -DHW_VERSION=CALIPTRA_HW_VERSION_2_1
+RTL_SOC_IFC_INCLUDE_PATH = ../../../hw/rev-2_1/caliptra-ss/third_party/caliptra-rtl/src/soc_ifc/rtl/caliptra_top_reg
+else ifeq ($(CALIPTRA_HW_REV),latest)
+DEFINES += -DHW_VERSION=CALIPTRA_HW_VERSION_LATEST
+RTL_SOC_IFC_INCLUDE_PATH = ../../../hw/latest/caliptra-ss/third_party/caliptra-rtl/src/soc_ifc/rtl/caliptra_top_reg
+else
+$(error Unsupported CALIPTRA_HW_REV $(CALIPTRA_HW_REV))
+endif
+endif
+
+export RTL_SOC_IFC_INCLUDE_PATH
+
 # HW MODEL
 HWMODEL_DIR = $(OUTPUT_DIR)
 HWMODEL_HEADER_DIR = ../../../hw-model/c-binding/out
