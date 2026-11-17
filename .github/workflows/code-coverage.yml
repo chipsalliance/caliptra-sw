@@ -2,7 +2,7 @@ name: Code Coverage
 
 on:
   push:
-    branches: ["main"]
+    branches: ["main", "caliptra-2.2-dev"]
   pull_request:
   workflow_dispatch:
 
