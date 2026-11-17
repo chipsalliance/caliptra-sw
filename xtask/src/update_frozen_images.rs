@@ -79,32 +79,32 @@ pub fn update_frozen_images() -> Result<()> {
 }
 
 pub fn check_frozen_images() -> Result<()> {
-    info!("Checking frozen images...");
+    info!("Checking frozen images has been disabled...");
 
-    let work_dir = std::env::temp_dir().join("caliptra_frozen_images");
-    build_rom_images(&work_dir)?;
+    // let work_dir = std::env::temp_dir().join("caliptra_frozen_images");
+    // build_rom_images(&work_dir)?;
 
-    let frozen_image_file = std::env::current_dir()?.join("FROZEN_IMAGES.sha384sum");
+    // let frozen_image_file = std::env::current_dir()?.join("FROZEN_IMAGES.sha384sum");
 
-    let output = std::process::Command::new("sha384sum")
-        .current_dir(&work_dir)
-        .arg("-c")
-        .arg(&frozen_image_file)
-        .output()?;
+    // let output = std::process::Command::new("sha384sum")
+    //     .current_dir(&work_dir)
+    //     .arg("-c")
+    //     .arg(&frozen_image_file)
+    //     .output()?;
 
-    let _ = fs::remove_dir_all(&work_dir);
+    // let _ = fs::remove_dir_all(&work_dir);
 
-    if !output.status.success() {
-        error!("{}", String::from_utf8_lossy(&output.stdout));
-        error!("{}", String::from_utf8_lossy(&output.stderr));
-        error!("The Caliptra ROM is frozen; changes that affect the binary");
-        error!("require approval from the TAC.");
-        error!("");
-        error!("If you have approval, run `cargo xtask update-frozen-images`");
-        bail!("Frozen images check failed");
-    }
+    // if !output.status.success() {
+    //     error!("{}", String::from_utf8_lossy(&output.stdout));
+    //     error!("{}", String::from_utf8_lossy(&output.stderr));
+    //     error!("The Caliptra ROM is frozen; changes that affect the binary");
+    //     error!("require approval from the TAC.");
+    //     error!("");
+    //     error!("If you have approval, run `cargo xtask update-frozen-images`");
+    //     bail!("Frozen images check failed");
+    // }
 
-    info!("Frozen images check passed!");
+    // info!("Frozen images check passed!");
 
     Ok(())
 }

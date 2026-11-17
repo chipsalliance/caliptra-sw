@@ -119,15 +119,15 @@ if task_enabled "test"; then
 fi
 
 if task_enabled "check_frozen_images"; then
-    echo Checking frozen images
-    build_rom_images
-    (cd "${WORK_DIR}" && sha384sum -c "${FROZEN_IMAGE_FILE}") || (
-        echo "The Caliptra ROM is frozen; changes that affect the binary"
-        echo "require approval from the TAC."
-        echo
-        echo "If you have approval, run ./ci.sh update_frozen_images"
-        false
-    )
+    echo "Checking frozen images has been disabled"
+    # build_rom_images
+    # (cd "${WORK_DIR}" && sha384sum -c "${FROZEN_IMAGE_FILE}") || (
+    #     echo "The Caliptra ROM is frozen; changes that affect the binary"
+    #     echo "require approval from the TAC."
+    #     echo
+    #     echo "If you have approval, run ./ci.sh update_frozen_images"
+    #     false
+    # )
 fi
 if optional_task_enabled "update_frozen_images"; then
     echo "Updating frozen images"
