@@ -116,6 +116,9 @@ mod register_facade {
         }
     }
 
+    // `CPTRA_iTRNG_ENTROPY_CONFIG_1[31:16]` is named `alert_threshold` natively.
+    pub trait EntropyConfig1ReadValFacade {}
+
     pub use crate::{
         entropy_src::regs::{
             AdaptpHiThresholdReadVal as AdaptpHiThresholdsReadVal,
@@ -135,6 +138,17 @@ mod register_facade {
     pub trait EntropyThresholdReadValFacade {}
     pub trait EntropyThresholdWriteValFacade {}
     pub trait EntropySrcRegisterBlockFacade {}
+
+    pub trait EntropyConfig1ReadValFacade {
+        fn alert_threshold(&self) -> u32;
+    }
+
+    // `CPTRA_iTRNG_ENTROPY_CONFIG_1[31:16]` is named `rsvd` before 2.2.
+    impl EntropyConfig1ReadValFacade for crate::soc_ifc::regs::CptraItrngEntropyConfig1ReadVal {
+        fn alert_threshold(&self) -> u32 {
+            self.rsvd()
+        }
+    }
 
     pub use crate::{
         entropy_src::regs::{
