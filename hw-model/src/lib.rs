@@ -2453,6 +2453,237 @@ mod tests {
         );
     }
 
+    /// Minimal state machine modelling
+    #[derive(Clone, Copy)]
+    enum SocMboxStage {
+        /// Lock taken -> `RDY_FOR_CMD`
+        Locked,
+        /// Command written -> `RDY_FOR_DLEN`
+        CmdWritten,
+        /// Data length written -> `RDY_FOR_DATA`
+        DlenWritten,
+    }
+
+    /// The command the SoC writes in order. The responder completes it without response data.
+    const SOC_CMD: u32 = MBOX_CMD_NODATA;
+
+    /// The data length in bytes the SoC writes in order: two words.
+    const SOC_DLEN: u32 = 8;
+
+    /// A command written out of order. It differs from `SOC_CMD` so that a read-back can tell the two apart.
+    const OOO_CMD: u32 = MBOX_CMD_ECHO;
+
+    /// A data length written out of order. It differs from `SOC_DLEN` so that a read-back can tell the two apart.
+    const OOO_DLEN: u32 = 16;
+
+    /// A mailbox responder model whose mailbox the SoC has locked and advanced to `stage`.
+    fn soc_locked_mailbox_model(stage: SocMboxStage) -> DefaultHwModel {
+        let mut model = new_mailbox_responder_model();
+        assert!(!model.soc_mbox().lock().read().lock());
+
+        if !matches!(stage, SocMboxStage::Locked) {
+            model.soc_mbox().cmd().write(|_| SOC_CMD);
+        }
+        if matches!(stage, SocMboxStage::DlenWritten) {
+            model.soc_mbox().dlen().write(|_| SOC_DLEN);
+        }
+        model
+    }
+
+    /// The most cycles to wait for the mailbox FSM to reach an expected state.
+    /// On the SW emulator and on the verilated RTL the first status read after
+    /// an access already shows the new state.
+    const MBOX_FSM_TIMEOUT_CYCLES: u32 = 1_000;
+
+    /// The most cycles to wait for Caliptra to respond to a mailbox command.
+    const MBOX_RESPONSE_TIMEOUT_CYCLES: u32 = 1_000_000;
+
+    /// While the SoC lock owner fills the mailbox the RTL accepts only the access
+    /// that advances the protocol. Any other `access` must lead the FSM in `MBOX_ERROR`
+    /// and the SoC must not be able to leave that state.
+    fn assert_soc_ooo_is_error(stage: SocMboxStage, access: impl FnOnce(&mut DefaultHwModel)) {
+        let mut model = soc_locked_mailbox_model(stage);
+        access(&mut model);
+        model.step_until_or_timeout(
+            "the mailbox FSM to enter MBOX_ERROR",
+            MBOX_FSM_TIMEOUT_CYCLES,
+            |m| m.soc_mbox().status().read().mbox_fsm_ps().mbox_error(),
+        );
+        assert!(model.soc_mbox().lock().read().lock());
+
+        // Only Caliptra's microcontroller can force an unlock. The SoC can neither
+        // release the mailbox nor continue the request. A state that must not change
+        //  cannot be waited for, so it is checked right away: the FSM reflects an
+        // access on the first read.
+        model.soc_mbox().unlock().write(|w| w.unlock(true));
+        model.soc_mbox().execute().write(|w| w.execute(false));
+        assert!(model.soc_mbox().status().read().mbox_fsm_ps().mbox_error());
+
+        // The RTL also reports the violation to the microcontroller.
+        // TODO: the SW emulator does not model CPTRA_HW_ERROR_NON_FATAL.
+        if cfg!(feature = "verilator") {
+            assert!(model
+                .soc_ifc()
+                .cptra_hw_error_non_fatal()
+                .read()
+                .mbox_prot_ooo());
+        }
+    }
+
+    #[test]
+    /// `RDY_FOR_CMD accepts` only a write to `MBOX_CMD`, clearing `execute` here.
+    /// The SoC trying to abort a request it just started is a protocol error.
+    fn test_soc_mbox_ooo_execute_after_lock() {
+        assert_soc_ooo_is_error(SocMboxStage::Locked, |m| {
+            m.soc_mbox().execute().write(|w| w.execute(false))
+        });
+    }
+
+    #[test]
+    fn test_soc_mbox_ooo_dlen_after_lock() {
+        assert_soc_ooo_is_error(SocMboxStage::Locked, |m| {
+            m.soc_mbox().dlen().write(|_| OOO_DLEN)
+        });
+    }
+
+    #[test]
+    fn test_soc_mbox_ooo_dataout_read_after_lock() {
+        assert_soc_ooo_is_error(SocMboxStage::Locked, |m| {
+            let _ = m.soc_mbox().dataout().read();
+        });
+    }
+
+    #[test]
+    fn test_soc_mbox_ooo_unlock_after_lock() {
+        assert_soc_ooo_is_error(SocMboxStage::Locked, |m| {
+            m.soc_mbox().unlock().write(|w| w.unlock(true))
+        });
+    }
+
+    #[test]
+    /// RDY_FOR_DLEN accepts only a write to MBOX_DLEN.
+    fn test_soc_mbox_ooo_cmd_after_cmd() {
+        assert_soc_ooo_is_error(SocMboxStage::CmdWritten, |m| {
+            // Returns a success response, doesn't consume input.
+            m.soc_mbox().cmd().write(|_| OOO_CMD)
+        });
+    }
+
+    #[test]
+    fn test_soc_mbox_ooo_execute_after_cmd() {
+        assert_soc_ooo_is_error(SocMboxStage::CmdWritten, |m| {
+            m.soc_mbox().execute().write(|w| w.execute(true))
+        });
+    }
+
+    #[test]
+    /// RDY_FOR_DATA accepts only writes to MBOX_DATAIN and MBOX_EXECUTE.
+    fn test_soc_mbox_ooo_cmd_in_data_phase() {
+        assert_soc_ooo_is_error(SocMboxStage::DlenWritten, |m| {
+            // Returns a success response, doesn't consume input.
+            m.soc_mbox().cmd().write(|_| OOO_CMD)
+        });
+    }
+
+    #[test]
+    fn test_soc_mbox_ooo_status_in_data_phase() {
+        assert_soc_ooo_is_error(SocMboxStage::DlenWritten, |m| {
+            m.soc_mbox()
+                .status()
+                .write(|w| w.status(|w| w.cmd_complete()))
+        });
+    }
+
+    #[test]
+    fn test_soc_mbox_ooo_dataout_read_in_data_phase() {
+        assert_soc_ooo_is_error(SocMboxStage::DlenWritten, |m| {
+            let _ = m.soc_mbox().dataout().read();
+        });
+    }
+
+    #[test]
+    /// The RTL stores writes of the SoC lock owner to `MBOX_CMD`, `MBOX_DLEN` and
+    /// `MBOX_EXECUTE` whatever the state of the FSM, including `MBOX_ERROR`: their
+    /// write enable is `valid_requester`, which does not depend on the FSM state
+    /// for a SoC agent (`mbox_csr.rdl`, `mbox.sv`).
+    /// Outside `MBOX_EXECUTE_SOC` the SoC is not a valid receiver, so writes to
+    /// `MBOX_STATUS` are dropped and reads of `MBOX_DATAOUT` return zero.
+    fn test_soc_mbox_ooo_writes_are_stored_in_registers() {
+        let mut model = soc_locked_mailbox_model(SocMboxStage::Locked);
+
+        // An out-of-order data length moves the FSM in MBOX_ERROR, but is stored.
+        model.soc_mbox().dlen().write(|_| OOO_DLEN);
+        model.step_until_or_timeout(
+            "the mailbox FSM to enter MBOX_ERROR",
+            MBOX_FSM_TIMEOUT_CYCLES,
+            |m| m.soc_mbox().status().read().mbox_fsm_ps().mbox_error(),
+        );
+        assert_eq!(model.soc_mbox().dlen().read(), OOO_DLEN);
+
+        // The registers keep storing writes while the FSM is in MBOX_ERROR
+        model.soc_mbox().cmd().write(|_| OOO_CMD);
+        assert_eq!(model.soc_mbox().cmd().read(), OOO_CMD);
+        model.soc_mbox().execute().write(|w| w.execute(true));
+        assert!(model.soc_mbox().execute().read().execute());
+
+        // Except for MBOX_STATUS, and the data cannot be read.
+        model
+            .soc_mbox()
+            .status()
+            .write(|w| w.status(|w| w.cmd_failure()));
+        assert!(model.soc_mbox().status().read().status().cmd_busy());
+        assert_eq!(model.soc_mbox().dataout().read(), 0);
+        assert!(model.soc_mbox().status().read().mbox_fsm_ps().mbox_error());
+    }
+
+    #[test]
+    /// The accesses the RTL accepts do not disturb the protocol. Reads of every
+    /// register except `MBOX_DATAOUT`, and clearing `execute` before it was ever
+    /// set, which is a no-op.
+    fn test_soc_mbox_in_order_accesses_are_not_errors() {
+        let mut model = soc_locked_mailbox_model(SocMboxStage::DlenWritten);
+
+        // one correct access chain
+        let _ = model.soc_mbox().lock().read();
+        let _ = model.soc_mbox().user().read();
+        let _ = model.soc_mbox().cmd().read();
+        let _ = model.soc_mbox().dlen().read();
+        let _ = model.soc_mbox().status().read();
+        model.soc_mbox().execute().write(|w| w.execute(false));
+        assert!(model
+            .soc_mbox()
+            .status()
+            .read()
+            .mbox_fsm_ps()
+            .mbox_rdy_for_data());
+
+        // The request is undisturbed and can still be completed.
+        model.soc_mbox().datain().write(|_| 1);
+        model.soc_mbox().datain().write(|_| 2);
+        model.soc_mbox().execute().write(|w| w.execute(true));
+        model.step_until_or_timeout("the mailbox response", MBOX_RESPONSE_TIMEOUT_CYCLES, |m| {
+            !m.soc_mbox().status().read().status().cmd_busy()
+        });
+        assert!(model
+            .soc_mbox()
+            .status()
+            .read()
+            .mbox_fsm_ps()
+            .mbox_execute_soc());
+        model.soc_mbox().execute().write(|w| w.execute(false));
+        model.step_until_or_timeout(
+            "the mailbox FSM to return to idle",
+            MBOX_FSM_TIMEOUT_CYCLES,
+            |m| m.soc_mbox().status().read().mbox_fsm_ps().mbox_idle(),
+        );
+
+        assert!(!model
+            .soc_ifc()
+            .cptra_hw_error_non_fatal()
+            .read()
+            .mbox_prot_ooo());
+    }
+
     #[test]
     pub fn test_mailbox_receive() {
         let rom = caliptra_builder::build_firmware_rom(&firmware::hw_model_tests::MAILBOX_SENDER)
@@ -2469,6 +2700,7 @@ mod tests {
 
         // Test 8-byte request, respond-with-success
         let txn = model.wait_for_mailbox_receive().unwrap();
+        // HOLD_COMMAND_BUSY
         assert_eq!(txn.req.cmd, 0xe000_0000);
         assert_eq!(
             txn.req.data,
