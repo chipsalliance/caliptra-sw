@@ -28,3 +28,7 @@ git submodule update --init --recursive hw/latest/caliptra-ss  # Needed the firs
 
 Cargo will compile the RTL into verilated C++, compile the generated C++ into a
 static library, and link to this library from the Rust crate.
+
+The embedded simulator initializes Verilator's argument list before constructing
+the RTL model, so RTL plusarg queries work with their default values. Host test
+runner arguments are not forwarded as RTL plusargs.
