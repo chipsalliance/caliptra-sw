@@ -14,6 +14,11 @@ Specified in caliptra_api.h and defined in caliptra_api.c
 
 Provides abstract APIs and functionality to SoC applications, independent of hardware details.
 
+Response structures are caller-owned. The FMC alias ECC384 certificate response
+reserves 9216 data bytes, matching the firmware's variable-sized response limit.
+Rebuild callers against the updated header; systems with small stacks should
+provide suitable static or heap storage for this response.
+
 ### IF
 
 Specified in caliptra_if.h and used by caliptra_api.c
