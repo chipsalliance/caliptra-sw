@@ -38,6 +38,8 @@ use caliptra_dpe::{
 };
 use caliptra_dpe_crypto::{Digest, Mu, PrecomputedSignData, Sha384};
 use caliptra_drivers::{IdevidCertAttr, MfgFlags};
+#[cfg(not(feature = "fpga_subsystem"))]
+use caliptra_emu_bus::{Device, Event, EventData, RecoveryCommandCode};
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{
     flash_image::build_flash_image_bytes, BootParams, CodeRange, DefaultHwModel, DeviceLifecycle,
@@ -1239,5 +1241,42 @@ pub fn verify_sign_and_certify_key(
             assert!(leaf_x509.verify(&alias_pubkey).unwrap());
         }
         _ => panic!("Wrong response type!"),
+    }
+}
+
+/// Reads one recovery interface register through a BMC block-read event and
+/// returns the response payload.
+#[cfg(not(feature = "fpga_subsystem"))]
+pub fn read_recovery_register(
+    model: &mut DefaultHwModel,
+    command_code: RecoveryCommandCode,
+) -> Vec<u8> {
+    model
+        .events_to_caliptra()
+        .send(Event::new(
+            Device::BMC,
+            Device::CaliptraCore,
+            EventData::RecoveryBlockReadRequest {
+                source_addr: 0,
+                target_addr: 0,
+                command_code,
+            },
+        ))
+        .unwrap();
+
+    loop {
+        model.step();
+        for event in model.events_from_caliptra() {
+            if let EventData::RecoveryBlockReadResponse {
+                command_code: response_command_code,
+                payload,
+                ..
+            } = event.event
+            {
+                if response_command_code == command_code {
+                    return payload;
+                }
+            }
+        }
     }
 }

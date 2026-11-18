@@ -83,6 +83,9 @@ verilator = ["caliptra-hw-model/verilator"]
 no-fmc = []
 fake-rom = ["caliptra-drivers/fake-rom"]
 skip-clear-sram = []
+# TODO: remove rom-early-prot-cap once the Caliptra TAC approves a frozen ROM
+# that calls DmaRecovery::set_prot_cap.
+rom-early-prot-cap = ["caliptra-drivers/rom-early-prot-cap"]
 cfi = [
   "caliptra-image-verify/cfi",
   "caliptra-image-types/cfi",

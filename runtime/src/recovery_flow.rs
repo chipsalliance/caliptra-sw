@@ -66,6 +66,17 @@ impl RecoveryFlow {
         dma_recovery.set_boot_failure_reason(recovery_reason)
     }
 
+    /// Reports the terminal codes of a successful recovery, so the Recovery
+    /// Agent stops polling: RECOVERY_STATUS 0x3 'Recovery successful' and
+    /// DEVICE_STATUS 0x1 'Device healthy'. An MCU that needs the interface
+    /// again re-opens it explicitly, DEVICE_STATUS 0x3 and RECOVERY_STATUS
+    /// 0x1 with the next image index, the sequence the recovery flow uses
+    /// between images.
+    fn set_recovery_successful(dma_recovery: &DmaRecovery) -> CaliptraResult<()> {
+        dma_recovery.set_recovery_status(DmaRecovery::RECOVERY_STATUS_SUCCESSFUL, 0)?;
+        dma_recovery.set_device_status_with_recovery_reason(DmaRecovery::DEVICE_STATUS_HEALTHY, 0)
+    }
+
     /// Load the SoC Manifest and MCU firwmare
     #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     pub(crate) fn recovery_flow(drivers: &mut Drivers) -> CaliptraResult<()> {
@@ -208,11 +219,7 @@ impl RecoveryFlow {
                 drivers.mcu_fw_info.sha384 = ciphertext_digest.into();
 
                 // we're done with recovery, but MCU will handle its own boot after decryption
-                dma_recovery.set_recovery_status(DmaRecovery::RECOVERY_STATUS_SUCCESSFUL, 0)?;
-                dma_recovery.set_device_status_with_recovery_reason(
-                    DmaRecovery::DEVICE_STATUS_HEALTHY,
-                    0,
-                )?;
+                Self::set_recovery_successful(&dma_recovery)?;
                 return Ok(());
             }
 
@@ -228,7 +235,7 @@ impl RecoveryFlow {
             // notify MCU that it can boot its firmware
             drivers.soc_ifc.set_mcu_firmware_ready();
 
-            // leave recovery status open in case MCU wants to load additional images
+            Self::set_recovery_successful(&dma_recovery)?;
         }
 
         // notify MCU that it can boot its firmware

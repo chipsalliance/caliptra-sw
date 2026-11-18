@@ -85,6 +85,16 @@ pub const ROM_WITH_FIPS_TEST_HOOKS: FwId = FwId {
     },
 };
 
+// TODO: remove ROM_WITH_EARLY_PROT_CAP once the Caliptra TAC approves a
+// frozen ROM that calls DmaRecovery::set_prot_cap.
+pub const ROM_WITH_EARLY_PROT_CAP: FwId = FwId {
+    crate_name: "caliptra-rom",
+    bin_name: "caliptra-rom",
+    fw_type: FirmwareType::Source {
+        features: &["emu", "rom-early-prot-cap", "cfi"],
+    },
+};
+
 /// Pre-built 2.0.1 ROM release binary target identifier.
 /// Represents the downloaded 2.0.1 release ROM artifact (caliptra-rom-with-log.bin)
 /// from the GitHub caliptra-sw release package.
@@ -778,6 +788,7 @@ pub const REGISTERED_FW: &[&FwId] = &[
     &ROM_FAKE_WITH_UART_FPGA,
     &ROM_WITH_FIPS_TEST_HOOKS,
     &ROM_WITH_FIPS_TEST_HOOKS_FPGA,
+    &ROM_WITH_EARLY_PROT_CAP,
     &ROM_FPGA_WITH_UART,
     &FMC_WITH_UART,
     &FMC_FAKE_WITH_UART,

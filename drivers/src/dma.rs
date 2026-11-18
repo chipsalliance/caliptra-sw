@@ -602,6 +602,37 @@ pub struct DmaRecovery<'a> {
     dma: &'a Dma,
 }
 
+// TODO: move the write_prot_cap body into set_prot_cap once the Caliptra TAC
+// approves a frozen ROM that calls set_prot_cap.
+// write_prot_cap is a macro because an #[inline(always)] function that
+// request_image calls changes the caliptra-rom-with-log.bin hash, and the
+// default ROM has to match the frozen ROM hashes.
+macro_rules! write_prot_cap {
+    ($recovery:ident) => {
+        // Set PROT_CAP2.AGENT_CAPS
+        // - Bit0  to 1 ('Device ID support')
+        // - Bit4  to 1 ('Device Status support')
+        // - Bit5  to 1 ('Recovery memory access / INDIRECT_CTRL support')
+        // - Bit7  to 1 ('Push C-image support')
+        // - Bit9  to 1 ('Hardware Status support')
+        // - Bit11 to 1 ('Flashless boot')
+        // - Bit12 to 1 ('FIFO CMS support')
+        // Set PROT_CAP2.REC_PROT_VERSION to 0x101 (1.1).
+        $recovery.prot_cap_2().modify(|val| {
+            val.agent_caps(
+                DmaRecovery::PROT_CAP2_DEVICE_ID_SUPPORT // mandatory
+                    | DmaRecovery::PROT_CAP2_DEVICE_STATUS_SUPPORT // mandatory
+                    | DmaRecovery::PROT_CAP2_RECOVERY_MEMORY_ACCESS_SUPPORT
+                    | DmaRecovery::PROT_CAP2_FIFO_CMS_SUPPORT
+                    | DmaRecovery::PROT_CAP2_HW_STATUS_SUPPORT
+                    | DmaRecovery::PROT_CAP2_FLASHLESS_BOOT_VALUE
+                    | DmaRecovery::PROT_CAP2_PUSH_C_IMAGE_SUPPORT,
+            )
+            .rec_prot_version(0x101) // 1.1
+        });
+    };
+}
+
 impl<'a> DmaRecovery<'a> {
     const RECOVERY_REGISTER_OFFSET: usize = 0x100;
     const INDIRECT_FIFO_DATA_OFFSET: u32 = 0x68;
@@ -1036,6 +1067,24 @@ impl<'a> DmaRecovery<'a> {
         Ok(())
     }
 
+    /// Publishes the protocol version and the agent capabilities in
+    /// PROT_CAP. OCP Recovery 1.1 Table 1 scopes PROT_CAP as available
+    /// anytime the recovery interface is available, so a ROM built with
+    /// `rom-early-prot-cap` calls `set_prot_cap` once, when the command loop
+    /// starts in subsystem mode, in place of the write in `request_image`.
+    // TODO: drop the cfg once the Caliptra TAC approves a frozen ROM that
+    // calls set_prot_cap.
+    // The cfg keeps set_prot_cap out of the default ROM, because the unused
+    // function changes the default ROM image, so the image hash differs from
+    // the frozen ROM hash.
+    #[cfg(feature = "rom-early-prot-cap")]
+    pub fn set_prot_cap(&self) -> CaliptraResult<()> {
+        self.with_regs_mut(|regs_mut| {
+            let recovery = regs_mut.sec_fw_recovery_if();
+            write_prot_cap!(recovery);
+        })
+    }
+
     // Request the recovery interface load an image.
     pub fn request_image(&self, fw_image_index: u32) -> CaliptraResult<u32> {
         cprintln!(
@@ -1045,27 +1094,13 @@ impl<'a> DmaRecovery<'a> {
 
         self.with_regs_mut(|regs_mut| {
             let recovery = regs_mut.sec_fw_recovery_if();
-            // Set PROT_CAP2.AGENT_CAPS
-            // - Bit0  to 1 ('Device ID support')
-            // - Bit4  to 1 ('Device Status support')
-            // - Bit5  to 1 ('Recovery memory access / INDIRECT_CTRL support')
-            // - Bit7  to 1 ('Push C-image support')
-            // - Bit9  to 1 ('Hardware Status support')
-            // - Bit11 to 1 ('Flashless boot')
-            // - Bit12 to 1 ('FIFO CMS support')
-            // Set PROT_CAP2.REC_PROT_VERSION to 0x101 (1.1).
-            recovery.prot_cap_2().modify(|val| {
-                val.agent_caps(
-                    Self::PROT_CAP2_DEVICE_ID_SUPPORT // mandatory
-                        | Self::PROT_CAP2_DEVICE_STATUS_SUPPORT // mandatory
-                        | Self::PROT_CAP2_RECOVERY_MEMORY_ACCESS_SUPPORT
-                        | Self::PROT_CAP2_FIFO_CMS_SUPPORT
-                        | Self::PROT_CAP2_HW_STATUS_SUPPORT
-                        | Self::PROT_CAP2_FLASHLESS_BOOT_VALUE
-                        | Self::PROT_CAP2_PUSH_C_IMAGE_SUPPORT,
-                )
-                .rec_prot_version(0x101) // 1.1
-            });
+            // TODO: remove the PROT_CAP write once the Caliptra TAC approves a
+            // frozen ROM that calls set_prot_cap.
+            // A ROM built with rom-early-prot-cap wrote PROT_CAP in
+            // set_prot_cap when the command loop started, and the register
+            // keeps the value until the I3C core resets.
+            #[cfg(not(feature = "rom-early-prot-cap"))]
+            write_prot_cap!(recovery);
 
             // Set DEVICE_STATUS:Byte0 to 0x3 ('Recovery mode - ready to accept recovery image').
             // Set DEVICE_STATUS:Byte[2:3] to 0x12 ('Recovery Reason Codes' 0x12 - Flashless/Streaming Boot (FSB)).
