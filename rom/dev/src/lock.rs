@@ -44,6 +44,13 @@ pub fn lock_registers(env: &mut RomEnv, reset_reason: ResetReason) -> CaliptraRe
     env.pcr_bank.set_pcr_lock(PCR_ID_STASH_MEASUREMENT);
 
     env.soc_ifc.set_iccm_lock(true);
+
+    // Remove the CSR HMAC key from the HMAC engine so FMC and Runtime can't
+    // use it. The lock is cleared by cold and warm resets and kept across
+    // update resets; setting it again on an update reset is harmless.
+    cprintln!("[state] Locking CSR HMAC key");
+    env.soc_ifc.set_csr_hmac_key_lock();
+
     let manifest = &env.persistent_data.get().rom.manifest1;
     env.soc_ifc.configure_iccm_regions(
         manifest.fmc.load_addr,
