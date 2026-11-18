@@ -32,6 +32,9 @@ else
   cp io_module/mcu_io_module.c petalinux_project/project-spec/meta-user/recipes-modules/io-module/files/io-module.c
 fi
 
+echo "Copying caliptra_fpga_hcd source code"
+cp caliptra_fpga_hcd/caliptra_fpga_hcd.c petalinux_project/project-spec/meta-user/recipes-modules/caliptra-fpga-hcd/files/caliptra_fpga_hcd.c
+
 cd petalinux_project
 
 echo Adding xsa
@@ -53,5 +56,8 @@ petalinux-package --boot --format BIN --plm --psmfw --u-boot --dtb --force
 
 echo "Building io-module"
 petalinux-build -c io-module
+
+echo "Building caliptra-fpga-hcd"
+petalinux-build -c caliptra-fpga-hcd
 
 cd ../

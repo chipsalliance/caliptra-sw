@@ -47,7 +47,7 @@ jobs:
             image_variant: subsystem
     env:
       # Change this to a new random value if you suspect the cache is corrupted
-      CACHE_BUSTER: 8e2f1a3d9c4b
+      CACHE_BUSTER: 9f4c2b7e1d5a
       IMAGE_VARIANT: ${{ matrix.image_variant }}
 
       BITSTREAM_NAME: ${{ matrix.bitstream_name }}
@@ -65,6 +65,7 @@ jobs:
           path: |
             /tmp/vck190-kernel-${{ matrix.image_variant }}.tar.gz
             /tmp/io-module-${{ matrix.image_variant }}.ko
+            /tmp/caliptra_fpga_hcd-${{ matrix.image_variant }}.ko
           key: kernel-${{ matrix.image_variant }}-${{ matrix.bitstream_hash }}-${{ env.CACHE_BUSTER }}
 
       - name: Install pre-requisites
@@ -109,8 +110,11 @@ jobs:
           tar -C petalinux_project/images/linux -cvzf vck190-kernel.tar.gz BOOT.BIN Image image.ub boot.scr system.dts system.dtb
           mv vck190-kernel.tar.gz /tmp/vck190-kernel-${IMAGE_VARIANT}.tar.gz
 
-          IO_MODULE_PATH=$(find . -name 'io-module.ko')
-          mv $IO_MODULE_PATH /tmp/io-module-${IMAGE_VARIANT}.ko
+          IO_MODULE_PATH=$(find . -name 'io-module.ko' | head -n 1)
+          mv "$IO_MODULE_PATH" /tmp/io-module-${IMAGE_VARIANT}.ko
+
+          USB_HCD_MODULE_PATH=$(find . -name 'caliptra_fpga_hcd.ko' | head -n 1)
+          mv "$USB_HCD_MODULE_PATH" /tmp/caliptra_fpga_hcd-${IMAGE_VARIANT}.ko
           popd
 
       - name: 'Upload kernel artifact'
@@ -124,7 +128,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: vck190-kernel-module-${{ matrix.image_variant}}
-          path: /tmp/io-module-${{ matrix.image_variant }}.ko
+          path: |
+            /tmp/io-module-${{ matrix.image_variant }}.ko
+            /tmp/caliptra_fpga_hcd-${{ matrix.image_variant }}.ko
           retention-days: 1
 
   build_sd_image:
@@ -176,6 +182,7 @@ jobs:
               LOCAL_GH_WORKFLOW_SHA="${LOCAL_GH_WORKFLOW_SHA}"  \
               KERNEL_ARCHIVE="/tmp/vck190-kernel/vck190-kernel-${IMAGE_VARIANT}.tar.gz"  \
               KERNEL_MODULE_ARCHIVE="/tmp/vck190-kmod/io-module-${IMAGE_VARIANT}.ko"  \
+              USB_HCD_MODULE_ARCHIVE="/tmp/vck190-kmod/caliptra_fpga_hcd-${IMAGE_VARIANT}.ko"  \
               bash build.sh
           # Save Dev image for upload
           sudo mv out/image.img dev-image.img
@@ -189,6 +196,7 @@ jobs:
               LOCAL_GH_WORKFLOW_SHA="${LOCAL_GH_WORKFLOW_SHA}"  \
               KERNEL_ARCHIVE="/tmp/vck190-kernel/vck190-kernel-${IMAGE_VARIANT}.tar.gz"  \
               KERNEL_MODULE_ARCHIVE="/tmp/vck190-kmod/io-module-${IMAGE_VARIANT}.ko"  \
+              USB_HCD_MODULE_ARCHIVE="/tmp/vck190-kmod/caliptra_fpga_hcd-${IMAGE_VARIANT}.ko"  \
               bash build.sh
 
       - name: 'Upload dev-image as artifact'
