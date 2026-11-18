@@ -378,7 +378,10 @@ caliptra_top caliptra_top_dut (
     .generic_output_wires({hwif_in.interface_regs.generic_output_wires[0].value.next, hwif_in.interface_regs.generic_output_wires[1].value.next}),
 
     .ss_dcls_en    (1'b0),
-    .security_state({hwif_out.interface_regs.control.debug_locked.value, hwif_out.interface_regs.control.device_lifecycle.value}),
+    .security_state('{
+        debug_locked: caliptra_prim_mubi_pkg::mubi4_bool_to_mubi(hwif_out.interface_regs.control.debug_locked.value),
+        device_lifecycle: device_lifecycle_e'(hwif_out.interface_regs.control.device_lifecycle.value)
+    }),
     .scan_mode     (hwif_out.interface_regs.control.scan_mode.value)
 );
 

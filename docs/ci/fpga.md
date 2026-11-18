@@ -100,6 +100,26 @@ Before enabling 2.2 nightly FPGA jobs:
 Updating manifests and building firmware does not by itself establish board
 compatibility. Historical 2.1 ROM matrices are not certified by this migration.
 
+### Current hardware validation blockers
+
+The initial pinned core and subsystem bitstreams report hardware generation
+`0x12`: their pinned `soc_ifc_reg.sv` returns that value for `CPTRA_HW_REV_ID`.
+The 2.2 tests expect `0x22`. Correct the upstream RTL identity and rebuild both
+bitstreams rather than changing the test expectations to hide this mismatch.
+
+The standalone core wrapper also needs rebuilding after converting the host's
+one-bit debug-lock control to the RTL's MuBi4 representation. The host register
+layout is unchanged. The initial core CI run reported debug locked even for
+unlocked test inputs, and its 40-million-cycle watchdog expired during MLDSA KAT.
+Revalidate reset/security state and KAT completion on the rebuilt core before
+selecting a new watchdog budget.
+
+The Verilator harness uses the design-only `caliptra_top.vf` source list plus
+the testbench package and VEER SRAM model required by its custom top. It uses
+the pinned `abr_mem_top` implementation for the current masked memory banks.
+The host-facing TRNG and security-state interfaces remain unchanged; the harness
+maps entropy to source 0, disables source 1, and encodes debug lock as MuBi4.
+
 ## 1. Building the FPGA Image
 
 The FPGA image creation is handled by the workflow defined in `.github/workflows/fpga-image.yml`. This workflow produces the necessary artifacts to boot the Xilinx VCK190 evaluation kit.

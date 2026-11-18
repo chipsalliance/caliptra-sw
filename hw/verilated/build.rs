@@ -15,7 +15,9 @@ static DEP_FILES: &[&str] = &[
     "caliptra_verilated.sv",
     "out",
     "Makefile",
-    "../config/caliptra_top_tb.vf",
+    "../latest/caliptra-ss/third_party/caliptra-rtl/src/integration/config/caliptra_top.vf",
+    "../latest/caliptra-ss/third_party/caliptra-rtl/src/integration/tb/caliptra_top_tb_pkg.sv",
+    "../latest/caliptra-ss/third_party/caliptra-rtl/src/integration/tb/caliptra_veer_sram_export.sv",
 ];
 
 fn cmd_args(cmd: &mut process::Command) -> Vec<&OsStr> {
@@ -47,14 +49,22 @@ fn add_filename(filename: &Path) -> impl FnOnce(std::io::Error) -> std::io::Erro
 fn sv_files(manifest_dir: &Path) -> Result<Vec<String>, std::io::Error> {
     let mut result = vec![];
     let filename = manifest_dir.join(
-        "../latest/caliptra-ss/third_party/caliptra-rtl/src/integration/config/caliptra_top_tb.vf",
+        "../latest/caliptra-ss/third_party/caliptra-rtl/src/integration/config/caliptra_top.vf",
     );
     for line in BufReader::new(File::open(&filename).map_err(add_filename(&filename))?).lines() {
         let line = line?;
         if line.starts_with('+') {
             continue;
         }
-        result.push(line.replace("${WORKSPACE}/Caliptra", "../../.."));
+        result.push(
+            line.replace(
+                "${CALIPTRA_ROOT}",
+                manifest_dir
+                    .join("../latest/caliptra-ss/third_party/caliptra-rtl")
+                    .to_str()
+                    .expect("RTL path is valid UTF-8"),
+            ),
+        );
     }
     Ok(result)
 }
