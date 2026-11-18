@@ -4,7 +4,7 @@
 package dpe
 
 /*
-#cgo CFLAGS: -I../../libcaliptra/inc -I../../hw-model/c-binding/out -g
+#cgo CFLAGS: -I../../libcaliptra/inc -I../../hw-model/c-binding/out -std=c99 -g
 #cgo LDFLAGS: -L../../target/debug -L../../libcaliptra  -lcaliptra -lcaliptra_hw_model_c_binding -ldl -lrt
 #define HWMODEL
 #include <stdio.h>
@@ -199,14 +199,13 @@ func (s *CptraModel) SendCmd(buf []byte) ([]byte, error) {
 		var req C.struct_caliptra_invoke_dpe_req
 		C.memset(unsafe.Pointer(&req), 0, C.sizeof_struct_caliptra_invoke_dpe_req)
 		// Caliptra expects all DPE commands to fill the whole data buffer
-		// Note: Go replaces the anonymous union of command types with an array "anon0"
-		C.memcpy(unsafe.Pointer(&req.anon0), unsafe.Pointer(&buf[0]), C.size_t(len(buf)))
+		C.memcpy(unsafe.Pointer(&req.payload), unsafe.Pointer(&buf[0]), C.size_t(len(buf)))
 		req.data_size = C.uint32_t(512)
 		cptraStatus = C.caliptra_invoke_dpe_command(&req, &resp, false)
 	} else {
 		var req C.struct_caliptra_invoke_dpe_mldsa87_req
 		C.memset(unsafe.Pointer(&req), 0, C.sizeof_struct_caliptra_invoke_dpe_mldsa87_req)
-		C.memcpy(unsafe.Pointer(&req.anon0), unsafe.Pointer(&buf[0]), C.size_t(len(buf)))
+		C.memcpy(unsafe.Pointer(&req.payload), unsafe.Pointer(&buf[0]), C.size_t(len(buf)))
 		req.data_size = C.uint32_t(512)
 		cptraStatus = C.caliptra_invoke_dpe_mldsa87_command(&req, &resp, false)
 	}

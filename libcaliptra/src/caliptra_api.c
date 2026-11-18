@@ -707,7 +707,7 @@ int caliptra_mailbox_send_start(uint32_t cmd, uint32_t data_size)
     caliptra_mbox_write_dlen(data_size);
 
     return 0;
-};
+}
 
 /**
  * caliptra_mailbox_send_data
@@ -723,7 +723,7 @@ int caliptra_mailbox_send_data(const struct caliptra_buffer *mbox_tx_buffer)
 {
     // Write Tx Buffer
     return caliptra_mailbox_write_fifo(mbox_tx_buffer);
-};
+}
 
 /**
  * caliptra_mailbox_send_complete
@@ -760,7 +760,7 @@ int caliptra_mailbox_send_complete(struct caliptra_buffer *mbox_rx_buffer, bool 
     }
 
     return caliptra_complete();
-};
+}
 
 /**
  * caliptra_mailbox_execute
