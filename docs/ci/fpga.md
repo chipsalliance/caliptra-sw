@@ -102,10 +102,16 @@ compatibility. Historical 2.1 ROM matrices are not certified by this migration.
 
 ### Current hardware validation blockers
 
-The initial pinned core and subsystem bitstreams report hardware generation
+Software now pins Caliptra-SS `e5d96a262b937b913fbcda3f681003f510baacff`,
+which pins the corrected core release `v2.2-rc1`
+(`4e7becc76daaf69124192560fe580363d6a22a98`). This release uses the `dcls_en`
+core port; standalone wrappers tie it low.
+
+The initial pinned core and subsystem bitstreams still report hardware generation
 `0x12`: their pinned `soc_ifc_reg.sv` returns that value for `CPTRA_HW_REV_ID`.
-The 2.2 tests expect `0x22`. Correct the upstream RTL identity and rebuild both
-bitstreams rather than changing the test expectations to hide this mismatch.
+The 2.2 tests expect `0x22`. Rebuild both bitstreams from the corrected release
+and update their manifests rather than changing expectations or relabeling the
+old artifacts. The manifest pins remain unchanged until new artifacts exist.
 
 The standalone core wrapper also needs rebuilding after converting the host's
 one-bit debug-lock control to the RTL's MuBi4 representation. The host register

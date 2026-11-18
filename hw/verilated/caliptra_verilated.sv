@@ -305,7 +305,7 @@ caliptra_top caliptra_top_dut (
 
     // OCP LOCK disabled in standalone mode
     .ss_ocp_lock_en                                         (1'b0),
-    .ss_dcls_en                                             (1'b0),
+    .dcls_en                                                (1'b0),
 
     // Subsystem mode debug outputs - not connected
     .ss_dbg_manuf_enable    (),
