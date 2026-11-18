@@ -645,7 +645,7 @@ mod tests {
 
     #[test]
     fn test_single_bit_seed_uses_selected_lane_and_configured_sample_count() {
-        let mut csrng = Csrng::new(Box::new(std::iter::repeat(0b1011).take(128)));
+        let mut csrng = Csrng::new(Box::new(std::iter::repeat_n(0b1011, 128)));
         let conf = ConfWriteVal::from(0x999999)
             .fips_enable(MultiBitBool::True as u32)
             .rng_bit_enable(MultiBitBool::True as u32)

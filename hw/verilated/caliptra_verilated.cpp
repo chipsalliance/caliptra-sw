@@ -13,6 +13,8 @@ struct caliptra_verilated {
 };
 
 struct caliptra_verilated* caliptra_verilated_new(struct caliptra_verilated_init_args* init_args) {
+  const char* argv[] = {"caliptra_verilated"};
+  Verilated::commandArgs(1, argv);
   auto result = new caliptra_verilated();
   result->v.security_state = init_args->security_state;
   memcpy(result->v.cptra_obf_key, init_args->cptra_obf_key, sizeof(result->v.cptra_obf_key));

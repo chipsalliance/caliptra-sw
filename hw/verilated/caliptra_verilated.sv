@@ -87,7 +87,7 @@ module caliptra_verilated
     input bit [`CLP_CSR_HMAC_KEY_DWORDS-1:0][31:0] cptra_csr_hmac_key,
 
     // Security state
-    input security_state_t security_state,
+    input bit [2:0] security_state,
 
     // Physical Source for Internal TRNG
     input  bit [3:0]       itrng_data,
@@ -277,9 +277,13 @@ caliptra_top caliptra_top_dut (
 
     .cptra_error_fatal(cptra_error_fatal),
     .cptra_error_non_fatal(),
-    .etrng_req(etrng_req),
-    .itrng_data(itrng_data),
-    .itrng_valid(itrng_valid),
+    .etrng0_req(etrng_req),
+    .etrng1_req(),
+    .itrng0_data(itrng_data),
+    .itrng0_valid(itrng_valid),
+    .itrng1_data(4'b0),
+    .itrng1_valid(1'b0),
+    .itrng1_en(1'b0),
 
     // Subsystem mode straps - tied to standalone/non-subsystem values
     .strap_ss_caliptra_base_addr                            (64'h0),
@@ -301,6 +305,7 @@ caliptra_top caliptra_top_dut (
 
     // OCP LOCK disabled in standalone mode
     .ss_ocp_lock_en                                         (1'b0),
+    .dcls_en                                                (1'b0),
 
     // Subsystem mode debug outputs - not connected
     .ss_dbg_manuf_enable    (),
@@ -318,7 +323,10 @@ caliptra_top caliptra_top_dut (
     .trace_rv_i_interrupt_ip(),
     .trace_rv_i_tval_ip     (),
 
-    .security_state(security_state),
+    .security_state('{
+        debug_locked: caliptra_prim_mubi_pkg::mubi4_bool_to_mubi(security_state[2]),
+        device_lifecycle: device_lifecycle_e'(security_state[1:0])
+    }),
     .scan_mode(1'b0)
 );
 
@@ -443,153 +451,11 @@ caliptra_sram #(
 );
 
 //=========================================================================-
-// ABR (Adams Bridge / ML-DSA) Memory SRAMs
-// NOTE: These must be true 1R1W dual-port RAMs that support simultaneous
-// read and write to different addresses. Using single-port RAMs breaks
-// the ABR hardware which performs read-modify-write operations.
+// ABR memory, including the masked banks in the pinned RTL.
 //=========================================================================-
-import abr_params_pkg::*;
-
-// W1 memory - true 1R1W dual-port
-abr_1r1w_ram #(
-    .DEPTH     (ABR_MEM_W1_DEPTH),
-    .DATA_WIDTH(ABR_MEM_W1_DATA_W)
-) abr_w1_mem (
-    .clk_i   (core_clk),
-    .we_i    (abr_memory_export.w1_mem_we_i),
-    .waddr_i (abr_memory_export.w1_mem_waddr_i),
-    .wdata_i (abr_memory_export.w1_mem_wdata_i),
-    .re_i    (abr_memory_export.w1_mem_re_i),
-    .raddr_i (abr_memory_export.w1_mem_raddr_i),
-    .rdata_o (abr_memory_export.w1_mem_rdata_o)
-);
-
-// Memory instance 0 bank 0 - true 1R1W dual-port
-abr_1r1w_ram #(
-    .DEPTH     (ABR_MEM_INST0_DEPTH),
-    .DATA_WIDTH(ABR_MEM_INST0_DATA_W)
-) abr_mem_inst0_bank0 (
-    .clk_i   (core_clk),
-    .we_i    (abr_memory_export.mem_inst0_bank0_we_i),
-    .waddr_i (abr_memory_export.mem_inst0_bank0_waddr_i),
-    .wdata_i (abr_memory_export.mem_inst0_bank0_wdata_i),
-    .re_i    (abr_memory_export.mem_inst0_bank0_re_i),
-    .raddr_i (abr_memory_export.mem_inst0_bank0_raddr_i),
-    .rdata_o (abr_memory_export.mem_inst0_bank0_rdata_o)
-);
-
-// Memory instance 0 bank 1 - true 1R1W dual-port
-abr_1r1w_ram #(
-    .DEPTH     (ABR_MEM_INST0_DEPTH),
-    .DATA_WIDTH(ABR_MEM_INST0_DATA_W)
-) abr_mem_inst0_bank1 (
-    .clk_i   (core_clk),
-    .we_i    (abr_memory_export.mem_inst0_bank1_we_i),
-    .waddr_i (abr_memory_export.mem_inst0_bank1_waddr_i),
-    .wdata_i (abr_memory_export.mem_inst0_bank1_wdata_i),
-    .re_i    (abr_memory_export.mem_inst0_bank1_re_i),
-    .raddr_i (abr_memory_export.mem_inst0_bank1_raddr_i),
-    .rdata_o (abr_memory_export.mem_inst0_bank1_rdata_o)
-);
-
-// Memory instance 1 - true 1R1W dual-port
-abr_1r1w_ram #(
-    .DEPTH     (ABR_MEM_INST1_DEPTH),
-    .DATA_WIDTH(ABR_MEM_INST1_DATA_W)
-) abr_mem_inst1 (
-    .clk_i   (core_clk),
-    .we_i    (abr_memory_export.mem_inst1_we_i),
-    .waddr_i (abr_memory_export.mem_inst1_waddr_i),
-    .wdata_i (abr_memory_export.mem_inst1_wdata_i),
-    .re_i    (abr_memory_export.mem_inst1_re_i),
-    .raddr_i (abr_memory_export.mem_inst1_raddr_i),
-    .rdata_o (abr_memory_export.mem_inst1_rdata_o)
-);
-
-// Memory instance 2 - true 1R1W dual-port
-abr_1r1w_ram #(
-    .DEPTH     (ABR_MEM_INST2_DEPTH),
-    .DATA_WIDTH(ABR_MEM_INST2_DATA_W)
-) abr_mem_inst2 (
-    .clk_i   (core_clk),
-    .we_i    (abr_memory_export.mem_inst2_we_i),
-    .waddr_i (abr_memory_export.mem_inst2_waddr_i),
-    .wdata_i (abr_memory_export.mem_inst2_wdata_i),
-    .re_i    (abr_memory_export.mem_inst2_re_i),
-    .raddr_i (abr_memory_export.mem_inst2_raddr_i),
-    .rdata_o (abr_memory_export.mem_inst2_rdata_o)
-);
-
-// Memory instance 3 - true 1R1W dual-port
-abr_1r1w_ram #(
-    .DEPTH     (ABR_MEM_INST3_DEPTH),
-    .DATA_WIDTH(ABR_MEM_INST3_DATA_W)
-) abr_mem_inst3 (
-    .clk_i   (core_clk),
-    .we_i    (abr_memory_export.mem_inst3_we_i),
-    .waddr_i (abr_memory_export.mem_inst3_waddr_i),
-    .wdata_i (abr_memory_export.mem_inst3_wdata_i),
-    .re_i    (abr_memory_export.mem_inst3_re_i),
-    .raddr_i (abr_memory_export.mem_inst3_raddr_i),
-    .rdata_o (abr_memory_export.mem_inst3_rdata_o)
-);
-
-// SK memory bank 0 - true 1R1W dual-port
-abr_1r1w_ram #(
-    .DEPTH     (SK_MEM_BANK_DEPTH),
-    .DATA_WIDTH(SK_MEM_BANK_DATA_W)
-) abr_sk_mem_bank0 (
-    .clk_i   (core_clk),
-    .we_i    (abr_memory_export.sk_mem_bank0_we_i),
-    .waddr_i (abr_memory_export.sk_mem_bank0_waddr_i),
-    .wdata_i (abr_memory_export.sk_mem_bank0_wdata_i),
-    .re_i    (abr_memory_export.sk_mem_bank0_re_i),
-    .raddr_i (abr_memory_export.sk_mem_bank0_raddr_i),
-    .rdata_o (abr_memory_export.sk_mem_bank0_rdata_o)
-);
-
-// SK memory bank 1 - true 1R1W dual-port
-abr_1r1w_ram #(
-    .DEPTH     (SK_MEM_BANK_DEPTH),
-    .DATA_WIDTH(SK_MEM_BANK_DATA_W)
-) abr_sk_mem_bank1 (
-    .clk_i   (core_clk),
-    .we_i    (abr_memory_export.sk_mem_bank1_we_i),
-    .waddr_i (abr_memory_export.sk_mem_bank1_waddr_i),
-    .wdata_i (abr_memory_export.sk_mem_bank1_wdata_i),
-    .re_i    (abr_memory_export.sk_mem_bank1_re_i),
-    .raddr_i (abr_memory_export.sk_mem_bank1_raddr_i),
-    .rdata_o (abr_memory_export.sk_mem_bank1_rdata_o)
-);
-
-// Signature Z memory - true 1R1W dual-port with byte-enable
-abr_1r1w_be_ram #(
-    .DEPTH     (SIG_Z_MEM_DEPTH),
-    .DATA_WIDTH(SIG_Z_MEM_DATA_W)
-) abr_sig_z_mem (
-    .clk_i    (core_clk),
-    .we_i     (abr_memory_export.sig_z_mem_we_i),
-    .wstrobe_i(abr_memory_export.sig_z_mem_wstrobe_i),
-    .waddr_i  (abr_memory_export.sig_z_mem_waddr_i),
-    .wdata_i  (abr_memory_export.sig_z_mem_wdata_i),
-    .re_i     (abr_memory_export.sig_z_mem_re_i),
-    .raddr_i  (abr_memory_export.sig_z_mem_raddr_i),
-    .rdata_o  (abr_memory_export.sig_z_mem_rdata_o)
-);
-
-// PK memory - true 1R1W dual-port with byte-enable
-abr_1r1w_be_ram #(
-    .DEPTH     (PK_MEM_DEPTH),
-    .DATA_WIDTH(PK_MEM_DATA_W)
-) abr_pk_mem (
-    .clk_i    (core_clk),
-    .we_i     (abr_memory_export.pk_mem_we_i),
-    .wstrobe_i(abr_memory_export.pk_mem_wstrobe_i),
-    .waddr_i  (abr_memory_export.pk_mem_waddr_i),
-    .wdata_i  (abr_memory_export.pk_mem_wdata_i),
-    .re_i     (abr_memory_export.pk_mem_re_i),
-    .raddr_i  (abr_memory_export.pk_mem_raddr_i),
-    .rdata_o  (abr_memory_export.pk_mem_rdata_o)
+abr_mem_top abr_mem_top_inst (
+    .clk_i(core_clk),
+    .abr_memory_export(abr_memory_export.resp)
 );
 
 endmodule

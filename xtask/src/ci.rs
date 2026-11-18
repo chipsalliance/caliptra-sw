@@ -2,7 +2,7 @@
 
 use std::{env, error::Error, io, path::Path};
 
-use anyhow::anyhow;
+use anyhow::{anyhow, ensure, Context};
 use caliptra_builder::{elf_size, firmware, FwId};
 use size_history::{
     ArtifactBuilder, Cache, FsCache, GitHubStepSummary, GithubActionCache, HtmlTableReport,
@@ -110,4 +110,102 @@ pub fn bitstream_download(manifest_path: String) -> Result<(), anyhow::Error> {
         .ok_or_else(|| anyhow!("invalid output file path"))?;
     log::info!("Download path bitstream: {}", out);
     Ok(())
+}
+
+pub fn check_bitstream(path: &str, variant: &str) -> anyhow::Result<()> {
+    let content = std::fs::read_to_string(path)
+        .with_context(|| format!("Failed to read bitstream manifest {path}"))?;
+    let manifest = bitstream_downloader::Manifest::from_toml(&content)?;
+    validate_bitstream(&manifest, variant)?;
+    log::info!(
+        "Validated HW {} {} bitstream from {} (RTL {:?}), PDI {:?}",
+        manifest.hw_major_version,
+        manifest.caliptra_variant,
+        manifest.commit_hash,
+        manifest.caliptra_ss_commit,
+        manifest.pdi_url,
+    );
+    Ok(())
+}
+
+fn validate_bitstream(
+    manifest: &bitstream_downloader::Manifest,
+    variant: &str,
+) -> anyhow::Result<()> {
+    let (repository, branch) = match variant {
+        "core" => ("chipsalliance/caliptra-sw", "caliptra-2.2-dev"),
+        "subsystem" => ("chipsalliance/caliptra-mcu-sw", "caliptra-mcu-dev-2.2"),
+        _ => anyhow::bail!("Unsupported FPGA variant: {variant}"),
+    };
+    ensure!(
+        manifest.hw_major_version == "2.2"
+            && manifest.caliptra_variant == variant
+            && manifest.repository == repository
+            && manifest.target_branch == branch,
+        "Expected a HW 2.2 {variant} manifest from {repository} branch {branch}"
+    );
+    ensure!(
+        manifest.segmented,
+        "FPGA tests require a segmented bitstream"
+    );
+    ensure!(
+        manifest
+            .pdi_url
+            .as_deref()
+            .is_some_and(|url| url.starts_with("https://")),
+        "Bitstream manifest requires an HTTPS PDI URL"
+    );
+    ensure!(
+        manifest.pdi_hash.as_deref().is_some_and(|hash| {
+            hash.len() == 64 && hash.bytes().all(|byte| byte.is_ascii_hexdigit())
+        }),
+        "Bitstream manifest requires a SHA-256 PDI hash"
+    );
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn core_manifest() -> bitstream_downloader::Manifest {
+        bitstream_downloader::Manifest::from_toml(include_str!(
+            "../../hw/fpga/bitstream_manifests/core.toml"
+        ))
+        .unwrap()
+    }
+
+    #[test]
+    fn accepts_published_2_2_manifests() {
+        validate_bitstream(&core_manifest(), "core").unwrap();
+        let subsystem = bitstream_downloader::Manifest::from_toml(include_str!(
+            "../../hw/fpga/bitstream_manifests/subsystem.toml"
+        ))
+        .unwrap();
+        validate_bitstream(&subsystem, "subsystem").unwrap();
+    }
+
+    #[test]
+    fn rejects_wrong_hardware_variant_or_source() {
+        let mut manifest = core_manifest();
+        manifest.hw_major_version = "2.1".into();
+        assert!(validate_bitstream(&manifest, "core").is_err());
+        assert!(validate_bitstream(&core_manifest(), "subsystem").is_err());
+        let mut manifest = core_manifest();
+        manifest.target_branch = "main".into();
+        assert!(validate_bitstream(&manifest, "core").is_err());
+    }
+
+    #[test]
+    fn rejects_non_runtime_or_unpublished_manifests() {
+        let mut manifest = core_manifest();
+        manifest.segmented = false;
+        assert!(validate_bitstream(&manifest, "core").is_err());
+        let mut manifest = core_manifest();
+        manifest.pdi_url = None;
+        assert!(validate_bitstream(&manifest, "core").is_err());
+        let mut manifest = core_manifest();
+        manifest.pdi_hash = Some("invalid".into());
+        assert!(validate_bitstream(&manifest, "core").is_err());
+    }
 }

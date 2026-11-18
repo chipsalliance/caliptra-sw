@@ -146,7 +146,7 @@ jobs:
       - name: Download updated manifest from GCS
         run: |
           SOURCE_COMMIT=$(git rev-parse HEAD)
-          URL="https://storage.googleapis.com/caliptra-github-ci-bitstreams/v1/$SOURCE_COMMIT/manifest.toml"
+          URL="https://storage.googleapis.com/caliptra-github-ci-bitstreams/v1/$SOURCE_COMMIT/core/manifest.toml"
           TARGET_PATH="hw/fpga/bitstream_manifests/core.toml"
           DOWNLOADED_MANIFEST=$(mktemp)
           trap 'rm -f "$DOWNLOADED_MANIFEST"' EXIT

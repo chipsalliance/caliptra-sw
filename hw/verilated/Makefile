@@ -28,7 +28,7 @@ VERILATOR_OBJS = out/verilated_threads.o out/verilated.o out/verilated_vcd_c.o o
 
 LIB_OBJS = out/caliptra_verilated.o
 
-# Environment variables needed by caliptra_top_tb.vf
+# Environment variables needed by caliptra_top.vf
 export CALIPTRA_ROOT = $(CALIPTRA_RTL_DIR)
 export CALIPTRA_PRIM_ROOT = $(CALIPTRA_RTL_DIR)/src/caliptra_prim_generic
 export CALIPTRA_PRIM_MODULE_PREFIX = caliptra_prim_generic
@@ -68,7 +68,10 @@ out/Vcaliptra_verilated.h: ${VERILATED_DIR}/caliptra_verilated.sv out
 	  -Wno-fatal \
 	  --clk core_clk \
 	  $(suppress) \
-	  -f $(CALIPTRA_RTL_DIR)/src/integration/config/caliptra_top_tb.vf \
+	  -f $(CALIPTRA_RTL_DIR)/src/integration/config/caliptra_top.vf \
+	  +incdir+$(CALIPTRA_RTL_DIR)/src/integration/tb \
+	  $(CALIPTRA_RTL_DIR)/src/integration/tb/caliptra_top_tb_pkg.sv \
+	  $(CALIPTRA_RTL_DIR)/src/integration/tb/caliptra_veer_sram_export.sv \
 	  $(VERILATED_DIR)/caliptra_verilated.sv \
 	  $(EXTRA_VERILATOR_FLAGS) \
 	  --top-module caliptra_verilated

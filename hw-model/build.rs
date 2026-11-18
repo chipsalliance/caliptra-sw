@@ -163,7 +163,7 @@ fn mcu_commit_from_workflow() -> String {
 /// Download fuses.hjson from GitHub at the given commit.
 fn download_fuses_hjson(commit: &str) -> String {
     let url = format!(
-        "https://raw.githubusercontent.com/chipsalliance/caliptra-mcu-sw/{commit}/hw/fuses.hjson"
+        "https://raw.githubusercontent.com/chipsalliance/caliptra-mcu-sw/{commit}/hw/latest/fuses.hjson"
     );
     let output = Command::new("curl")
         .args(["-sfL", &url])
