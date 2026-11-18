@@ -43,8 +43,8 @@ Build the development firmware with:
 cargo xtask --rev 2.2 build all
 ```
 
-The pinned SS snapshot is `743d5f7eaa9a946f405b9087c7ffd2fbb38e1543`,
-which selects RTL `f9bc5ab97b885b5e31ccb062eca16634a8e61b5a`. This is
+The pinned SS snapshot is `bb9d747e57597d6056d0dc043d2782a8f459ca7d`,
+which selects RTL `f2d4641cfac33b46c3e484ddd226b0495364e49d`. This is
 2.2 development hardware, not a finalized or qualified 2.2 release.
 
 Core reads OTP-controller layout and feature controls from `SS_OTP_FC_STATUS_CFG`,
