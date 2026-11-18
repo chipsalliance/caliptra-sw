@@ -1,4 +1,3 @@
-
 name: Build FPGA SD image
 
 on:
@@ -30,177 +29,109 @@ on:
 permissions:
   contents: read
 
+env:
+  GCS_NIX_CACHE_BUCKET: gs://caliptra-github-ci-caliptra-reports/nix-cache
+  GCS_NIX_CACHE_URL: https://storage.googleapis.com/caliptra-github-ci-caliptra-reports/nix-cache
+
 jobs:
-  build_kernel:
-    runs-on: [e2-standard-32-vck190-tools]
-    strategy:
-      matrix:
-        image_variant: [core, subsystem]
-        include:
-          - bitstream_hash: e5cf1d375502dc9105becaa16c1c996a65ed1dcf153a688c7f098d51e66ba6ae
-            image_variant: core
-          - bitstream_name: xsa_core2p0_5d069408.xsa
-            image_variant: core
-          - bitstream_hash: 8fade301b2d2d4864a8586b5fea2cf8a80a76102afc711a940f66d7df79e30b3
-            image_variant: subsystem
-          - bitstream_name: xsa_ss2p0_b9f8a767.xsa
-            image_variant: subsystem
-    env:
-      # Change this to a new random value if you suspect the cache is corrupted
-      CACHE_BUSTER: 8e2f1a3d9c4b
-      IMAGE_VARIANT: ${{ matrix.image_variant }}
-
-      BITSTREAM_NAME: ${{ matrix.bitstream_name }}
-      BITSTREAM_SHA256: ${{ matrix.bitstream_hash }}
-    steps:
-      - name: Checkout repo
-        uses: actions/checkout@v3
-        with:
-          ref: ${{ inputs.branch }}
-
-      - name: Cache Kernel output
-        id: cache-kernel
-        uses: actions/cache@v4
-        with:
-          path: |
-            /tmp/vck190-kernel-${{ matrix.image_variant }}.tar.gz
-            /tmp/io-module-${{ matrix.image_variant }}.ko
-          key: kernel-${{ matrix.image_variant }}-${{ matrix.bitstream_hash }}-${{ env.CACHE_BUSTER }}
-
-      - name: Install pre-requisites
-        if: steps.cache-kernel.outputs.cache-hit != 'true'
-        run: |
-          sudo dpkg --add-architecture i386
-          sudo apt-get update
-          sudo apt install gcc libncurses-dev zlib1g:i386 zlib1g-dev net-tools xterm autoconf libtool texinfo gcc-multilib build-essential device-tree-compiler xvfb apt-transport-https ca-certificates gnupg curl -y
-
-      - name: Mount FPGA tools
-        if: steps.cache-kernel.outputs.cache-hit != 'true'
-        run: |
-          echo "Starting work"
-          sudo mkdir /vck190-tools
-          sudo mount UUID=249f0fea-68c1-4e14-af09-5294e50e20b1 /vck190-tools/
-
-      - name: Build Kernel
-        if: steps.cache-kernel.outputs.cache-hit != 'true'
-        run: |
-          echo "Building kernel for bitstream variant ${IMAGE_VARIANT}"
-          source /vck190-tools/petalinux-tool/settings.sh
-
-          curl "https://storage.googleapis.com/caliptra-github-ci-bitstreams/v0/20251201/${BITSTREAM_NAME}" -o /tmp/system.xsa
-
-          if ! (echo "${BITSTREAM_SHA256} /tmp/system.xsa" | sudo sha256sum -c); then
-            echo "Bitstream does not match expected hash."
-            exit 1
-          fi
-
-          sudo chown $USER:$GROUP /tmp/system.xsa
-
-          pushd hw/fpga
-
-          if [[ "$IMAGE_VARIANT" == "subsystem" ]]; then
-            export BUILD_SS=true
-          fi
-
-
-          ./create_boot_bin.sh /tmp/system.xsa
-
-          # TODO(clundin): Not all of these artifacts are required.
-          tar -C petalinux_project/images/linux -cvzf vck190-kernel.tar.gz BOOT.BIN Image image.ub boot.scr system.dts system.dtb
-          mv vck190-kernel.tar.gz /tmp/vck190-kernel-${IMAGE_VARIANT}.tar.gz
-
-          IO_MODULE_PATH=$(find . -name 'io-module.ko')
-          mv $IO_MODULE_PATH /tmp/io-module-${IMAGE_VARIANT}.ko
-          popd
-
-      - name: 'Upload kernel artifact'
-        uses: actions/upload-artifact@v4
-        with:
-          name: vck190-kernel-${{ matrix.image_variant}}
-          path: /tmp/vck190-kernel-${{ matrix.image_variant }}.tar.gz
-          retention-days: 1
-
-      - name: 'Upload kernel module artifact'
-        uses: actions/upload-artifact@v4
-        with:
-          name: vck190-kernel-module-${{ matrix.image_variant}}
-          path: /tmp/io-module-${{ matrix.image_variant }}.ko
-          retention-days: 1
-
   build_sd_image:
-    runs-on: [e2-standard-4-big-disk]
-    needs: [build_kernel]
+    runs-on: ubuntu-24.04
+    outputs:
+      cache_updated: ${{ steps.export_cache.outputs.cache_updated }}
     strategy:
       matrix:
         image_variant: [core, subsystem]
     env:
       IMAGE_VARIANT: ${{ matrix.image_variant }}
-      PR_BASE_COMMIT: ${{ github.event.pull_request.base.sha }}
-      LOCAL_GH_WORKFLOW: ${{ github.workflow }}
-      LOCAL_GH_HEAD_REF: ${{ github.head_ref }}
-      LOCAL_GH_WORKFLOW_SHA: ${{ github.workflow_sha }}
- 
+
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           ref: ${{ inputs.branch }}
 
-      - name: 'Download kernel artifact'
-        uses: actions/download-artifact@v8
-        with:
-          name: vck190-kernel-${{ matrix.image_variant }}
-          path: /tmp/vck190-kernel/
-
-      - name: 'Download kernel module artifact'
-        uses: actions/download-artifact@v8
-        with:
-          name: vck190-kernel-module-${{ matrix.image_variant }}
-          path: /tmp/vck190-kmod/
-
-      - name: Install pre-requisites
+      - name: Install binfmt support for aarch64-linux
         run: |
           sudo apt-get update
-          sudo apt-get -y install debootstrap binfmt-support qemu-user-static u-boot-tools gcc-aarch64-linux-gnu
-          rustup target add aarch64-unknown-linux-gnu
+          sudo apt-get -y install binfmt-support qemu-user-static
 
-      - name: Build SD images
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@v16
+        with:
+          extra-conf: |
+            extra-platforms = aarch64-linux
+            extra-substituters = ${{ env.GCS_NIX_CACHE_URL }}?trusted=1
+            require-sigs = false
+            sandbox = false
+
+      - name: Build Dev and CI SD card images in Nix
         run: |
-          # Build Dev image
           cd ci-tools/fpga-image
-          sudo PATH="$PATH:/tmp/cross/bin"  \
-              BUILD_DEV_IMAGE=true  \
-              IMAGE_VARIANT="${IMAGE_VARIANT}"  \
-              LOCAL_GH_WORKFLOW="${LOCAL_GH_WORKFLOW}"  \
-              LOCAL_GH_HEAD_REF="${LOCAL_GH_HEAD_REF}"  \
-              LOCAL_GH_WORKFLOW_SHA="${LOCAL_GH_WORKFLOW_SHA}"  \
-              KERNEL_ARCHIVE="/tmp/vck190-kernel/vck190-kernel-${IMAGE_VARIANT}.tar.gz"  \
-              KERNEL_MODULE_ARCHIVE="/tmp/vck190-kmod/io-module-${IMAGE_VARIANT}.ko"  \
-              bash build.sh
-          # Save Dev image for upload
-          sudo mv out/image.img dev-image.img
-          sudo rm -rf out/
-          # Now build CI image
-          sudo PATH="$PATH:/tmp/cross/bin"  \
-              BUILD_DEV_IMAGE=false  \
-              IMAGE_VARIANT="${IMAGE_VARIANT}"  \
-              LOCAL_GH_WORKFLOW="${LOCAL_GH_WORKFLOW}"  \
-              LOCAL_GH_HEAD_REF="${LOCAL_GH_HEAD_REF}"  \
-              LOCAL_GH_WORKFLOW_SHA="${LOCAL_GH_WORKFLOW_SHA}"  \
-              KERNEL_ARCHIVE="/tmp/vck190-kernel/vck190-kernel-${IMAGE_VARIANT}.tar.gz"  \
-              KERNEL_MODULE_ARCHIVE="/tmp/vck190-kmod/io-module-${IMAGE_VARIANT}.ko"  \
-              bash build.sh
 
-      - name: 'Upload dev-image as artifact'
+          # Build Dev image (mutable ext4 + SSH keys + resize-rootfs)
+          nix build -L "path:.#vck190-${IMAGE_VARIANT}-dev" -o result-dev
+          cp -f result-dev/dev-image.img dev-image.img
+
+          # Build CI image (immutable zstd SquashFS + tmpfs overlay)
+          mkdir -p out
+          nix build -L "path:.#vck190-${IMAGE_VARIANT}-ci" -o result-ci
+          cp -f result-ci/image.img out/image.img
+
+      - name: Export newly built boot firmware and kernel store paths on cache miss
+        id: export_cache
+        run: |
+          cd ci-tools/fpga-image
+          TARGETS=(
+            "path:.#boot-bin-${IMAGE_VARIANT}"
+            "path:.#system-dtb"
+            "path:.#boot-scr"
+            "path:.#linux-xlnx"
+            "path:.#io-module-${IMAGE_VARIANT}"
+          )
+          if nix path-info --store "${GCS_NIX_CACHE_URL}" "${TARGETS[@]}" >/dev/null 2>&1; then
+            echo "All kernel and boot firmware store paths are already cached in ${GCS_NIX_CACHE_BUCKET}."
+          else
+            echo "Cache miss detected; exporting store paths for GCS upload..."
+            mkdir -p /tmp/nix-vck190-cache
+            nix copy --to "file:///tmp/nix-vck190-cache?compression=zstd" "${TARGETS[@]}"
+            echo "cache_updated=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Upload Nix cache bundle artifact
+        if: steps.export_cache.outputs.cache_updated == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: nix-vck190-cache-${{ matrix.image_variant }}
+          path: /tmp/nix-vck190-cache
+          retention-days: 1
+
+      - name: Upload dev-image as artifact
         uses: actions/upload-artifact@v4
         with:
           name: caliptra-fpga-image-${{ matrix.image_variant }}-dev
           path: ci-tools/fpga-image/dev-image.img
           retention-days: 90
 
-      - name: 'Upload image as artifact'
+      - name: Upload image as artifact
         uses: actions/upload-artifact@v4
         with:
           name: caliptra-fpga-image-${{ matrix.image_variant }}
           path: ci-tools/fpga-image/out/image.img
           retention-days: 90
+
+  upload_nix_cache:
+    runs-on: e2-standard-2-reporter
+    needs: [build_sd_image]
+    if: needs.build_sd_image.outputs.cache_updated == 'true'
+    steps:
+      - name: Download Nix cache bundle artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: nix-vck190-cache-*
+          merge-multiple: true
+          path: /tmp/nix-vck190-cache
+
+      - name: Sync Nix cache to GCS
+        run: |
+          export PATH="$PATH:/snap/bin"
+          gcloud storage rsync --recursive /tmp/nix-vck190-cache "${GCS_NIX_CACHE_BUCKET}"
