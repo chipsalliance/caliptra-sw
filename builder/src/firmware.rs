@@ -555,7 +555,6 @@ pub mod driver_tests {
         bin_name: "dma_checked",
         fw_type: FirmwareType::Source {
             features: &["emu", "dma-checked"],
-            hw_revision: None,
         },
         ..BASE_FWID
     };
