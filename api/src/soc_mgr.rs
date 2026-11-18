@@ -199,12 +199,36 @@ pub trait SocManager {
         Ok(())
     }
 
+    /// Base address of the soc_ifc register block, as seen by the SoC.
+    ///
+    /// Defaults to [`Self::SOC_IFC_ADDR`]. Override it if the address is only known
+    /// at run time, so that [`Self::soc_ifc`] does not have to be re-implemented.
+    fn soc_ifc_addr(&self) -> u32 {
+        Self::SOC_IFC_ADDR
+    }
+
+    /// Base address of the soc_ifc TRNG register block, as seen by the SoC.
+    ///
+    /// Defaults to [`Self::SOC_IFC_TRNG_ADDR`]. Override it if the address is only
+    /// known at run time, so that [`Self::soc_ifc_trng`] does not have to be re-implemented.
+    fn soc_ifc_trng_addr(&self) -> u32 {
+        Self::SOC_IFC_TRNG_ADDR
+    }
+
+    /// Base address of the mbox register block, as seen by the SoC.
+    ///
+    /// Defaults to [`Self::SOC_MBOX_ADDR`]. Override it if the address is only
+    /// known at run time, so that [`Self::soc_mbox`] does not have to be re-implemented.
+    fn soc_mbox_addr(&self) -> u32 {
+        Self::SOC_MBOX_ADDR
+    }
+
     /// A register block that can be used to manipulate the soc_ifc peripheral
     /// over the simulated SoC->Caliptra APB bus.
     fn soc_ifc(&mut self) -> caliptra_registers::soc_ifc::RegisterBlock<Self::TMmio<'_>> {
         unsafe {
             caliptra_registers::soc_ifc::RegisterBlock::new_with_mmio(
-                Self::SOC_IFC_ADDR as *mut u32,
+                self.soc_ifc_addr() as *mut u32,
                 self.mmio_mut(),
             )
         }
@@ -215,7 +239,7 @@ pub trait SocManager {
     fn soc_ifc_trng(&mut self) -> caliptra_registers::soc_ifc_trng::RegisterBlock<Self::TMmio<'_>> {
         unsafe {
             caliptra_registers::soc_ifc_trng::RegisterBlock::new_with_mmio(
-                Self::SOC_IFC_TRNG_ADDR as *mut u32,
+                self.soc_ifc_trng_addr() as *mut u32,
                 self.mmio_mut(),
             )
         }
@@ -226,7 +250,7 @@ pub trait SocManager {
     fn soc_mbox(&mut self) -> caliptra_registers::mbox::RegisterBlock<Self::TMmio<'_>> {
         unsafe {
             caliptra_registers::mbox::RegisterBlock::new_with_mmio(
-                Self::SOC_MBOX_ADDR as *mut u32,
+                self.soc_mbox_addr() as *mut u32,
                 self.mmio_mut(),
             )
         }
@@ -284,7 +308,7 @@ pub trait SocManager {
     ) -> core::result::Result<Option<&'r [u8]>, CaliptraApiError> {
         // Wait for the microcontroller to finish executing
         let mut timeout_cycles = Self::MAX_WAIT_CYCLES; // 100ms @400MHz
-        while self.soc_mbox().status().read().status().cmd_busy() {
+        while self.is_mailbox_busy() {
             self.delay();
             timeout_cycles -= 1;
             if timeout_cycles == 0 {
@@ -320,7 +344,7 @@ pub trait SocManager {
 
         // The uC has responded, so clearing execute is now legal and releases
         // the lock. Do it on every path out, including errors.
-        self.soc_mbox().execute().write(|w| w.execute(false));
+        self.unlock_mailbox();
         res
     }
 
