@@ -4,6 +4,7 @@ on:
   pull_request:
     branches:
       - main
+      - caliptra-2.2-dev
 
 permissions:
   contents: read
