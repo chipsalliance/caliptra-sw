@@ -3,8 +3,8 @@
 use crate::{
     calc_checksum,
     mailbox::{
-        mbox_read_response, mbox_write_fifo_with_limit, MailboxReqHeader, MailboxRespHeader,
-        Request, Response, StashMeasurementReq, MAILBOX_SIZE,
+        mbox_read_response, MailboxReqHeader, MailboxRespHeader, Request, Response,
+        StashMeasurementReq, MAILBOX_SIZE,
     },
     CaliptraApiError,
 };
@@ -57,12 +57,17 @@ pub const NUM_PAUSERS: usize = 5;
 /// }
 /// ```
 pub trait SocManager {
-    const SOC_IFC_ADDR: u32;
-    const SOC_MBOX_ADDR: u32;
-    const SOC_IFC_TRNG_ADDR: u32;
+    /// Base address of the soc_ifc register block in the SoC address map.
+    const SOC_IFC_ADDR: u32 = 0x3003_0000;
+    /// Base address of the mbox register block in the SoC address map.
+    const SOC_MBOX_ADDR: u32 = 0x3002_0000;
+    /// Base address of the soc_ifc TRNG registers, which are part of the
+    /// soc_ifc register block.
+    const SOC_IFC_TRNG_ADDR: u32 = Self::SOC_IFC_ADDR;
 
     const MAX_WAIT_CYCLES: u32;
 
+    /// Default for [`Self::mailbox_size_limit`].
     const MAILBOX_SIZE_LIMIT: usize = MAILBOX_SIZE;
 
     type TMmio<'a>: MmioMut
@@ -77,6 +82,15 @@ pub trait SocManager {
     /// Receives progress messages from the mailbox helpers [`Self::start_mailbox_exec`] and [`Self::finish_mailbox_exec`].
     /// The default implementation discards them, hosted models must override it to write to their log.
     fn log_mailbox(&mut self, _args: core::fmt::Arguments<'_>) {}
+
+    /// Largest request, in bytes, that [`Self::start_mailbox_exec`] accepts.
+    ///
+    /// Defaults to [`Self::MAILBOX_SIZE_LIMIT`]. Override it if the limit is only
+    /// known at run time, e.g. because the mailbox is 16 KiB in subsystem mode but
+    /// 256 KiB in passive mode.
+    fn mailbox_size_limit(&mut self) -> usize {
+        Self::MAILBOX_SIZE_LIMIT
+    }
 
     /// Lock the mailbox and verify that it can be read.
     fn lock_mailbox(&mut self) -> Result<(), CaliptraApiError> {
@@ -99,6 +113,49 @@ pub trait SocManager {
     /// Verify whether the mailbox status is busy or not.
     fn is_mailbox_busy(&mut self) -> bool {
         self.soc_mbox().status().read().status().cmd_busy()
+    }
+
+    /// Start a mailbox request: take the lock, then write the command and the
+    /// payload length.
+    ///
+    /// The payload (`len_bytes`, rounded up to whole words) is then written
+    /// with [`Self::write_mailbox_word`] or [`Self::write_mailbox_words`] and
+    /// the request is submitted with [`Self::execute_mailbox`]. Payloads larger
+    /// than [`Self::mailbox_size_limit`] are rejected before the lock is taken.
+    fn begin_mailbox_req(&mut self, cmd: u32, len_bytes: usize) -> Result<(), CaliptraApiError> {
+        // Reject before taking the lock: once locked, the SoC can only release
+        // it through a completed execute.
+        if len_bytes > self.mailbox_size_limit() {
+            return Err(CaliptraApiError::BufferTooLargeForMailbox);
+        }
+        let dlen =
+            u32::try_from(len_bytes).map_err(|_| CaliptraApiError::BufferTooLargeForMailbox)?;
+
+        self.lock_mailbox()?;
+
+        self.soc_mbox().cmd().write(|_| cmd);
+        self.soc_mbox().dlen().write(|_| dlen);
+
+        Ok(())
+    }
+
+    /// Write one word of request payload to the mailbox, after
+    /// [`Self::begin_mailbox_req`].
+    fn write_mailbox_word(&mut self, word: u32) {
+        self.soc_mbox().datain().write(|_| word);
+    }
+
+    /// Write request payload to the mailbox, after [`Self::begin_mailbox_req`].
+    fn write_mailbox_words(&mut self, words: impl IntoIterator<Item = u32>) {
+        let mbox = self.soc_mbox();
+        for word in words {
+            mbox.datain().write(|_| word);
+        }
+    }
+
+    /// Ask Caliptra to execute the request written so far.
+    fn execute_mailbox(&mut self) {
+        self.soc_mbox().execute().write(|w| w.execute(true));
     }
 
     /// Set up valid PAUSERs for mailbox access.
@@ -271,31 +328,37 @@ pub trait SocManager {
         self.finish_mailbox_exec(resp_data)
     }
 
-    /// Send a command to the mailbox but don't wait for the response
+    /// Send a command to the mailbox but don't wait for the response.
+    ///
+    /// Requests larger than [`Self::mailbox_size_limit`] are rejected.
     fn start_mailbox_exec(
         &mut self,
         cmd: u32,
         buf: &[u8],
     ) -> core::result::Result<(), CaliptraApiError> {
+        self.start_mailbox_exec_words(cmd, buf.len(), le_words(buf))
+    }
+
+    /// Like [`Self::start_mailbox_exec`], but the payload is produced word by
+    /// word, so a large request does not have to be assembled in memory first.
+    ///
+    /// `words` must yield `len_bytes` of payload, rounded up to whole words.
+    fn start_mailbox_exec_words(
+        &mut self,
+        cmd: u32,
+        len_bytes: usize,
+        words: impl IntoIterator<Item = u32>,
+    ) -> core::result::Result<(), CaliptraApiError> {
         // Logging for caliptra-sw hw model
         self.log_mailbox(format_args!(
-            "<<< Executing Caliptra mbox cmd 0x{cmd:08x} ({} bytes) from SoC",
-            buf.len()
+            "<<< Executing Caliptra mbox cmd 0x{cmd:08x} ({len_bytes} bytes) from SoC"
         ));
 
-        // Reject before taking the lock: once locked, the SoC can only release
-        // it through a completed execute.
-        if buf.len() > Self::MAILBOX_SIZE_LIMIT {
-            return Err(CaliptraApiError::BufferTooLargeForMailbox);
-        }
-
-        self.lock_mailbox()?;
-
-        self.soc_mbox().cmd().write(|_| cmd);
-        mbox_write_fifo_with_limit(&self.soc_mbox(), buf, Self::MAILBOX_SIZE_LIMIT)?;
+        self.begin_mailbox_req(cmd, len_bytes)?;
+        self.write_mailbox_words(words);
 
         // Ask the microcontroller to execute this command
-        self.soc_mbox().execute().write(|w| w.execute(true));
+        self.execute_mailbox();
 
         Ok(())
     }
@@ -420,4 +483,17 @@ pub trait SocManager {
         }
         Err(CaliptraApiError::StashMeasurementFailed)
     }
+}
+
+/// The little-endian words of `buf`; a partial trailing word is zero-padded.
+fn le_words(buf: &[u8]) -> impl Iterator<Item = u32> + '_ {
+    buf.chunks(4).map(|chunk| {
+        let mut word = [0u8; 4];
+        // A chunk has at most 4 bytes. Zipping avoids indexing, so there is no
+        // bounds check that could panic.
+        for (dst, src) in word.iter_mut().zip(chunk) {
+            *dst = *src;
+        }
+        u32::from_le_bytes(word)
+    })
 }
