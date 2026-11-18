@@ -69,7 +69,11 @@ and missing PDI URLs or hashes. The downloader verifies the PDI hash.
 Subsystem testing pins `CALIPTRA_MCU_COMMIT` to the MCU source used to build the
 selected subsystem bitstream. Overrides must belong to `caliptra-mcu-dev-2.2`
 and require compatibility testing. Both ROM and fuse definitions come from that
-pin; the fuse file is `hw/latest/fuses.hjson`. This MCU revision uses
+pin; the fuse file is `hw/latest/fuses.hjson`.
+The MCU ROM build passes that checkout-local file through
+`CALIPTRA_MCU_FUSES_HJSON`, so its pinned nested `caliptra-sw` does not attempt
+to download the obsolete `hw/fuses.hjson` path.
+This MCU revision uses
 `CALIPTRA_HW_REV=latest` rather than `2.2` and names its generated ROM
 `latest-caliptra-mcu-rom-fpga-core_test,ocp-lock.bin`. The workflow copies it to
 the stable test-artifact name `mcu-rom-fpga.bin`.
