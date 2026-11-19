@@ -435,8 +435,8 @@ pub struct EntropyConfiguration {
 }
 
 bitfield::bitfield! {
-    /// Packed entropy-source single-bit-mode configuration cached from
-    /// SS_STRAP_GENERIC[2] so that it can be reapplied across warm resets.
+    /// Packed entropy-source mode configuration cached from
+    /// CPTRA_iTRNG_ENTROPY_CONFIG_2 so that it can be reapplied across warm resets.
     #[derive(Clone, Copy, Default, FromZeros, IntoBytes, KnownLayout, Zeroize)]
     #[repr(C)]
     pub struct EntropyConfigurationExtension(u32);
@@ -445,6 +445,8 @@ bitfield::bitfield! {
     pub rng_bit_enable, set_rng_bit_enable: 0;
     /// Which of the 4 RNG bus lanes to sample when single-bit mode is enabled.
     pub u32, rng_bit_sel, set_rng_bit_sel: 2, 1;
+    /// True when the SoC requested conditioning bypass (`es_type`) for characterization.
+    pub bypass, set_bypass: 3;
 }
 
 #[derive(FromZeros, IntoBytes, KnownLayout, Zeroize)]

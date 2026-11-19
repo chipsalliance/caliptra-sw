@@ -53,9 +53,8 @@ longer control these settings. MCU/SoC firmware must populate the named register
 before fuse completion. This Core migration does not implement MCU provisioning
 or change the general fuse-initialization/warm-reset contract.
 
-Firmware retains `SS_STRAP_GENERIC[2]` for entropy window, lane selection, and
-bypass settings. The generated `ENTROPY_CONFIG_2` accessors are not used for
-configuration on this branch.
+Entropy-source configuration comes from `CPTRA_iTRNG{,1}_ENTROPY_CONFIG_{0,1,2}`;
+`SS_STRAP_GENERIC[2]` is no longer used for it.
 
 ## Updating latest hardware
 

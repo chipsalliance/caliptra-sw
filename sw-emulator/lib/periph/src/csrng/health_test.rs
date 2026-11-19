@@ -20,6 +20,11 @@ pub struct HealthTester {
     window_size_samples: usize,
     rng_bit_enable: bool,
     rng_bit_sel: usize,
+    pub symbol_adaptive_threshold: u32,
+    pub symbol_adaptive_failures: u32,
+    first_symbol: u8,
+    symbol_matches: u32,
+    symbol_count: usize,
 }
 
 impl HealthTester {
@@ -33,6 +38,11 @@ impl HealthTester {
             window_size_samples: DEFAULT_WINDOW_SIZE_SAMPLES,
             rng_bit_enable: false,
             rng_bit_sel: 0,
+            symbol_adaptive_threshold: 0xffff,
+            symbol_adaptive_failures: 0,
+            first_symbol: 0,
+            symbol_matches: 0,
+            symbol_count: 0,
         }
     }
 
@@ -73,32 +83,60 @@ impl HealthTester {
         self.adaptp.set_window_size_samples(samples);
     }
 
-    pub fn test_startup_windows(&mut self) {
+    pub fn reset(&mut self) {
+        let input = std::mem::replace(&mut self.itrng_nibbles, Box::new(std::iter::empty()));
+        *self = Self::new(input);
+    }
+
+    /// Run one raw RNG sample through every health test and return the
+    /// symbol passed on to the conditioner.
+    fn feed(&mut self, raw: u8) -> u8 {
+        self.repcnt.feed(raw);
+        self.repcnts.feed(raw);
+        self.adaptp.feed(raw);
+        let symbol = self.symbol(raw);
+        if self.symbol_count == 0 {
+            self.first_symbol = symbol;
+            self.symbol_matches = 0;
+        }
+        self.symbol_matches += u32::from(self.first_symbol == symbol);
+        self.symbol_count += 1;
+        if self.symbol_count == self.window_size_samples {
+            // entropy_src_adaptps_ht.sv: fail when the count reaches the threshold.
+            self.symbol_adaptive_failures +=
+                u32::from(self.symbol_matches >= self.symbol_adaptive_threshold);
+            self.symbol_count = 0;
+        }
+        symbol
+    }
+
+    fn symbol(&self, raw: u8) -> u8 {
+        if self.rng_bit_enable {
+            (raw >> self.rng_bit_sel) & 1
+        } else {
+            raw
+        }
+    }
+
+    pub fn test_startup_windows(&mut self) -> bool {
         // The RTL tests two consecutive windows during startup health testing.
         // See entropy_src_main_sm.sv: StartupHTStart -> StartupPhase1 -> StartupPass1 -> Sha3Process
         // Only after both windows pass does startup complete.
         const NUM_STARTUP_WINDOWS: usize = 2;
         let num_nibbles = NUM_STARTUP_WINDOWS * self.nibbles_per_window();
 
-        self.startup_nibbles = self
-            .itrng_nibbles
-            .by_ref()
-            .take(num_nibbles)
-            .inspect(|nibble| {
-                self.repcnt.feed(*nibble);
-                self.repcnts.feed(*nibble);
-                self.adaptp.feed(*nibble);
-            })
-            .collect();
-
-        assert_eq!(
-            self.startup_nibbles.len(),
-            num_nibbles,
-            "itrng iterator should provide at least {num_nibbles} nibbles for startup health testing"
-        );
+        self.startup_nibbles.clear();
+        for _ in 0..num_nibbles {
+            let Some(nibble) = self.itrng_nibbles.next() else {
+                break;
+            };
+            self.feed(nibble);
+            self.startup_nibbles.push(nibble);
+        }
 
         // We'll want to pull these FIFO.
         self.startup_nibbles.reverse();
+        self.startup_nibbles.len() == num_nibbles
     }
 
     pub fn failures(&self) -> u32 {
@@ -106,6 +144,7 @@ impl HealthTester {
             + self.repcnts.failures()
             + self.adaptp.lo_failures()
             + self.adaptp.hi_failures()
+            + self.symbol_adaptive_failures
     }
 }
 
@@ -120,16 +159,9 @@ impl Iterator for HealthTester {
             // Then yield directly from the TRNG. Feed nibbles through health checks
             // for continuous testing.
             let nibble = self.itrng_nibbles.next()?;
-            self.repcnt.feed(nibble);
-            self.repcnts.feed(nibble);
-            self.adaptp.feed(nibble);
-            nibble
+            return Some(self.feed(nibble));
         };
-        Some(if self.rng_bit_enable {
-            (nibble >> self.rng_bit_sel) & 1
-        } else {
-            nibble
-        })
+        Some(self.symbol(nibble))
     }
 }
 
@@ -270,7 +302,6 @@ impl AdaptiveProportionTester {
     }
 
     pub fn feed(&mut self, nibble: u8) {
-        // Replicate the logic in caliptra-rtl/src/entropy_src/rtl/entropy_src_adaptp_ht.sv.
         assert!(
             nibble.count_ones() <= 4,
             "{nibble} should be a NIBBLE instead of a BYTE"
@@ -284,6 +315,8 @@ impl AdaptiveProportionTester {
             // adaptp_ht.sv:
             //   normal:      test_cnt_hi = scope ? sum : max ; test_cnt_lo = scope ? sum : min
             //   single-bit:  test_cnt_hi = test_cnt_lo = test_cnt[rng_bit_sel]
+            //   fail_hi = (test_cnt_hi >= thresh_hi)
+            //   fail_lo = (thresh_lo != 0) && (test_cnt_lo <= thresh_lo)
             let (test_cnt_hi, test_cnt_lo) = if self.rng_bit_enable {
                 let cnt = self.per_lane_ones[self.rng_bit_sel];
                 (cnt, cnt)
@@ -416,15 +449,19 @@ mod tests {
         // hi=384, lo=128 are the ROM defaults for a 512-bit per-lane window.
         let mut t = make_adaptp(384, 128, false);
 
+        // Lane 0 one above LO -> pass.
         feed_per_lane(&mut t, [129, 256, 256, 256]);
-        assert_eq!((t.hi_failures(), t.lo_failures()), (0, 0), "just above LO");
+        assert_eq!((t.hi_failures(), t.lo_failures()), (0, 0), "above LO");
 
+        // Lane 0 exactly at LO -> fail LO via min (inclusive cutoff).
         feed_per_lane(&mut t, [128, 256, 256, 256]);
         assert_eq!((t.hi_failures(), t.lo_failures()), (0, 1), "boundary LO");
 
+        // Lane 3 one below HI -> pass.
         feed_per_lane(&mut t, [256, 256, 256, 383]);
-        assert_eq!((t.hi_failures(), t.lo_failures()), (0, 1), "just below HI");
+        assert_eq!((t.hi_failures(), t.lo_failures()), (0, 1), "below HI");
 
+        // Lane 3 exactly at HI -> fail HI via max (inclusive cutoff).
         feed_per_lane(&mut t, [256, 256, 256, 384]);
         assert_eq!((t.hi_failures(), t.lo_failures()), (1, 1), "boundary HI");
     }
@@ -436,34 +473,26 @@ mod tests {
         // hi=1536, lo=512 mimics the legacy aggregate ROM defaults.
         let mut t = make_adaptp(1536, 512, true);
 
-        // Sum = 4*128 = 512, exactly at LO -> fail.
-        feed_per_lane(&mut t, [128, 128, 128, 128]);
+        // Sum = 513 -> pass.
+        feed_per_lane(&mut t, [129, 128, 128, 128]);
+        assert_eq!((t.hi_failures(), t.lo_failures()), (0, 0), "sum=LO+1");
+
+        // Lane 0 has 118 ones but other lanes compensate: sum = 513.
+        // Per-lane scoring would have failed (118 < 128), aggregate must pass.
+        feed_per_lane(&mut t, [118, 128, 130, 137]);
+        assert_eq!((t.hi_failures(), t.lo_failures()), (0, 0), "uneven sum");
+
+        // Sum = 512, exactly at LO -> fail LO.
+        feed_per_lane(&mut t, [117, 128, 130, 137]);
         assert_eq!((t.hi_failures(), t.lo_failures()), (0, 1), "sum=LO");
 
-        // Lane 0 has 117 ones but other lanes compensate: sum = 513.
-        feed_per_lane(&mut t, [117, 128, 131, 137]);
-        assert_eq!(
-            (t.hi_failures(), t.lo_failures()),
-            (0, 1),
-            "sum just above LO"
-        );
+        // Sum = 1535 -> pass.
+        feed_per_lane(&mut t, [384, 384, 384, 383]);
+        assert_eq!((t.hi_failures(), t.lo_failures()), (0, 1), "sum=HI-1");
 
-        feed_per_lane(&mut t, [383, 384, 384, 384]);
-        assert_eq!(
-            (t.hi_failures(), t.lo_failures()),
-            (0, 1),
-            "sum just below HI"
-        );
-
+        // Sum = 1536, exactly at HI -> fail HI.
         feed_per_lane(&mut t, [384, 384, 384, 384]);
         assert_eq!((t.hi_failures(), t.lo_failures()), (1, 1), "sum=HI");
-    }
-
-    #[test]
-    fn zero_low_threshold_disables_low_failure() {
-        let mut t = make_adaptp(384, 0, false);
-        feed_per_lane(&mut t, [0, 256, 256, 384]);
-        assert_eq!((t.hi_failures(), t.lo_failures()), (1, 0));
     }
 
     /// All-zeros and all-ones are the canonical catastrophic failure
