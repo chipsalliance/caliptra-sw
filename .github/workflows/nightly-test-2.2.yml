@@ -1,0 +1,98 @@
+# Licensed under the Apache-2.0 license
+
+name: Nightly Tests HW 2.2 dispatcher 
+
+on:
+  workflow_dispatch:
+  schedule:
+    # 10:00 PM PST monday-friday
+    - cron: '0 6 * * 2-6'
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  dispatch_nightly_caliptra_2_2_dev:
+    runs-on: ubuntu-latest
+    timeout-minutes: 310
+    env:
+      TARGET_REF: caliptra-2.2-dev
+    steps:
+      - name: Launch and monitor nightly workflow
+        uses: actions/github-script@v8
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const targetRef = process.env.TARGET_REF;
+            const workflowId = "nightly-test-2.2.yml";
+            const startedAt = new Date().toISOString();
+
+            await github.request("POST /repos/{owner}/{repo}/actions/workflows/{workflow_id}/dispatches", {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: workflowId,
+              ref: targetRef,
+              headers: {
+                "X-GitHub-Api-Version": "2022-11-28",
+              },
+            });
+
+            core.info(`Dispatched ${workflowId} on ref ${targetRef}`);
+
+            const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+            const maxLocateAttempts = 20;
+            const locateDelayMs = 15000;
+
+            let dispatchedRun = null;
+            for (let attempt = 1; attempt <= maxLocateAttempts; attempt++) {
+              const runsResp = await github.rest.actions.listWorkflowRuns({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                workflow_id: workflowId,
+                event: "workflow_dispatch",
+                branch: targetRef,
+                per_page: 20,
+              });
+
+              dispatchedRun = runsResp.data.workflow_runs.find((run) => run.created_at >= startedAt);
+
+              if (dispatchedRun) {
+                break;
+              }
+
+              core.info(`Waiting for dispatched run to appear (${attempt}/${maxLocateAttempts})...`);
+              await sleep(locateDelayMs);
+            }
+
+            if (!dispatchedRun) {
+              core.setFailed("Could not find the dispatched nightly run after waiting.");
+              return;
+            }
+
+            core.info(`Tracking run #${dispatchedRun.run_number} (id: ${dispatchedRun.id})`);
+
+            const maxTrackAttempts = 600;
+            const trackDelayMs = 30000;
+
+            for (let attempt = 1; attempt <= maxTrackAttempts; attempt++) {
+              const runResp = await github.rest.actions.getWorkflowRun({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                run_id: dispatchedRun.id,
+              });
+
+              const run = runResp.data;
+              core.info(`Run status: ${run.status}, conclusion: ${run.conclusion ?? "n/a"}`);
+
+              if (run.status === "completed") {
+                if (run.conclusion !== "success") {
+                  core.setFailed(`Dispatched nightly run completed with conclusion: ${run.conclusion}`);
+                }
+                return;
+              }
+
+              await sleep(trackDelayMs);
+            }
+
+            core.setFailed("Timed out while waiting for the dispatched nightly run to complete.");
