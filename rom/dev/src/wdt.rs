@@ -35,7 +35,12 @@ pub fn start_wdt(soc_ifc: &mut SocIfc) {
         if wdt_timeout_cycles == 0 {
             wdt_timeout_cycles = 1;
         }
-        cprintln!("[state] WDT start {} cyc", wdt_timeout_cycles);
+        // Print as two u32 hex words to avoid 64-bit SW division in the ROM
+        cprintln!(
+            "[state] WDT start 0x{:08x}{:08x} cyc",
+            (wdt_timeout_cycles >> 32) as u32,
+            wdt_timeout_cycles as u32
+        );
         caliptra_common::wdt::start_wdt(
             soc_ifc,
             WdtTimeout::from(core::num::NonZeroU64::new(wdt_timeout_cycles).unwrap()),
