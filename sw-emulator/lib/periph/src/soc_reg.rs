@@ -385,6 +385,11 @@ const SOC_MANIFEST_FUSE_END_ADDR: u32 = 0x3a3;
 const FW_CONFIG_START_ADDR: u32 = 0x550;
 const FW_CONFIG_END_ADDR: u32 = 0x55b;
 
+/// CPTRA_iTRNG{,1}_ENTROPY_CONFIG_{0,1,2}: power-good reset, SoC-writable until
+/// CPTRA_FUSE_WR_DONE, read-only to Caliptra.
+const ITRNG_CONFIG_START_ADDR: u32 = 0x180;
+const ITRNG_CONFIG_END_ADDR: u32 = 0x197;
+
 /// Stash measurement data start address
 const STASH_DATA_START_ADDR: u32 = STASH_DATA_START;
 /// Stash measurement data end address
@@ -519,7 +524,8 @@ impl Bus for SocRegistersInternal {
         match addr {
             FUSE_START_ADDR..=FUSE_END_ADDR
             | SOC_MANIFEST_FUSE_START_ADDR..=SOC_MANIFEST_FUSE_END_ADDR
-            | FW_CONFIG_START_ADDR..=FW_CONFIG_END_ADDR => {
+            | FW_CONFIG_START_ADDR..=FW_CONFIG_END_ADDR
+            | ITRNG_CONFIG_START_ADDR..=ITRNG_CONFIG_END_ADDR => {
                 // Microcontroller can't ever write to fuse registers
                 Err(StoreAccessFault)
             }
@@ -604,7 +610,8 @@ impl Bus for SocRegistersExternal {
         }
         match addr {
             SOC_MANIFEST_FUSE_START_ADDR..=SOC_MANIFEST_FUSE_END_ADDR
-            | FW_CONFIG_START_ADDR..=FW_CONFIG_END_ADDR => {
+            | FW_CONFIG_START_ADDR..=FW_CONFIG_END_ADDR
+            | ITRNG_CONFIG_START_ADDR..=ITRNG_CONFIG_END_ADDR => {
                 if self.regs.borrow().cptra_fuse_wr_done & 1 == 0 {
                     self.regs.borrow_mut().write_register(size, addr, val)
                 } else {
@@ -776,6 +783,15 @@ struct SocRegistersImpl {
 
     #[register(offset = 0x0184)]
     cptra_i_trng_entropy_config_1: u32,
+
+    #[register(offset = 0x0188)]
+    cptra_i_trng_entropy_config_2: u32,
+    #[register(offset = 0x018c)]
+    cptra_i_trng1_entropy_config_0: u32,
+    #[register(offset = 0x0190)]
+    cptra_i_trng1_entropy_config_1: u32,
+    #[register(offset = 0x0194)]
+    cptra_i_trng1_entropy_config_2: u32,
 
     #[register_array(offset = 0x0120)]
     cptra_rsvd_reg: [u32; 2],
@@ -1163,6 +1179,10 @@ impl SocRegistersImpl {
             cptra_wdt_cfg: [0x0; 2],
             cptra_i_trng_entropy_config_0: 0,
             cptra_i_trng_entropy_config_1: 0,
+            cptra_i_trng_entropy_config_2: 0,
+            cptra_i_trng1_entropy_config_0: 0,
+            cptra_i_trng1_entropy_config_1: 0,
+            cptra_i_trng1_entropy_config_2: 0,
             cptra_rsvd_reg: Default::default(),
             cptra_hw_capabilities: 0,
             cptra_fw_capabilities: 0,
@@ -2139,8 +2159,11 @@ mod tests {
             assert_eq!(caliptra_reg.read(RvSize::Word, addr).unwrap(), 0);
             soc_reg.write(RvSize::Word, addr, 0x1234_5678).unwrap();
             assert_eq!(caliptra_reg.read(RvSize::Word, addr).unwrap(), 0x1234_5678);
-            caliptra_reg.write(RvSize::Word, addr, 0xabcd_0123).unwrap();
-            assert_eq!(soc_reg.read(RvSize::Word, addr).unwrap(), 0xabcd_0123);
+            assert_eq!(
+                caliptra_reg.write(RvSize::Word, addr, 0xabcd_0123),
+                Err(StoreAccessFault)
+            );
+            assert_eq!(soc_reg.read(RvSize::Word, addr).unwrap(), 0x1234_5678);
 
             let wrong_addr = wrong_base + offset;
             assert!(matches!(

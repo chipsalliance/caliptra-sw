@@ -528,11 +528,6 @@ pub mod driver_tests {
         ..BASE_FWID
     };
 
-    pub const CSRNG_ENTROPY_CONFIG_WARM_RESET_TESTS: FwId = FwId {
-        bin_name: "csrng_entropy_config_warm_reset_tests",
-        ..BASE_FWID
-    };
-
     pub const CSRNG_RESEED_TESTS: FwId = FwId {
         bin_name: "csrng_reseed_tests",
         ..BASE_FWID
@@ -850,7 +845,6 @@ pub const REGISTERED_FW: &[&FwId] = &[
     &driver_tests::CSRNG_CONFIG_LOCK_TESTS,
     &driver_tests::CSRNG_CONFIG_UNLOCK_TESTS,
     &driver_tests::CSRNG_RUNTIME_HEALTH_FAIL_TESTS,
-    &driver_tests::CSRNG_ENTROPY_CONFIG_WARM_RESET_TESTS,
     &driver_tests::CSRNG_RESEED_TESTS,
     &driver_tests::CSRNG_RESEED_HEALTH_FAIL_TESTS,
     &driver_tests::TRNG_DRIVER_RESPONDER,
