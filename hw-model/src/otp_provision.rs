@@ -610,6 +610,12 @@ pub(crate) const OTP_SCRAMBLE_KEYS: [u128; 7] = [
 ];
 
 const LC_TOKENS_KEY_IDX: usize = 6;
+pub const SECRET_MANUF_KEY_IDX: usize = 0;
+/// SECRET_PROD_PARTITION_n uses key index `SECRET_PROD_KEY_IDX + n`.
+pub const SECRET_PROD_KEY_IDX: usize = 1;
+
+/// Size of the zeroization marker at the end of zeroizable partitions.
+const ZEROIZATION_MARKER_SIZE: usize = 8;
 
 fn otp_scramble_data(data: &mut [u8], key_idx: usize) -> Result<()> {
     if !data.len().is_multiple_of(8) {
@@ -668,6 +674,17 @@ pub fn otp_generate_lifecycle_tokens_mem(
     );
     output[OTP_SECRET_LC_TRANSITION_PARTITION_SIZE - DIGEST_SIZE..]
         .copy_from_slice(&digest.to_le_bytes());
+    Ok(output)
+}
+
+/// Generate the OTP memory contents for a zeroizable secret partition: the
+/// scrambled data, its digest and a clear zeroization marker.
+pub fn otp_generate_secret_partition_mem(data: &[u8], key_idx: usize) -> Result<Vec<u8>> {
+    let mut output = data.to_vec();
+    otp_scramble_data(&mut output, key_idx)?;
+    let digest = otp_digest(&output, OTP_IV, OTP_CNST);
+    output.extend_from_slice(&digest.to_le_bytes());
+    output.extend_from_slice(&[0; ZEROIZATION_MARKER_SIZE]);
     Ok(output)
 }
 
@@ -831,6 +848,21 @@ mod tests {
         otp_unscramble_data(&mut memory[..16], LC_TOKENS_KEY_IDX).unwrap();
         let expected_hashed_token: [u8; 16] = 0x9c5f6f5060437af930d06d56630a536bu128.to_le_bytes();
         assert_eq!(&memory[..16], &expected_hashed_token);
+    }
+
+    #[test]
+    fn test_otp_generate_secret_partition_mem() {
+        let data: Vec<u8> = (0..64).collect();
+        let memory = otp_generate_secret_partition_mem(&data, SECRET_MANUF_KEY_IDX).unwrap();
+        assert_eq!(memory.len(), 64 + DIGEST_SIZE + ZEROIZATION_MARKER_SIZE);
+        assert_eq!(
+            memory[64..72],
+            otp_digest(&memory[..64], OTP_IV, OTP_CNST).to_le_bytes()
+        );
+        assert_eq!(memory[72..], [0; ZEROIZATION_MARKER_SIZE]);
+        let mut unscrambled = memory[..64].to_vec();
+        otp_unscramble_data(&mut unscrambled, SECRET_MANUF_KEY_IDX).unwrap();
+        assert_eq!(unscrambled, data);
     }
 
     #[test]
