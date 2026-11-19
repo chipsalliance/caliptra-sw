@@ -1217,6 +1217,8 @@ fn test_rt_wdt_timeout() {
     }
     let wdt_start = hw.output().sink().now();
 
+    hw.assert_end_of_stash();
+
     test_upload_firmware(&mut hw, &image.to_bytes().unwrap(), pqc_key_type);
 
     hw.step_until_boot_status(RUNTIME_BOOT_STATUS_READY, true);

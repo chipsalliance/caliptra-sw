@@ -207,6 +207,8 @@ fn test_warm_reset_during_update_reset() {
 
         let (mut hw, image_bundle) = helpers::build_hw_model_and_image_bundle(fuses, image_options);
 
+        hw.assert_end_of_stash();
+
         helpers::test_upload_firmware(&mut hw, &image_bundle.to_bytes().unwrap(), *pqc_key_type);
         helpers::wait_until_runtime(&mut hw);
 

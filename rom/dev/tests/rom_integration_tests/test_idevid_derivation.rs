@@ -30,6 +30,7 @@ fn generate_csr_envelop(
     // instead of hanging until the harness timeout (boot is well under 30M
     // cycles).
     const MAX_WAIT_CYCLES: u32 = 30_000_000;
+    hw.assert_end_of_stash();
     hw.step_until_or_timeout("ready_for_mb_processing", MAX_WAIT_CYCLES, |m| {
         m.soc_ifc()
             .cptra_flow_status()

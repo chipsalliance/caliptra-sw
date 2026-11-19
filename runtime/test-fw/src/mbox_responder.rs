@@ -147,6 +147,10 @@ fn rt_entry() {
         cprintln!("Runtime can't load FHT");
         handle_fatal_error(CaliptraError::RUNTIME_HANDOFF_FHT_NOT_LOADED.into());
     }
+    if let Err(e) = drivers.drain_stash_measurements() {
+        cprintln!("[rt] Runtime failed to drain stash measurements");
+        handle_fatal_error(e.into());
+    }
     cprintln!("[rt] Runtime listening for mailbox commands...");
     if let Err(e) = handle_mailbox_commands(&mut drivers) {
         handle_fatal_error(e.into());

@@ -457,24 +457,6 @@ int rom_test_all_commands(const test_info *info)
         failure = 1;
     }
 
-    // NOTE: Response structs are uninitialized to confirm libcaliptra handles this properly
-    // STASH_MEASUREMENT
-    struct caliptra_stash_measurement_req stash_req = {};
-    struct caliptra_stash_measurement_resp stash_resp;
-
-    status = caliptra_stash_measurement(&stash_req, &stash_resp, false);
-
-    if (status)
-    {
-        printf("Stash Measurement failed: 0x%x\n", status);
-        dump_caliptra_error_codes();
-        failure = 1;
-    }
-    else
-    {
-        printf("Stash Measurement: OK\n");
-    }
-
     // CAPABILITIES
     struct caliptra_capabilities_resp cap_resp;
 

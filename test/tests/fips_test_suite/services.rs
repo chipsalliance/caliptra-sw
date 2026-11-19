@@ -669,6 +669,8 @@ pub fn version_info_update() {
     // Check pre-load versions
     exec_cmd_version(&mut hw, pre_load_fmc_version, pre_load_fw_version);
 
+    hw.assert_end_of_stash();
+
     // Load the FW
     let fw_image = fips_fw_image();
     if hw.subsystem_mode() {
@@ -711,9 +713,6 @@ pub fn execute_all_services_rom() {
 
     // CAPABILITIES
     exec_cmd_capabilities(&mut hw);
-
-    // STASH MEASUREMENT
-    exec_cmd_stash_measurement(&mut hw);
 
     // SHUTDOWN
     // (Do this last)
