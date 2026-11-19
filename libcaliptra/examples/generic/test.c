@@ -1025,6 +1025,7 @@ int rt_test_all_commands(const test_info *info)
 
     // Extend PCR
     struct caliptra_extend_pcr_req extend_pcr_req = {};
+    // [TODO] Revert this back to 0x4 when the boot flow monitor change is removed 
     extend_pcr_req.pcr_idx = 0x6; // First non-reserved index
 
     status = caliptra_extend_pcr(&extend_pcr_req, false);
