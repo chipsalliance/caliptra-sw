@@ -32,8 +32,9 @@ impl Trng {
     ) -> CaliptraResult<Self> {
         // If device is unlocked for debug and RNG support is unavailable, return a fake RNG.
         let flags: MfgFlags = (soc_ifc.regs().cptra_dbg_manuf_service_reg().read() & 0xffff).into();
-        if !soc_ifc.regs().cptra_security_state().read().debug_locked()
-            & flags.contains(MfgFlags::RNG_SUPPORT_UNAVAILABLE)
+        if !soc_ifc.regs().cptra_hw_config().read().dual_i_trng_en()
+            && !soc_ifc.regs().cptra_security_state().read().debug_locked()
+            && flags.contains(MfgFlags::RNG_SUPPORT_UNAVAILABLE)
         {
             Ok(Self::MfgMode())
         } else if soc_ifc.regs().cptra_hw_config().read().i_trng_en() {

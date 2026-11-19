@@ -88,6 +88,25 @@ impl HealthTester {
         *self = Self::new(input);
     }
 
+    pub fn clear_progress(&mut self) {
+        self.startup_nibbles.clear();
+        self.repcnt.prev_nibble = [None; BITS_PER_NIBBLE];
+        self.repcnt.repetition_count = [1; BITS_PER_NIBBLE];
+        self.repcnt.failures = 0;
+        self.repcnts.reset_progress();
+        self.adaptp.per_lane_ones.fill(0);
+        self.adaptp.num_samples_seen = 0;
+        self.adaptp.lo_failures = 0;
+        self.adaptp.hi_failures = 0;
+        self.symbol_count = 0;
+        self.symbol_adaptive_failures = 0;
+    }
+
+    pub fn sample(&mut self) -> Option<u8> {
+        let raw = self.itrng_nibbles.next()?;
+        Some(self.feed(raw))
+    }
+
     /// Run one raw RNG sample through every health test and return the
     /// symbol passed on to the conditioner.
     fn feed(&mut self, raw: u8) -> u8 {
@@ -367,6 +386,12 @@ impl RepetitionCountSymbolTester {
             repetition_count: 1, // the hardware starts the counter at 1
             failures: 0,
         }
+    }
+
+    fn reset_progress(&mut self) {
+        self.prev_nibble = None;
+        self.repetition_count = 1;
+        self.failures = 0;
     }
 
     pub fn set_threshold(&mut self, threshold: RepcntsThresholdReadVal) {

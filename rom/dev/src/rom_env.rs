@@ -86,11 +86,20 @@ impl RomEnv {
     /// Create TRNG early for CFI initialization.
     /// This must be called before `new_from_registers` so CFI can be initialized first.
     pub unsafe fn create_trng() -> CaliptraResult<Trng> {
+        let soc_ifc = SocIfcReg::new();
+        if soc_ifc.regs().cptra_hw_config().read().dual_i_trng_en() {
+            let mut combiner = caliptra_registers::entropy_combiner::EntropyCombinerReg::new();
+            // A retained lock means ROM already performed the KAT. The CSRNG
+            // constructor verifies the exact lock, FIPS policy and error state.
+            if combiner.regs().ahb_lock().read().lock() != 6 {
+                caliptra_drivers::entropy_combiner_kat_and_lock(&mut combiner)?;
+            }
+        }
         Trng::new(
             CsrngReg::new(),
             EntropySrcReg::new(),
             SocIfcTrngReg::new(),
-            &SocIfcReg::new(),
+            &soc_ifc,
             PersistentDataAccessor::new(),
         )
     }

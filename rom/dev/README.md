@@ -126,9 +126,11 @@ The following table is the allocation registry for `SS_STRAP_GENERIC[0..3]` fiel
 
 ### Entropy Source Configuration Registers
 
-With the internal TRNG, the ROM programs the entropy source (`entropy_src`)
-from the following SoC-provisioned `CPTRA_iTRNG_ENTROPY_CONFIG_{0,1,2}`
-registers. The registers are fuse-like: the SoC writes them before `CPTRA_FUSE_WR_DONE`, after which they are
+With the internal TRNG, the ROM programs each entropy source (`entropy_src`)
+from the following SoC-provisioned registers. ES0 uses
+`CPTRA_iTRNG_ENTROPY_CONFIG_{0,1,2}`; in dual-iTRNG mode ES1 uses
+`CPTRA_iTRNG1_ENTROPY_CONFIG_{0,1,2}` with the same layout. The registers are
+fuse-like: the SoC writes them before `CPTRA_FUSE_WR_DONE`, after which they are
 read-only until power-good reset.
 
 | Register | Field/Bits | Description |
@@ -140,7 +142,7 @@ read-only until power-good reset.
 | `..._CONFIG_2` | `fips_window_size` [15:0] | Health-test window in samples (`HEALTH_TEST_WINDOWS.FIPS_WINDOW`): bits of the selected lane in single-bit mode, 4-bit symbols in multi-channel mode. Default: 1024. |
 | `..._CONFIG_2` | `single_bit_mode` [16] | 1: single-bit mode (`CONF.RNG_BIT_ENABLE`). 0: multi-channel mode. |
 | `..._CONFIG_2` | `rng_bit_sel` [18:17] | Lane tested in single-bit mode (`CONF.RNG_BIT_SEL`). |
-| `..._CONFIG_2` | `bypass_mode` [31] | Request conditioning bypass (`ENTROPY_CONTROL.ES_TYPE`) for characterization. |
+| `..._CONFIG_2` | `bypass_mode` [31] | Request conditioning bypass (`ENTROPY_CONTROL.ES_TYPE`) for characterization. Rejected in dual-iTRNG mode. |
 
 **Health-test programming:**
 - A field value of 0 selects the ROM default. The defaults assume a min-entropy of 1 per sample and are loose; integrators should program cutoffs derived from their characterized noise source.
@@ -153,8 +155,27 @@ read-only until power-good reset.
 
 **Caching and locking:**
 - On cold reset the decoded configuration is stored in ROM persistent data. Warm and update resets reapply the cached values.
-- In production (`debug_locked == true`), the ROM clears `SW_REGUPD` after programming the source. Debug-unlocked parts stay writable for characterization.
-- Before jumping to FMC, the ROM uninstantiates the DRBG, disables the entropy source, and disables and re-enables CSRNG, so no DRBG or seed state is handed over. FMC and Runtime instantiate their own DRBG.
+- In production (`debug_locked == true`), the ROM clears `SW_REGUPD` after programming each source. Debug-unlocked parts stay writable for characterization.
+- Before jumping to FMC, the ROM uninstantiates the DRBG, disables the entropy sources, zeroizes the dual-iTRNG combiner, and disables and re-enables CSRNG, so no DRBG or seed state is handed over. FMC and Runtime instantiate their own DRBG.
+
+### Dual-iTRNG Entropy Combiner
+
+When `CPTRA_HW_CONFIG.dual_iTRNG_en` is set, ES0 and ES1 feed CSRNG through
+the SHA3-384 entropy combiner.
+
+- Before the first entropy request, the ROM runs the combiner known-answer test
+  (a fixed 96-byte message through `KAT_MSG`), checks the 384-bit digest, keeps
+  the hardware-default FIPS policy (CSRNG sees FIPS only when both sources report
+  FIPS), and sets `AHB_LOCK`. A mismatch, timeout or combiner error is fatal.
+- After a firmware-update reset the lock is retained and the KAT is not rerun.
+  A warm reset clears the lock, and the ROM reruns the KAT.
+- Both sources are configured independently, and the driver waits for both to
+  pass their startup health tests. There is no fallback to ES0 alone: a missing
+  or failing ES1 is reported as an error.
+- Every CSRNG operation first checks that the combiner is locked, uses the
+  expected FIPS policy, is combining, and has no error status. Otherwise it
+  returns `DRIVER_ENTROPY_COMBINER_BAD_STATE` or
+  `DRIVER_ENTROPY_COMBINER_HW_FAULT`.
 
 ### Stable Owner Key Root Derivation
 

@@ -23,16 +23,25 @@ Abstract:
 --*/
 use crate::persistent::{EntropyConfiguration, EntropyConfigurationExtension};
 use crate::soc_ifc::reset_reason;
-use crate::{wait, CaliptraError, CaliptraResult, PersistentDataAccessor, ResetReason};
+use crate::{CaliptraError, CaliptraResult, PersistentDataAccessor, ResetReason};
 use caliptra_registers::csrng::CsrngReg;
+use caliptra_registers::entropy_combiner::EntropyCombinerReg;
 use caliptra_registers::entropy_src::{self, regs::AlertFailCountsReadVal, EntropySrcReg};
+use caliptra_ureg::{RealMmio, RealMmioMut};
+
+// The second instance uses the same register layout as ES0.
+const ENTROPY_SRC1_BASE: *mut u32 = 0x2000_4000 as *mut u32;
 use caliptra_registers::soc_ifc::{self, SocIfcReg};
 
 // https://opentitan.org/book/hw/ip/csrng/doc/theory_of_operation.html#command-description
 pub const MAX_SEED_WORDS: usize = 12;
 const WORDS_PER_BLOCK: usize = 4;
+// Bound dual-source startup and in-flight requests even before ROM arms WDT.
+// This is deliberately larger than the KAT bound: ENTROPY_SRC can be fed slowly.
+const DUAL_ENTROPY_POLL_LIMIT: u32 = 4_000_000;
 const ES_ALERT_HANG: u32 = 0x1fb;
-// ROM defaults used when a CPTRA_iTRNG_ENTROPY_CONFIG field is zero. See
+
+// ROM defaults used when a CPTRA_iTRNG{,1}_ENTROPY_CONFIG field is zero. See
 // the "Entropy Source Configuration Registers" section of the ROM README.
 const DEFAULT_ALERT_THRESHOLD: u32 = 2;
 const DEFAULT_HEALTH_TEST_WINDOW: u32 = 1024;
@@ -54,6 +63,7 @@ struct SourceConfig {
 pub struct Csrng {
     csrng: CsrngReg,
     entropy_src: EntropySrcReg,
+    combiner: Option<EntropyCombinerReg>,
 }
 
 impl Csrng {
@@ -88,7 +98,16 @@ impl Csrng {
     /// The caller MUST ensure that the CSRNG peripheral is in a state where new
     /// entropy is accessible via the generate command.
     pub unsafe fn assume_initialized(csrng: CsrngReg, entropy_src: EntropySrcReg) -> Self {
-        Self { csrng, entropy_src }
+        let dual = SocIfcReg::new()
+            .regs()
+            .cptra_hw_config()
+            .read()
+            .dual_i_trng_en();
+        Self {
+            csrng,
+            entropy_src,
+            combiner: dual.then(|| EntropyCombinerReg::new()),
+        }
     }
 
     /// Returns a handle to the CSRNG configured to use the provided [`Seed`].
@@ -107,7 +126,13 @@ impl Csrng {
         seed: Seed,
         mut persistent_data: PersistentDataAccessor,
     ) -> CaliptraResult<Self> {
-        let mut result = Self { csrng, entropy_src };
+        let dual = soc_ifc.regs().cptra_hw_config().read().dual_i_trng_en();
+        let mut result = Self {
+            csrng,
+            entropy_src,
+            combiner: dual.then(|| unsafe { EntropyCombinerReg::new() }),
+        };
+        result.check_combiner()?;
         result.configure_entropy_sources(soc_ifc, &mut persistent_data)?;
         let c = result.csrng.regs_mut();
 
@@ -125,24 +150,6 @@ impl Csrng {
         Ok(result)
     }
 
-    /// Program and enable entropy_src unless an earlier stage already did.
-    fn configure_entropy_sources(
-        &mut self,
-        soc_ifc: &SocIfcReg,
-        persistent: &mut PersistentDataAccessor,
-    ) -> CaliptraResult<()> {
-        let e = self.entropy_src.regs();
-        if e.module_enable().read().module_enable() == MULTIBIT_TRUE {
-            return Ok(());
-        }
-        let r = soc_ifc.regs();
-        let config = entropy_configuration(&r, persistent);
-        let lock = r.cptra_security_state().read().debug_locked();
-        program_entropy_source(self.entropy_src.regs_mut(), &config, lock);
-        self.enable_entropy_source();
-        check_for_alert_state(self.entropy_src.regs())
-    }
-
     /// Return 4 randomly generated [`u32`]s as a tuple.
     ///
     /// The return type is a tuple of 4 `u32`s which fits entirely in registers
@@ -158,7 +165,7 @@ impl Csrng {
         self.send_command(Command::Generate {
             num_128_bit_blocks: 1,
         })?;
-        wait::until(|| self.csrng.regs().genbits_vld().read().genbits_vld());
+        self.wait_for_genbits()?;
         let w0 = self.csrng.regs().genbits().read();
         let w1 = self.csrng.regs().genbits().read();
         let w2 = self.csrng.regs().genbits().read();
@@ -197,6 +204,58 @@ impl Csrng {
         Ok(result)
     }
 
+    fn check_combiner(&self) -> CaliptraResult<()> {
+        if let Some(combiner) = &self.combiner {
+            crate::entropy_combiner::check_locked(combiner)?;
+        }
+        Ok(())
+    }
+
+    fn es1(&self) -> Option<entropy_src::RegisterBlock<RealMmio<'_>>> {
+        self.combiner.as_ref().map(|_| {
+            // SAFETY: the hardware mode exposes the secondary register bank.
+            unsafe { entropy_src::RegisterBlock::new(ENTROPY_SRC1_BASE) }
+        })
+    }
+
+    fn es1_mut(&mut self) -> Option<entropy_src::RegisterBlock<RealMmioMut<'_>>> {
+        self.combiner.as_mut().map(|_| {
+            // SAFETY: this driver owns both source instances in dual mode.
+            unsafe { entropy_src::RegisterBlock::new(ENTROPY_SRC1_BASE) }
+        })
+    }
+
+    /// Program and enable ES0, and ES1 in dual-iTRNG mode, unless already
+    /// enabled by an earlier stage. Dual mode always waits for both sources.
+    fn configure_entropy_sources(
+        &mut self,
+        soc_ifc: &SocIfcReg,
+        persistent: &mut PersistentDataAccessor,
+    ) -> CaliptraResult<()> {
+        let enabled = |e: &entropy_src::RegisterBlock<RealMmio<'_>>| {
+            e.module_enable().read().module_enable() == MULTIBIT_TRUE
+        };
+        let all_enabled =
+            enabled(&self.entropy_src.regs()) && self.es1().is_none_or(|es| enabled(&es));
+        if !all_enabled {
+            let r = soc_ifc.regs();
+            let (es0, es1) = entropy_configuration(&r, persistent, self.combiner.is_some())?;
+            let lock = r.cptra_security_state().read().debug_locked();
+            program_entropy_source(self.entropy_src.regs_mut(), &es0, lock);
+            if let (Some(cfg), Some(es)) = (es1, self.es1_mut()) {
+                program_entropy_source(es, &cfg, lock);
+            }
+        }
+        if self.combiner.is_some() {
+            return self.ensure_entropy_src_enabled(&Seed::EntropySrc);
+        }
+        if !all_enabled {
+            self.enable_entropy_source();
+            check_for_alert_state(self.entropy_src.regs())?;
+        }
+        Ok(())
+    }
+
     /// Number of Generate calls before the reseed interval at which entropy_src
     /// is pre-enabled, so it is ready by the time the reseed is needed.
     /// Covers the ~2 ms entropy_src startup at typical generate cadence.
@@ -212,6 +271,10 @@ impl Csrng {
             .regs_mut()
             .module_enable()
             .write(|w| w.module_enable(MULTIBIT_FALSE));
+        if let Some(es) = self.es1_mut() {
+            es.module_enable()
+                .write(|w| w.module_enable(MULTIBIT_FALSE));
+        }
     }
 
     pub(crate) fn enable_entropy_source(&mut self) {
@@ -219,6 +282,9 @@ impl Csrng {
             .regs_mut()
             .module_enable()
             .write(|w| w.module_enable(MULTIBIT_TRUE));
+        if let Some(es) = self.es1_mut() {
+            es.module_enable().write(|w| w.module_enable(MULTIBIT_TRUE));
+        }
     }
 
     /// Called before every Generate command. Keeps entropy_src disabled except
@@ -231,6 +297,7 @@ impl Csrng {
     /// Phase 2 — reseed (`counter >= interval`): reseed from entropy_src,
     /// then disable it again. The Generate runs with entropy_src off.
     fn manage_entropy_src_and_reseed(&mut self) -> CaliptraResult<GenerateToken> {
+        self.check_combiner()?;
         let interval = self.csrng.regs().reseed_interval().read();
         let counter = self.csrng.regs().reseed_counter_2().read();
         if counter >= interval {
@@ -257,7 +324,7 @@ impl Csrng {
 
         let mut result = [0u32; N];
         for block in result.chunks_mut(WORDS_PER_BLOCK) {
-            wait::until(|| self.csrng.regs().genbits_vld().read().genbits_vld());
+            self.wait_for_genbits()?;
             for word in block.iter_mut() {
                 *word = self.csrng.regs().genbits().read();
             }
@@ -338,8 +405,25 @@ impl Csrng {
                 .read()
                 .module_enable()
                 != MULTIBIT_TRUE
+                || self
+                    .es1()
+                    .is_some_and(|es| es.module_enable().read().module_enable() != MULTIBIT_TRUE)
             {
                 self.enable_entropy_source();
+            }
+            if let Some(es1) = self.es1() {
+                let es0 = self.entropy_src.regs();
+                return wait_for_status(
+                    DUAL_ENTROPY_POLL_LIMIT,
+                    CaliptraError::DRIVER_ENTROPY_COMBINER_ENTROPY_TIMEOUT,
+                    || self.check_combiner(),
+                    || {
+                        // Check both, even if the first source has not started.
+                        let ready0 = poll_entropy_source(&es0)?;
+                        let ready1 = poll_entropy_source(&es1)?;
+                        Ok(ready0 && ready1)
+                    },
+                );
             }
             check_for_alert_state(self.entropy_src.regs())?;
         }
@@ -374,34 +458,64 @@ impl Csrng {
 
     /// Leave no DRBG or entropy state behind for the next boot stage.
     ///
-    /// Uninstantiates the DRBG, disables the entropy source (dropping any
-    /// queued seeds), and disables then re-enables CSRNG while it is idle.
-    /// The next stage instantiates a fresh DRBG through [`Csrng::new`].
+    /// Uninstantiates the DRBG, disables the entropy sources (dropping any
+    /// queued seeds), zeroizes the dual-iTRNG combiner, and disables then
+    /// re-enables CSRNG while it is idle. The next stage instantiates a fresh
+    /// DRBG through [`Csrng::new`].
     pub fn clear_for_handoff(&mut self) -> CaliptraResult<()> {
         self.send_command(Command::Uninstantiate)?;
         self.disable_entropy_source();
+        if let Some(combiner) = &mut self.combiner {
+            // Zeroize leaves the lock and FIPS policy in place.
+            combiner
+                .regs_mut()
+                .combiner_ctrl()
+                .modify(|w| w.zeroize(true));
+        }
         let c = self.csrng.regs_mut();
         let ctrl = u32::from(c.ctrl().read());
         c.ctrl().modify(|w| w.enable(MULTIBIT_FALSE));
         c.ctrl().write(|_| ctrl.into());
-        Ok(())
+        self.check_combiner()
     }
 
     /// Wait for the CSRNG command interface to be ready to accept a word.
     fn wait_for_cmd_rdy(&self, err: CaliptraError) -> CaliptraResult<()> {
-        loop {
-            let reg = self.csrng.regs().sw_cmd_sts().read();
+        self.wait_for_csrng_status(err, || self.csrng.regs().sw_cmd_sts().read().cmd_rdy())
+    }
 
-            // Order matters. Check for errors first.
-            if reg.cmd_sts() != 0 || u32::from(self.csrng.regs().err_code().read()) != 0 {
-                // TODO: Somehow convey additional error information found in
-                // the ERR_CODE register.
-                return Err(err);
-            }
+    fn wait_for_genbits(&self) -> CaliptraResult<()> {
+        self.wait_for_csrng_status(CaliptraError::DRIVER_CSRNG_GENERATE, || {
+            self.csrng.regs().genbits_vld().read().genbits_vld()
+        })
+    }
 
-            if reg.cmd_rdy() {
-                return Ok(());
-            }
+    fn wait_for_csrng_status(
+        &self,
+        err: CaliptraError,
+        mut ready: impl FnMut() -> bool,
+    ) -> CaliptraResult<()> {
+        wait_for_status(
+            DUAL_ENTROPY_POLL_LIMIT,
+            self.entropy_timeout(err),
+            || {
+                self.check_combiner()?;
+                if self.csrng.regs().sw_cmd_sts().read().cmd_sts() != 0
+                    || u32::from(self.csrng.regs().err_code().read()) != 0
+                {
+                    return Err(err);
+                }
+                Ok(())
+            },
+            || Ok(ready()),
+        )
+    }
+
+    fn entropy_timeout(&self, err: CaliptraError) -> CaliptraError {
+        if self.combiner.is_some() {
+            CaliptraError::DRIVER_ENTROPY_COMBINER_ENTROPY_TIMEOUT
+        } else {
+            err
         }
     }
 
@@ -409,7 +523,8 @@ impl Csrng {
     /// to Idle.
     fn wait_for_csrng_idle(&self, err: CaliptraError) -> CaliptraResult<()> {
         const MAIN_SM_IDLE: u32 = 0x4e;
-        loop {
+        for _ in 0..DUAL_ENTROPY_POLL_LIMIT {
+            self.check_combiner()?;
             let reg = self.csrng.regs().sw_cmd_sts().read();
             if reg.cmd_sts() != 0 || u32::from(self.csrng.regs().err_code().read()) != 0 {
                 return Err(err);
@@ -427,7 +542,13 @@ impl Csrng {
             if es_state == ES_ALERT_HANG {
                 return check_for_alert_state(self.entropy_src.regs());
             }
+            if let Some(es) = self.es1() {
+                if es.main_sm_state().read().main_sm_state() == ES_ALERT_HANG {
+                    return check_for_alert_state(es);
+                }
+            }
         }
+        Err(self.entropy_timeout(err))
     }
 
     fn send_command(&mut self, command: Command) -> CaliptraResult<()> {
@@ -518,6 +639,21 @@ impl Csrng {
     }
 }
 
+fn wait_for_status(
+    limit: u32,
+    timeout: CaliptraError,
+    mut check_faults: impl FnMut() -> CaliptraResult<()>,
+    mut ready: impl FnMut() -> CaliptraResult<bool>,
+) -> CaliptraResult<()> {
+    for _ in 0..limit {
+        check_faults()?;
+        if ready()? {
+            return Ok(());
+        }
+    }
+    Err(timeout)
+}
+
 fn check_for_alert_state(
     entropy_src: entropy_src::RegisterBlock<caliptra_ureg::RealMmio>,
 ) -> CaliptraResult<()> {
@@ -528,7 +664,7 @@ fn check_for_alert_state(
 }
 
 fn poll_entropy_source(
-    entropy_src: &entropy_src::RegisterBlock<caliptra_ureg::RealMmio<'_>>,
+    entropy_src: &entropy_src::RegisterBlock<RealMmio<'_>>,
 ) -> CaliptraResult<bool> {
     const CONT_HT_RUNNING: u32 = 0x1a2;
     const BOOT_PHASE_DONE: u32 = 0x8e;
@@ -594,36 +730,62 @@ pub struct HealthFailCounts {
     pub specific: AlertFailCountsReadVal,
 }
 
-/// Return the entropy source configuration.
+/// Return the ES0 (and, in dual-iTRNG mode, ES1) configuration.
 ///
-/// On cold reset this reads CPTRA_iTRNG_ENTROPY_CONFIG_{0,1,2} and caches the
-/// result in ROM persistent data; later resets reuse the cache.
+/// On cold reset this reads CPTRA_iTRNG{,1}_ENTROPY_CONFIG_{0,1,2} and caches
+/// the result in ROM persistent data; later resets reuse the cache.
 fn entropy_configuration(
-    soc_ifc: &soc_ifc::RegisterBlock<caliptra_ureg::RealMmio>,
+    soc_ifc: &soc_ifc::RegisterBlock<RealMmio>,
     persistent: &mut PersistentDataAccessor,
-) -> SourceConfig {
+    dual: bool,
+) -> CaliptraResult<(SourceConfig, Option<SourceConfig>)> {
     let rom = &mut persistent.get_mut().rom;
     let cold_reset = matches!(reset_reason(), ResetReason::ColdReset);
-    if !cold_reset && rom.entropy_cfg.configured != 0 {
+    if !cold_reset
+        && rom.entropy_cfg.configured != 0
+        && (!dual || rom.es1_entropy_cfg.configured != 0)
+    {
         let ext = if rom.supports_entropy_cfg_extension() {
             rom.entropy_cfg_extension
         } else {
             EntropyConfigurationExtension::default()
         };
-        return SourceConfig {
+        let es0 = SourceConfig {
             cfg: rom.entropy_cfg.clone(),
             ext,
         };
+        let es1 = dual.then(|| SourceConfig {
+            cfg: rom.es1_entropy_cfg.clone(),
+            ext: rom.es1_entropy_ext,
+        });
+        return Ok((es0, es1));
     }
 
-    let config = source_config(
+    let es0 = source_config(
         soc_ifc.cptra_i_trng_entropy_config_0().read(),
         soc_ifc.cptra_i_trng_entropy_config_1().read(),
         soc_ifc.cptra_i_trng_entropy_config_2().read(),
     );
-    rom.entropy_cfg = config.cfg.clone();
-    rom.entropy_cfg_extension = config.ext;
-    config
+    let es1 = dual.then(|| {
+        source_config(
+            soc_ifc.cptra_i_trng1_entropy_config_0().read(),
+            soc_ifc.cptra_i_trng1_entropy_config_1().read(),
+            soc_ifc.cptra_i_trng1_entropy_config_2().read(),
+        )
+    });
+    // Combining requires two conditioned sources; do not accept a
+    // characterization bypass in either one.
+    if dual && (es0.ext.bypass() || es1.as_ref().is_some_and(|c| c.ext.bypass())) {
+        return Err(CaliptraError::DRIVER_ENTROPY_COMBINER_BAD_STATE);
+    }
+
+    rom.entropy_cfg = es0.cfg.clone();
+    rom.entropy_cfg_extension = es0.ext;
+    if let Some(es1) = &es1 {
+        rom.es1_entropy_cfg = es1.cfg.clone();
+        rom.es1_entropy_ext = es1.ext;
+    }
+    Ok((es0, es1))
 }
 
 /// Decode one source's CPTRA_iTRNG_ENTROPY_CONFIG_{0,1,2}. A zero field
@@ -681,7 +843,7 @@ fn source_config(
 /// mode uses the symbol tests (REPCNTS, ADAPTPS). The other set stays at its
 /// never-failing reset value.
 fn program_entropy_source(
-    e: entropy_src::RegisterBlock<caliptra_ureg::RealMmioMut>,
+    e: entropy_src::RegisterBlock<RealMmioMut<'_>>,
     source: &SourceConfig,
     lock: bool,
 ) {
@@ -741,7 +903,7 @@ fn program_entropy_source(
             .rng_bit_sel(ext.rng_bit_sel())
     });
     // The SoC may request bypass so entropy can be characterized without
-    // conditioning.
+    // conditioning. Dual-iTRNG mode rejects this before programming.
     if ext.bypass() {
         e.entropy_control().modify(|w| w.es_type(MULTIBIT_TRUE));
     }

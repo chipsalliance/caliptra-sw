@@ -1,14 +1,16 @@
 // Licensed under the Apache-2.0 license
 
-use caliptra_emu_bus::{BusError, ReadOnlyRegister, WriteOnlyRegister};
+use crate::entropy_combiner::CombinerLink;
+use caliptra_emu_bus::{Bus, BusError, Clock, ReadOnlyRegister, WriteOnlyRegister};
 use caliptra_emu_derive::Bus;
-use caliptra_emu_types::{RvData, RvSize};
+use caliptra_emu_types::{RvAddr, RvData, RvSize};
 use caliptra_registers::entropy_src::regs::{
     AdaptpHiThresholdReadVal, AdaptpLoThresholdReadVal, ConfReadVal, HealthTestWindowsReadVal,
     RepcntThresholdReadVal, RepcntsThresholdReadVal,
 };
 use sha3::{Digest, Sha3_384};
-use std::mem;
+use std::{cell::RefCell, mem, rc::Rc};
+use tock_registers::interfaces::Readable;
 
 mod health_test;
 use health_test::HealthTester;
@@ -22,6 +24,41 @@ type Word = u32;
 
 const BITS_PER_NIBBLE: usize = 4;
 const WORD_SIZE_BYTES: usize = mem::size_of::<Word>();
+
+#[derive(Clone, Default)]
+pub(crate) struct SecondaryEntropySource(Option<Rc<RefCell<Csrng>>>);
+
+impl SecondaryEntropySource {
+    pub(crate) fn new(nibbles: Box<dyn Iterator<Item = u8>>, clock: Rc<Clock>) -> Self {
+        let mut source = Csrng::new(nibbles);
+        source.dual_clock = Some(clock);
+        Self(Some(Rc::new(RefCell::new(source))))
+    }
+}
+
+impl Bus for SecondaryEntropySource {
+    fn read(&mut self, size: RvSize, addr: RvAddr) -> Result<RvData, BusError> {
+        self.0
+            .as_ref()
+            .ok_or(BusError::LoadAccessFault)?
+            .borrow_mut()
+            .read(size, 0x1000 + addr)
+    }
+
+    fn write(&mut self, size: RvSize, addr: RvAddr, val: RvData) -> Result<(), BusError> {
+        self.0
+            .as_ref()
+            .ok_or(BusError::StoreAccessFault)?
+            .borrow_mut()
+            .write(size, 0x1000 + addr, val)
+    }
+
+    fn warm_reset(&mut self) {
+        if let Some(source) = &self.0 {
+            source.borrow_mut().reset_source_config();
+        }
+    }
+}
 
 #[derive(Bus)]
 #[warm_reset_fn(warm_reset)]
@@ -40,7 +77,7 @@ pub struct Csrng {
     #[register(offset = 0x28, read_fn = reseed_counter_read)]
     reseed_counter_2: ReadOnlyRegister<u32>,
 
-    #[register(offset = 0x2c)]
+    #[register(offset = 0x2c, read_fn = read_command_status)]
     sw_cmd_sts: ReadOnlyRegister<u32>,
 
     #[register(offset = 0x30, read_fn = genbits_vld_read)]
@@ -49,9 +86,8 @@ pub struct Csrng {
     #[register(offset = 0x34, read_fn = genbits_read)]
     genbits: ReadOnlyRegister<u32>,
 
-    // MAIN_SM_STATE (0x5c): CSRNG main SM state. The emulator processes
-    // commands synchronously, so it always reads Idle (0x4e = MainSmIdle).
-    #[register(offset = 0x5c)]
+    // MAIN_SM_STATE is Idle except while waiting for a dual entropy seed.
+    #[register(offset = 0x5c, read_fn = read_csrng_state)]
     main_sm_state_csrng: ReadOnlyRegister<u32>,
 
     #[register(offset = 0x54)]
@@ -118,6 +154,19 @@ pub struct Csrng {
     /// Only after boot is complete should continuous health testing consume entropy,
     /// to avoid interfering with seed conditioning that requires specific entropy amounts.
     boot_instantiate_complete: bool,
+    secondary: SecondaryEntropySource,
+    dual_clock: Option<Rc<Clock>>,
+    combiner: Option<Rc<CombinerLink>>,
+    zeroize_epoch: u64,
+    last_sample: u64,
+    samples: Vec<u8>,
+    window_start_failures: u32,
+    consecutive_failures: u32,
+    startup_ready: bool,
+    ready_seed: Option<Seed>,
+    pending_dual: Option<bool>, // true = reseed, false = instantiate
+    latched: [Option<(Seed, bool)>; 2],
+    output_fips: bool,
 }
 
 impl Csrng {
@@ -156,13 +205,55 @@ impl Csrng {
             words: Words::default(),
             health_tester: HealthTester::new(itrng_nibbles),
             boot_instantiate_complete: false,
+            secondary: SecondaryEntropySource::default(),
+            dual_clock: None,
+            combiner: None,
+            zeroize_epoch: 0,
+            last_sample: 0,
+            samples: Vec::new(),
+            window_start_failures: 0,
+            consecutive_failures: 0,
+            startup_ready: false,
+            ready_seed: None,
+            pending_dual: None,
+            latched: [None; 2],
+            output_fips: false,
         }
+    }
+
+    pub(crate) fn enable_dual(
+        &mut self,
+        secondary: SecondaryEntropySource,
+        clock: Rc<Clock>,
+        combiner: Rc<CombinerLink>,
+    ) {
+        self.secondary = secondary;
+        self.dual_clock = Some(clock);
+        self.combiner = Some(combiner);
+    }
+
+    fn read_csrng_state(&mut self, _: RvSize) -> Result<RvData, BusError> {
+        self.progress_dual_request();
+        Ok(match self.pending_dual {
+            Some(false) => 0xc1, // MainSmInstantPrep
+            Some(true) => 0xdd,  // MainSmReseedPrep
+            None => 0x4e,        // MainSmIdle
+        })
+    }
+
+    fn read_command_status(&mut self, _: RvSize) -> Result<RvData, BusError> {
+        self.progress_dual_request();
+        Ok(self.sw_cmd_sts.reg.get())
     }
 
     fn cmd_req_write(&mut self, _: RvSize, data: RvData) -> Result<(), BusError> {
         // Since the CMD_REQ register can be used to initiate new commands or
         // supply words to an existing command, we need to track which "state"
         // we're in for this register and branch accordingly.
+        self.progress_dual_request();
+        if self.pending_dual.is_some() {
+            return Ok(());
+        }
         match self.cmd_req_state {
             CmdReqState::NewCommand => self.process_new_cmd(data),
 
@@ -210,6 +301,7 @@ impl Csrng {
             self.cmd_req_state = CmdReqState::NewCommand;
             self.seed.clear();
             self.update.clear();
+            self.output_fips = false;
         }
         self.ctrl = data;
         Ok(())
@@ -235,12 +327,12 @@ impl Csrng {
             // Check if the CTR_DRBG has any bits for us.
             if let Some(block) = self.ctr_drbg.pop_block() {
                 self.words = Words::new(block);
-                Ok(0b01)
+                Ok(1 | (u32::from(self.output_fips) << 1))
             } else {
                 Ok(0b00)
             }
         } else {
-            Ok(0b01)
+            Ok(1 | (u32::from(self.output_fips) << 1))
         }
     }
 
@@ -275,6 +367,19 @@ impl Csrng {
         if self.me_regwen == 0 {
             return Ok(()); // Silently ignore writes when locked
         }
+        if let Some(clock) = &self.dual_clock {
+            if self.module_enable != data {
+                self.last_sample = clock.now();
+                self.health_tester.clear_progress();
+                self.samples.clear();
+                self.window_start_failures = 0;
+                self.consecutive_failures = 0;
+                self.ready_seed = None;
+                self.startup_ready = false;
+                self.module_enable = data;
+            }
+            return Ok(());
+        }
         self.module_enable = data;
 
         if data == MultiBitBool::False as u32 {
@@ -285,7 +390,10 @@ impl Csrng {
             unimplemented!("emulation of non-FIPS mode");
         }
 
-        self.health_tester.test_startup_windows();
+        assert!(
+            self.health_tester.test_startup_windows(),
+            "iTRNG iterator ended during startup"
+        );
 
         Ok(())
     }
@@ -425,14 +533,24 @@ impl Csrng {
         // health tests. The state machine state reflects the ongoing health test results.
         // To simulate this behavior, we consume a health test window worth of entropy
         // when the state is read, running it through the health testers.
-        self.simulate_continuous_health_testing();
+        if self.dual_clock.is_some() {
+            self.progress_source();
+        } else {
+            self.simulate_continuous_health_testing();
+        }
 
         // Extract alert_threshold from the alert_threshold register (bits [15:0])
         let alert_threshold = self.alert_threshold & 0xffff;
-        let failures = self.health_tester.failures();
+        let failures = if self.dual_clock.is_some() {
+            self.consecutive_failures
+        } else {
+            self.health_tester.failures()
+        };
 
         let state = if failures >= alert_threshold {
             ALERT_HANG
+        } else if self.dual_clock.is_some() && !self.startup_ready {
+            0x2c // StartupHTStart: not enough input to finish startup.
         } else {
             CONT_HT_RUNNING
         };
@@ -472,16 +590,124 @@ impl Csrng {
         }
     }
 
-    fn warm_reset(&mut self) {
-        // CSRNG and entropy_src are in the non-core reset domain. Keep the
-        // remaining iTRNG input stream.
+    fn reset_source_config(&mut self) {
         let mut health = std::mem::replace(
             &mut self.health_tester,
             HealthTester::new(Box::new(std::iter::empty())),
         );
         health.reset();
+        let clock = self.dual_clock.clone();
+        let secondary = self.secondary.clone();
+        let combiner = self.combiner.clone();
         *self = Self::new(Box::new(std::iter::empty()));
         self.health_tester = health;
+        self.dual_clock = clock;
+        self.secondary = secondary;
+        self.combiner = combiner;
+    }
+
+    fn warm_reset(&mut self) {
+        // CSRNG and entropy_src are in the non-core reset domain.
+        self.reset_source_config();
+    }
+
+    fn progress_source(&mut self) {
+        let now = self.dual_clock.as_ref().unwrap().now();
+        let elapsed = now.saturating_sub(self.last_sample);
+        self.last_sample = now;
+        if self.module_enable != MultiBitBool::True as u32 || self.ready_seed.is_some() {
+            return;
+        }
+        let window = self.health_tester.nibbles_per_window();
+        let needed = window * if self.startup_ready { 1 } else { 2 };
+        for _ in 0..elapsed {
+            if self.consecutive_failures >= self.alert_threshold & 0xffff {
+                break;
+            }
+            let Some(symbol) = self.health_tester.sample() else {
+                continue;
+            };
+            self.samples.push(symbol);
+            if self.samples.len().is_multiple_of(window) {
+                let failures = self.health_tester.failures();
+                let failed = failures != self.window_start_failures;
+                self.window_start_failures = failures;
+                if failed {
+                    self.consecutive_failures += 1;
+                    self.samples.clear();
+                    continue;
+                }
+                self.consecutive_failures = 0;
+            }
+            if self.samples.len() == needed {
+                // Pack symbols least-significant first, matching the conditioner input.
+                let bits = self.health_tester.bits_per_symbol();
+                let mut bytes = vec![0; (needed * bits).div_ceil(8)];
+                for (i, symbol) in self.samples.drain(..).enumerate() {
+                    bytes[i * bits / 8] |= symbol << (i * bits % 8);
+                }
+                self.ready_seed = Some(Sha3_384::digest(bytes).into());
+                self.startup_ready = true;
+                break;
+            }
+        }
+    }
+
+    fn take_source_seed(&mut self) -> Option<(Seed, bool)> {
+        self.progress_source();
+        self.ready_seed
+            .take()
+            .map(|seed| (seed, ConfReadVal::from(self.conf).fips_flag() == 6))
+    }
+
+    fn progress_dual_request(&mut self) {
+        let (Some(reseed), Some(link)) = (self.pending_dual, self.combiner.clone()) else {
+            return;
+        };
+        if self.zeroize_epoch != link.zeroize_epoch.get() {
+            // RTL clears in-flight seed storage, but retains the request while waiting.
+            self.zeroize_epoch = link.zeroize_epoch.get();
+            self.latched = [None; 2];
+        }
+        if link.has_error() {
+            return;
+        }
+        if self.latched[0].is_none() {
+            self.latched[0] = self.take_source_seed();
+        }
+        if self.latched[1].is_none() {
+            self.latched[1] = self
+                .secondary
+                .0
+                .as_ref()
+                .unwrap()
+                .borrow_mut()
+                .take_source_seed();
+        }
+        let [Some((es0, fips0)), Some((es1, fips1))] = self.latched else {
+            return;
+        };
+        let mut hash = Sha3_384::new();
+        hash.update(es0);
+        hash.update(es1);
+        let mut seed: Seed = hash.finalize().into();
+        seed.reverse(); // CSRNG model expects big-endian seed bytes.
+        self.output_fips = link.output_fips(fips0, fips1);
+        if reseed {
+            self.ctr_drbg.reseed(Instantiate::Bytes(&seed));
+        } else {
+            self.ctr_drbg.instantiate(Instantiate::Bytes(&seed));
+        }
+        self.latched = [None; 2];
+        self.pending_dual = None;
+        self.sw_cmd_sts = ReadOnlyRegister::new(0b110);
+    }
+
+    fn request_dual_seed(&mut self, reseed: bool) {
+        self.zeroize_epoch = self.combiner.as_ref().unwrap().zeroize_epoch.get();
+        self.pending_dual = Some(reseed);
+        self.sw_cmd_sts = ReadOnlyRegister::new(0b010);
+        self.progress_dual_request();
     }
 
     fn process_new_cmd(&mut self, data: RvData) {
@@ -505,7 +731,13 @@ impl Csrng {
                 match [flag0, clen] {
                     [FALSE, 0] => {
                         // Seed from entropy_src.
-                        let seed = self.get_conditioned_seed();
+                        if self.combiner.is_some() {
+                            self.request_dual_seed(false);
+                            return;
+                        }
+                        let seed = self
+                            .get_conditioned_seed()
+                            .expect("iTRNG iterator ended while conditioning");
                         self.ctr_drbg.instantiate(Instantiate::Bytes(&seed));
                         // Mark boot as complete - continuous health testing can now run
                         self.boot_instantiate_complete = true;
@@ -514,11 +746,13 @@ impl Csrng {
                     [FALSE, _] => unimplemented!("seed: entropy_src XOR constant"),
 
                     [TRUE, 0] => {
+                        self.output_fips = false;
                         // Zero seed.
                         self.ctr_drbg.instantiate(Instantiate::default());
                     }
 
                     [TRUE, _] => {
+                        self.output_fips = false;
                         self.cmd_req_state = CmdReqState::SeedWords {
                             num_words: clen as usize,
                         };
@@ -535,7 +769,13 @@ impl Csrng {
                 // Mirror INSTANTIATE flag handling for RESEED.
                 match [flag0, clen] {
                     [FALSE, 0] => {
-                        let seed = self.get_conditioned_seed();
+                        if self.combiner.is_some() {
+                            self.request_dual_seed(true);
+                            return;
+                        }
+                        let seed = self
+                            .get_conditioned_seed()
+                            .expect("iTRNG iterator ended while reseeding");
                         self.ctr_drbg.reseed(Instantiate::Bytes(&seed));
                     }
 
@@ -560,6 +800,7 @@ impl Csrng {
             }
 
             UNINSTANTIATE => {
+                self.output_fips = false;
                 self.ctr_drbg.uninstantiate();
             }
 
@@ -575,7 +816,7 @@ impl Csrng {
         }
     }
 
-    fn get_conditioned_seed(&mut self) -> Seed {
+    fn get_conditioned_seed(&mut self) -> Option<Seed> {
         // Replicate the logic in caliptra-rtl/src/entropy_src/rtl/entropy_src_core.sv.
         const NUM_TEST_WINDOWS: usize = 2;
         const BITS_PER_BLOCK: usize = 8 * mem::size_of::<u64>();
@@ -588,21 +829,17 @@ impl Csrng {
 
         for _ in 0..num_blocks {
             // Update the hasher in 64-bit packed entropy blocks.
-            let packed_entropy = (0..BITS_PER_BLOCK / bits_per_symbol).fold(0, |packed, i| {
-                let symbol = self.health_tester.next().expect(
-                    "itrng iterator should provide at least two health-test windows in FIPS mode",
-                );
-                packed | (u64::from(symbol) << (i * bits_per_symbol))
-            });
+            let mut packed_entropy = 0u64;
+            for i in 0..BITS_PER_BLOCK / bits_per_symbol {
+                let symbol = self.health_tester.next()?;
+                packed_entropy |= u64::from(symbol) << (i * bits_per_symbol);
+            }
             hasher.update(packed_entropy.to_le_bytes());
         }
 
         let mut digest = hasher.finalize();
         digest.as_mut_slice().reverse();
-        digest
-            .as_slice()
-            .try_into()
-            .expect("SHA3-384 should generate a 384 bit seed from raw entropy symbols")
+        Some(digest.into())
     }
 }
 
@@ -725,7 +962,10 @@ mod tests {
 
         let mut expected = Sha3_384::digest([0u8; 16]);
         expected.reverse();
-        assert_eq!(csrng.get_conditioned_seed().as_slice(), expected.as_slice());
+        assert_eq!(
+            csrng.get_conditioned_seed().unwrap().as_slice(),
+            expected.as_slice()
+        );
     }
 
     #[test]
