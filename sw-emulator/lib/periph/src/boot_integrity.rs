@@ -26,6 +26,8 @@ pub(crate) struct BootIntegrity {
     monitor_enabled: bool,
     pub(crate) stable_owner: bool,
     pub(crate) ocp_lock: bool,
+    /// Cleared by warm and firmware-update resets, like the RTL `cold_boot` signal.
+    pub(crate) cold_boot: bool,
     regions: [ShadowRegion; 4],
     region_lock: bool,
     fmc: bool,
@@ -51,6 +53,7 @@ impl BootIntegrity {
             monitor_enabled: subsystem && debug_locked,
             stable_owner,
             ocp_lock,
+            cold_boot: true,
             regions: std::array::from_fn(|_| ShadowRegion::default()),
             region_lock: false,
             fmc: false,
@@ -97,6 +100,7 @@ impl BootIntegrity {
     }
 
     pub(crate) fn reset(&mut self, update: bool) {
+        self.cold_boot = false;
         if update {
             for region in &mut self.regions {
                 region.committed = false;
