@@ -308,6 +308,11 @@ fn launch_fmc(env: &mut RomEnv) -> ! {
         fn exit_rom(entry: u32) -> !;
     }
 
+    // FMC instantiates its own DRBG; leave no ROM CSRNG/entropy state behind.
+    if let Err(err) = env.trng.clear_for_handoff() {
+        handle_fatal_error(err.into());
+    }
+
     // Get the fmc entry point from data vault
     let entry = env.persistent_data.get().rom.data_vault.fmc_entry_point();
 

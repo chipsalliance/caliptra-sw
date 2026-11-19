@@ -66,6 +66,15 @@ impl Trng {
         }
     }
 
+    /// Clear DRBG and entropy state before handing off to the next boot
+    /// stage. No-op for the external TRNG.
+    pub fn clear_for_handoff(&mut self) -> CaliptraResult<()> {
+        match self {
+            Self::Internal(csrng) => csrng.clear_for_handoff(),
+            _ => Ok(()),
+        }
+    }
+
     /// Stir in additional data to the internal state of the TRNG, if supported.
     /// This is analagous to the NIST update command in SP800-90A.
     pub fn stir(&mut self, additional_data: &[u32]) -> CaliptraResult<()> {
