@@ -148,20 +148,19 @@ impl UdsFeProgrammingFlow {
                 ZEROIZATION_MARKER_THRESHOLD..=64 => Some(FePartitionStatus::Zeroized),
                 0 => {
                     let digest = config.read_metadata(soc_ifc, dma, digest_address)?;
-                    // Latest hardware hides secret digests by returning zero without a DAI error.
-                    if caliptra_registers::CALIPTRA_HW_REV_CHOSEN == "latest"
-                        && (soc_ifc.ss_debug_intent()
-                            || dma
-                                .read_dword_checked(
-                                    AxiAddr::from(
-                                        config.fuse_controller_base_addr
-                                            + SECRET_DIGEST_READ_LOCK_OFFSET,
-                                    ),
-                                    soc_ifc,
-                                )
-                                .ok()?
-                                & 1
-                                != 0)
+                    // Caliptra 2.2 hides secret digests by returning zero without a DAI error.
+                    if soc_ifc.ss_debug_intent()
+                        || dma
+                            .read_dword_checked(
+                                AxiAddr::from(
+                                    config.fuse_controller_base_addr
+                                        + SECRET_DIGEST_READ_LOCK_OFFSET,
+                                ),
+                                soc_ifc,
+                            )
+                            .ok()?
+                            & 1
+                            != 0
                     {
                         return None;
                     }
