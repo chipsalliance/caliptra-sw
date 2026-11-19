@@ -666,8 +666,13 @@ fn test_pcr_log_across_update_reset() {
         assert_eq!(pcr0_from_log, pcr0_from_hw);
         assert_eq!(pcr1_from_log, pcr1_from_hw);
 
-        // Ensure all other PCRs, except PCR0, PCR1 and PCR31, are empty.
+        // Ensure all other PCRs, except PCR0, PCR1 and PCR31, are empty. In
+        // subsystem mode, hardware extends PCR4 and PCR5 with the ICCM
+        // measurement.
         for i in 2..(PCR_COUNT - 1) {
+            if hw.subsystem_mode() && (i == 4 || i == 5) {
+                continue;
+            }
             let offset = i * 48;
             assert_eq!(pcrs[offset..offset + 48], [0; 48]);
         }
