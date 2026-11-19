@@ -19,7 +19,6 @@ mod authorize_and_stash;
 mod capabilities;
 mod certify_key_chunks;
 mod certify_key_extended;
-mod cm_sha_dma;
 mod cryptographic_mailbox;
 mod debug_unlock;
 pub mod dice;
@@ -72,7 +71,6 @@ use caliptra_dpe_crypto::ml_dsa::MldsaPublicKey;
 use caliptra_dpe_crypto::CryptoSuite;
 use caliptra_dpe_crypto::PubKey;
 use caliptra_dpe_platform::{Platform, MAX_OTHER_NAME_SIZE};
-use cm_sha_dma::CmShaDmaCmd;
 pub use drivers::{Drivers, PauserPrivileges};
 use fe_programming::FeProgrammingCmd;
 use mailbox::Mailbox;
@@ -521,7 +519,6 @@ fn execute_command(
         }
         CommandId::GET_IMAGE_INFO => GetImageInfoCmd::execute(drivers, cmd_bytes, resp),
         CommandId::GET_MCU_FW_SIZE => get_mcu_fw_size::GetMcuFwSizeCmd::execute(drivers, resp),
-        CommandId::CM_SHA_DMA => CmShaDmaCmd::execute(drivers, cmd_bytes, resp),
         // Cryptographic mailbox commands
         CommandId::CM_IMPORT => cryptographic_mailbox::Commands::import(drivers, cmd_bytes, resp),
         CommandId::CM_KEY_GEN => cryptographic_mailbox::Commands::key_gen(drivers, cmd_bytes, resp),
@@ -537,6 +534,7 @@ fn execute_command(
         CommandId::CM_SHA_FINAL => {
             cryptographic_mailbox::Commands::sha_final(drivers, cmd_bytes, resp)
         }
+        CommandId::CM_SHA_DMA => cryptographic_mailbox::Commands::sha_dma(drivers, cmd_bytes, resp),
         CommandId::CM_SHAKE256_INIT => {
             cryptographic_mailbox::Commands::shake256_init(drivers, cmd_bytes, resp)
         }
