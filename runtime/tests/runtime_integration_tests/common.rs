@@ -534,6 +534,19 @@ pub fn mailbox_execute_with_lock_retry(
     Err(ModelError::UnableToLockMailbox)
 }
 
+/// Warm reset after runtime has finished the previous mailbox command.
+///
+/// The host sees the response before runtime returns to its command loop.
+/// A warm reset in that window counts as a reset during a command, which makes
+/// runtime disable attestation.
+pub fn warm_reset_when_idle(model: &mut impl HwModel) {
+    model.step_until(|m| m.soc_ifc().cptra_flow_status().read().mailbox_flow_done());
+    for _ in 0..1000 {
+        model.step();
+    }
+    model.warm_reset_flow().unwrap();
+}
+
 pub fn check_header_checksum(resp: &[u8]) -> anyhow::Result<()> {
     let resp_hdr =
         MailboxReqHeader::try_read_from_bytes(&resp[..core::mem::size_of::<MailboxReqHeader>()])
