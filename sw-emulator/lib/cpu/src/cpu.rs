@@ -831,6 +831,13 @@ impl<TBus: Bus> Cpu<TBus> {
         self.halted = false;
         self.priv_mode = RvPrivMode::M;
         self.csrs.reset();
+        // These cache CSR state, so reset them with the CSRs. Otherwise an
+        // interrupt enabled before the reset is taken before the new
+        // firmware enables interrupts.
+        self.ext_int_vec = 0;
+        self.global_int_en = false;
+        self.ext_int_en = false;
+        self.deferred_ext_int = [false; 256];
         // Disarm internal timers to prevent interrupts scheduled before reset from firing
         self.csrs.internal_timers.disarm(0);
         self.csrs.internal_timers.disarm(1);
@@ -2169,5 +2176,39 @@ mod tests {
         assert_eq!(cpu.external_int_counter, 1);
         // the timer value should now be 0
         assert_eq!(cpu.csrs.internal_timers.read_mitcnt0(), 0);
+    }
+
+    #[test]
+    fn test_warm_reset_disables_interrupts() {
+        const RV32_NO_OP: u32 = 0x00000013;
+
+        let clock = Rc::new(Clock::new());
+        let timer = Timer::new(&clock);
+        let mut bus = DynamicBus::new();
+        let rom = Rom::new(
+            std::iter::repeat_n(RV32_NO_OP, 256)
+                .flat_map(u32::to_le_bytes)
+                .collect(),
+        );
+        bus.attach_dev("ROM", 0..=0x3ff, Box::new(rom)).unwrap();
+
+        let pic = Rc::new(Pic::new());
+        let args = CpuArgs::default();
+        let mut cpu = Cpu::new(bus, clock.clone(), pic, args, Rc::new(Cell::new(0)));
+        cpu.global_int_en = true;
+        cpu.ext_int_en = true;
+
+        cpu.warm_reset();
+        assert_eq!(cpu.step(None), StepAction::Continue);
+        timer.schedule_action_in(
+            0,
+            TimerAction::ExtInt {
+                irq: 1,
+                can_wake: true,
+            },
+        );
+        assert_eq!(cpu.step(None), StepAction::Continue);
+
+        assert_eq!(cpu.external_int_counter, 0);
     }
 }
