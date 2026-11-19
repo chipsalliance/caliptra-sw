@@ -34,7 +34,6 @@ jobs:
   # Enable only after the FPGA support HW 2.2.
   fpga:
     name: FPGA HW 2.2 (${{ matrix.config.name }}, itrng, ${{ matrix.log.name }}, ${{ matrix.ocp_lock.name }})
-    if: ${{ false }}  # Remove to enable
     uses: ./.github/workflows/fpga.yml
     strategy:
       fail-fast: false
@@ -61,7 +60,6 @@ jobs:
   # Subsystem testing also requires compatible MCU support.
   fpga-subsystem:
     name: FPGA Subsystem HW 2.2 (${{ matrix.config.name }}, itrng, ${{ matrix.ocp_lock.name }}, ${{ matrix.flash_boot.name }})
-    if: ${{ false }}  # Remove to enable
     uses: ./.github/workflows/fpga-subsystem.yml
     strategy:
       fail-fast: false
