@@ -1203,7 +1203,6 @@ fn test_csrng_repcnts() {
 
     // Constant nibble stream: 0x7, 0x7, 0x7, ...
     test_csrng_with_nibbles(FAIL, Box::new(iter::repeat(0b0111)));
-
 }
 
 /// Test that entropy_src configuration registers are locked in production mode (debug_locked=true).
@@ -1573,6 +1572,88 @@ fn test_preconditioned_aes() {
 // TC-1..TC-5 run with normal good entropy.
 // TC-6 (health-check failure on reseed) needs bad entropy after startup.
 // ---------------------------------------------------------------------------
+
+#[test]
+fn test_entropy_combiner_kat_and_lock() {
+    let rom = caliptra_builder::build_firmware_rom(&firmware::driver_tests::ENTROPY_COMBINER_TESTS)
+        .unwrap();
+    let mut model = caliptra_hw_model::new(
+        InitParams {
+            rom: &rom,
+            trng_mode: Some(TrngMode::Internal),
+            ..default_init_params()
+        },
+        BootParams::default(),
+    )
+    .unwrap();
+    model.step_until_exit_success().unwrap();
+}
+
+#[cfg(not(any(
+    feature = "verilator",
+    feature = "fpga_realtime",
+    feature = "fpga_subsystem"
+)))]
+#[test]
+fn test_entropy_combiner_dual_generate_reseed() {
+    run_entropy_combiner_dual(false);
+}
+
+#[cfg(not(any(
+    feature = "verilator",
+    feature = "fpga_realtime",
+    feature = "fpga_subsystem"
+)))]
+#[test]
+fn test_entropy_combiner_reports_secondary_source_failure() {
+    run_entropy_combiner_dual(true);
+}
+
+#[cfg(not(any(
+    feature = "verilator",
+    feature = "fpga_realtime",
+    feature = "fpga_subsystem"
+)))]
+fn run_entropy_combiner_dual(bad_es1: bool) {
+    let rom = caliptra_builder::build_firmware_rom(&firmware::driver_tests::ENTROPY_COMBINER_TESTS)
+        .unwrap();
+    let mut model = caliptra_hw_model::new_unbooted(InitParams {
+        rom: &rom,
+        trng_mode: Some(TrngMode::Internal),
+        subsystem_mode: true,
+        itrng1_nibbles: Some(if bad_es1 {
+            Box::new(core::iter::repeat(0))
+        } else {
+            Box::new(trng_nibbles().skip(257))
+        }),
+        ..default_init_params()
+    })
+    .unwrap();
+    // Asymmetric sources: ES0 single-bit on lane 2, ES1 multi-channel.
+    let regs = model.soc_ifc();
+    regs.cptra_i_trng_entropy_config_0()
+        .write(|w| w.high_threshold(765).low_threshold(245));
+    regs.cptra_i_trng_entropy_config_1()
+        .write(|w| w.repetition_count(53));
+    regs.cptra_i_trng_entropy_config_2().write(|w| {
+        w.fips_window_size(1024)
+            .single_bit_mode(true)
+            .rng_bit_sel(2)
+    });
+    regs.cptra_i_trng1_entropy_config_0()
+        .write(|w| w.high_threshold(331));
+    regs.cptra_i_trng1_entropy_config_1()
+        .write(|w| w.repetition_count(61));
+    regs.cptra_i_trng1_entropy_config_2()
+        .write(|w| w.fips_window_size(512));
+    model
+        .boot(BootParams {
+            initial_dbg_manuf_service_reg: u32::from(bad_es1) << 15,
+            ..Default::default()
+        })
+        .unwrap();
+    model.step_until_exit_success().unwrap();
+}
 
 /// TC-1..TC-5: reseed/counter/interval/disable tests with good entropy.
 /// Runs on all targets including FPGA itrng (TC-5 exercises auto-enable).

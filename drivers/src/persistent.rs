@@ -436,7 +436,7 @@ pub struct EntropyConfiguration {
 
 bitfield::bitfield! {
     /// Packed entropy-source mode configuration cached from
-    /// CPTRA_iTRNG_ENTROPY_CONFIG_2 so that it can be reapplied across warm resets.
+    /// CPTRA_iTRNG{,1}_ENTROPY_CONFIG_2 so that it can be reapplied across warm resets.
     #[derive(Clone, Copy, Default, FromZeros, IntoBytes, KnownLayout, Zeroize)]
     #[repr(C)]
     pub struct EntropyConfigurationExtension(u32);
@@ -507,7 +507,11 @@ pub struct RomPersistentData {
     pub cmb_aes_key_share1: LEArray4x8,
 
     // Preserve the ROM/FMC/runtime persistent-data layout.
-    reserved7: [u8; ROM_RESERVED7_SIZE as usize],
+    reserved7: [u8; ROM_RESERVED7_SIZE as usize
+        - size_of::<EntropyConfiguration>()
+        - size_of::<EntropyConfigurationExtension>()],
+    pub es1_entropy_cfg: EntropyConfiguration,
+    pub es1_entropy_cfg_extension: EntropyConfigurationExtension,
 
     pub cleared_non_fatal_fw_error: u32,
 
@@ -531,11 +535,6 @@ impl RomPersistentData {
     pub const MAGIC: u32 = u32::from_be_bytes(*b"ROMP");
     pub const MAJOR_VERSION: u16 = 1;
     pub const MINOR_VERSION: u16 = 1;
-    pub const MINOR_VERSION_ENTROPY_CFG_EXTENSION: u16 = 1;
-
-    pub fn supports_entropy_cfg_extension(&self) -> bool {
-        self.minor_version >= Self::MINOR_VERSION_ENTROPY_CFG_EXTENSION
-    }
 
     pub fn supports_current_minor_version(&self) -> bool {
         self.minor_version <= Self::MINOR_VERSION

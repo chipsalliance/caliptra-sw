@@ -12,7 +12,6 @@ use caliptra_registers::entropy_src::regs::{
 const DEFAULT_WINDOW_SIZE_SAMPLES: usize = 512;
 
 pub struct HealthTester {
-    itrng_nibbles: Box<dyn Iterator<Item = u8>>,
     pub repcnt: RepetitionCountTester,
     pub repcnts: RepetitionCountSymbolTester,
     pub adaptp: AdaptiveProportionTester,
@@ -28,9 +27,8 @@ pub struct HealthTester {
 }
 
 impl HealthTester {
-    pub fn new(itrng_nibbles: Box<dyn Iterator<Item = u8>>) -> Self {
+    pub fn new() -> Self {
         Self {
-            itrng_nibbles,
             repcnt: RepetitionCountTester::new(),
             repcnts: RepetitionCountSymbolTester::new(),
             adaptp: AdaptiveProportionTester::new(),
@@ -83,9 +81,23 @@ impl HealthTester {
         self.adaptp.set_window_size_samples(samples);
     }
 
-    pub fn reset(&mut self) {
-        let input = std::mem::replace(&mut self.itrng_nibbles, Box::new(std::iter::empty()));
-        *self = Self::new(input);
+    pub fn clear_progress(&mut self) {
+        self.startup_nibbles.clear();
+        self.repcnt.prev_nibble = [None; BITS_PER_NIBBLE];
+        self.repcnt.repetition_count = [1; BITS_PER_NIBBLE];
+        self.repcnt.failures = 0;
+        self.repcnts.reset_progress();
+        self.adaptp.per_lane_ones.fill(0);
+        self.adaptp.num_samples_seen = 0;
+        self.adaptp.lo_failures = 0;
+        self.adaptp.hi_failures = 0;
+        self.symbol_count = 0;
+        self.symbol_adaptive_failures = 0;
+    }
+
+    pub fn sample(&mut self, nibbles: &mut dyn Iterator<Item = u8>) -> Option<u8> {
+        let raw = nibbles.next()?;
+        Some(self.feed(raw))
     }
 
     /// Run one raw RNG sample through every health test and return the
@@ -118,7 +130,7 @@ impl HealthTester {
         }
     }
 
-    pub fn test_startup_windows(&mut self) -> bool {
+    pub fn test_startup_windows(&mut self, nibbles: &mut dyn Iterator<Item = u8>) -> bool {
         // The RTL tests two consecutive windows during startup health testing.
         // See entropy_src_main_sm.sv: StartupHTStart -> StartupPhase1 -> StartupPass1 -> Sha3Process
         // Only after both windows pass does startup complete.
@@ -127,7 +139,7 @@ impl HealthTester {
 
         self.startup_nibbles.clear();
         for _ in 0..num_nibbles {
-            let Some(nibble) = self.itrng_nibbles.next() else {
+            let Some(nibble) = nibbles.next() else {
                 break;
             };
             self.feed(nibble);
@@ -146,22 +158,15 @@ impl HealthTester {
             + self.adaptp.hi_failures()
             + self.symbol_adaptive_failures
     }
-}
 
-impl Iterator for HealthTester {
-    type Item = u8;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let nibble = if let Some(nibble) = self.startup_nibbles.pop() {
+    pub fn next(&mut self, nibbles: &mut dyn Iterator<Item = u8>) -> Option<u8> {
+        if let Some(nibble) = self.startup_nibbles.pop() {
             // First yield any startup nibbles we saved while health testing.
-            nibble
+            Some(self.symbol(nibble))
         } else {
-            // Then yield directly from the TRNG. Feed nibbles through health checks
-            // for continuous testing.
-            let nibble = self.itrng_nibbles.next()?;
-            return Some(self.feed(nibble));
-        };
-        Some(self.symbol(nibble))
+            // Then draw directly from the TRNG and run continuous health tests.
+            self.sample(nibbles)
+        }
     }
 }
 
@@ -367,6 +372,12 @@ impl RepetitionCountSymbolTester {
             repetition_count: 1, // the hardware starts the counter at 1
             failures: 0,
         }
+    }
+
+    fn reset_progress(&mut self) {
+        self.prev_nibble = None;
+        self.repetition_count = 1;
+        self.failures = 0;
     }
 
     pub fn set_threshold(&mut self, threshold: RepcntsThresholdReadVal) {

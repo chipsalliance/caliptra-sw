@@ -5,11 +5,11 @@
 
 use caliptra_cfi_lib::CfiCounter;
 use caliptra_drivers::{
-    Array4x12, Ecc384, Ecc384PrivKeyIn, Ecc384PubKey, Ecc384Scalar, PersistentDataAccessor, Trng,
+    Array4x12, Ecc384, Ecc384PrivKeyIn, Ecc384PubKey, Ecc384Scalar, EntropyRegs,
+    PersistentDataAccessor, Trng,
 };
 use caliptra_registers::csrng::CsrngReg;
 use caliptra_registers::ecc::EccReg;
-use caliptra_registers::entropy_src::EntropySrcReg;
 use caliptra_registers::soc_ifc::SocIfcReg;
 use caliptra_registers::soc_ifc_trng::SocIfcTrngReg;
 use caliptra_test_harness::test_suite;
@@ -25,7 +25,7 @@ fn test_sign_validation_failure() {
     let mut trng = unsafe {
         Trng::new(
             CsrngReg::new(),
-            EntropySrcReg::new(),
+            EntropyRegs::new(),
             SocIfcTrngReg::new(),
             &SocIfcReg::new(),
             PersistentDataAccessor::new(),

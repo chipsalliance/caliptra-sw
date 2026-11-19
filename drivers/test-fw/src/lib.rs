@@ -3,15 +3,15 @@
 #![no_std]
 
 use caliptra_drivers::{
-    Abr, Aes, Array4x16, DeobfuscationEngine, Dma, DmaEncryptionEngine, Ecc384, Ecc384PubKey, Hmac,
-    HmacData, HmacKey, HmacMode, KeyId, KeyReadArgs, KeyUsage, KeyVault, KeyWriteArgs,
-    PersistentDataAccessor, Sha3, SocIfc, Trng,
+    Abr, Aes, Array4x16, DeobfuscationEngine, Dma, DmaEncryptionEngine, Ecc384, Ecc384PubKey,
+    EntropyRegs, Hmac, HmacData, HmacKey, HmacMode, KeyId, KeyReadArgs, KeyUsage, KeyVault,
+    KeyWriteArgs, PersistentDataAccessor, Sha3, SocIfc, Trng,
 };
 use caliptra_kat::CaliptraResult;
 use caliptra_registers::{
     abr::AbrReg, aes::AesReg, aes_clp::AesClpReg, csrng::CsrngReg, doe::DoeReg, ecc::EccReg,
-    entropy_src::EntropySrcReg, hmac::HmacReg, kmac::Kmac as KmacReg, kv::KvReg,
-    soc_ifc::SocIfcReg, soc_ifc_trng::SocIfcTrngReg,
+    hmac::HmacReg, kmac::Kmac as KmacReg, kv::KvReg, soc_ifc::SocIfcReg,
+    soc_ifc_trng::SocIfcTrngReg,
 };
 
 /// Code shared between the caliptra-drivers integration_test.rs (running on the
@@ -94,7 +94,7 @@ impl Default for TestRegisters {
         let trng = unsafe {
             Trng::new(
                 CsrngReg::new(),
-                EntropySrcReg::new(),
+                EntropyRegs::new(),
                 SocIfcTrngReg::new(),
                 &SocIfcReg::new(),
                 PersistentDataAccessor::new(),

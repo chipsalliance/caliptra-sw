@@ -44,6 +44,7 @@ mod data_vault;
 pub mod dma;
 mod doe;
 mod ecc384;
+mod entropy_combiner;
 mod error_reporter;
 mod exit_ctrl;
 #[cfg(feature = "fips-test-hooks")]
@@ -98,7 +99,8 @@ pub use caliptra_okref::okmutref;
 pub use caliptra_okref::okref;
 pub use cmac_kdf::cmac_kdf;
 pub use csrng::{
-    Csrng, HealthFailCounts as CsrngHealthFailCounts, Seed as CsrngSeed, MAX_SEED_WORDS,
+    Csrng, EntropyRegs, HealthFailCounts as CsrngHealthFailCounts, Seed as CsrngSeed,
+    MAX_SEED_WORDS,
 };
 pub use data_vault::{ColdResetEntries, DataVault, WarmResetEntries};
 pub use dma::{
@@ -110,6 +112,7 @@ pub use ecc384::{
     Ecc384, Ecc384PrivKeyIn, Ecc384PrivKeyOut, Ecc384PubKey, Ecc384Result, Ecc384Scalar,
     Ecc384Seed, Ecc384Signature,
 };
+pub use entropy_combiner::EntropyCombiner;
 pub use error_reporter::{
     clear_fw_error_non_fatal, get_fw_error_non_fatal, report_fw_error_fatal,
     report_fw_error_non_fatal,

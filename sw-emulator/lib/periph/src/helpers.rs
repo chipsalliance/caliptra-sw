@@ -15,6 +15,12 @@ Abstract:
 
 use std::ops::{Index, IndexMut, RangeFrom};
 
+#[repr(u32)]
+pub(crate) enum MultiBitBool {
+    False = 9,
+    True = 6,
+}
+
 pub trait U32Array: AsRef<[u32]> {
     const BYTE_LEN: usize;
     type ByteArray: AsMut<[u8]>;

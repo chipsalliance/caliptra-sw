@@ -19,12 +19,12 @@ use caliptra_cfi_lib::CfiCounter;
 use caliptra_drivers::sha2_512_384::Sha2DigestOpTrait;
 use caliptra_drivers::{
     cprintln, Aes, AesGcmIv, AesKey, AesOperation, Array4x12, Dma, DmaReadTarget,
-    DmaReadTransaction, LEArray4x8, PersistentDataAccessor, Sha2_512_384, SocIfc, Trng,
+    DmaReadTransaction, EntropyRegs, LEArray4x8, PersistentDataAccessor, Sha2_512_384, SocIfc,
+    Trng,
 };
 use caliptra_registers::aes::AesReg;
 use caliptra_registers::aes_clp::AesClpReg;
 use caliptra_registers::csrng::CsrngReg;
-use caliptra_registers::entropy_src::EntropySrcReg;
 use caliptra_registers::mcu_sram;
 use caliptra_registers::sha512::Sha512Reg;
 use caliptra_registers::soc_ifc::SocIfcReg;
@@ -250,7 +250,7 @@ fn test_dma_aes_mcu_sram_inplace() {
     let mut trng = unsafe {
         Trng::new(
             CsrngReg::new(),
-            EntropySrcReg::new(),
+            EntropyRegs::new(),
             SocIfcTrngReg::new(),
             &SocIfcReg::new(),
             PersistentDataAccessor::new(),
@@ -293,7 +293,7 @@ fn test_dma_aes_mcu_sram() {
     let mut trng = unsafe {
         Trng::new(
             CsrngReg::new(),
-            EntropySrcReg::new(),
+            EntropyRegs::new(),
             SocIfcTrngReg::new(),
             &SocIfcReg::new(),
             PersistentDataAccessor::new(),
@@ -348,7 +348,7 @@ fn test_dma_aes_mcu_sram_256kb() {
     let mut trng = unsafe {
         Trng::new(
             CsrngReg::new(),
-            EntropySrcReg::new(),
+            EntropyRegs::new(),
             SocIfcTrngReg::new(),
             &SocIfcReg::new(),
             PersistentDataAccessor::new(),

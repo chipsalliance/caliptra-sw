@@ -309,6 +309,10 @@ pub struct InitParams<'a> {
     // peripheral).
     pub itrng_nibbles: Box<dyn Iterator<Item = u8> + Send>,
 
+    /// ES1 stimulus for the software emulator. Some enables the subsystem
+    /// dual-iTRNG strap; None preserves the existing single-source model.
+    pub itrng1_nibbles: Option<Box<dyn Iterator<Item = u8> + Send>>,
+
     // Pre-conditioned TRNG responses to return over the soc_ifc CPTRA_TRNG_DATA
     // registers in response to requests via CPTRA_TRNG_STATUS
     pub etrng_responses: Box<dyn Iterator<Item = EtrngResponse> + Send>,
@@ -381,6 +385,7 @@ impl Default for InitParams<'_> {
             cptra_obf_key: DEFAULT_CPTRA_OBF_KEY,
             csr_hmac_key: DEFAULT_CSR_HMAC_KEY,
             itrng_nibbles,
+            itrng1_nibbles: None,
             etrng_responses,
             trng_mode: Some(if cfg!(feature = "itrng") {
                 TrngMode::Internal
