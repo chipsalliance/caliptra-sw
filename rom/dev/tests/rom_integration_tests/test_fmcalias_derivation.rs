@@ -249,10 +249,9 @@ fn test_pcr_log() {
         let anti_rollback_disable = hw.soc_ifc().fuse_anti_rollback_disable().read().dis();
         let subsystem_mode = hw.soc_ifc().cptra_hw_config().read().subsystem_mode_en();
 
-        // In subsystem mode, the owner PK hash flows through the DOT
-        // mailbox command, not the fuse controller, so
-        // owner_pub_keys_digest_in_fuses is false.
-        let owner_pk_in_fuses = (fuses.owner_pk_hash != [0u32; 12]) && !hw.subsystem_mode();
+        // ROM reports any nonzero CPTRA_OWNER_PK_HASH as in fuses, including
+        // when MCU ROM programs it in subsystem mode.
+        let owner_pk_in_fuses = fuses.owner_pk_hash != [0u32; 12];
 
         check_pcr_log_entry(
             &pcr_entry_arr,
@@ -493,10 +492,9 @@ fn test_pcr_log_fmc_fuse_svn() {
         let anti_rollback_disable = hw.soc_ifc().fuse_anti_rollback_disable().read().dis();
         let subsystem_mode = hw.soc_ifc().cptra_hw_config().read().subsystem_mode_en();
 
-        // In subsystem mode, the owner PK hash flows through the DOT
-        // mailbox command, not the fuse controller, so
-        // owner_pub_keys_digest_in_fuses is false.
-        let owner_pk_in_fuses = (fuses.owner_pk_hash != [0u32; 12]) && !hw.subsystem_mode();
+        // ROM reports any nonzero CPTRA_OWNER_PK_HASH as in fuses, including
+        // when MCU ROM programs it in subsystem mode.
+        let owner_pk_in_fuses = fuses.owner_pk_hash != [0u32; 12];
 
         check_pcr_log_entry(
             &pcr_entry_arr,
