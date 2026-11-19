@@ -6,6 +6,8 @@ Licensed under the Apache-2.0 license.
 #include "Vcaliptra_verilated.h"
 #include "verilated_vcd_c.h"
 
+#include <mutex>
+
 struct caliptra_verilated {
   Vcaliptra_verilated v;
   std::unique_ptr<VerilatedVcdC> tfp;
@@ -13,6 +15,14 @@ struct caliptra_verilated {
 };
 
 struct caliptra_verilated* caliptra_verilated_new(struct caliptra_verilated_init_args* init_args) {
+  // The RTL (e.g. VeeR's rvsyncss_sim_ff1) calls $test$plusargs, which
+  // Verilator aborts on unless commandArgs() was called first.
+  static std::once_flag args_once;
+  std::call_once(args_once, [] {
+    static const char* argv[] = {"caliptra_verilated"};
+    Verilated::commandArgs(1, argv);
+  });
+
   auto result = new caliptra_verilated();
   result->v.security_state = init_args->security_state;
   memcpy(result->v.cptra_obf_key, init_args->cptra_obf_key, sizeof(result->v.cptra_obf_key));
