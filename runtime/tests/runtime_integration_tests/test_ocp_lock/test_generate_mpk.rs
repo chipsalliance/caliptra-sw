@@ -10,6 +10,8 @@ use caliptra_hw_model::{HwModel, ModelError};
 use caliptra_kat::CaliptraError;
 use caliptra_test::derive::{DoeInput, DoeOutput, OcpLockKeyLadderBuilder};
 
+use crate::common::warm_reset_when_idle;
+
 use super::{
     assert_hpke_key_rotated, boot_ocp_lock_runtime, create_generate_mpk_req,
     get_all_validated_hpke_handles, get_hpke_handle, get_validated_hpke_handle,
@@ -297,7 +299,7 @@ fn test_generate_mpk_warm_reset() {
     })
     .unwrap();
 
-    model.warm_reset_flow().unwrap();
+    warm_reset_when_idle(&mut model);
 
     let endorsed_handle = get_validated_hpke_handle(&mut model).unwrap();
 

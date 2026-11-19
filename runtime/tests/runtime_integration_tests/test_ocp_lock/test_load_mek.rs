@@ -1,5 +1,6 @@
 // Licensed under the Apache-2.0 license
 
+use crate::common::warm_reset_when_idle;
 use crate::test_update_reset::update_fw;
 use caliptra_api::mailbox::{
     CommandId, MailboxReq, MailboxReqHeader, MailboxRespHeader, OcpLockGenerateMekReq,
@@ -389,7 +390,7 @@ fn test_load_mek_command_success_after_warm_reset() {
     validate_success_response(&mut model, response, Some(&expected_mek));
 
     // Warm reset
-    model.warm_reset_flow().unwrap();
+    warm_reset_when_idle(&mut model);
 
     // Initialize MEK Secret Seed
     initialize_mek_secret(&mut model);
@@ -441,7 +442,7 @@ fn test_load_mek_command_impersistent_mek_secret_across_warm_reset() {
     initialize_mek_secret(&mut model);
 
     // Warm reset
-    model.warm_reset_flow().unwrap();
+    warm_reset_when_idle(&mut model);
 
     // Load MEK
     if let MailboxReq::OcpLockLoadMek(ref mut x) = cmd {
