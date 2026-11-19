@@ -715,6 +715,9 @@ fn program_owner_pk_hash_after_fuses(hw: &mut DefaultHwModel, digest: &[u32; 12]
 }
 
 #[test]
+// In subsystem mode, MCU ROM programs and locks the owner PK hash register,
+// so the host cannot program it.
+#[cfg_attr(feature = "fpga_subsystem", ignore)]
 fn test_preamble_owner_pubkey_digest_after_fuses_mismatch() {
     for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
         let image_options = ImageOptions {
@@ -745,6 +748,9 @@ fn test_preamble_owner_pubkey_digest_after_fuses_mismatch() {
 }
 
 #[test]
+// In subsystem mode, MCU ROM programs and locks the owner PK hash register,
+// so the host cannot program it.
+#[cfg_attr(feature = "fpga_subsystem", ignore)]
 fn test_preamble_owner_pubkey_digest_after_fuses_success() {
     for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
         let image_options = ImageOptions {
