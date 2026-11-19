@@ -225,6 +225,8 @@ fn test_pcr_log() {
         assert_eq!(pcr2_from_log, pcr2_from_hw);
         assert_eq!(pcr3_from_log, pcr3_from_hw);
 
+        hw.assert_end_of_stash();
+
         // Trigger an update reset with new firmware
         // This FW has to be different for the PCR to be updated
         hw.mailbox_execute(

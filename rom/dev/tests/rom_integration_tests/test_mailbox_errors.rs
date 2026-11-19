@@ -16,6 +16,14 @@ use crate::helpers;
 // we're stuck at the same state for that duration.
 const MAX_WAIT_CYCLES: u32 = 30_000_000;
 
+const PAYLOAD: CmDeriveStableKeyReq = CmDeriveStableKeyReq {
+    hdr: MailboxReqHeader { chksum: 0 },
+    key_type: 0,
+    info: [0x5a; CM_STABLE_KEY_INFO_SIZE_BYTES],
+};
+
+const PAYLOAD_SIZE: usize = core::mem::size_of::<CmDeriveStableKeyReq>();
+
 #[test]
 fn test_unknown_command_is_fatal() {
     for command in [0xabcd_1234, u32::from_be_bytes(*b"OWNP")] {
@@ -135,31 +143,22 @@ fn test_mailbox_invalid_checksum() {
     let (mut hw, _image_bundle) =
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
 
-    // Upload measurement.
-    let payload = StashMeasurementReq {
-        measurement: [0xdeadbeef_u32; 12].as_bytes().try_into().unwrap(),
-        hdr: MailboxReqHeader { chksum: 0 },
-        metadata: [0xAB; 4],
-        context: [0xCD; 48],
-        svn: 0xEF01,
-    };
-
     // Calc and update checksum
     let checksum = caliptra_common::checksum::calc_checksum(
-        u32::from(CommandId::STASH_MEASUREMENT),
-        &payload.as_bytes()[4..],
+        u32::from(CommandId::CM_DERIVE_STABLE_KEY),
+        &PAYLOAD.as_bytes()[4..],
     );
 
     // Corrupt the checksum
     let checksum = checksum - 1;
 
-    let payload = StashMeasurementReq {
+    let payload = CmDeriveStableKeyReq {
         hdr: MailboxReqHeader { chksum: checksum },
-        ..payload
+        ..PAYLOAD
     };
 
     assert_eq!(
-        hw.mailbox_execute(CommandId::STASH_MEASUREMENT.into(), payload.as_bytes()),
+        hw.mailbox_execute(CommandId::CM_DERIVE_STABLE_KEY.into(), payload.as_bytes()),
         Err(ModelError::MailboxCmdFailed(
             CaliptraError::FW_PROC_MAILBOX_INVALID_CHECKSUM.into()
         ))
@@ -171,24 +170,24 @@ fn test_mailbox_invalid_req_size_large() {
     let (mut hw, _image_bundle) =
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
 
-    // Upload measurement.
-    let payload = StashMeasurementReq {
-        measurement: [0xdeadbeef_u32; 12].as_bytes().try_into().unwrap(),
+    let payload = EcdsaVerifyReq {
         hdr: MailboxReqHeader { chksum: 0 },
-        metadata: [0xAB; 4],
-        context: [0xCD; 48],
-        svn: 0xEF01,
+        pub_key_x: [0x1; 48],
+        pub_key_y: [0x2; 48],
+        signature_r: [0x3; 48],
+        signature_s: [0x4; 48],
+        hash: [0x5; 48],
     };
     let checksum = caliptra_common::checksum::calc_checksum(
         u32::from(CommandId::CAPABILITIES),
         &payload.as_bytes()[4..],
     );
-    let payload = StashMeasurementReq {
+    let payload = EcdsaVerifyReq {
         hdr: MailboxReqHeader { chksum: checksum },
         ..payload
     };
 
-    // Send too much data (stash measurement is bigger than capabilities)
+    // Send too much data (ECDSA signature verify is bigger than capabilities)
     assert_eq!(
         hw.mailbox_execute(CommandId::CAPABILITIES.into(), payload.as_bytes()),
         Err(ModelError::MailboxCmdFailed(
@@ -202,29 +201,20 @@ fn test_mailbox_invalid_req_size_small() {
     let (mut hw, _image_bundle) =
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
 
-    // Upload measurement.
-    let payload = StashMeasurementReq {
-        measurement: [0xdeadbeef_u32; 12].as_bytes().try_into().unwrap(),
-        hdr: MailboxReqHeader { chksum: 0 },
-        metadata: [0xAB; 4],
-        context: [0xCD; 48],
-        svn: 0xEF01,
-    };
-    let payload_size = core::mem::size_of::<StashMeasurementReq>();
     let checksum = caliptra_common::checksum::calc_checksum(
-        u32::from(CommandId::STASH_MEASUREMENT),
-        &payload.as_bytes()[4..payload_size - 4],
+        u32::from(CommandId::CM_DERIVE_STABLE_KEY),
+        &PAYLOAD.as_bytes()[4..PAYLOAD_SIZE - 4],
     );
-    let payload = StashMeasurementReq {
+    let payload = CmDeriveStableKeyReq {
         hdr: MailboxReqHeader { chksum: checksum },
-        ..payload
+        ..PAYLOAD
     };
 
-    // Drop a dword
+    // Drop a word
     assert_eq!(
         hw.mailbox_execute(
-            CommandId::STASH_MEASUREMENT.into(),
-            &payload.as_bytes()[..payload_size - 4]
+            CommandId::CM_DERIVE_STABLE_KEY.into(),
+            &payload.as_bytes()[..PAYLOAD_SIZE - 4]
         ),
         Err(ModelError::MailboxCmdFailed(
             CaliptraError::FW_PROC_MAILBOX_INVALID_REQUEST_LENGTH.into()

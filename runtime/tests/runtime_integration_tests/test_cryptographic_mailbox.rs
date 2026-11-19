@@ -3165,6 +3165,8 @@ fn test_derive_stable_key_from_rom() {
 
             // now step until runtime
             model.set_axi_user(image_bundle.manifest.header.pl0_pauser);
+            model.assert_end_of_stash();
+
             crate::common::test_upload_firmware(
                 &mut model,
                 &fw_image,
@@ -3497,6 +3499,8 @@ fn test_derive_keys_from_stable_owner_key() {
         if !rom_stable_owner_key_available(&mut model) {
             continue;
         }
+
+        model.assert_end_of_stash();
 
         let fw_image = image_bundle.to_bytes().unwrap();
         crate::common::test_upload_firmware(&mut model, &fw_image, FwVerificationPqcKeyType::LMS);

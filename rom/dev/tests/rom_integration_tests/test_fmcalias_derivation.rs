@@ -8,15 +8,15 @@ use caliptra_builder::{
     },
     ImageOptions,
 };
-use caliptra_common::mailbox_api::{CommandId, MailboxReqHeader, StashMeasurementReq};
+use caliptra_common::mailbox_api::CommandId;
 use caliptra_common::RomBootStatus::ColdResetComplete;
 use caliptra_common::RomBootStatus::*;
 use caliptra_common::{FirmwareHandoffTable, FuseLogEntry, FuseLogEntryId};
 use caliptra_common::{PcrLogEntry, PcrLogEntryId};
-use caliptra_drivers::{pcr_log::MeasurementLogEntry, DataVault, PcrId};
+use caliptra_drivers::{DataVault, PcrId};
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{
-    BootParams, Fuses, HwModel, InitParams, ModelError, SecurityState, SubsystemInitParams,
+    BootParams, Fuses, HwModel, InitParams, SecurityState, SubsystemInitParams,
 };
 use caliptra_image_crypto::OsslCrypto as Crypto;
 use caliptra_image_fake_keys::{OWNER_CONFIG, VENDOR_CONFIG_KEY_1};
@@ -29,7 +29,6 @@ use zerocopy::{FromBytes, IntoBytes, TryFromBytes};
 use crate::helpers::{self, assert_fatal_fw_load};
 
 const PCR0_AND_PCR1_EXTENDED_ID: u32 = (1 << PcrId::PcrId0 as u8) | (1 << PcrId::PcrId1 as u8);
-const PCR31_EXTENDED_ID: u32 = 1 << PcrId::PcrId31 as u8;
 
 fn first_set_msbit(num_le: &[u32; 4]) -> u32 {
     let fuse: u128 = u128::from_le_bytes(num_le.as_bytes().try_into().unwrap());
@@ -142,8 +141,6 @@ fn test_firmware_gt_max_size() {
 
 const PCR_COUNT: usize = 32;
 const PCR_ENTRY_SIZE: usize = core::mem::size_of::<PcrLogEntry>();
-const MEASUREMENT_ENTRY_SIZE: usize = core::mem::size_of::<MeasurementLogEntry>();
-const MEASUREMENT_MAX_COUNT: usize = 8;
 
 fn check_pcr_log_entry(
     pcr_entry_arr: &[u8],
@@ -158,26 +155,6 @@ fn check_pcr_log_entry(
     assert_eq!(entry.id, entry_id as u16);
     assert_eq!(entry.pcr_ids, pcr_ids);
     assert_eq!(entry.measured_data(), pcr_data);
-}
-
-fn check_measurement_log_entry(
-    measurement_entry_arr: &[u8],
-    measurement_entry_index: usize,
-    measurement_req: &StashMeasurementReq,
-) {
-    let offset = measurement_entry_index * MEASUREMENT_ENTRY_SIZE;
-    let (entry, _) =
-        MeasurementLogEntry::ref_from_prefix(measurement_entry_arr[offset..].as_bytes()).unwrap();
-
-    assert_eq!(entry.pcr_entry.id, PcrLogEntryId::StashMeasurement as u16);
-    assert_eq!(entry.pcr_entry.pcr_ids, PCR31_EXTENDED_ID);
-    assert_eq!(
-        entry.pcr_entry.measured_data(),
-        &measurement_req.measurement
-    );
-    assert_eq!(entry.metadata, measurement_req.metadata);
-    assert_eq!(entry.context.as_bytes(), &measurement_req.context);
-    assert_eq!(entry.svn, measurement_req.svn);
 }
 
 #[test]
@@ -561,28 +538,6 @@ fn hash_pcr_log_entries(initial_pcr: &[u8; 48], pcr_entry_arr: &[u8], pcr_id: Pc
     pcr
 }
 
-fn hash_measurement_log_entries(measurement_entry_arr: &[u8]) -> [u8; 48] {
-    let mut offset: usize = 0;
-    let mut pcr = [0u8; 48];
-
-    assert_eq!(measurement_entry_arr.len() % MEASUREMENT_ENTRY_SIZE, 0);
-
-    loop {
-        if offset == measurement_entry_arr.len() {
-            break;
-        }
-
-        let (entry, _) =
-            MeasurementLogEntry::ref_from_prefix(measurement_entry_arr[offset..].as_bytes())
-                .unwrap();
-        offset += MEASUREMENT_ENTRY_SIZE;
-
-        hash_pcr_log_entry(&entry.pcr_entry, &mut pcr);
-    }
-
-    pcr
-}
-
 #[test]
 fn test_pcr_log_across_update_reset() {
     for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
@@ -955,253 +910,6 @@ fn test_check_rom_cold_boot_status_reg() {
             u32::from(ColdResetComplete)
         );
     }
-}
-
-#[test]
-fn test_upload_single_measurement() {
-    for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
-        let image_options = ImageOptions {
-            pqc_key_type: *pqc_key_type,
-            ..Default::default()
-        };
-        let fuses = Fuses {
-            fuse_pqc_key_type: *pqc_key_type as u32,
-            ..Default::default()
-        };
-        let rom = caliptra_builder::build_firmware_rom(crate::helpers::rom_from_env()).unwrap();
-        let life_cycle = fuses.life_cycle;
-        let mut hw = caliptra_hw_model::new(
-            InitParams {
-                fuses,
-                rom: &rom,
-                security_state: SecurityState::from(life_cycle as u32),
-                ..Default::default()
-            },
-            BootParams {
-                ..Default::default()
-            },
-        )
-        .unwrap();
-
-        let image_bundle = caliptra_builder::build_and_sign_image(
-            &TEST_FMC_INTERACTIVE,
-            &APP_WITH_UART,
-            image_options,
-        )
-        .unwrap();
-
-        // Upload measurement.
-        let measurement = StashMeasurementReq {
-            measurement: [0xdeadbeef_u32; 12].as_bytes().try_into().unwrap(),
-            hdr: MailboxReqHeader { chksum: 0 },
-            metadata: [0xAB; 4],
-            context: [0xCD; 48],
-            svn: 0xEF01,
-        };
-
-        // Calc and update checksum
-        let checksum = caliptra_common::checksum::calc_checksum(
-            u32::from(CommandId::STASH_MEASUREMENT),
-            &measurement.as_bytes()[4..],
-        );
-        let measurement = StashMeasurementReq {
-            hdr: MailboxReqHeader { chksum: checksum },
-            ..measurement
-        };
-
-        hw.upload_measurement(measurement.as_bytes()).unwrap();
-
-        crate::helpers::test_upload_firmware(
-            &mut hw,
-            &image_bundle.to_bytes().unwrap(),
-            *pqc_key_type,
-        );
-
-        hw.step_until_boot_status(u32::from(ColdResetComplete), true);
-
-        // Check if the measurement was present in the measurement log.
-        let measurement_log = hw.mailbox_execute(0x1000_000A, &[]).unwrap().unwrap();
-
-        assert_eq!(measurement_log.len(), MEASUREMENT_ENTRY_SIZE);
-        check_measurement_log_entry(&measurement_log, 0, &measurement);
-
-        // Get PCR31
-        let pcr31 = hw.mailbox_execute(0x1000_0009, &[]).unwrap().unwrap();
-
-        // Check that the measurement was extended to PCR31.
-        let expected_pcr = hash_measurement_log_entries(&measurement_log);
-        assert_eq!(pcr31.as_bytes(), expected_pcr);
-
-        let data = hw.mailbox_execute(0x1000_0003, &[]).unwrap().unwrap();
-        let (fht, _) = FirmwareHandoffTable::try_ref_from_prefix(data.as_bytes()).unwrap();
-        assert_eq!(fht.meas_log_index, 1);
-    }
-}
-
-#[test]
-fn test_upload_measurement_limit() {
-    for pqc_key_type in helpers::PQC_KEY_TYPE.iter() {
-        let image_options = ImageOptions {
-            pqc_key_type: *pqc_key_type,
-            ..Default::default()
-        };
-        let fuses = Fuses {
-            fuse_pqc_key_type: *pqc_key_type as u32,
-            ..Default::default()
-        };
-        let rom = caliptra_builder::build_firmware_rom(crate::helpers::rom_from_env()).unwrap();
-        let life_cycle = fuses.life_cycle;
-        let mut hw = caliptra_hw_model::new(
-            InitParams {
-                fuses,
-                rom: &rom,
-                security_state: SecurityState::from(life_cycle as u32),
-                ..Default::default()
-            },
-            BootParams {
-                ..Default::default()
-            },
-        )
-        .unwrap();
-
-        let image_bundle = caliptra_builder::build_and_sign_image(
-            &TEST_FMC_INTERACTIVE,
-            &APP_WITH_UART,
-            image_options,
-        )
-        .unwrap();
-
-        let mut measurement = StashMeasurementReq {
-            measurement: [0xdeadbeef_u32; 12].as_bytes().try_into().unwrap(),
-            hdr: MailboxReqHeader { chksum: 0 },
-            metadata: [0u8; 4],
-            context: [0u8; 48],
-            svn: 0,
-        };
-
-        // Upload 8 measurements.
-        for idx in 0..8 {
-            measurement.measurement[0] = idx;
-            measurement.context[1] = idx;
-            measurement.svn = idx as u32;
-
-            // Calc and update checksum
-            let checksum = caliptra_common::checksum::calc_checksum(
-                u32::from(CommandId::STASH_MEASUREMENT),
-                &measurement.as_bytes()[4..],
-            );
-            let measurement = StashMeasurementReq {
-                hdr: MailboxReqHeader { chksum: checksum },
-                ..measurement
-            };
-
-            hw.upload_measurement(measurement.as_bytes()).unwrap();
-        }
-
-        crate::helpers::test_upload_firmware(
-            &mut hw,
-            &image_bundle.to_bytes().unwrap(),
-            *pqc_key_type,
-        );
-
-        hw.step_until_boot_status(u32::from(ColdResetComplete), true);
-
-        // Check the measurement log.
-        let measurement_log = hw.mailbox_execute(0x1000_000A, &[]).unwrap().unwrap();
-        assert_eq!(
-            measurement_log.len(),
-            MEASUREMENT_ENTRY_SIZE * MEASUREMENT_MAX_COUNT
-        );
-        for idx in 0..8 {
-            measurement.measurement[0] = idx;
-            measurement.context[1] = idx;
-            measurement.svn = idx as u32;
-            check_measurement_log_entry(&measurement_log, idx as usize, &measurement);
-        }
-
-        // Get PCR31
-        let pcr31 = hw.mailbox_execute(0x1000_0009, &[]).unwrap().unwrap();
-
-        // Check that the measurement was extended to PCR31.
-        let expected_pcr = hash_measurement_log_entries(&measurement_log);
-        assert_eq!(pcr31.as_bytes(), expected_pcr);
-
-        let data = hw.mailbox_execute(0x1000_0003, &[]).unwrap().unwrap();
-        let fht = FirmwareHandoffTable::try_ref_from_bytes(data.as_bytes()).unwrap();
-        assert_eq!(fht.meas_log_index, MEASUREMENT_MAX_COUNT as u32);
-    }
-}
-
-#[test]
-fn test_upload_measurement_limit_plus_one() {
-    let fuses = Fuses::default();
-    let rom = caliptra_builder::build_firmware_rom(crate::helpers::rom_from_env()).unwrap();
-    let life_cycle = fuses.life_cycle;
-    let mut hw = caliptra_hw_model::new(
-        InitParams {
-            fuses,
-            rom: &rom,
-            security_state: SecurityState::from(life_cycle as u32),
-            ..Default::default()
-        },
-        BootParams {
-            ..Default::default()
-        },
-    )
-    .unwrap();
-
-    let mut measurement = StashMeasurementReq {
-        measurement: [0xdeadbeef_u32; 12].as_bytes().try_into().unwrap(),
-        hdr: MailboxReqHeader { chksum: 0 },
-        metadata: [0u8; 4],
-        context: [0u8; 48],
-        svn: 0,
-    };
-
-    // Upload 8 measurements.
-    for idx in 0..8 {
-        measurement.measurement[0] = idx;
-        measurement.context[1] = idx;
-        measurement.svn = idx as u32;
-
-        // Calc and update checksum
-        let checksum = caliptra_common::checksum::calc_checksum(
-            u32::from(CommandId::STASH_MEASUREMENT),
-            &measurement.as_bytes()[4..],
-        );
-        let measurement = StashMeasurementReq {
-            hdr: MailboxReqHeader { chksum: checksum },
-            ..measurement
-        };
-
-        hw.upload_measurement(measurement.as_bytes()).unwrap();
-    }
-
-    // Upload a 9th measurement, which should fail and raise a fatal error.
-    let checksum = caliptra_common::checksum::calc_checksum(
-        u32::from(CommandId::STASH_MEASUREMENT),
-        &measurement.as_bytes()[4..],
-    );
-    let measurement = StashMeasurementReq {
-        hdr: MailboxReqHeader { chksum: checksum },
-        ..measurement
-    };
-    let result = hw.upload_measurement(measurement.as_bytes());
-    assert!(result.is_err());
-    assert!(matches!(
-        result.unwrap_err(),
-        ModelError::MailboxCmdFailed(_)
-    ));
-
-    // Wait for error
-    while hw.soc_ifc().cptra_fw_error_fatal().read() == 0 {
-        hw.step();
-    }
-
-    assert_eq!(
-        hw.soc_ifc().cptra_fw_error_fatal().read(),
-        u32::from(CaliptraError::FW_PROC_MAILBOX_STASH_MEASUREMENT_MAX_LIMIT)
-    );
 }
 
 #[test]

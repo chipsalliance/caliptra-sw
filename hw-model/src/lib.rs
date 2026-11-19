@@ -17,6 +17,7 @@ use std::{
     io::{stdout, Write},
 };
 
+use caliptra_drivers::soc_ifc::stash_measurement::DWORDS_PER_SLOT;
 use caliptra_hw_model_types::{
     ErrorInjectionMode, EtrngResponse, HexBytes, HexSlice, RandomEtrngResponses, RandomNibbles,
     DEFAULT_CPTRA_OBF_KEY, DEFAULT_CSR_HMAC_KEY,
@@ -1821,6 +1822,32 @@ pub trait HwModel: SocManager {
             model: self,
             req: MailboxRequest { cmd, data },
         }))
+    }
+
+    fn write_stash_measurement_bank(
+        &mut self,
+        idx: usize,
+        measurement: &[u8],
+    ) -> Result<(), ModelError> {
+        for (i, chunk) in measurement.chunks_exact(4).enumerate() {
+            let bytes = chunk
+                .try_into()
+                .map_err(|_| ModelError::StashMeasurementFailed)?;
+            self.soc_ifc()
+                .stash_bank_slot_data()
+                .at(idx * DWORDS_PER_SLOT + i)
+                .write(|_| u32::from_le_bytes(bytes))
+        }
+        self.soc_ifc()
+            .stash_bank_soc_lock()
+            .write(|x| x.lock(1 << idx));
+        Ok(())
+    }
+
+    fn assert_end_of_stash(&mut self) {
+        self.soc_ifc()
+            .stash_end_stash()
+            .write(|x| x.end_stash(true));
     }
 
     /// Upload measurement to the mailbox.

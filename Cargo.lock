@@ -843,6 +843,7 @@ dependencies = [
  "caliptra-api-types",
  "caliptra-builder",
  "caliptra-coverage",
+ "caliptra-drivers",
  "caliptra-emu-bus",
  "caliptra-emu-cpu",
  "caliptra-emu-periph",
