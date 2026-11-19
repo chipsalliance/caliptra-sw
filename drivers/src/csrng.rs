@@ -372,6 +372,21 @@ impl Csrng {
         self.send_command(Command::Uninstantiate)
     }
 
+    /// Leave no DRBG or entropy state behind for the next boot stage.
+    ///
+    /// Uninstantiates the DRBG, disables the entropy source (dropping any
+    /// queued seeds), and disables then re-enables CSRNG while it is idle.
+    /// The next stage instantiates a fresh DRBG through [`Csrng::new`].
+    pub fn clear_for_handoff(&mut self) -> CaliptraResult<()> {
+        self.send_command(Command::Uninstantiate)?;
+        self.disable_entropy_source();
+        let c = self.csrng.regs_mut();
+        let ctrl = u32::from(c.ctrl().read());
+        c.ctrl().modify(|w| w.enable(MULTIBIT_FALSE));
+        c.ctrl().write(|_| ctrl.into());
+        Ok(())
+    }
+
     /// Wait for the CSRNG command interface to be ready to accept a word.
     fn wait_for_cmd_rdy(&self, err: CaliptraError) -> CaliptraResult<()> {
         loop {
