@@ -27,7 +27,7 @@ const WORD_SIZE_BYTES: usize = mem::size_of::<Word>();
 #[warm_reset_fn(warm_reset)]
 pub struct Csrng {
     // CSRNG registers
-    #[register(offset = 0x14)]
+    #[register(offset = 0x14, write_fn = ctrl_write)]
     ctrl: u32,
 
     #[register(offset = 0x18, write_fn = cmd_req_write)]
@@ -196,6 +196,22 @@ impl Csrng {
                 }
             }
         }
+        Ok(())
+    }
+
+    /// CTRL write handler. Disabling CSRNG clears the DRBG instance and any
+    /// partially received command, as in the RTL.
+    fn ctrl_write(&mut self, _: RvSize, data: RvData) -> Result<(), BusError> {
+        const ENABLE_MASK: u32 = 0xf;
+        if data & ENABLE_MASK != MultiBitBool::True as u32 {
+            self.ctr_drbg = CtrDrbg::new();
+            self.ctr_drbg.set_reseed_interval(self.reseed_interval);
+            self.words = Words::default();
+            self.cmd_req_state = CmdReqState::NewCommand;
+            self.seed.clear();
+            self.update.clear();
+        }
+        self.ctrl = data;
         Ok(())
     }
 
