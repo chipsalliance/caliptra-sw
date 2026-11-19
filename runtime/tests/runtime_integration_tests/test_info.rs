@@ -234,7 +234,6 @@ fn test_fw_info_fe_dma_failure_and_dai_timeout() {
     feature = "fpga_subsystem"
 )))]
 fn test_fw_info_fe_redacted_digests() {
-    let hides_digests = caliptra_registers::CALIPTRA_HW_REV_CHOSEN == "latest";
     for debug_intent in [false, true] {
         let mut model = fw_info_subsystem_model(InitParams {
             debug_intent,
@@ -250,13 +249,11 @@ fn test_fw_info_fe_redacted_digests() {
                 get_fwinfo_allow_attestation_disabled(&mut model).fe_status,
                 0xe1
             );
-            if hides_digests {
-                model.lock_otp_secret_digests();
-            }
+            model.lock_otp_secret_digests();
         }
         assert_eq!(
             get_fwinfo_allow_attestation_disabled(&mut model).fe_status,
-            if hides_digests { 0xef } else { 0xe1 }
+            0xef
         );
     }
 }

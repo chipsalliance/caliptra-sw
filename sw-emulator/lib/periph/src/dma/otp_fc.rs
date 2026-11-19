@@ -145,9 +145,7 @@ impl StateMachineContext for Context {
 
     fn start_read(&mut self) -> Result<(), ()> {
         let addr = self.address.take().ok_or(())?;
-        if caliptra_registers::CALIPTRA_HW_REV_CHOSEN == "latest"
-            && matches!(addr, 64 | 88 | 112 | 136 | 160)
-        {
+        if matches!(addr, 64 | 88 | 112 | 136 | 160) {
             let debug_intent = self.soc_reg.read(RvSize::Word, 0x530).map_err(|_| ())? & 1 != 0;
             if self.secret_digest_read_locked || debug_intent {
                 self.rdata0 = Some(0);
@@ -482,18 +480,12 @@ impl FuseController {
     }
 
     pub fn read_secret_digest_lock(&self, _size: RvSize) -> Result<u32, BusError> {
-        if caliptra_registers::CALIPTRA_HW_REV_CHOSEN != "latest" {
-            return Err(BusError::LoadAccessFault);
-        }
         Ok(u32::from(
             self.state_machine.context.secret_digest_read_locked,
         ))
     }
 
     pub fn write_secret_digest_lock(&mut self, _size: RvSize, val: u32) -> Result<(), BusError> {
-        if caliptra_registers::CALIPTRA_HW_REV_CHOSEN != "latest" {
-            return Err(BusError::StoreAccessFault);
-        }
         self.state_machine.context.secret_digest_read_locked |= val & 1 != 0;
         Ok(())
     }
