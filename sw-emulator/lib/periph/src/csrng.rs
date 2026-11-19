@@ -74,6 +74,10 @@ pub struct Csrng {
     #[register(offset = 0x1024, write_fn = conf_write)]
     conf: u32,
 
+    // ES_TYPE (conditioning bypass) is stored but not modeled.
+    #[register(offset = 0x1028, write_fn = entropy_control_write)]
+    entropy_control: u32,
+
     #[register(offset = 0x1030, write_fn = health_test_windows_write)]
     health_test_windows: u32,
 
@@ -88,6 +92,9 @@ pub struct Csrng {
 
     #[register(offset = 0x1044, write_fn = adaptp_lo_threshold_write)]
     adaptp_lo_threshold: u32,
+
+    #[register(offset = 0x1048, write_fn = adaptps_threshold_write)]
+    adaptps_threshold: u32,
 
     #[register(offset = 0x1090)]
     alert_threshold: u32, // TODO: implement this
@@ -130,11 +137,13 @@ impl Csrng {
             sw_regupd: 1, // Reset value: enabled (writable)
             module_enable: 0x9,
             conf: 0x999999,
+            entropy_control: 0x99,
             health_test_windows: 0x1800200,
             repcnt_threshold: 0xffff,
             repcnts_threshold: 0xffff,
             adaptp_hi_threshold: 0xffff,
             adaptp_lo_threshold: 0,
+            adaptps_threshold: 0xffff,
             alert_threshold: 0xfffd0002,
             alert_summary_fail_counts: ReadOnlyRegister::new(0),
             alert_fail_counts: ReadOnlyRegister::new(0),
@@ -288,6 +297,13 @@ impl Csrng {
         Ok(())
     }
 
+    fn entropy_control_write(&mut self, _: RvSize, data: RvData) -> Result<(), BusError> {
+        if self.sw_regupd != 0 {
+            self.entropy_control = data & 0xff;
+        }
+        Ok(())
+    }
+
     /// HEALTH_TEST_WINDOWS write handler.
     /// Sets the FIPS health-test window size in samples per RNG lane.
     /// Protected by SW_REGUPD just like the other configuration registers.
@@ -303,30 +319,50 @@ impl Csrng {
     }
 
     fn repcnt_threshold_write(&mut self, _: RvSize, data: RvData) -> Result<(), BusError> {
-        self.health_tester
-            .repcnt
-            .set_threshold(RepcntThresholdReadVal::from(data));
+        if self.sw_regupd != 0 {
+            self.repcnt_threshold = data & 0xffff;
+            self.health_tester
+                .repcnt
+                .set_threshold(RepcntThresholdReadVal::from(data));
+        }
         Ok(())
     }
 
     fn repcnts_threshold_write(&mut self, _: RvSize, data: RvData) -> Result<(), BusError> {
-        self.health_tester
-            .repcnts
-            .set_threshold(RepcntsThresholdReadVal::from(data));
+        if self.sw_regupd != 0 {
+            self.repcnts_threshold = data & 0xffff;
+            self.health_tester
+                .repcnts
+                .set_threshold(RepcntsThresholdReadVal::from(data));
+        }
         Ok(())
     }
 
     fn adaptp_hi_threshold_write(&mut self, _: RvSize, data: RvData) -> Result<(), BusError> {
-        self.health_tester
-            .adaptp
-            .set_hi_threshold(AdaptpHiThresholdReadVal::from(data));
+        if self.sw_regupd != 0 {
+            self.adaptp_hi_threshold = data & 0xffff;
+            self.health_tester
+                .adaptp
+                .set_hi_threshold(AdaptpHiThresholdReadVal::from(data));
+        }
         Ok(())
     }
 
     fn adaptp_lo_threshold_write(&mut self, _: RvSize, data: RvData) -> Result<(), BusError> {
-        self.health_tester
-            .adaptp
-            .set_lo_threshold(AdaptpLoThresholdReadVal::from(data));
+        if self.sw_regupd != 0 {
+            self.adaptp_lo_threshold = data & 0xffff;
+            self.health_tester
+                .adaptp
+                .set_lo_threshold(AdaptpLoThresholdReadVal::from(data));
+        }
+        Ok(())
+    }
+
+    fn adaptps_threshold_write(&mut self, _: RvSize, data: RvData) -> Result<(), BusError> {
+        if self.sw_regupd != 0 {
+            self.adaptps_threshold = data & 0xffff;
+            self.health_tester.symbol_adaptive_threshold = self.adaptps_threshold;
+        }
         Ok(())
     }
 
@@ -347,7 +383,9 @@ impl Csrng {
         let repcnts = self.health_tester.repcnts.failures().min(0xf) & 0xf;
         let adapt_hi = self.health_tester.adaptp.hi_failures().min(0xf) & 0xf;
         let adapt_lo = self.health_tester.adaptp.lo_failures().min(0xf) & 0xf;
-        let fail_counts = (adapt_lo << 12) | (adapt_hi << 8) | (repcnts << 4) | repcnt;
+        let adaptps = self.health_tester.symbol_adaptive_failures.min(0xf);
+        let fail_counts =
+            (adaptps << 16) | (adapt_lo << 12) | (adapt_hi << 8) | (repcnts << 4) | repcnt;
 
         self.alert_fail_counts = ReadOnlyRegister::new(fail_counts);
         Ok(fail_counts)
@@ -419,8 +457,15 @@ impl Csrng {
     }
 
     fn warm_reset(&mut self) {
-        // disable on reset
-        self.module_enable = MultiBitBool::False as u32;
+        // CSRNG and entropy_src are in the non-core reset domain. Keep the
+        // remaining iTRNG input stream.
+        let mut health = std::mem::replace(
+            &mut self.health_tester,
+            HealthTester::new(Box::new(std::iter::empty())),
+        );
+        health.reset();
+        *self = Self::new(Box::new(std::iter::empty()));
+        self.health_tester = health;
     }
 
     fn process_new_cmd(&mut self, data: RvData) {

@@ -40,49 +40,52 @@ pub struct Spec {
 /// The full set of files the generator writes. Aggregate totals are
 /// reflected in the file name (per_lane[0] + per_lane[1] + ... = name).
 ///
-/// The thresholds these files exercise (in a 1024-bit per-lane window):
+/// The integration test runs these in single-bit mode on lane 0. The RTL
+/// cutoffs are inclusive: a window fails when the count of ones reaches the
+/// HI threshold or falls to the LO threshold. Thresholds exercised (in a
+/// 1024-bit window):
 ///   * ROM defaults: HI = 768, LO = 256.
 ///   * SoC-supplied override (test_csrng_adaptive_proportion): HI = 612, LO = 412.
 pub const SPECS: &[Spec] = &[
-    // Just inside the default LO cutoff (256 per lane).
+    // One above the default LO threshold: pass.
     Spec {
         name: "1028_ones_3068_zeros",
         per_lane: [257, 257, 257, 257],
     },
-    // Just inside the default HI cutoff (768 per lane).
+    // At the default LO threshold: fail.
+    Spec {
+        name: "1024_ones_3072_zeros",
+        per_lane: [256, 256, 256, 256],
+    },
+    // One below the default HI threshold: pass.
     Spec {
         name: "3068_ones_1028_zeros",
         per_lane: [767, 767, 767, 767],
     },
-    // Only lane 0 reaches the default LO cutoff.
+    // At the default HI threshold: fail.
     Spec {
-        name: "1027_ones_3069_zeros",
-        per_lane: [256, 257, 257, 257],
+        name: "3072_ones_1024_zeros",
+        per_lane: [768, 768, 768, 768],
     },
-    // Only lane 0 reaches the default HI cutoff.
-    Spec {
-        name: "3069_ones_1027_zeros",
-        per_lane: [768, 767, 767, 767],
-    },
-    // Just inside the SoC-supplied LO cutoff (412 per lane).
+    // One above the SoC-supplied LO threshold: pass.
     Spec {
         name: "1652_ones_2444_zeros",
         per_lane: [413, 413, 413, 413],
     },
-    // Just inside the SoC-supplied HI cutoff (612 per lane).
+    // At the SoC-supplied LO threshold: fail.
+    Spec {
+        name: "1648_ones_2448_zeros",
+        per_lane: [412, 412, 412, 412],
+    },
+    // One below the SoC-supplied HI threshold: pass.
     Spec {
         name: "2444_ones_1652_zeros",
         per_lane: [611, 611, 611, 611],
     },
-    // Only lane 0 reaches the SoC-supplied LO cutoff.
+    // At the SoC-supplied HI threshold: fail.
     Spec {
-        name: "1651_ones_2445_zeros",
-        per_lane: [412, 413, 413, 413],
-    },
-    // Only lane 0 reaches the SoC-supplied HI cutoff.
-    Spec {
-        name: "2445_ones_1651_zeros",
-        per_lane: [612, 611, 611, 611],
+        name: "2448_ones_1648_zeros",
+        per_lane: [612, 612, 612, 612],
     },
 ];
 
