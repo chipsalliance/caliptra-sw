@@ -361,6 +361,14 @@ pub fn exec_fw_info<T: HwModel>(hw: &mut T, fw_image: &[u8]) {
     // Verify command-specific response data
     assert_eq!(fw_info_resp.fmc_revision, manifest.fmc.revision);
     assert_eq!(fw_info_resp.runtime_revision, manifest.runtime.revision);
+    assert_eq!(
+        fw_info_resp.vendor_ecc_pub_key_idx,
+        manifest.preamble.vendor_ecc_pub_key_idx
+    );
+    assert_eq!(
+        fw_info_resp.vendor_lms_pub_key_idx,
+        manifest.preamble.vendor_lms_pub_key_idx
+    );
     assert!(contains_some_data(&fw_info_resp.rom_revision));
     assert!(contains_some_data(&fw_info_resp.rom_sha256_digest));
     assert!(contains_some_data(&fw_info_resp.fmc_sha384_digest));
@@ -1069,6 +1077,10 @@ pub fn execute_all_services_rt() {
             fw_image: Some(&fw_image),
             // GENERATE_IDEVID_CSR is needed for GET_IDEV_CSR
             initial_dbg_manuf_service_reg: MfgFlags::GENERATE_IDEVID_CSR.bits(),
+            fuses: caliptra_hw_model::Fuses {
+                lms_verify: true,
+                ..fips_default_fuses()
+            },
             ..fips_default_boot_params()
         }),
     );
