@@ -139,10 +139,7 @@ pub const ROM_FPGA_WITH_UART: FwId = FwId {
 pub const FMC: FwId = FwId {
     crate_name: "caliptra-fmc",
     bin_name: "caliptra-fmc",
-    fw_type: FirmwareType::Source {
-        features: &["cfi"],
-        hw_revision: None,
-    },
+    fw_type: FirmwareType::Source { features: &["cfi"] },
 };
 
 pub const FMC_WITH_UART: FwId = FwId {
