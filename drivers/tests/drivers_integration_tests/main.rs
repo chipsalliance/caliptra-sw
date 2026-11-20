@@ -1062,50 +1062,45 @@ fn test_csrng_adaptive_proportion() {
     // so the adaptive-proportion test scores each of the 4 RNG bus lanes
     // independently over a per-lane 1024-bit window. The default LO and HI
     // thresholds are 25% and 75% of that per-lane window, i.e. 256 and 768.
-    // The test_data/csrng/N_ones_M_zeros files are constructed so that each
-    // lane individually carries N/4 ones in each 1024-nibble window.
-
-    // The adaptive proportion test will pass if every lane has a 1's count
-    // in the inclusive range [256, 768].
+    // 2.2 RTL fails a window if any lane reaches a cutoff. The fixtures
+    // exercise one count inside each cutoff and an exact hit on one lane.
     const PASS: &FwId = &firmware::driver_tests::CSRNG_PASS_HEALTH_TESTS;
 
-    // 256 ones per lane (1024 ones aggregate) - should pass inclusive LO threshold.
+    // 257 ones per lane - just above the LO cutoff.
     test_csrng_with_nibbles(
         PASS,
         Box::new({
-            const WINDOW: [u8; 1024] = *include_bytes!("test_data/csrng/1024_ones_3072_zeros");
+            const WINDOW: [u8; 1024] = *include_bytes!("test_data/csrng/1028_ones_3068_zeros");
             // Startup health checks require testing two 4096-bit windows.
             WINDOW.into_iter().chain(WINDOW)
         }),
     );
 
-    // 768 ones per lane (3072 ones aggregate) - should pass inclusive HI threshold.
+    // 767 ones per lane - just below the HI cutoff.
     test_csrng_with_nibbles(
         PASS,
         Box::new({
-            const WINDOW: [u8; 1024] = *include_bytes!("test_data/csrng/3072_ones_1024_zeros");
+            const WINDOW: [u8; 1024] = *include_bytes!("test_data/csrng/3068_ones_1028_zeros");
             WINDOW.into_iter().chain(WINDOW)
         }),
     );
 
-    // Otherwise, the test will fail if any lane has a 1's count below the LO
-    // threshold or above the HI threshold.
     const FAIL: &FwId = &firmware::driver_tests::CSRNG_FAIL_ADAPTP_TESTS;
 
-    // One lane with 255 ones (1023 ones aggregate) - should fail LO threshold.
+    // Only lane 0 has 256 ones - LO cutoff.
     test_csrng_with_nibbles(
         FAIL,
         Box::new({
-            const WINDOW: [u8; 1024] = *include_bytes!("test_data/csrng/1023_ones_3073_zeros");
+            const WINDOW: [u8; 1024] = *include_bytes!("test_data/csrng/1027_ones_3069_zeros");
             WINDOW.into_iter().chain(WINDOW)
         }),
     );
 
-    // One lane with 769 ones (3073 ones aggregate) - should fail HI threshold.
+    // Only lane 0 has 768 ones - HI cutoff.
     test_csrng_with_nibbles(
         FAIL,
         Box::new({
-            const WINDOW: [u8; 1024] = *include_bytes!("test_data/csrng/3073_ones_1023_zeros");
+            const WINDOW: [u8; 1024] = *include_bytes!("test_data/csrng/3069_ones_1027_zeros");
             WINDOW.into_iter().chain(WINDOW)
         }),
     );
@@ -1139,17 +1134,17 @@ fn test_csrng_adaptive_proportion() {
         model.step_until_exit_success().unwrap();
     }
 
-    // 412 ones per lane (1648 ones aggregate) - should pass inclusive LO threshold.
-    test_with_soc_threshold(PASS, include_bytes!("test_data/csrng/1648_ones_2448_zeros"));
+    // 413 ones per lane - just above the programmed LO cutoff.
+    test_with_soc_threshold(PASS, include_bytes!("test_data/csrng/1652_ones_2444_zeros"));
 
-    // 612 ones per lane (2448 ones aggregate) - should pass inclusive HI threshold.
-    test_with_soc_threshold(PASS, include_bytes!("test_data/csrng/2448_ones_1648_zeros"));
+    // 611 ones per lane - just below the programmed HI cutoff.
+    test_with_soc_threshold(PASS, include_bytes!("test_data/csrng/2444_ones_1652_zeros"));
 
-    // One lane with 411 ones (1647 ones aggregate) - should fail LO threshold.
-    test_with_soc_threshold(FAIL, include_bytes!("test_data/csrng/1647_ones_2449_zeros"));
+    // Only lane 0 has 412 ones - programmed LO cutoff.
+    test_with_soc_threshold(FAIL, include_bytes!("test_data/csrng/1651_ones_2445_zeros"));
 
-    // One lane with 613 ones (2449 ones aggregate) - should fail HI threshold.
-    test_with_soc_threshold(FAIL, include_bytes!("test_data/csrng/2449_ones_1647_zeros"));
+    // Only lane 0 has 612 ones - programmed HI cutoff.
+    test_with_soc_threshold(FAIL, include_bytes!("test_data/csrng/2445_ones_1651_zeros"));
 }
 
 /// Test that a repeating 4-bit symbol stream is rejected at boot.

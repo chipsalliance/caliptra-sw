@@ -121,8 +121,8 @@ The ROM configures the entropy source (CSRNG) during initialization using the fo
 | SS_STRAP_GENERIC[2]              | [16]    | Entropy source single-bit mode. When set to 1, ROM enables `rng_bit_enable` and clears `threshold_scope`. |
 | SS_STRAP_GENERIC[2]              | [18:17] | Entropy source single-bit mode `rng_bit_sel`. Selects which RNG bit stream to process when single-bit mode is enabled. |
 | SS_STRAP_GENERIC[2]              | [31]    | Entropy bypass mode. When set to 1, enables bypass mode (`es_type`) to allow entropy characterization directly without passing through conditioning. |
-| CPTRA_I_TRNG_ENTROPY_CONFIG_0    | [15:0]  | Adaptive Proportion test high threshold (default: 75% of the FIPS window, i.e. 768 for the default window). The test fails if any window has more than this threshold of 1's. |
-| CPTRA_I_TRNG_ENTROPY_CONFIG_0    | [31:16] | Adaptive Proportion test low threshold (default: 25% of the FIPS window, i.e. 256 for the default window). The test fails if any window has less than this threshold of 1's. |
+| CPTRA_I_TRNG_ENTROPY_CONFIG_0    | [15:0]  | Adaptive Proportion test high threshold (default: 75% of the FIPS window, i.e. 768 for the default window). The test fails if a lane's count in any window is at or above this threshold. |
+| CPTRA_I_TRNG_ENTROPY_CONFIG_0    | [31:16] | Adaptive Proportion test low threshold (default: 25% of the FIPS window, i.e. 256 for the default window). The test fails if a lane's count in any window is at or below this threshold. |
 | CPTRA_I_TRNG_ENTROPY_CONFIG_1    | [15:0]  | Repetition Count test threshold (default: 41). The test fails if an RNG wire repeats the same bit this many times in a row. |
 | CPTRA_I_TRNG_ENTROPY_CONFIG_1    | [31:16] | Alert threshold (default: 2). Number of health check failures before an alert is triggered. |
 

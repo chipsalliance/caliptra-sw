@@ -284,7 +284,6 @@ impl AdaptiveProportionTester {
             // adaptp_ht.sv:
             //   normal:      test_cnt_hi = scope ? sum : max ; test_cnt_lo = scope ? sum : min
             //   single-bit:  test_cnt_hi = test_cnt_lo = test_cnt[rng_bit_sel]
-            //   fail_hi = (test_cnt_hi > thresh_hi) ; fail_lo = (test_cnt_lo < thresh_lo)
             let (test_cnt_hi, test_cnt_lo) = if self.rng_bit_enable {
                 let cnt = self.per_lane_ones[self.rng_bit_sel];
                 (cnt, cnt)
@@ -298,11 +297,11 @@ impl AdaptiveProportionTester {
                 )
             };
 
-            if test_cnt_lo < self.lo_threshold {
+            if self.lo_threshold != 0 && test_cnt_lo <= self.lo_threshold {
                 self.lo_failures += 1;
             }
 
-            if test_cnt_hi > self.hi_threshold {
+            if test_cnt_hi >= self.hi_threshold {
                 self.hi_failures += 1;
             }
 
@@ -410,59 +409,61 @@ mod tests {
     }
 
     /// Per-lane scoring (THRESHOLD_SCOPE = FALSE): the RTL uses
-    /// `min(lanes) < thresh_lo` and `max(lanes) > thresh_hi`. Any single
+    /// `min(lanes) <= thresh_lo` and `max(lanes) >= thresh_hi`. Any single
     /// lane in violation triggers the corresponding failure.
     #[test]
     fn per_lane_scope_uses_min_and_max() {
         // hi=384, lo=128 are the ROM defaults for a 512-bit per-lane window.
         let mut t = make_adaptp(384, 128, false);
 
-        // [128, 256, 256, 256] - lane 0 at LO boundary, exactly equal -> pass.
-        // RTL uses strict `<`, so equal must not fail.
+        feed_per_lane(&mut t, [129, 256, 256, 256]);
+        assert_eq!((t.hi_failures(), t.lo_failures()), (0, 0), "just above LO");
+
         feed_per_lane(&mut t, [128, 256, 256, 256]);
-        assert_eq!((t.hi_failures(), t.lo_failures()), (0, 0), "boundary LO");
+        assert_eq!((t.hi_failures(), t.lo_failures()), (0, 1), "boundary LO");
 
-        // [127, 256, 256, 256] - lane 0 below LO -> fail LO via min.
-        feed_per_lane(&mut t, [127, 256, 256, 256]);
-        assert_eq!((t.hi_failures(), t.lo_failures()), (0, 1), "below LO");
+        feed_per_lane(&mut t, [256, 256, 256, 383]);
+        assert_eq!((t.hi_failures(), t.lo_failures()), (0, 1), "just below HI");
 
-        // [256, 256, 256, 384] - lane 3 at HI boundary, exactly equal -> pass.
-        // RTL uses strict `>`, so equal must not fail.
         feed_per_lane(&mut t, [256, 256, 256, 384]);
-        assert_eq!((t.hi_failures(), t.lo_failures()), (0, 1), "boundary HI");
-
-        // [256, 256, 256, 385] - lane 3 above HI -> fail HI via max.
-        feed_per_lane(&mut t, [256, 256, 256, 385]);
-        assert_eq!((t.hi_failures(), t.lo_failures()), (1, 1), "above HI");
+        assert_eq!((t.hi_failures(), t.lo_failures()), (1, 1), "boundary HI");
     }
 
     /// Aggregate scoring (THRESHOLD_SCOPE = TRUE): the RTL uses
-    /// `sum(lanes) < thresh_lo` and `sum(lanes) > thresh_hi`.
+    /// `sum(lanes) <= thresh_lo` and `sum(lanes) >= thresh_hi`.
     #[test]
     fn aggregate_scope_uses_sum() {
         // hi=1536, lo=512 mimics the legacy aggregate ROM defaults.
         let mut t = make_adaptp(1536, 512, true);
 
-        // Sum = 4*128 = 512, exactly at LO -> pass (strict `<`).
+        // Sum = 4*128 = 512, exactly at LO -> fail.
         feed_per_lane(&mut t, [128, 128, 128, 128]);
-        assert_eq!((t.hi_failures(), t.lo_failures()), (0, 0), "sum=LO");
+        assert_eq!((t.hi_failures(), t.lo_failures()), (0, 1), "sum=LO");
 
-        // Lane 0 has 117 ones but other lanes compensate: sum = 117+128+130+137 = 512.
-        // Per-lane scoring would have failed (117 < 128), aggregate must pass.
-        feed_per_lane(&mut t, [117, 128, 130, 137]);
-        assert_eq!((t.hi_failures(), t.lo_failures()), (0, 0), "uneven sum=LO");
+        // Lane 0 has 117 ones but other lanes compensate: sum = 513.
+        feed_per_lane(&mut t, [117, 128, 131, 137]);
+        assert_eq!(
+            (t.hi_failures(), t.lo_failures()),
+            (0, 1),
+            "sum just above LO"
+        );
 
-        // Sum = 511 -> fail LO.
-        feed_per_lane(&mut t, [117, 128, 129, 137]);
-        assert_eq!((t.hi_failures(), t.lo_failures()), (0, 1), "sum below LO");
+        feed_per_lane(&mut t, [383, 384, 384, 384]);
+        assert_eq!(
+            (t.hi_failures(), t.lo_failures()),
+            (0, 1),
+            "sum just below HI"
+        );
 
-        // Sum = 4*384 = 1536, exactly at HI -> pass.
         feed_per_lane(&mut t, [384, 384, 384, 384]);
-        assert_eq!((t.hi_failures(), t.lo_failures()), (0, 1), "sum=HI");
+        assert_eq!((t.hi_failures(), t.lo_failures()), (1, 1), "sum=HI");
+    }
 
-        // Sum = 1537 -> fail HI.
-        feed_per_lane(&mut t, [385, 384, 384, 384]);
-        assert_eq!((t.hi_failures(), t.lo_failures()), (1, 1), "sum above HI");
+    #[test]
+    fn zero_low_threshold_disables_low_failure() {
+        let mut t = make_adaptp(384, 0, false);
+        feed_per_lane(&mut t, [0, 256, 256, 384]);
+        assert_eq!((t.hi_failures(), t.lo_failures()), (1, 0));
     }
 
     /// All-zeros and all-ones are the canonical catastrophic failure
