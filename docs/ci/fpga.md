@@ -4,34 +4,7 @@ The Caliptra CI infrastructure utilizes FPGA emulation to verify hardware and fi
 
 ## 1. Building the FPGA Image
 
-The FPGA image creation is handled by the workflow defined in `.github/workflows/fpga-image.yml` using the Nix flake in `ci-tools/fpga-image/flake.nix`. This workflow produces the necessary artifacts to boot the Xilinx VCK190 evaluation kit without requiring PetaLinux.
-
-```mermaid
-flowchart TB
-    subgraph Build_Image [Workflow: fpga-image.yml]
-        direction TB
-        subgraph Job_BSI [Job: build_sd_image]
-            bsi_boot[Build BOOT.BIN & system.dtb from .xsa via bootgen/TF-A/U-Boot]
-            bsi_kern[Cross-compile linux-xlnx & io-module.ko]
-            bsi_rootfs[Build NixOS Rootfs & Assemble SD Card Image]
-            bsi_boot --> bsi_kern --> bsi_rootfs
-        end
-
-        bsi_rootfs -->|Artifact: .img| Artifact_Image(SD Card Image)
-    end
-```
-
-### Workflow: `fpga-image.yml`
-
-This workflow runs on a schedule (Tuesday/Thursday) or when changes are made to FPGA-related files. It creates two variants of the image: `core` and `subsystem` (in both `ci` and `dev` flavors).
-
-#### **Job: `build_sd_image`**
-- **Purpose:** Builds the Versal boot firmware, Linux kernel, UIO kernel module, and NixOS root filesystem into a bootable SD card image (`.img`) using Nix.
-- **Key Steps:**
-    - **Builds Boot Firmware (`nix/boot-firmware.nix`):** Fetches the variant `.xsa` archive, builds `bootgen`, `arm-trusted-firmware` (`bl31.elf`), `u-boot-xlnx` (`u-boot.elf`), and `system.dtb`, and packages `BOOT.BIN`.
-    - **Builds Kernel & Modules (`nix/kernel.nix`, `nix/io-module.nix`):** Cross-compiles `linux-xlnx` (`6.6.40`), `boot.scr`, and the variant `io-module.ko` UIO driver.
-    - **Builds NixOS Rootfs & Disk Image (`nix/configuration.nix`, `nix/sd-image-vck190.nix`):** Assembles the partitioned `.img` file (with a read-only zstd SquashFS + tmpfs overlay for `ci` or mutable ext4 for `dev`).
-    - **Artifacts:** Uploads the final SD card images (`caliptra-fpga-image-*` and `caliptra-fpga-image-*-dev`) as artifacts.
+The NixOS FPGA SD card image flake (`ci-tools/fpga-image/`) and build workflow (`.github/workflows/fpga-image.yml`) live in [`chipsalliance/caliptra-infra`](https://github.com/chipsalliance/caliptra-infra/tree/main/ci-tools/fpga-image). Host runners automatically sync the built `core`, `subsystem`, and `zcu104` images from `caliptra-infra`.
 
 ---
 
@@ -114,7 +87,7 @@ These workflows are triggered by pull requests or the nightly release process. T
 
 ## 3. The FPGA Startup Script
 
-The behavior of the FPGA image upon boot is defined in `ci-tools/fpga-image/nix/sd-image-vck190.nix` (`overlay-mount.sh`) and `ci-tools/fpga-image/nix/configuration.nix` (`startup-script.service`). This logic is crucial for setting up the environment for the GitHub Actions runner.
+The behavior of the FPGA image upon boot is defined in [`chipsalliance/caliptra-infra/ci-tools/fpga-image/`](https://github.com/chipsalliance/caliptra-infra/tree/main/ci-tools/fpga-image) (`startup-script.service`). This logic sets up the environment for the GitHub Actions runner.
 
 ### Key Functions:
 

@@ -20,7 +20,6 @@ const IGNORED_PATHS: &[&str] = &[
     "./hw/rev-2_1/caliptra-ss",
     "./hw/rev-2_2/caliptra-ss",
     "./ci-tools/fpga-boss/image/mnt",
-    "./ci-tools/fpga-image/out",
 ];
 
 const IGNORED_DIRS: &[&str] = &[".git", "caliptra-rtl", "out", "target", ".venv"];
