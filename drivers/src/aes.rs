@@ -427,7 +427,10 @@ impl Aes {
         let (written, computed_tag) =
             self.aes_256_gcm_final(context, ciphertext, plaintext, AesOperation::Decrypt)?;
 
-        let computed_tag = computed_tag.as_bytes();
+        // NIST SP 800-38D truncation: a caller-supplied tag shorter than the
+        // full 16-byte tag is compared against the most-significant tag.len()
+        // bytes of the computed tag, not the full computed tag.
+        let computed_tag = &computed_tag.as_bytes()[..tag.len()];
         let tag_matches = constant_time_eq(tag, computed_tag);
         Ok((written, tag_matches))
     }
@@ -447,7 +450,7 @@ impl Aes {
             Err(CaliptraError::RUNTIME_DRIVER_AES_INVALID_SLICE)?;
         }
 
-        self.restore(
+        let restored = self.restore(
             AesKey::Array(&context.key),
             &context.iv,
             context.aad_len,
@@ -455,6 +458,7 @@ impl Aes {
             context.ghash_state,
             op,
         )?;
+        let mut wrote_text = false;
 
         // check if we need to process the previous buffer
         let mut len = context.buffer_len as usize;
@@ -469,6 +473,7 @@ impl Aes {
                 input = &input[take..];
                 len += take;
                 self.read_write_data_gcm(&buffer, GcmPhase::Text, Some(output))?;
+                wrote_text = true;
                 output = &mut output[AES_BLOCK_SIZE_BYTES..];
                 written += AES_BLOCK_SIZE_BYTES;
                 input
@@ -491,6 +496,7 @@ impl Aes {
                 Err(CaliptraError::RUNTIME_DRIVER_AES_INVALID_SLICE)?;
             }
             self.read_write_data_gcm(&input[..take], GcmPhase::Text, Some(output))?;
+            wrote_text = true;
             output = &mut output[take..];
             input = &input[take..];
             len += take;
@@ -500,8 +506,26 @@ impl Aes {
         // Do the final block
         if !input.is_empty() {
             self.read_write_data_gcm(input, GcmPhase::Text, Some(output))?;
+            wrote_text = true;
             len += input.len();
             written += input.len();
+        }
+
+        // The GCM control register's phase-transition table only allows
+        // GCM_RESTORE to be followed by GCM_INIT, GCM_AAD, or GCM_TEXT --
+        // never directly by GCM_TAG. If restore() issued a GcmPhase::Restore
+        // (aad_len>0, or >=1 full block already buffered from a prior
+        // update()) but this call had no ciphertext left to feed through a
+        // real GcmPhase::Text write (e.g. an AAD-only/GMAC-shaped message,
+        // or a message whose ciphertext was an exact multiple of the block
+        // size and fully consumed by prior update() calls), writing
+        // GcmPhase::Tag next is silently ignored by the hardware -- the
+        // phase register stays stuck at GCM_RESTORE and the mailbox hangs
+        // waiting for a completion that never comes. Issue a zero-length
+        // GcmPhase::Text transition first so the phase register legally
+        // advances through TEXT before TAG.
+        if restored && !wrote_text {
+            self.gcm_set_text(0);
         }
 
         // Compute and return the tag
@@ -526,6 +550,15 @@ impl Aes {
     }
 
     /// Restores the GHASH state.
+    /// Returns whether a `GcmPhase::Restore` was actually issued to the
+    /// hardware. If it was, the GCM phase-transition table only allows the
+    /// *next* phase write to be `Init`, `Aad`, or `Text` -- never `Tag`
+    /// directly (see the phase-legality case statement in the AES-GCM
+    /// control register RTL). Callers that reach this point with a `true`
+    /// result and no further `Text` data to process must still issue a
+    /// zero-length `Text` phase transition (see `gcm_set_text`) before
+    /// computing the tag, or the hardware will silently ignore the `Tag`
+    /// phase write and hang.
     fn restore(
         &mut self,
         key: AesKey,
@@ -534,7 +567,7 @@ impl Aes {
         len: u32,
         ghash_state: AesBlock,
         op: AesOperation,
-    ) -> CaliptraResult<()> {
+    ) -> CaliptraResult<bool> {
         // No zerocopy since we can't guarantee that the
         // byte array is aligned to 4-byte boundaries.
         let iv = [
@@ -595,7 +628,7 @@ impl Aes {
             // been processed by the hardware. Issuing GcmPhase::Restore with a
             // zero GHASH state corrupts subsequent tag computation.
             if aad_len == 0 && (len as usize) < AES_BLOCK_SIZE_BYTES {
-                return Ok(());
+                return Ok(false);
             }
 
             // Restore the GHASH state to data_in registers, which will load the state into the
@@ -612,7 +645,7 @@ impl Aes {
                 aes.iv().at(i).write(|_| ivi);
             }
             wait_for_idle(&aes);
-            Ok::<(), CaliptraError>(())
+            Ok::<bool, CaliptraError>(true)
         })
     }
 
