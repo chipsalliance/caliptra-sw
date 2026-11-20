@@ -916,9 +916,8 @@ pub trait HwModel: SocManager {
     where
         Self: Sized,
     {
-        // SS_STRAP_GENERIC is latched from the input port at reset and is only
-        // writable by software until CPTRA_FUSE_WR_DONE is set. init_fuses()
-        // sets CPTRA_FUSE_WR_DONE, so the strap must be written first.
+        // init_fuses() sets CPTRA_FUSE_WR_DONE, locking the straps, firmware
+        // feature configuration, and ITRNG entropy configuration.
         if let Some(reg) = boot_params.initial_ss_strap_generic_2 {
             self.soc_ifc().ss_strap_generic().at(2).write(|_| reg);
         }
@@ -929,6 +928,22 @@ pub trait HwModel: SocManager {
             self.soc_ifc().ss_fw_feature_cfg().write(|_| reg);
             if u32::from(self.soc_ifc().ss_fw_feature_cfg().read()) != u32::from(reg) {
                 return Err("SS_FW_FEATURE_CFG boot override was not applied".into());
+            }
+        }
+        if let Some(reg) = boot_params.initial_repcnt_thresh_reg {
+            let soc_ifc = self.soc_ifc();
+            let config = soc_ifc.cptra_i_trng_entropy_config_1();
+            config.write(|_| reg);
+            if u32::from(config.read()) != u32::from(reg) {
+                return Err("CPTRA_I_TRNG_ENTROPY_CONFIG_1 boot override was not applied".into());
+            }
+        }
+        if let Some(reg) = boot_params.initial_adaptp_thresh_reg {
+            let soc_ifc = self.soc_ifc();
+            let config = soc_ifc.cptra_i_trng_entropy_config_0();
+            config.write(|_| reg);
+            if u32::from(config.read()) != u32::from(reg) {
+                return Err("CPTRA_I_TRNG_ENTROPY_CONFIG_0 boot override was not applied".into());
             }
         }
 
@@ -947,18 +962,6 @@ pub trait HwModel: SocManager {
             .cptra_wdt_cfg()
             .at(1)
             .write(|_| (boot_params.wdt_timeout_cycles >> 32) as u32);
-
-        if let Some(reg) = boot_params.initial_repcnt_thresh_reg {
-            self.soc_ifc()
-                .cptra_i_trng_entropy_config_1()
-                .write(|_| reg);
-        }
-
-        if let Some(reg) = boot_params.initial_adaptp_thresh_reg {
-            self.soc_ifc()
-                .cptra_i_trng_entropy_config_0()
-                .write(|_| reg);
-        }
 
         // Set up the PAUSER as valid for the mailbox (using index 0)
         self.setup_mailbox_users(boot_params.valid_axi_user.as_slice())
