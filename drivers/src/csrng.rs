@@ -108,11 +108,23 @@ impl Csrng {
         if e.module_enable().read().module_enable() == MULTIBIT_FALSE {
             set_health_check_thresholds(e, soc_ifc.regs());
 
+            // CPTRA_iTRNG_ENTROPY_CONFIG_1 RSVD bits configure optional single-bit RO filter:
+            //   RSVD[16] (bit 0): RNG_BIT_ENABLE — 1=enable filter, 0=disable
+            //   RSVD[18:17] (bits 2:1): RNG_BIT_SEL — 2-bit channel select, direct mapped
+            let rsvd = soc_ifc.regs().cptra_i_trng_entropy_config_1().read().rsvd();
+            let rng_bit_enable = if rsvd & 0x1 != 0 {
+                MULTIBIT_TRUE
+            } else {
+                MULTIBIT_FALSE
+            };
+            let rng_bit_sel = (rsvd >> 1) & 0x3;
+
             e.conf().write(|w| {
                 w.fips_enable(MULTIBIT_TRUE)
                     .entropy_data_reg_enable(MULTIBIT_FALSE)
                     .threshold_scope(MULTIBIT_TRUE)
-                    .rng_bit_enable(MULTIBIT_FALSE)
+                    .rng_bit_enable(rng_bit_enable)
+                    .rng_bit_sel(rng_bit_sel)
             });
             e.module_enable().write(|w| w.module_enable(MULTIBIT_TRUE));
             check_for_alert_state(result.entropy_src.regs())?;

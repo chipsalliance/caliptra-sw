@@ -33,6 +33,7 @@ pub struct caliptra_verilated_sig_in {
     pub ext_mbox_we: bool,
     pub ext_xccm_addr: u32,
     pub ext_xccm_wdata: [u32; 5usize],
+    pub generic_input_wires: u64,
 }
 #[repr(C)]
 #[derive(Debug, Default, Copy, Clone)]

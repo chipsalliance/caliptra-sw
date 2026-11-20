@@ -7,7 +7,7 @@ use caliptra_registers::{
     csrng::CsrngReg, entropy_src::EntropySrcReg, soc_ifc::SocIfcReg, soc_ifc_trng::SocIfcTrngReg,
 };
 
-use crate::{trng_ext::TrngExt, Array4x12, Csrng, MfgFlags};
+use crate::{soc_ifc::internal_trng, trng_ext::TrngExt, Array4x12, Csrng, MfgFlags};
 
 #[repr(u32)]
 pub enum Trng {
@@ -35,7 +35,7 @@ impl Trng {
             & flags.contains(MfgFlags::RNG_SUPPORT_UNAVAILABLE)
         {
             Ok(Self::MfgMode())
-        } else if soc_ifc.regs().cptra_hw_config().read().i_trng_en() {
+        } else if internal_trng(soc_ifc) {
             Ok(Self::Internal(Csrng::new(csrng, entropy_src, soc_ifc)?))
         } else {
             Ok(Self::External(TrngExt::new(soc_ifc_trng)))
@@ -53,7 +53,7 @@ impl Trng {
         soc_ifc_trng: SocIfcTrngReg,
         soc_ifc: &SocIfcReg,
     ) -> Self {
-        if soc_ifc.regs().cptra_hw_config().read().i_trng_en() {
+        if internal_trng(soc_ifc) {
             Self::Internal(Csrng::assume_initialized(csrng, entropy_src))
         } else {
             Self::External(TrngExt::new(soc_ifc_trng))
