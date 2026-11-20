@@ -136,6 +136,15 @@ pub const ROM_FPGA_WITH_UART: FwId = FwId {
     },
 };
 
+pub const FMC: FwId = FwId {
+    crate_name: "caliptra-fmc",
+    bin_name: "caliptra-fmc",
+    fw_type: FirmwareType::Source {
+        features: &["cfi"],
+        hw_revision: None,
+    },
+};
+
 pub const FMC_WITH_UART: FwId = FwId {
     crate_name: "caliptra-fmc",
     bin_name: "caliptra-fmc",
@@ -822,6 +831,7 @@ pub const REGISTERED_FW: &[&FwId] = &[
     &ROM_WITH_FIPS_TEST_HOOKS,
     &ROM_WITH_FIPS_TEST_HOOKS_FPGA,
     &ROM_FPGA_WITH_UART,
+    &FMC,
     &FMC_WITH_UART,
     &FMC_FAKE_WITH_UART,
     &FMC_FPGA_WITH_UART,

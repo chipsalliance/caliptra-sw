@@ -10,7 +10,7 @@ pub use caliptra_api::SocManager;
 use caliptra_builder::{
     firmware::{
         runtime_tests::{MBOX, MBOX_FPGA, MBOX_WITHOUT_UART, MBOX_WITHOUT_UART_FPGA},
-        APP_WITH_UART, APP_WITH_UART_FPGA, FMC_FAKE_WITH_UART, FMC_WITH_UART,
+        APP_WITH_UART, APP_WITH_UART_FPGA, FMC, FMC_WITH_UART,
     },
     get_ci_rom_version, CiRomVersion, FwId, ImageOptions,
 };
@@ -979,17 +979,11 @@ fn test_key_ladder_changes_with_lifecycle() {
 
 #[test]
 fn test_key_ladder_stable_across_fw_updates() {
-    // Update both FMC and app FW, and ensure the key ladder is still identical.
+    // Compare different FMC and runtime binaries. Both FMC builds install the
+    // runtime identity keys required by the 2.2 vault handoff monitor.
 
     let (fmc_a, app_a) = (&FMC_WITH_UART, mbox_test_image());
-    let (fmc_b, app_b) = (
-        &FMC_FAKE_WITH_UART,
-        if cfg!(feature = "fpga_subsystem") {
-            &MBOX_WITHOUT_UART_FPGA
-        } else {
-            &MBOX_WITHOUT_UART
-        },
-    );
+    let (fmc_b, app_b) = (&FMC, mbox_test_image_without_uart());
 
     let ladder_a = {
         let mut model =
