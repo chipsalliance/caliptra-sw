@@ -55,6 +55,10 @@ impl ImageVerificationEnv for TestEnv {
         Ok(self.digest)
     }
 
+    fn sha384_digest_slice(&mut self, _data: &[u8]) -> CaliptraResult<ImageDigest> {
+        Ok(self.digest)
+    }
+
     fn ecc384_verify(
         &mut self,
         _digest: &ImageDigest,
@@ -127,6 +131,14 @@ impl ImageVerificationEnv for TestEnv {
 
     fn runtime_fuse_svn(&self) -> u32 {
         0
+    }
+
+    fn get_cold_reset_fmc_load_addr(&self) -> u32 {
+        ICCM_ORG
+    }
+
+    fn get_cold_reset_fmc_size(&self) -> u32 {
+        ICCM_SIZE
     }
 
     fn iccm_range(&self) -> Range<u32> {

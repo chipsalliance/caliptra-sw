@@ -13,6 +13,9 @@ Abstract:
 --*/
 #![cfg_attr(not(feature = "std"), no_std)]
 
+#[cfg(all(test, not(feature = "std")))]
+extern crate std;
+
 mod verifier;
 
 use caliptra_drivers::*;
@@ -105,6 +108,10 @@ pub trait ImageVerificationEnv {
     /// Calculate SHA-384 Digest
     fn sha384_digest(&mut self, offset: u32, len: u32) -> CaliptraResult<ImageDigest>;
 
+    /// Calculate SHA-384 digest of bytes already held in ROM-protected memory
+    /// (the manifest copy), rather than re-reading the image source.
+    fn sha384_digest_slice(&mut self, data: &[u8]) -> CaliptraResult<ImageDigest>;
+
     /// Perform ECC-384 Verification
     fn ecc384_verify(
         &mut self,
@@ -156,6 +163,12 @@ pub trait ImageVerificationEnv {
 
     // Get Runtime fuse SVN
     fn runtime_fuse_svn(&self) -> u32;
+
+    // Get the cold-boot FMC load address from the persisted manifest
+    fn get_cold_reset_fmc_load_addr(&self) -> u32;
+
+    // Get the cold-boot FMC size from the persisted manifest
+    fn get_cold_reset_fmc_size(&self) -> u32;
 
     // ICCM Range
     fn iccm_range(&self) -> Range<u32>;

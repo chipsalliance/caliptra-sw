@@ -248,6 +248,19 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
         let image_type = ImageTocEntryType::Executable;
         let digest = self.crypto.sha384_digest(image.content())?;
 
+        let load_addr = image.load_addr();
+        let entry_point = image.entry_point();
+        if entry_point != load_addr {
+            let name = match id {
+                ImageTocEntryId::Fmc => "FMC",
+                ImageTocEntryId::Runtime => "Runtime",
+            };
+            bail!(
+                "{name} entry_point {entry_point:#010x} != load_addr {load_addr:#010x}; \
+                 firmware must be built with _fw_entry trampoline at load address"
+            );
+        }
+
         let entry = ImageTocEntry {
             id: id.into(),
             image_type: image_type.into(),
@@ -255,8 +268,8 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
             version: image.version(),
             svn: image.svn(),
             reserved: 0,
-            load_addr: image.load_addr(),
-            entry_point: image.entry_point(),
+            load_addr,
+            entry_point,
             offset,
             size: image.content().len() as u32,
             digest,

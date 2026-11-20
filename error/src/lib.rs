@@ -647,6 +647,31 @@ impl CaliptraError {
             0x000b0041,
             "Image Verifier Error: Digest Out of Bounds"
         ),
+        (
+            IMAGE_VERIFIER_ERR_FMC_OFFSET_INVALID,
+            0x000b0064,
+            "Image Verifier Error: FMC offset invalid (gap between manifest and FMC)"
+        ),
+        (
+            IMAGE_VERIFIER_ERR_UPDATE_RESET_FMC_LOAD_ADDR_MISMATCH,
+            0x000b0065,
+            "Image Verifier Error: Update reset FMC load address or size mismatch"
+        ),
+        (
+            IMAGE_VERIFIER_ERR_RUNTIME_OFFSET_INVALID,
+            0x000b0066,
+            "Image Verifier Error: Runtime offset invalid (gap between FMC and Runtime)"
+        ),
+        (
+            IMAGE_VERIFIER_ERR_FMC_ENTRY_POINT_NOT_AT_LOAD_ADDR,
+            0x000b0067,
+            "Image Verifier Error: FMC entry point must equal load address"
+        ),
+        (
+            IMAGE_VERIFIER_ERR_RUNTIME_ENTRY_POINT_NOT_AT_LOAD_ADDR,
+            0x000b0068,
+            "Image Verifier Error: Runtime entry point must equal load address"
+        ),
         // Driver Error: LMS
         (
             DRIVER_LMS_INVALID_LMS_ALGO_TYPE,

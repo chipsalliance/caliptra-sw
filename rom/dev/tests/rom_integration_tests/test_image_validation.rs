@@ -1183,6 +1183,80 @@ fn test_toc_invalid_toc_digest() {
     );
 }
 
+enum TocSourceLayout {
+    RuntimePastBundle,
+    RuntimeGap,
+    ContiguousWithPadding,
+}
+
+fn run_toc_source_bounds_test(layout: TocSourceLayout) {
+    const GAP_SIZE: usize = 16;
+    const PADDING_SIZE: usize = 16;
+
+    let (declared_gap, actual_gap, padding, expected_error) = match layout {
+        TocSourceLayout::RuntimePastBundle => (
+            GAP_SIZE,
+            0,
+            0,
+            Some(CaliptraError::IMAGE_VERIFIER_ERR_IMAGE_LEN_MORE_THAN_BUNDLE_SIZE),
+        ),
+        TocSourceLayout::RuntimeGap => (
+            GAP_SIZE,
+            GAP_SIZE,
+            PADDING_SIZE,
+            Some(CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_OFFSET_INVALID),
+        ),
+        TocSourceLayout::ContiguousWithPadding => (0, 0, PADDING_SIZE, None),
+    };
+
+    let (mut hw, mut image_bundle) =
+        helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
+    let fmc = image_bundle.manifest.fmc;
+    let runtime = image_bundle.manifest.runtime;
+    let contiguous_image = update_fmc_runtime_ranges(
+        &mut image_bundle,
+        fmc.offset,
+        fmc.size,
+        runtime.offset + declared_gap as u32,
+        runtime.size,
+    );
+    let mut image = contiguous_image[..runtime.offset as usize].to_vec();
+    image.resize(image.len() + actual_gap, 0);
+    image.extend_from_slice(&contiguous_image[runtime.offset as usize..]);
+    image.resize(image.len() + padding, 0);
+
+    if let Some(expected_error) = expected_error {
+        assert_eq!(
+            ModelError::MailboxCmdFailed(expected_error.into()),
+            hw.upload_firmware(&image).unwrap_err()
+        );
+        assert_eq!(
+            hw.soc_ifc().cptra_boot_status().read(),
+            u32::from(FwProcessorManifestLoadComplete)
+        );
+    } else {
+        // Trailing padding after the runtime is permitted.
+        hw.upload_firmware(&image).unwrap();
+        hw.step_until_boot_status(ColdResetComplete.into(), true);
+        assert_eq!(hw.soc_ifc().cptra_fw_error_fatal().read(), 0);
+    }
+}
+
+#[test]
+fn test_toc_source_bounds_reject_runtime_past_bundle() {
+    run_toc_source_bounds_test(TocSourceLayout::RuntimePastBundle);
+}
+
+#[test]
+fn test_toc_source_bounds_reject_runtime_gap() {
+    run_toc_source_bounds_test(TocSourceLayout::RuntimeGap);
+}
+
+#[test]
+fn test_toc_source_bounds_allow_trailing_padding() {
+    run_toc_source_bounds_test(TocSourceLayout::ContiguousWithPadding);
+}
+
 #[test]
 fn test_toc_fmc_size_zero() {
     let (mut hw, mut image_bundle) =
@@ -1209,12 +1283,13 @@ fn test_toc_fmc_size_zero() {
 #[test]
 fn test_toc_fmc_range_overlap() {
     // Case 1: FMC offset == Runtime offset
+    // (fmc.offset must stay valid, so move the runtime onto the FMC)
     let (mut hw, mut image_bundle) =
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
-    let fmc_new_offset = image_bundle.manifest.runtime.offset;
+    let runtime_new_offset = image_bundle.manifest.fmc.offset;
     // These are unchanged.
+    let fmc_new_offset = image_bundle.manifest.fmc.offset;
     let fmc_new_size = image_bundle.manifest.fmc.size;
-    let runtime_new_offset = image_bundle.manifest.runtime.offset;
     let runtime_new_size = image_bundle.manifest.runtime.size;
 
     let image = update_fmc_runtime_ranges(
@@ -1233,10 +1308,10 @@ fn test_toc_fmc_range_overlap() {
     // Case 2: FMC offset > Runtime offset
     let (mut hw, mut image_bundle) =
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
-    let fmc_new_offset = image_bundle.manifest.runtime.offset + 1;
+    let runtime_new_offset = image_bundle.manifest.fmc.offset - 1;
     // These are unchanged.
+    let fmc_new_offset = image_bundle.manifest.fmc.offset;
     let fmc_new_size = image_bundle.manifest.fmc.size;
-    let runtime_new_offset = image_bundle.manifest.runtime.offset;
     let runtime_new_size = image_bundle.manifest.runtime.size;
     let image = update_fmc_runtime_ranges(
         &mut image_bundle,
@@ -1283,17 +1358,18 @@ fn test_toc_fmc_range_overlap() {
 fn test_toc_fmc_range_incorrect_order() {
     let (mut hw, mut image_bundle) =
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
-    let fmc_new_offset = image_bundle.manifest.runtime.offset;
-    let fmc_new_size = image_bundle.manifest.runtime.size;
-    let runtime_new_offset = image_bundle.manifest.fmc.offset;
-    let runtime_new_size = image_bundle.manifest.fmc.size;
+    // Keep fmc.offset valid (= IMAGE_MANIFEST_BYTE_SIZE). Place runtime
+    // entirely before FMC in the bundle (offset=0, small size) so the
+    // ranges don't overlap but fmc.end > runtime.start -> INCORRECT_ORDER.
+    let fmc_new_offset = image_bundle.manifest.fmc.offset;
+    let fmc_new_size = image_bundle.manifest.fmc.size;
 
     let image = update_fmc_runtime_ranges(
         &mut image_bundle,
         fmc_new_offset,
         fmc_new_size,
-        runtime_new_offset,
-        runtime_new_size,
+        0,   // runtime before FMC in bundle
+        100, // small enough that runtime.end < fmc.offset
     );
     assert_eq!(
         ModelError::MailboxCmdFailed(
@@ -1305,6 +1381,34 @@ fn test_toc_fmc_range_incorrect_order() {
     assert_eq!(
         hw.soc_ifc().cptra_boot_status().read(),
         u32::from(FwProcessorManifestLoadComplete)
+    );
+}
+
+#[test]
+fn test_fmc_offset_invalid_gap() {
+    let (mut hw, mut image_bundle) =
+        helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
+
+    // Shift both offsets forward to introduce a gap after the manifest.
+    let gap_size: u32 = 0x100;
+    image_bundle.manifest.fmc.offset += gap_size;
+    image_bundle.manifest.runtime.offset += gap_size;
+
+    let gen = ImageGenerator::new(Crypto::default());
+    image_bundle.manifest.header.toc_digest = gen
+        .toc_digest(&image_bundle.manifest.fmc, &image_bundle.manifest.runtime)
+        .unwrap();
+    update_header(&mut image_bundle);
+
+    // Physically insert the gap between the manifest and FMC.
+    let mut image = image_bundle.manifest.as_bytes().to_vec();
+    image.extend(vec![0u8; gap_size as usize]);
+    image.extend_from_slice(&image_bundle.fmc);
+    image.extend_from_slice(&image_bundle.runtime);
+
+    assert_eq!(
+        ModelError::MailboxCmdFailed(CaliptraError::IMAGE_VERIFIER_ERR_FMC_OFFSET_INVALID.into()),
+        hw.upload_firmware(&image).unwrap_err()
     );
 }
 
@@ -1480,6 +1584,27 @@ fn test_fmc_invalid_entry_point_after_iccm() {
 }
 
 #[test]
+fn test_fmc_entry_point_outside_image() {
+    let (mut hw, mut image_bundle) =
+        helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
+
+    // Entry point is inside ICCM and aligned, but belongs to the other component's image.
+    let entry_point = image_bundle.manifest.runtime.load_addr;
+    let image = update_entry_point(&mut image_bundle, true, entry_point);
+    assert_eq!(
+        ModelError::MailboxCmdFailed(u32::from(
+            CaliptraError::IMAGE_VERIFIER_ERR_FMC_ENTRY_POINT_INVALID
+        )),
+        hw.upload_firmware(&image).unwrap_err()
+    );
+
+    assert_eq!(
+        hw.soc_ifc().cptra_boot_status().read(),
+        u32::from(FwProcessorManifestLoadComplete)
+    );
+}
+
+#[test]
 fn test_fmc_entry_point_unaligned() {
     let mut image_bundle = helpers::build_image_bundle(ImageOptions::default());
     let entry_point = image_bundle.manifest.fmc.entry_point;
@@ -1562,6 +1687,28 @@ fn test_fmc_svn_less_than_fuse_svn() {
         )),
         hw.upload_firmware(&image_bundle.to_bytes().unwrap())
             .unwrap_err()
+    );
+
+    assert_eq!(
+        hw.soc_ifc().cptra_boot_status().read(),
+        u32::from(FwProcessorManifestLoadComplete)
+    );
+}
+
+#[test]
+fn test_fmc_entry_point_not_at_load_addr() {
+    let (mut hw, mut image_bundle) =
+        helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
+
+    // Entry point is aligned and still within the FMC image range, but is
+    // not at the load address.
+    let skewed = image_bundle.manifest.fmc.load_addr + 4;
+    let image = update_entry_point(&mut image_bundle, true, skewed);
+    assert_eq!(
+        ModelError::MailboxCmdFailed(
+            CaliptraError::IMAGE_VERIFIER_ERR_FMC_ENTRY_POINT_NOT_AT_LOAD_ADDR.into()
+        ),
+        hw.upload_firmware(&image).unwrap_err()
     );
 
     assert_eq!(
@@ -1730,6 +1877,27 @@ fn test_runtime_invalid_entry_point_after_iccm() {
 }
 
 #[test]
+fn test_runtime_entry_point_outside_image() {
+    let (mut hw, mut image_bundle) =
+        helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
+
+    // Entry point is inside ICCM and aligned, but belongs to the other component's image.
+    let entry_point = image_bundle.manifest.fmc.load_addr;
+    let image = update_entry_point(&mut image_bundle, false, entry_point);
+    assert_eq!(
+        ModelError::MailboxCmdFailed(u32::from(
+            CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_ENTRY_POINT_INVALID
+        )),
+        hw.upload_firmware(&image).unwrap_err()
+    );
+
+    assert_eq!(
+        hw.soc_ifc().cptra_boot_status().read(),
+        u32::from(FwProcessorManifestLoadComplete)
+    );
+}
+
+#[test]
 fn test_runtime_entry_point_unaligned() {
     let (mut hw, mut image_bundle) =
         helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
@@ -1739,6 +1907,28 @@ fn test_runtime_entry_point_unaligned() {
         ModelError::MailboxCmdFailed(u32::from(
             CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_ENTRY_POINT_UNALIGNED
         )),
+        hw.upload_firmware(&image).unwrap_err()
+    );
+
+    assert_eq!(
+        hw.soc_ifc().cptra_boot_status().read(),
+        u32::from(FwProcessorManifestLoadComplete)
+    );
+}
+
+#[test]
+fn test_runtime_entry_point_not_at_load_addr() {
+    let (mut hw, mut image_bundle) =
+        helpers::build_hw_model_and_image_bundle(Fuses::default(), ImageOptions::default());
+
+    // Entry point is aligned and still within the Runtime image range, but is
+    // not at the load address.
+    let skewed = image_bundle.manifest.runtime.load_addr + 4;
+    let image = update_entry_point(&mut image_bundle, false, skewed);
+    assert_eq!(
+        ModelError::MailboxCmdFailed(
+            CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_ENTRY_POINT_NOT_AT_LOAD_ADDR.into()
+        ),
         hw.upload_firmware(&image).unwrap_err()
     );
 
