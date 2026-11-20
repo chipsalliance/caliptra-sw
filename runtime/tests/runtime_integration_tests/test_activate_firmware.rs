@@ -186,36 +186,33 @@ fn send_activate_firmware_cmd(
     activate_cmd: MailboxReq,
     reset_expected: bool,
 ) -> std::result::Result<Option<Vec<u8>>, ModelError> {
-    model
-        .start_mailbox_execute(
-            u32::from(CommandId::ACTIVATE_FIRMWARE),
-            activate_cmd.as_bytes().unwrap(),
-        )
-        .unwrap();
+    start_activate_firmware_cmd(model, activate_cmd.as_bytes().unwrap(), reset_expected)?;
+    model.finish_mailbox_execute()
+}
+
+fn start_activate_firmware_cmd(
+    model: &mut DefaultHwModel,
+    request: &[u8],
+    reset_expected: bool,
+) -> Result<(), ModelError> {
+    model.start_mailbox_execute(u32::from(CommandId::ACTIVATE_FIRMWARE), request)?;
     if reset_expected {
         #[cfg(feature = "fpga_subsystem")]
         {
-            let clear_interrupt = |model: &mut DefaultHwModel| {
-                let mut retry_count = 10;
-                loop {
-                    let intr_status = model.mci().intr_block_rf().notif0_internal_intr_r().read();
-                    if intr_status.notif_cptra_mcu_reset_req_sts() {
-                        break;
-                    }
-                    retry_count -= 1;
-                    if retry_count == 0 {
-                        return;
-                    }
-                    std::thread::sleep(std::time::Duration::from_millis(100));
-                }
+            wait_for_fpga_activation(model, "MCU reset request", |model| {
                 model
                     .mci()
                     .intr_block_rf()
                     .notif0_internal_intr_r()
-                    .modify(|r| r.notif_cptra_mcu_reset_req_sts(true));
-                model.mci().reset_request().modify(|r| r.mcu_req(true));
-            };
-            clear_interrupt(model);
+                    .read()
+                    .notif_cptra_mcu_reset_req_sts()
+            });
+            model
+                .mci()
+                .intr_block_rf()
+                .notif0_internal_intr_r()
+                .write(|w| w.notif_cptra_mcu_reset_req_sts(true));
+            model.mci().reset_request().modify(|r| r.mcu_req(true));
         }
         #[cfg(all(
             not(feature = "verilator"),
@@ -235,7 +232,57 @@ fn send_activate_firmware_cmd(
             model.mci().reset_request().modify(|r| r.mcu_req(true));
         }
     }
-    model.finish_mailbox_execute()
+    Ok(())
+}
+
+#[cfg(feature = "fpga_subsystem")]
+fn wait_for_fpga_activation(
+    model: &mut DefaultHwModel,
+    event: &str,
+    mut ready: impl FnMut(&mut DefaultHwModel) -> bool,
+) {
+    use std::time::{Duration, Instant};
+
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while !ready(model) {
+        assert!(Instant::now() < deadline, "Timed out waiting for {event}");
+        model.step();
+        std::thread::sleep(Duration::from_millis(1));
+    }
+}
+
+fn assert_mcu_activation_succeeds(model: &mut DefaultHwModel, request: &[u8], image: &Image) {
+    start_activate_firmware_cmd(model, request, true).unwrap();
+
+    #[cfg(feature = "fpga_subsystem")]
+    {
+        // The host simulates the reset request, but MCU ROM is the mailbox
+        // response reader after the reset. Reading from the host as well races
+        // ROM's release of EXECUTE, after which the status reads as busy again.
+        wait_for_fpga_activation(
+            model,
+            "MCU ROM to release the activation mailbox",
+            |model| !model.soc_mbox().execute().read().execute(),
+        );
+    }
+    #[cfg(not(feature = "fpga_subsystem"))]
+    model
+        .finish_mailbox_execute()
+        .unwrap()
+        .expect("MCU activation must return a response");
+
+    assert_ne!(
+        model.soc_ifc().ss_generic_fw_exec_ctrl().at(0).read() & (1 << image.exec_bit),
+        0,
+        "MCU activation must re-enable execution"
+    );
+    assert_eq!(
+        model
+            .read_payload_from_ss_staging_area(image.contents.len(), image.load_offset)
+            .unwrap(),
+        image.contents,
+        "MCU activation must install the authorized image"
+    );
 }
 
 #[cfg_attr(feature = "fpga_subsystem", allow(dead_code))]
@@ -294,7 +341,7 @@ fn test_activate_mcu_fw_success() {
         exec_bit: 2,
     };
 
-    let mut model = load_and_authorize_fw(&[mcu_image]);
+    let mut model = load_and_authorize_fw(std::slice::from_ref(&mcu_image));
 
     // The MCU firmware DPE context is located by tagging the DPE default
     // context. That only works when Caliptra's measurement of the MCU firmware
@@ -322,9 +369,7 @@ fn test_activate_mcu_fw_success() {
         flags: 0,
     });
     activate_cmd.populate_chksum().unwrap();
-    send_activate_firmware_cmd(&mut model, activate_cmd, true)
-        .unwrap()
-        .expect("We should have received a response");
+    assert_mcu_activation_succeeds(&mut model, activate_cmd.as_bytes().unwrap(), &mcu_image);
 
     #[cfg(not(feature = "fpga_subsystem"))]
     {
@@ -604,7 +649,7 @@ fn test_activate_firmware_old_format_no_flags() {
         exec_bit: 2,
     };
 
-    let mut model = load_and_authorize_fw(&[mcu_image]);
+    let mut model = load_and_authorize_fw(std::slice::from_ref(&mcu_image));
 
     // Build the request via the current `ActivateFirmwareReq` struct (which
     // includes `flags`), then truncate the trailing `flags` u32 off the wire
@@ -633,72 +678,7 @@ fn test_activate_firmware_old_format_no_flags() {
     );
     truncated[..core::mem::size_of::<u32>()].copy_from_slice(&chksum.to_le_bytes());
 
-    // Send the truncated buffer directly. Mirrors the
-    // `send_activate_firmware_cmd` helper but bypasses MailboxReq so we
-    // control the exact wire length.
-    model
-        .start_mailbox_execute(u32::from(CommandId::ACTIVATE_FIRMWARE), &truncated)
-        .unwrap();
-    #[cfg(feature = "fpga_subsystem")]
-    {
-        // The MCU image is included, so simulate the MCU-reset ack handshake
-        // (same as send_activate_firmware_cmd with reset_expected=true).
-        let mut retry_count = 10;
-        loop {
-            let intr_status = model
-                .mmio
-                .mci()
-                .unwrap()
-                .regs()
-                .intr_block_rf()
-                .notif0_internal_intr_r()
-                .read();
-            if intr_status.notif_cptra_mcu_reset_req_sts() {
-                break;
-            }
-            retry_count -= 1;
-            if retry_count == 0 {
-                break;
-            }
-            std::thread::sleep(std::time::Duration::from_millis(100));
-        }
-        model
-            .mmio
-            .mci()
-            .unwrap()
-            .regs()
-            .intr_block_rf()
-            .notif0_internal_intr_r()
-            .modify(|r| r.notif_cptra_mcu_reset_req_sts(true));
-        model
-            .mmio
-            .mci()
-            .unwrap()
-            .regs()
-            .reset_request()
-            .modify(|r| r.mcu_req(true));
-    }
-    #[cfg(all(
-        not(feature = "verilator"),
-        not(feature = "fpga_realtime"),
-        not(feature = "fpga_subsystem")
-    ))]
-    {
-        model.step_until(|m| {
-            let intr_status = m.mci().intr_block_rf().notif0_internal_intr_r().read();
-            intr_status.notif_cptra_mcu_reset_req_sts()
-        });
-        model
-            .mci()
-            .intr_block_rf()
-            .notif0_internal_intr_r()
-            .modify(|r| r.notif_cptra_mcu_reset_req_sts(false));
-        model.mci().reset_request().modify(|r| r.mcu_req(true));
-    }
-    model
-        .finish_mailbox_execute()
-        .unwrap()
-        .expect("ACTIVATE_FIRMWARE without flags trailer should succeed");
+    assert_mcu_activation_succeeds(&mut model, &truncated, &mcu_image);
 }
 
 /// Reject unknown flag bits with `RUNTIME_MAILBOX_INVALID_PARAMS`. The
