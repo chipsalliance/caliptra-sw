@@ -18,8 +18,14 @@ use caliptra_api::mailbox::{
     MailboxRespHeader, ManufDebugUnlockTokenReq, ProductionAuthDebugUnlockChallenge,
     ProductionAuthDebugUnlockReq, ProductionAuthDebugUnlockToken,
 };
-use caliptra_cfi_lib::{cfi_launder, CfiCounter};
-use caliptra_common::{cprintln, debug_unlock, mailbox_api::CommandId};
+#[cfg(feature = "cfi")]
+use caliptra_cfi_derive::cfi_mod_fn;
+use caliptra_cfi_lib::{cfi_assert_eq, cfi_assert_ne, cfi_launder, CfiCounter};
+use caliptra_common::{
+    cprintln,
+    debug_unlock::{self, PROD_DBG_UNLOCK_INVALID, PROD_DBG_UNLOCK_VALID},
+    mailbox_api::CommandId,
+};
 use caliptra_drivers::Lifecycle;
 use caliptra_error::CaliptraError;
 use zerocopy::IntoBytes;
@@ -31,6 +37,7 @@ use crate::rom_env::RomEnv;
 /// # Arguments
 ///
 /// * `env` - ROM Environment
+#[cfg_attr(feature = "cfi", cfi_mod_fn)]
 pub fn debug_unlock(env: &mut RomEnv) -> CaliptraResult<()> {
     if env.soc_ifc.ss_debug_intent() {
         // Clear the device secrets if debug intent is set.
@@ -66,6 +73,7 @@ fn finish_debug_unlock(env: &mut RomEnv, response_sent: bool) {
     }
 }
 
+#[cfg_attr(feature = "cfi", cfi_mod_fn)]
 fn handle_manufacturing(env: &mut RomEnv) -> CaliptraResult<()> {
     cprintln!("[dbg_manuf] ++");
 
@@ -90,6 +98,7 @@ fn handle_manufacturing(env: &mut RomEnv) -> CaliptraResult<()> {
 
     let mut txn = txn.start_txn();
 
+    let mut unlock_status = cfi_launder(PROD_DBG_UNLOCK_INVALID);
     let result = (|| {
         // Get command bytes and verify checksum
         let cmd_bytes = FirmwareProcessor::get_and_verify_cmd_bytes(&txn)?;
@@ -111,26 +120,38 @@ fn handle_manufacturing(env: &mut RomEnv) -> CaliptraResult<()> {
             Err(CaliptraError::SS_DBG_UNLOCK_MANUF_INVALID_TOKEN)?;
         } else {
             caliptra_cfi_lib::cfi_assert_eq_16_words(&input_token_digest.0, &fuse_token_digest.0);
+            unlock_status = PROD_DBG_UNLOCK_VALID;
         }
-        Ok(())
+        Ok(PROD_DBG_UNLOCK_VALID)
     })();
 
     let resp = MailboxRespHeader::default();
     txn.send_response(resp.as_bytes())?;
-    match result {
-        Ok(()) => {
+    let final_result = match result {
+        Ok(status)
+            if cfi_launder(status) == PROD_DBG_UNLOCK_VALID
+                && cfi_launder(unlock_status) == PROD_DBG_UNLOCK_VALID =>
+        {
+            cfi_assert_eq(status, PROD_DBG_UNLOCK_VALID);
+            cfi_assert_eq(unlock_status, PROD_DBG_UNLOCK_VALID);
             env.soc_ifc.set_ss_dbg_unlock_result(true);
+            Ok(())
         }
-        Err(_) => {
+        Ok(_) => {
             env.soc_ifc.set_ss_dbg_unlock_result(false);
+            Err(CaliptraError::SS_DBG_UNLOCK_MANUF_INVALID_TOKEN)
         }
-    }
+        Err(err) => {
+            env.soc_ifc.set_ss_dbg_unlock_result(false);
+            Err(err)
+        }
+    };
 
     drop(txn);
     finish_debug_unlock(env, true);
 
     cprintln!("[dbg_manuf] --");
-    result
+    final_result
 }
 
 fn handle_auth_debug_unlock_request(
@@ -197,11 +218,12 @@ fn handle_auth_debug_unlock_request(
     (result, response_sent)
 }
 
+#[cfg_attr(feature = "cfi", cfi_mod_fn)]
 fn handle_auth_debug_unlock_token(
     env: &mut RomEnv,
     request: &ProductionAuthDebugUnlockReq,
     challenge: &ProductionAuthDebugUnlockChallenge,
-) -> (CaliptraResult<()>, bool) {
+) -> (CaliptraResult<u32>, bool) {
     let mut response_sent = false;
     let result = (|| {
         let mbox = &mut env.mbox;
@@ -258,36 +280,56 @@ fn handle_auth_debug_unlock_token(
     (result, response_sent)
 }
 
+#[cfg_attr(feature = "cfi", cfi_mod_fn)]
 fn handle_production(env: &mut RomEnv) -> CaliptraResult<()> {
     cprintln!("[dbg_prod] ++");
 
     start_debug_unlock(env);
 
+    let mut unlock_status = cfi_launder(PROD_DBG_UNLOCK_INVALID);
     let (result, response_sent) = match handle_auth_debug_unlock_request(env) {
         (Ok((request, challenge)), request_response_sent) => {
             let (token_result, token_response_sent) =
                 handle_auth_debug_unlock_token(env, &request, &challenge);
-            (
-                token_result.map(|_| request.unlock_level),
-                request_response_sent || token_response_sent,
-            )
+            let mapped = match token_result {
+                Ok(status) => {
+                    cfi_assert_eq(status, PROD_DBG_UNLOCK_VALID);
+                    unlock_status = status;
+                    Ok((status, request.unlock_level))
+                }
+                Err(err) => Err(err),
+            };
+            (mapped, request_response_sent || token_response_sent)
         }
         (Err(err), response_sent) => (Err(err), response_sent),
     };
-    match result {
-        Ok(unlock_level) => {
+    let final_result = match result {
+        Ok((status, unlock_level))
+            if cfi_launder(status) == PROD_DBG_UNLOCK_VALID
+                && cfi_launder(unlock_status) == PROD_DBG_UNLOCK_VALID =>
+        {
+            cfi_assert_eq(status, PROD_DBG_UNLOCK_VALID);
+            cfi_assert_eq(unlock_status, PROD_DBG_UNLOCK_VALID);
+            cfi_assert_ne(u32::from(unlock_level), 0);
             env.soc_ifc.set_ss_dbg_unlock_level(unlock_level);
 
             cprintln!("[dbg_prod] Debug unlock successful");
             env.soc_ifc.set_ss_dbg_unlock_result(true);
+            Ok(())
         }
-        Err(_) => {
+        Ok(_) => {
             cprintln!("[dbg_prod] Debug unlock failed");
             env.soc_ifc.set_ss_dbg_unlock_result(false);
+            Err(CaliptraError::SS_DBG_UNLOCK_PROD_INVALID_TOKEN_INVALID_SIGNATURE)
         }
-    }
+        Err(err) => {
+            cprintln!("[dbg_prod] Debug unlock failed");
+            env.soc_ifc.set_ss_dbg_unlock_result(false);
+            Err(err)
+        }
+    };
     finish_debug_unlock(env, response_sent);
 
     cprintln!("[dbg_prod] --");
-    result.map(|_| ())
+    final_result
 }

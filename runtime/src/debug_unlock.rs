@@ -13,10 +13,13 @@ Abstract:
 --*/
 
 use crate::mutrefbytes;
-use caliptra_cfi_lib::CfiCounter;
-use caliptra_common::mailbox_api::{
-    ProductionAuthDebugUnlockChallenge, ProductionAuthDebugUnlockReq,
-    ProductionAuthDebugUnlockToken,
+use caliptra_cfi_lib::{cfi_assert_eq, cfi_assert_ne, cfi_launder, CfiCounter};
+use caliptra_common::{
+    debug_unlock::PROD_DBG_UNLOCK_VALID,
+    mailbox_api::{
+        ProductionAuthDebugUnlockChallenge, ProductionAuthDebugUnlockReq,
+        ProductionAuthDebugUnlockToken,
+    },
 };
 use caliptra_drivers::{CaliptraResult, Lifecycle};
 use caliptra_error::CaliptraError;
@@ -141,10 +144,16 @@ impl ProductionDebugUnlock {
         );
 
         let ret = match result {
-            Ok(()) => {
+            Ok(status) if cfi_launder(status) == PROD_DBG_UNLOCK_VALID => {
+                cfi_assert_eq(status, PROD_DBG_UNLOCK_VALID);
+                cfi_assert_ne(u32::from(request.unlock_level), 0);
                 soc_ifc.set_ss_dbg_unlock_level(request.unlock_level);
                 soc_ifc.set_ss_dbg_unlock_result(true);
                 Ok(0)
+            }
+            Ok(_) => {
+                soc_ifc.set_ss_dbg_unlock_result(false);
+                Err(CaliptraError::SS_DBG_UNLOCK_PROD_INVALID_TOKEN_INVALID_SIGNATURE)
             }
             Err(e) => {
                 soc_ifc.set_ss_dbg_unlock_result(false);
