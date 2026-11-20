@@ -107,6 +107,19 @@ The **Build and Test** workflow (`build-test.yml`) is the primary CI pipeline th
 
 ## Nightly Release Workflow
 
+The [HW 2.2 nightly release workflow](../../.github/workflows/nightly-release-2.2.yml)
+resolves `caliptra-2.2-dev` once and uses that SHA for all builds, tests, and
+artifact names. It tests current ROM source only, skips unchanged commits, and
+uses the separate `release_vYYYYMMDD_N-2.2` tag namespace.
+After emulator, core FPGA, and subsystem FPGA tests succeed, it runs the existing
+release packaging script with `CALIPTRA_HW_REV=2.2`, packages test artifacts, and
+creates a tagged draft prerelease and uploads `release-info-2-2` metadata.
+The website publication job queries the triggering repository and workflow
+branch, including runs dispatched on `caliptra-2.2-dev`. Other website callers
+continue to default to `main`.
+Scheduled execution still requires the workflow on the default branch or a
+default-branch dispatcher targeting `caliptra-2.2-dev`.
+
 ```mermaid
 graph TB
   subgraph Job_find [Job: find-latest-release-2-x]
