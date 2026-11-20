@@ -238,7 +238,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let release_runs = octocrab
         .workflows(&org, &repo)
         .list_runs(&workflow)
-        .branch("main")
+        .branch(&cli.branch)
         .send()
         .await?;
     log::info!("{}/{}:{}", org, repo, workflow);
