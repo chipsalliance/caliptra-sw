@@ -689,8 +689,8 @@ fn read_entropy_configuration(
     };
 
     // The Adaptive Proportion test fails if:
-    //  * In any window any single RNG lane has more than the HI threshold of 1's; or,
-    //  * Any RNG lane has less than the LO threshold of 1's.
+    //  * In any window an RNG lane reaches or exceeds the HI threshold of 1's; or,
+    //  * An RNG lane reaches or falls below the nonzero LO threshold of 1's.
     // (Each of the 4 RNG bus lanes is scored individually because the ROM configures
     // entropy_src with CONF.THRESHOLD_SCOPE = FALSE.)
     // See section 4.4.2 of NIST.SP.800-90B for more information about this test.

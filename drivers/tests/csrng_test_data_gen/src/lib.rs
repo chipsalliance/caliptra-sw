@@ -44,45 +44,45 @@ pub struct Spec {
 ///   * ROM defaults: HI = 768, LO = 256.
 ///   * SoC-supplied override (test_csrng_adaptive_proportion): HI = 612, LO = 412.
 pub const SPECS: &[Spec] = &[
-    // Boundary-pass at the default LO threshold (256 per lane).
+    // Just inside the default LO cutoff (256 per lane).
     Spec {
-        name: "1024_ones_3072_zeros",
-        per_lane: [256, 256, 256, 256],
+        name: "1028_ones_3068_zeros",
+        per_lane: [257, 257, 257, 257],
     },
-    // Boundary-pass at the default HI threshold (768 per lane).
+    // Just inside the default HI cutoff (768 per lane).
     Spec {
-        name: "3072_ones_1024_zeros",
-        per_lane: [768, 768, 768, 768],
+        name: "3068_ones_1028_zeros",
+        per_lane: [767, 767, 767, 767],
     },
-    // One lane below the default LO threshold.
+    // Only lane 0 reaches the default LO cutoff.
     Spec {
-        name: "1023_ones_3073_zeros",
-        per_lane: [255, 256, 256, 256],
+        name: "1027_ones_3069_zeros",
+        per_lane: [256, 257, 257, 257],
     },
-    // One lane above the default HI threshold.
+    // Only lane 0 reaches the default HI cutoff.
     Spec {
-        name: "3073_ones_1023_zeros",
-        per_lane: [769, 768, 768, 768],
+        name: "3069_ones_1027_zeros",
+        per_lane: [768, 767, 767, 767],
     },
-    // Boundary-pass at the SoC-supplied LO threshold (412 per lane).
+    // Just inside the SoC-supplied LO cutoff (412 per lane).
     Spec {
-        name: "1648_ones_2448_zeros",
-        per_lane: [412, 412, 412, 412],
+        name: "1652_ones_2444_zeros",
+        per_lane: [413, 413, 413, 413],
     },
-    // Boundary-pass at the SoC-supplied HI threshold (612 per lane).
+    // Just inside the SoC-supplied HI cutoff (612 per lane).
     Spec {
-        name: "2448_ones_1648_zeros",
-        per_lane: [612, 612, 612, 612],
+        name: "2444_ones_1652_zeros",
+        per_lane: [611, 611, 611, 611],
     },
-    // One lane below the SoC-supplied LO threshold.
+    // Only lane 0 reaches the SoC-supplied LO cutoff.
     Spec {
-        name: "1647_ones_2449_zeros",
-        per_lane: [411, 412, 412, 412],
+        name: "1651_ones_2445_zeros",
+        per_lane: [412, 413, 413, 413],
     },
-    // One lane above the SoC-supplied HI threshold.
+    // Only lane 0 reaches the SoC-supplied HI cutoff.
     Spec {
-        name: "2449_ones_1647_zeros",
-        per_lane: [613, 612, 612, 612],
+        name: "2445_ones_1651_zeros",
+        per_lane: [612, 611, 611, 611],
     },
 ];
 
@@ -95,7 +95,8 @@ fn longest_run<F: Fn(u8) -> u8>(bytes: &[u8], f: F) -> u32 {
     let mut run = 1u32;
     let mut max_run = 1u32;
     let mut prev = f(bytes[0]);
-    for &b in &bytes[1..] {
+    // The test feeds two identical startup windows; include their boundary.
+    for &b in bytes.iter().chain(bytes).skip(1) {
         let cur = f(b);
         if cur == prev {
             run += 1;
