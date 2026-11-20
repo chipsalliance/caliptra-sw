@@ -2,7 +2,7 @@
 
 use crate::test_activate_firmware::{TEST_SRAM_BASE, TEST_SRAM_SIZE};
 use crate::{
-    common::{assert_error, run_rt_test_pqc, RuntimeTestArgs, PQC_KEY_TYPE},
+    common::{assert_error, run_rt_test_pqc, warm_reset_when_idle, RuntimeTestArgs, PQC_KEY_TYPE},
     test_authorize_and_stash::IMAGE_DIGEST1,
     test_info::{get_fwinfo, get_fwinfo_allow_attestation_disabled},
 };
@@ -454,7 +454,7 @@ fn test_set_auth_manifest_fw_info() {
     assert_eq!(info.soc_manifest_min_svn, 2);
     assert_eq!(info.fw_svn, 12);
 
-    model.warm_reset_flow().unwrap();
+    warm_reset_when_idle(&mut model);
     let info = get_fwinfo_allow_attestation_disabled(&mut model);
     assert_eq!(info.soc_manifest_current_svn, 3);
     assert_eq!(info.soc_manifest_min_svn, 2);

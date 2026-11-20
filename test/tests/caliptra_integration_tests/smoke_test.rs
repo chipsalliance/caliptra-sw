@@ -457,7 +457,7 @@ fn smoke_test() {
                 String::from_utf8_lossy(&fmc_alias_cert.to_text().unwrap())
             );
 
-            let owner_pk_in_fuses = (fuses.owner_pk_hash != [0u32; 12]) && !hw.subsystem_mode();
+            let owner_pk_in_fuses = fuses.owner_pk_hash != [0u32; 12];
 
             let mut hasher = Sha384::new();
             hasher.update(&owner_pk_hash);

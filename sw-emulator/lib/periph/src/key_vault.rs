@@ -211,7 +211,10 @@ impl KeyVault {
             if transition == BootTransition::Runtime && [6, 7, 8].contains(&id) {
                 regs.key_control[id].modify(KV_CONTROL::USE_LOCK::SET);
             }
-            if !(rom_key || optional_key || (transition == BootTransition::Runtime && rt_key)) {
+            // Like the RTL, clear unused slots only on cold boot.
+            if state.cold_boot
+                && !(rom_key || optional_key || (transition == BootTransition::Runtime && rt_key))
+            {
                 let start = id * KeyVault::KEY_SIZE;
                 regs.keys.data_mut()[start..start + KeyVault::KEY_SIZE].fill(0);
                 regs.key_control[id]
@@ -896,6 +899,35 @@ mod tests {
                     assert_boot_slot_cleared(&vault, id);
                 }
             }
+        }
+    }
+
+    #[test]
+    fn test_boot_transitions_preserve_unused_keys_after_reset() {
+        for update in [false, true] {
+            let (mut vault, state) = boot_vault(false, false);
+            populate_boot_keys(&mut vault, [4, 2, 2]);
+            for (id, usage) in [(4, 0x15), (5, 8), (9, 4)] {
+                vault.write_key(id, &[id as u8 + 1; 48], usage).unwrap();
+            }
+            if update {
+                vault.update_reset();
+            } else {
+                vault.warm_reset();
+            }
+            state.borrow_mut().reset(update);
+            vault.write_key(23, &[0x5a; 48], 1).unwrap();
+
+            vault.boot_transition(BootTransition::Fmc);
+            vault.boot_transition(BootTransition::Runtime);
+            assert_eq!(state.borrow().fatal_error, 0);
+            for id in [4, 5, 9] {
+                assert_eq!(
+                    vault.regs.borrow().key_control[id].read(KV_CONTROL::WRITE_LOCK),
+                    1
+                );
+            }
+            assert_eq!(vault.read_key(23, KeyUsage(1)).unwrap()[..48], [0x5a; 48]);
         }
     }
 

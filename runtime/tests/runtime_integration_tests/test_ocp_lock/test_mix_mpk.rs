@@ -7,6 +7,8 @@ use caliptra_api::mailbox::{
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{HwModel, ModelError};
 
+use crate::common::warm_reset_when_idle;
+
 use super::{
     boot_ocp_lock_runtime, get_enabled_mpk, get_validated_hpke_handle, validate_ocp_lock_response,
     InitializeMekSecretParams, OcpLockBootParams,
@@ -93,7 +95,7 @@ fn test_mix_mpk_warm_reset() {
         let _ = response.unwrap().unwrap();
     });
 
-    model.warm_reset_flow().unwrap();
+    warm_reset_when_idle(&mut model);
 
     let mut cmd = MailboxReq::OcpLockInitializeMekSecret(OcpLockInitializeMekSecretReq {
         sek: [0xAB; 32],
