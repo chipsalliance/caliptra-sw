@@ -173,11 +173,11 @@ impl RtAliasLayer {
                 (
                     Ecc384KeyPair {
                         priv_key: HandOff::fmc_ecc_priv_key(env),
-                        pub_key: HandOff::fmc_ecc_pub_key(env),
+                        pub_key: *HandOff::fmc_ecc_pub_key(env),
                     },
                     MlDsaKeyPair {
                         key_pair_seed: HandOff::fmc_mldsa_keypair_seed_key(env),
-                        pub_key: HandOff::fmc_mldsa_pub_key(env),
+                        pub_key: *HandOff::fmc_mldsa_pub_key(env),
                     },
                 )
             };
