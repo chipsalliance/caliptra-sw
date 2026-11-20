@@ -1,0 +1,20 @@
+# Licensed under the Apache-2.0 license
+
+# This file is here only so that the workflow can be dispatched on the caliptra-2.2-dev branch
+
+name: Nightly Release 2.2
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  placeholder:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Explain branch selection
+        run: |
+          echo "::error::This is only a placeholder. Run this workflow on caliptra-2.2-dev."
+          exit 1

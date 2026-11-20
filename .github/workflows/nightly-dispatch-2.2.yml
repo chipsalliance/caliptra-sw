@@ -1,6 +1,6 @@
 # Licensed under the Apache-2.0 license
 
-name: Nightly Tests HW 2.2 dispatcher 
+name: Nightly 2.2 dispatcher 
 
 on:
   workflow_dispatch:
@@ -16,8 +16,14 @@ jobs:
   dispatch_nightly_caliptra_2_2_dev:
     runs-on: ubuntu-latest
     timeout-minutes: 310
+    strategy:
+      fail-fast: false
+      matrix:
+        workflow:
+          - nightly-release-2.2.yml
     env:
       TARGET_REF: caliptra-2.2-dev
+      TARGET_WORKFLOW: ${{ matrix.workflow }}
     steps:
       - name: Launch and monitor nightly workflow
         uses: actions/github-script@v8
@@ -25,7 +31,7 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const targetRef = process.env.TARGET_REF;
-            const workflowId = "nightly-test-2.2.yml";
+            const workflowId =  process.env.TARGET_WORKFLOW; 
             const startedAt = new Date().toISOString();
 
             await github.request("POST /repos/{owner}/{repo}/actions/workflows/{workflow_id}/dispatches", {
