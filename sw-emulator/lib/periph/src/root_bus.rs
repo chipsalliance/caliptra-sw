@@ -15,7 +15,9 @@ Abstract:
 use crate::{
     abr::Abr,
     aes_clp::AesKeyReleaseOp,
+    csrng::SecondaryEntropySource,
     dma::Dma,
+    entropy_combiner::EntropyCombiner,
     helpers::words_from_bytes_be,
     iccm::Iccm,
     mci::Mci,
@@ -424,6 +426,13 @@ pub struct CaliptraRootBus {
     #[peripheral(offset = 0x2000_2000, len = 0x10e4)]
     pub csrng: Csrng,
 
+    #[peripheral(offset = 0x2000_4000, len = 0x1000)]
+    entropy_src1: SecondaryEntropySource,
+
+    #[peripheral(offset = 0x2000_5000, len = 0x1000)]
+    entropy_combiner: EntropyCombiner,
+    entropy_clock: Rc<Clock>,
+
     #[peripheral(offset = 0x2000_f000, len = 0x4)]
     pub ctrl: EmuCtrl,
 
@@ -486,7 +495,10 @@ impl CaliptraRootBus {
             key_vault.clear_keys_with_debug_values(false);
         }
         let mut sha512_acc = Sha512Accelerator::new(clock, mailbox_ram.clone());
-        sha512_acc.attach_boot_integrity(integrity);
+        sha512_acc.attach_boot_integrity(integrity.clone());
+        let mut entropy_combiner =
+            EntropyCombiner::new(clock.clone(), hw_version >= CaliptraHwVersion::V2_2);
+        entropy_combiner.attach_boot_integrity(integrity);
 
         let aes_key = Rc::new(RefCell::new(None));
         let aes_destination = Rc::new(RefCell::new(AesKeyReleaseOp::default()));
@@ -537,9 +549,26 @@ impl CaliptraRootBus {
             sha512_acc,
             dma,
             csrng: Csrng::new(itrng_nibbles.unwrap()),
+            entropy_src1: SecondaryEntropySource::default(),
+            entropy_combiner,
+            entropy_clock: clock.clone(),
             pic_regs: pic.mmio_regs(clock.clone()),
             mci,
         }
+    }
+
+    pub fn entropy_combiner_kat_starts(&self) -> u64 {
+        self.entropy_combiner.kat_starts()
+    }
+
+    pub fn enable_secondary_itrng(&mut self, nibbles: Box<dyn Iterator<Item = u8>>) {
+        self.entropy_src1 = SecondaryEntropySource::new(nibbles, self.entropy_clock.clone());
+        self.csrng.enable_dual(
+            self.entropy_src1.clone(),
+            self.entropy_clock.clone(),
+            self.entropy_combiner.link(),
+        );
+        self.entropy_combiner.set_dual();
     }
 
     pub fn soc_to_caliptra_bus(&self, soc_user: MailboxRequester) -> SocToCaliptraBus {

@@ -309,6 +309,10 @@ pub struct InitParams<'a> {
     // peripheral).
     pub itrng_nibbles: Box<dyn Iterator<Item = u8> + Send>,
 
+    /// ES1 stimulus for the software emulator. Some enables the subsystem
+    /// dual-iTRNG strap; None preserves the existing single-source model.
+    pub itrng1_nibbles: Option<Box<dyn Iterator<Item = u8> + Send>>,
+
     // Pre-conditioned TRNG responses to return over the soc_ifc CPTRA_TRNG_DATA
     // registers in response to requests via CPTRA_TRNG_STATUS
     pub etrng_responses: Box<dyn Iterator<Item = EtrngResponse> + Send>,
@@ -381,6 +385,7 @@ impl Default for InitParams<'_> {
             cptra_obf_key: DEFAULT_CPTRA_OBF_KEY,
             csr_hmac_key: DEFAULT_CSR_HMAC_KEY,
             itrng_nibbles,
+            itrng1_nibbles: None,
             etrng_responses,
             trng_mode: Some(if cfg!(feature = "itrng") {
                 TrngMode::Internal
@@ -440,6 +445,8 @@ pub type ItrngEntropyConfig0WriteVal =
     <caliptra_registers::soc_ifc::meta::CptraItrngEntropyConfig0 as caliptra_ureg::WritableReg>::WriteVal;
 pub type ItrngEntropyConfig1WriteVal =
     <caliptra_registers::soc_ifc::meta::CptraItrngEntropyConfig1 as caliptra_ureg::WritableReg>::WriteVal;
+pub type ItrngEntropyConfig2WriteVal =
+    <caliptra_registers::soc_ifc::meta::CptraItrngEntropyConfig2 as caliptra_ureg::WritableReg>::WriteVal;
 pub type FwFeatureCfgWriteVal =
     <caliptra_registers::soc_ifc::meta::SsFwFeatureCfg as caliptra_ureg::WritableReg>::WriteVal;
 
@@ -449,6 +456,8 @@ pub struct BootParams<'a> {
     pub initial_dbg_manuf_service_reg: u32,
     pub initial_repcnt_thresh_reg: Option<ItrngEntropyConfig1WriteVal>,
     pub initial_adaptp_thresh_reg: Option<ItrngEntropyConfig0WriteVal>,
+    /// CPTRA_iTRNG_ENTROPY_CONFIG_2 (window, single-bit mode, bypass) for ES0.
+    pub initial_entropy_config_2: Option<ItrngEntropyConfig2WriteVal>,
     pub initial_ss_strap_generic_2: Option<u32>,
     pub initial_ss_strap_generic_3: Option<u32>,
     pub initial_ss_fw_feature_cfg: Option<FwFeatureCfgWriteVal>,
@@ -470,6 +479,7 @@ impl Default for BootParams<'_> {
             initial_dbg_manuf_service_reg: Default::default(),
             initial_repcnt_thresh_reg: Default::default(),
             initial_adaptp_thresh_reg: Default::default(),
+            initial_entropy_config_2: Default::default(),
             initial_ss_strap_generic_2: Default::default(),
             initial_ss_strap_generic_3: Default::default(),
             initial_ss_fw_feature_cfg: None,
@@ -930,22 +940,7 @@ pub trait HwModel: SocManager {
                 return Err("SS_FW_FEATURE_CFG boot override was not applied".into());
             }
         }
-        if let Some(reg) = boot_params.initial_repcnt_thresh_reg {
-            let soc_ifc = self.soc_ifc();
-            let config = soc_ifc.cptra_i_trng_entropy_config_1();
-            config.write(|_| reg);
-            if u32::from(config.read()) != u32::from(reg) {
-                return Err("CPTRA_I_TRNG_ENTROPY_CONFIG_1 boot override was not applied".into());
-            }
-        }
-        if let Some(reg) = boot_params.initial_adaptp_thresh_reg {
-            let soc_ifc = self.soc_ifc();
-            let config = soc_ifc.cptra_i_trng_entropy_config_0();
-            config.write(|_| reg);
-            if u32::from(config.read()) != u32::from(reg) {
-                return Err("CPTRA_I_TRNG_ENTROPY_CONFIG_0 boot override was not applied".into());
-            }
-        }
+        self.write_initial_entropy_config(&boot_params)?;
 
         HwModel::init_fuses(self);
 
@@ -1038,6 +1033,40 @@ pub trait HwModel: SocManager {
     /// The TRNG mode used by this model.
     fn trng_mode(&self) -> TrngMode;
 
+    /// Provision the ES0 iTRNG entropy configuration requested in `BootParams`.
+    /// Must run before CPTRA_FUSE_WR_DONE, which locks these registers until
+    /// power-good reset. Fails if a write did not take.
+    fn write_initial_entropy_config(
+        &mut self,
+        boot_params: &BootParams,
+    ) -> Result<(), Box<dyn Error>> {
+        if let Some(reg) = boot_params.initial_adaptp_thresh_reg {
+            let soc_ifc = self.soc_ifc();
+            let config = soc_ifc.cptra_i_trng_entropy_config_0();
+            config.write(|_| reg);
+            if u32::from(config.read()) != u32::from(reg) {
+                return Err("CPTRA_I_TRNG_ENTROPY_CONFIG_0 boot override was not applied".into());
+            }
+        }
+        if let Some(reg) = boot_params.initial_repcnt_thresh_reg {
+            let soc_ifc = self.soc_ifc();
+            let config = soc_ifc.cptra_i_trng_entropy_config_1();
+            config.write(|_| reg);
+            if u32::from(config.read()) != u32::from(reg) {
+                return Err("CPTRA_I_TRNG_ENTROPY_CONFIG_1 boot override was not applied".into());
+            }
+        }
+        if let Some(reg) = boot_params.initial_entropy_config_2 {
+            let soc_ifc = self.soc_ifc();
+            let config = soc_ifc.cptra_i_trng_entropy_config_2();
+            config.write(|_| reg);
+            if u32::from(config.read()) != u32::from(reg) {
+                return Err("CPTRA_I_TRNG_ENTROPY_CONFIG_2 boot override was not applied".into());
+            }
+        }
+        Ok(())
+    }
+
     /// Trigger a warm reset and advance the boot
     fn warm_reset_flow(&mut self) -> Result<(), Box<dyn Error>>
     where
@@ -1045,10 +1074,6 @@ pub trait HwModel: SocManager {
     {
         // Store non-persistent config regs set at boot
         let dbg_manuf_service_reg = self.soc_ifc().cptra_dbg_manuf_service_reg().read();
-        let i_trng_entropy_config_1: u32 =
-            self.soc_ifc().cptra_i_trng_entropy_config_1().read().into();
-        let i_trng_entropy_config_0: u32 =
-            self.soc_ifc().cptra_i_trng_entropy_config_0().read().into();
         // Store mbox pausers
         let mut valid_pausers: Vec<u32> = Vec::new();
         for i in 0..caliptra_api::soc_mgr::NUM_PAUSERS {
@@ -1080,12 +1105,6 @@ pub trait HwModel: SocManager {
         self.soc_ifc()
             .cptra_dbg_manuf_service_reg()
             .write(|_| dbg_manuf_service_reg);
-        self.soc_ifc()
-            .cptra_i_trng_entropy_config_1()
-            .write(|_| i_trng_entropy_config_1.into());
-        self.soc_ifc()
-            .cptra_i_trng_entropy_config_0()
-            .write(|_| i_trng_entropy_config_0.into());
 
         // Re-set the valid pausers
         self.setup_mailbox_users(valid_pausers.as_slice())

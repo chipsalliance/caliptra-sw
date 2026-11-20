@@ -44,6 +44,7 @@ mod data_vault;
 pub mod dma;
 mod doe;
 mod ecc384;
+mod entropy_combiner;
 mod error_reporter;
 mod exit_ctrl;
 #[cfg(feature = "fips-test-hooks")]
@@ -110,6 +111,7 @@ pub use ecc384::{
     Ecc384, Ecc384PrivKeyIn, Ecc384PrivKeyOut, Ecc384PubKey, Ecc384Result, Ecc384Scalar,
     Ecc384Seed, Ecc384Signature,
 };
+pub use entropy_combiner::entropy_combiner_kat_and_lock;
 pub use error_reporter::{
     clear_fw_error_non_fatal, get_fw_error_non_fatal, report_fw_error_fatal,
     report_fw_error_non_fatal,

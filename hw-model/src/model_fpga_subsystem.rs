@@ -2101,6 +2101,7 @@ impl HwModel for ModelFpgaSubsystem {
         if let Some(reg) = boot_params.initial_ss_strap_generic_2 {
             self.soc_ifc().ss_strap_generic().at(2).write(|_| reg);
         }
+        self.write_initial_entropy_config(&boot_params)?;
 
         if let Some(reg) = boot_params.initial_ss_strap_generic_3 {
             self.soc_ifc().ss_strap_generic().at(3).write(|_| reg);
@@ -2243,18 +2244,6 @@ impl HwModel for ModelFpgaSubsystem {
         //     .cptra_wdt_cfg()
         //     .at(1)
         //     .write(|_| (boot_params.wdt_timeout_cycles >> 32) as u32);
-
-        // if let Some(reg) = boot_params.initial_repcnt_thresh_reg {
-        //     self.soc_ifc()
-        //         .cptra_i_trng_entropy_config_1()
-        //         .write(|_| reg);
-        // }
-
-        // if let Some(reg) = boot_params.initial_adaptp_thresh_reg {
-        //     self.soc_ifc()
-        //         .cptra_i_trng_entropy_config_0()
-        //         .write(|_| reg);
-        // }
 
         // TODO: support passing these into MCU ROM
 
@@ -2605,10 +2594,6 @@ impl HwModel for ModelFpgaSubsystem {
     {
         // Store non-persistent config regs set at boot
         let _dbg_manuf_service_reg = self.soc_ifc().cptra_dbg_manuf_service_reg().read();
-        let _i_trng_entropy_config_1: u32 =
-            self.soc_ifc().cptra_i_trng_entropy_config_1().read().into();
-        let _i_trng_entropy_config_0: u32 =
-            self.soc_ifc().cptra_i_trng_entropy_config_0().read().into();
         // Store mbox pausers
         let mut valid_pausers: Vec<u32> = Vec::new();
         for i in 0..caliptra_api::soc_mgr::NUM_PAUSERS {
@@ -2638,12 +2623,6 @@ impl HwModel for ModelFpgaSubsystem {
         // self.soc_ifc()
         //     .cptra_dbg_manuf_service_reg()
         //     .write(|_| dbg_manuf_service_reg);
-        // self.soc_ifc()
-        //     .cptra_i_trng_entropy_config_1()
-        //     .write(|_| i_trng_entropy_config_1.into());
-        // self.soc_ifc()
-        //     .cptra_i_trng_entropy_config_0()
-        //     .write(|_| i_trng_entropy_config_0.into());
 
         // // Re-set the valid pausers
         // self.setup_mailbox_users(valid_pausers.as_slice())

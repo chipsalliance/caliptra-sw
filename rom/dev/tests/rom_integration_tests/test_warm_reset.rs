@@ -23,6 +23,90 @@ use crate::helpers;
 
 #[test]
 fn test_warm_reset_success() {
+    check_warm_reset_success(false);
+}
+
+#[cfg(not(any(
+    feature = "verilator",
+    feature = "fpga_realtime",
+    feature = "fpga_subsystem"
+)))]
+#[test]
+fn test_dual_itrng_cold_and_warm_reset() {
+    check_warm_reset_success(true);
+}
+
+/// ROM must fail closed, not fall back to ES0, when ES1 never delivers.
+#[cfg(not(any(
+    feature = "verilator",
+    feature = "fpga_realtime",
+    feature = "fpga_subsystem"
+)))]
+#[test]
+fn test_dual_itrng_missing_es1_is_fatal_in_rom() {
+    let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env_fpga(cfg!(
+        feature = "fpga_subsystem"
+    )))
+    .unwrap();
+    let mut hw = caliptra_hw_model::new_unbooted(InitParams {
+        rom: &rom,
+        subsystem_mode: true,
+        trng_mode: Some(caliptra_hw_model::TrngMode::Internal),
+        itrng1_nibbles: Some(Box::new(core::iter::empty())),
+        ss_init_params: SubsystemInitParams {
+            enable_mcu_uart_log: cfg!(feature = "fpga_subsystem"),
+            ..Default::default()
+        },
+        ..Default::default()
+    })
+    .unwrap();
+    assert!(hw.soc_ifc().cptra_hw_config().read().dual_i_trng_en());
+    hw.boot(BootParams::default()).unwrap();
+    let start = std::time::Instant::now();
+    while hw.soc_ifc().cptra_fw_error_fatal().read() == 0 {
+        assert!(
+            start.elapsed() < std::time::Duration::from_secs(300),
+            "ROM did not report a fatal error with ES1 withheld"
+        );
+        assert!(!hw.soc_ifc().cptra_flow_status().read().ready_for_runtime());
+        hw.step();
+    }
+    assert_eq!(
+        hw.soc_ifc().cptra_fw_error_fatal().read(),
+        u32::from(CaliptraError::DRIVER_ENTROPY_COMBINER_ENTROPY_TIMEOUT)
+    );
+    // ready_for_fw() is unconditionally true on the FPGA subsystem model.
+    let flow = hw.soc_ifc().cptra_flow_status().read();
+    assert!(!flow.ready_for_mb_processing() && !flow.ready_for_runtime());
+}
+
+#[cfg(not(any(
+    feature = "verilator",
+    feature = "fpga_realtime",
+    feature = "fpga_subsystem"
+)))]
+#[test]
+fn test_dual_itrng_sticky_fault_is_fatal_in_rom() {
+    let rom = caliptra_builder::build_firmware_rom(helpers::rom_from_env()).unwrap();
+    let mut hw = caliptra_hw_model::new_unbooted(InitParams {
+        rom: &rom,
+        subsystem_mode: true,
+        trng_mode: Some(caliptra_hw_model::TrngMode::Internal),
+        itrng1_nibbles: Some(InitParams::default().itrng_nibbles),
+        ..Default::default()
+    })
+    .unwrap();
+    hw.inject_entropy_combiner_error(1);
+    hw.boot(BootParams::default()).unwrap();
+    hw.step_until_fatal_error(
+        CaliptraError::DRIVER_ENTROPY_COMBINER_HW_FAULT.into(),
+        20_000_000,
+    );
+    assert_eq!(hw.entropy_combiner_kat_starts(), 0);
+    assert!(!hw.ready_for_fw());
+}
+
+fn check_warm_reset_success(dual_itrng: bool) {
     let security_state = *SecurityState::default()
         .set_debug_locked(true)
         .set_device_lifecycle(DeviceLifecycle::Production);
@@ -57,38 +141,97 @@ fn test_warm_reset_success() {
         ..Default::default()
     };
 
-    let mut hw = caliptra_hw_model::new(
-        InitParams {
-            fuses: Fuses {
-                vendor_pk_hash: vendor_pk_desc_hash,
-                owner_pk_hash,
-                fw_svn: [0x7F, 0, 0, 0], // Equals 7
-                ..Default::default()
-            },
-            rom: &rom,
-            subsystem_mode: true,
-            security_state,
-            ss_init_params: SubsystemInitParams {
-                enable_mcu_uart_log: cfg!(feature = "fpga_subsystem"),
-                ..Default::default()
-            },
+    let mut hw = caliptra_hw_model::new_unbooted(InitParams {
+        fuses: Fuses {
+            vendor_pk_hash: vendor_pk_desc_hash,
+            owner_pk_hash,
+            fw_svn: [0x7F, 0, 0, 0], // Equals 7
             ..Default::default()
         },
-        boot_params.clone(),
-    )
+        rom: &rom,
+        subsystem_mode: true,
+        security_state,
+        trng_mode: if dual_itrng {
+            Some(caliptra_hw_model::TrngMode::Internal)
+        } else {
+            InitParams::default().trng_mode
+        },
+        itrng1_nibbles: dual_itrng.then(|| InitParams::default().itrng_nibbles),
+        ss_init_params: SubsystemInitParams {
+            enable_mcu_uart_log: cfg!(feature = "fpga_subsystem"),
+            ..Default::default()
+        },
+        ..Default::default()
+    })
     .unwrap();
-
-    // Wait for boot
-    while !hw.soc_ifc().cptra_flow_status().read().ready_for_runtime() {
-        hw.step();
+    if dual_itrng {
+        let regs = hw.soc_ifc();
+        regs.cptra_i_trng_entropy_config_0()
+            .write(|w| w.low_threshold(251).high_threshold(771));
+        regs.cptra_i_trng_entropy_config_1()
+            .write(|w| w.repetition_count(56).alert_threshold(3));
+        regs.cptra_i_trng_entropy_config_2().write(|w| {
+            w.fips_window_size(1024)
+                .single_bit_mode(true)
+                .rng_bit_sel(2)
+        });
+        regs.cptra_i_trng1_entropy_config_0()
+            .write(|w| w.high_threshold(325));
+        regs.cptra_i_trng1_entropy_config_1()
+            .write(|w| w.repetition_count(59).alert_threshold(4));
+        regs.cptra_i_trng1_entropy_config_2()
+            .write(|w| w.fips_window_size(512));
     }
+    if dual_itrng {
+        assert!(hw.soc_ifc().cptra_hw_config().read().dual_i_trng_en());
+    }
+    hw.boot(boot_params).unwrap();
 
-    // Perform warm reset
+    let wait_for_runtime = |hw: &mut DefaultHwModel| {
+        hw.step_until_or_timeout("Runtime ready", 20_000_000, |m| {
+            let regs = m.soc_ifc();
+            assert_eq!(regs.cptra_fw_error_fatal().read(), 0);
+            regs.cptra_flow_status().read().ready_for_runtime()
+        });
+    };
+    wait_for_runtime(&mut hw);
+    #[cfg(not(any(
+        feature = "verilator",
+        feature = "fpga_realtime",
+        feature = "fpga_subsystem"
+    )))]
+    if dual_itrng {
+        assert_eq!(hw.entropy_combiner_kat_starts(), 1);
+    }
     hw.warm_reset_flow().unwrap();
-
-    // Wait for boot
-    while !hw.soc_ifc().cptra_flow_status().read().ready_for_runtime() {
-        hw.step();
+    wait_for_runtime(&mut hw);
+    #[cfg(not(any(
+        feature = "verilator",
+        feature = "fpga_realtime",
+        feature = "fpga_subsystem"
+    )))]
+    if dual_itrng {
+        assert_eq!(hw.entropy_combiner_kat_starts(), 2);
+    }
+    if dual_itrng {
+        hw.output().take(usize::MAX);
+        helpers::test_start_firmware_load(&mut hw, &binding);
+        assert_eq!(hw.finish_mailbox_execute(), Ok(None));
+        // On FPGA, log output from before the update can still arrive late, so
+        // only accept a Runtime banner printed after the update-reset success.
+        hw.step_until_or_timeout("updated Runtime listening", 20_000_000, |m| {
+            assert_eq!(m.soc_ifc().cptra_fw_error_fatal().read(), 0);
+            let out = m.output().peek();
+            out.find("[update-reset Success]")
+                .is_some_and(|i| out[i..].contains("[rt] RT listening for mailbox commands"))
+        });
+        #[cfg(not(any(
+            feature = "verilator",
+            feature = "fpga_realtime",
+            feature = "fpga_subsystem"
+        )))]
+        assert_eq!(hw.entropy_combiner_kat_starts(), 2);
+        wait_for_runtime(&mut hw);
     }
 }
 

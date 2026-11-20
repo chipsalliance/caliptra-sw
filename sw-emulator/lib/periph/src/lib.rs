@@ -23,6 +23,7 @@ mod csrng;
 pub mod dma;
 mod doe;
 mod emu_ctrl;
+mod entropy_combiner;
 mod hash_sha256;
 mod hash_sha3;
 mod hash_sha512;

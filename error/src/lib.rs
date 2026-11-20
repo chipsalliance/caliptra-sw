@@ -1085,6 +1085,31 @@ impl CaliptraError {
             "CSRNG Error: entropy_src MODULE_ENABLE already set before ROM configuration"
         ),
         (
+            DRIVER_ENTROPY_COMBINER_HW_FAULT,
+            0x000d000a,
+            "Entropy combiner reported a hardware fault"
+        ),
+        (
+            DRIVER_ENTROPY_COMBINER_BAD_STATE,
+            0x000d000b,
+            "Entropy combiner is not in the required state"
+        ),
+        (
+            DRIVER_ENTROPY_COMBINER_KAT_MISMATCH,
+            0x000d000c,
+            "Entropy combiner KAT digest mismatch"
+        ),
+        (
+            DRIVER_ENTROPY_COMBINER_KAT_TIMEOUT,
+            0x000d000d,
+            "Entropy combiner KAT timed out"
+        ),
+        (
+            DRIVER_ENTROPY_COMBINER_ENTROPY_TIMEOUT,
+            0x000d000e,
+            "Timed out waiting for dual-source entropy"
+        ),
+        (
             DRIVER_HANDOFF_INVALID_VAULT,
             0x000D100,
             "Driver Handoff Error: Invalid vault"
