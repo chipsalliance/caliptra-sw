@@ -18,7 +18,7 @@ Abstract:
 
 use crate::rom_env::RomEnvFips;
 use crate::{lock::lock_registers, print::HexBytes};
-use caliptra_cfi_lib::{cfi_assert_eq, CfiCounter};
+use caliptra_cfi_lib::{cfi_assert_eq, cfi_launder, CfiCounter};
 use caliptra_common::RomBootStatus::{KatComplete, KatStarted};
 use caliptra_common::{handle_fatal_error, RomBootStatus};
 use caliptra_kat::*;
@@ -231,7 +231,8 @@ pub extern "C" fn rom_entry() -> ! {
         // we will need to continue to jump to the FMC after
         // reporting the error in the registers.
         //
-        if reset_reason == ResetReason::UpdateReset {
+        if cfi_launder(reset_reason) == ResetReason::UpdateReset {
+            cfi_assert_eq(env.soc_ifc.reset_reason(), ResetReason::UpdateReset);
             handle_non_fatal_error(err.into());
         } else {
             handle_fatal_error(err.into());
