@@ -112,13 +112,6 @@ impl DoeTestVectors {
 
         result
             .expected_test_results
-            .hmac_field_entropy_as_key_out_pub = ecdsa_keygen(&hmac384(
-            swap_word_bytes(&result.doe_output.field_entropy).as_bytes(),
-            "Hello world!".as_bytes(),
-        ));
-
-        result
-            .expected_test_results
             .hmac_field_entropy_as_data_out_pub = ecdsa_keygen(&hmac384(
             swap_word_bytes(&caliptra_drivers_test_bin::DOE_TEST_HMAC_KEY).as_bytes(),
             swap_word_bytes(&result.doe_output.field_entropy[0..8]).as_bytes(),
@@ -177,16 +170,6 @@ const DOE_TEST_VECTORS_DEBUG_MODE: DoeTestVectors = DoeTestVectors {
             y: Array4xN([
                 2923137036, 2125179915, 3914711845, 1282782339, 2731413282, 1946917941, 968766149,
                 1347975894, 3058578942, 1092934175, 3697179863, 384277117,
-            ]),
-        },
-        hmac_field_entropy_as_key_out_pub: Ecc384PubKey {
-            x: Array4xN([
-                2239914737, 538068278, 2639025677, 1218690763, 2952038842, 1448164004, 2126938572,
-                1397119203, 3400164743, 1553307000, 1579829226, 1671197033,
-            ]),
-            y: Array4xN([
-                3709694348, 821080470, 4215236444, 3339301837, 1042205687, 3394791030, 4205793518,
-                3991744897, 1399279513, 2065955491, 4026223323, 2237883749,
             ]),
         },
         hmac_field_entropy_as_data_out_pub: Ecc384PubKey {
@@ -279,16 +262,6 @@ const DOE_TEST_VECTORS: DoeTestVectors = DoeTestVectors {
             y: Array4xN([
                 22369564, 4258207111, 2470951412, 780425899, 3219800193, 2514363082, 1688427174,
                 2372591398, 2334049956, 4294170300, 3076839425, 1889260056,
-            ]),
-        },
-        hmac_field_entropy_as_key_out_pub: Ecc384PubKey {
-            x: Array4xN([
-                4052491145, 4186721582, 3342395483, 1632463994, 3193016662, 2204970242, 3835027544,
-                2485671111, 2469363717, 1330346930, 2623488737, 1958899419,
-            ]),
-            y: Array4xN([
-                869015362, 1303913274, 842048451, 2998827085, 1486265410, 3771523089, 3956677016,
-                2319947800, 4167697556, 3174143636, 820486910, 130118441,
             ]),
         },
         hmac_field_entropy_as_data_out_pub: Ecc384PubKey {

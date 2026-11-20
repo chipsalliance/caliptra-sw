@@ -194,8 +194,8 @@ pub struct HmacSha {
     #[register(offset = 0x0000_0614)]
     tag_write_status: ReadOnlyRegister<u32, TagWriteStatus::Register>,
 
-    // True if the current key was read from the key-vault
-    key_from_kv: bool,
+    // Stored byte length if the current key was read from the key vault.
+    kv_key_len: Option<usize>,
 
     // True if the current block was read from the key-vault
     block_from_kv: bool,
@@ -273,7 +273,7 @@ impl HmacSha {
             tag_write_status: ReadOnlyRegister::new(TagWriteStatus::READY::SET.value),
             key_vault,
             timer: Timer::new(clock),
-            key_from_kv: false,
+            kv_key_len: None,
             block_from_kv: false,
             hide_tag_from_cpu: false,
             op_complete_action: None,
@@ -298,8 +298,7 @@ impl HmacSha {
     }
 
     fn on_write_key(&mut self, _size: RvSize, index: usize, val: RvData) -> Result<(), BusError> {
-        if self.key_from_kv {
-            self.key_from_kv = false;
+        if self.kv_key_len.take().is_some() {
             self.key.fill(0);
         }
         self.key[index] = val;
@@ -364,10 +363,9 @@ impl HmacSha {
             let mode512 = self.control.reg.is_set(Control::MODE);
 
             // If CSR mode is set, use the pre-defined key.
-            // Also reset the key_from_kv flag since the key is not read from the key-vault.
             if self.control.reg.is_set(Control::CSR_MODE) {
                 self.key = self.csr_key;
-                self.key_from_kv = false;
+                self.kv_key_len = None;
             }
 
             if self.control.reg.is_set(Control::INIT) {
@@ -566,9 +564,12 @@ impl HmacSha {
         // Retrieve the tag
         let key_len = self.key_len();
 
-        // the hardware will not return the tag if HMAC512 is used with a truncated input from KV,
-        // and instead returns ready = true and valid = false.
-        if self.key_from_kv && key_len == 16 && self.key[12..16].iter().all(|&x| x == 0) {
+        // The vault read starts before the mode is set. Check the stored length
+        // when the key is used, not when it is loaded.
+        if self.kv_key_len.is_some_and(|len| {
+            len < key_len * core::mem::size_of::<u32>()
+                || (key_len == 16 && self.key[12..16].iter().all(|&x| x == 0))
+        }) {
             self.status
                 .reg
                 .modify(Status::READY::SET + Status::VALID::CLEAR);
@@ -576,7 +577,7 @@ impl HmacSha {
         }
         // the hardware will not return the tag if HMAC512 is used with a 0 key from KV,
         // and instead returns ready = true and valid = false.
-        if self.key_from_kv && self.key.iter().all(|&x| x == 0) {
+        if self.kv_key_len.is_some() && self.key.iter().all(|&x| x == 0) {
             self.status
                 .reg
                 .modify(Status::READY::SET + Status::VALID::CLEAR);
@@ -592,7 +593,7 @@ impl HmacSha {
         }
         // Don't reveal the tag to the CPU if the inputs came from the
         // key-vault.
-        self.hide_tag_from_cpu = self.block_from_kv || self.key_from_kv;
+        self.hide_tag_from_cpu = self.block_from_kv || self.kv_key_len.is_some();
 
         // Check if tag control is enabled.
         if self
@@ -612,11 +613,10 @@ impl HmacSha {
                 .modify(TagWriteControl::KEY_WRITE_EN::CLEAR);
         }
 
-        if self.key_from_kv || self.block_from_kv {
+        if self.kv_key_len.take().is_some() || self.block_from_kv {
             self.key.fill(0);
             self.block.fill(0);
         }
-        self.key_from_kv = false;
         self.block_from_kv = false;
 
         // Update Ready and Valid status bits
@@ -631,29 +631,22 @@ impl HmacSha {
         let mut key_usage = KeyUsage::default();
         key_usage.set_hmac_key(true);
 
-        let result = self.key_vault.read_key(key_id, key_usage);
-        let (key_read_result, key) = match result.err() {
-            Some(BusError::LoadAccessFault)
-            | Some(BusError::LoadAddrMisaligned)
-            | Some(BusError::InstrAccessFault) => (KeyReadStatus::ERROR::KV_READ_FAIL.value, None),
-            Some(BusError::StoreAccessFault) | Some(BusError::StoreAddrMisaligned) => {
-                (KeyReadStatus::ERROR::KV_WRITE_FAIL.value, None)
+        let key_read_result = match self.key_vault.read_key_as_data(key_id, key_usage) {
+            Ok(key) => {
+                self.kv_key_len = Some(key.len());
+                self.key.fill(0);
+                self.key.as_mut_bytes()[..key.len()].copy_from_slice(&key);
+                KeyReadStatus::ERROR::KV_SUCCESS.value
             }
-            None => (
-                KeyReadStatus::ERROR::KV_SUCCESS.value,
-                Some(result.unwrap()),
-            ),
+            Err(
+                BusError::LoadAccessFault
+                | BusError::LoadAddrMisaligned
+                | BusError::InstrAccessFault,
+            ) => KeyReadStatus::ERROR::KV_READ_FAIL.value,
+            Err(BusError::StoreAccessFault | BusError::StoreAddrMisaligned) => {
+                KeyReadStatus::ERROR::KV_WRITE_FAIL.value
+            }
         };
-
-        if let Some(key) = &key {
-            self.key_from_kv = true;
-            // HMAC mode is not known at this point. Thus, copying the entire
-            // key from the KV slot even though the actual key might be shorter.
-            // Peripherals using the key material will size it appropriately.
-            self.key[..HMAC_KEY_SIZE_DWORD_512]
-                .as_mut_bytes()
-                .copy_from_slice(key.as_bytes());
-        }
 
         self.key_read_status.reg.modify(
             KeyReadStatus::READY::SET
@@ -755,7 +748,7 @@ impl HmacSha {
         self.tag.fill(0);
         self.hmac.reset();
         self.last_block = false;
-        self.key_from_kv = false;
+        self.kv_key_len = None;
         self.block_from_kv = false;
         self.hide_tag_from_cpu = false;
         self.op_complete_action = None;
