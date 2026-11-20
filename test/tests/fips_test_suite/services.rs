@@ -467,7 +467,7 @@ pub fn exec_cmd_quote_pcrs_mldsa87<T: HwModel>(hw: &mut T) {
 pub fn exec_cmd_extend_pcr<T: HwModel>(hw: &mut T) {
     let mut payload = MailboxReq::ExtendPcr(ExtendPcrReq {
         hdr: MailboxReqHeader { chksum: 0 },
-        pcr_idx: 4,
+        pcr_idx: 6, // PCRs 0-5 are reserved for firmware and hardware measurements.
         data: [0u8; 48],
     });
     payload.populate_chksum().unwrap();
