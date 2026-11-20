@@ -36,7 +36,6 @@ use caliptra_cfi_lib::{
     cfi_assert, cfi_assert_bool, cfi_assert_eq, cfi_assert_eq_12_words, cfi_launder,
 };
 use caliptra_common::cfi_check;
-use caliptra_common::crypto::Crypto;
 use caliptra_common::dice::{copy_ldevid_ecc384_cert, copy_ldevid_mldsa87_cert};
 use caliptra_common::mailbox_api::AddSubjectAltNameReq;
 use caliptra_dpe::commands::{Command, DeriveContextCmd};
@@ -63,7 +62,7 @@ use caliptra_drivers::{
     Hmac, KeyId, KeyVault, Lms, PcrBank, PersistentDataAccessor, Pic, ResetReason, Sha256,
     Sha256Alg, Sha2_512_384, Sha2_512_384Acc, Sha3, SocIfc, Trng,
 };
-use caliptra_drivers::{okref, Dma, DmaMmio, Mldsa87PubKey};
+use caliptra_drivers::{okref, Dma, DmaMmio, KeyReadArgs, Mldsa87PubKey, Mldsa87Seed};
 use caliptra_image_types::ImageManifest;
 use caliptra_registers::aes::AesReg;
 use caliptra_registers::aes_clp::AesClpReg;
@@ -1294,19 +1293,16 @@ impl Drivers {
     ///
     /// * `Mldsa87PubKey` - RT Alias pub key
     pub fn get_key_id_rt_mldsa_pub_key(drivers: &mut Drivers) -> CaliptraResult<Mldsa87PubKey> {
-        let rt_cdi = Self::get_key_id_rt_cdi(drivers)?;
         let rt_mldsa_key = Self::get_key_id_rt_mldsa_keypair_seed(drivers)?;
-        let mldsa_key_pair = drivers.abr.with_mldsa87(|mut mldsa87| {
-            Crypto::mldsa87_key_gen(
-                &mut mldsa87,
-                &mut drivers.hmac,
+        // FMC already wrote the certified seed. The 2.2 key vault can
+        // write-lock that slot when runtime takes control.
+        drivers.abr.with_mldsa87(|mut mldsa87| {
+            mldsa87.key_pair(
+                Mldsa87Seed::Key(KeyReadArgs::new(rt_mldsa_key)),
                 &mut drivers.trng,
-                rt_cdi,
-                b"alias_rt_mldsa_key",
-                rt_mldsa_key,
+                None,
             )
-        })?;
-        Ok(mldsa_key_pair.pub_key)
+        })
     }
 
     /// Process the certificate validity info
