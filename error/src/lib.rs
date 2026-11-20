@@ -423,6 +423,21 @@ impl CaliptraError {
             "Driver Error: ML-KEM key generation pairwise consistency failure"
         ),
         (
+            DRIVER_MLKEM_WRITE_SHARED_KEY_KV_READ,
+            0x00059008,
+            "Driver Error: ML-KEM write shared key KV read"
+        ),
+        (
+            DRIVER_MLKEM_WRITE_SHARED_KEY_KV_WRITE,
+            0x00059009,
+            "Driver Error: ML-KEM write shared key KV write"
+        ),
+        (
+            DRIVER_MLKEM_WRITE_SHARED_KEY_KV_UNKNOWN,
+            0x0005900a,
+            "Driver Error: ML-KEM write shared key KV unknown"
+        ),
+        (
             DRIVER_KV_ERASE_USE_LOCK_SET_FAILURE,
             0x00060001,
             "Driver Error: KV erase use lock set failure"
