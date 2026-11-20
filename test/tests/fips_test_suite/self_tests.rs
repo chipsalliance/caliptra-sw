@@ -347,6 +347,8 @@ fn self_test_failure_flow_rt_inner(
             .ready_for_mb_processing()
     });
 
+    hw.assert_end_of_stash();
+
     // Verify we can load FW
     try_upload_firmware(&mut hw, &fw_image, FwVerificationPqcKeyType::MLDSA).unwrap();
     hw.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_runtime());

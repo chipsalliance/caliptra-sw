@@ -252,6 +252,7 @@ fn fw_load_error_flow_base(
 
     // Upload initial FW
     let fw_upload = |hw: &mut DefaultHwModel, image: Vec<u8>| {
+        hw.assert_end_of_stash();
         if hw.subsystem_mode() {
             hw.upload_firmware_rri(
                 &image,

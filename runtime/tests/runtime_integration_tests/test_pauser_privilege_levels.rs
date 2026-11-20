@@ -915,6 +915,8 @@ fn test_pl0_unset_in_header() {
         .unwrap();
     image_bundle.manifest.preamble = preamble;
 
+    model.assert_end_of_stash();
+
     crate::common::test_upload_firmware(
         &mut model,
         &image_bundle.to_bytes().unwrap(),
@@ -968,6 +970,8 @@ fn test_user_not_pl0() {
         opts.vendor_config.pl0_pauser = Some(0); // Caller PAUSER is always 1 for current models
         let image_bundle =
             caliptra_builder::build_and_sign_image(&FMC_WITH_UART, &APP_WITH_UART, opts).unwrap();
+
+        model.assert_end_of_stash();
 
         crate::common::test_upload_firmware(
             &mut model,

@@ -184,6 +184,8 @@ pub struct RuntimeTestArgs<'a> {
     pub encrypted_boot: bool,
     // Whether or not to use external I3C host instead of soft IP.
     pub use_external_i3c_host: bool,
+    // Whether or not to skip asserting end-of-stash.
+    pub skip_assert_end_of_stash: bool,
 }
 
 impl RuntimeTestArgs<'_> {
@@ -238,6 +240,7 @@ impl Default for RuntimeTestArgs<'_> {
             rom_callback: None,
             encrypted_boot: false,
             use_external_i3c_host: false,
+            skip_assert_end_of_stash: false,
         }
     }
 }
@@ -437,6 +440,7 @@ pub fn start_rt_test_pqc_model(
             soc_manifest,
             mcu_fw_image,
             encrypted_boot: args.encrypted_boot,
+            skip_assert_end_of_stash: args.skip_assert_end_of_stash,
             ..Default::default()
         },
     )

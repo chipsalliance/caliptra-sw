@@ -123,6 +123,7 @@ fn wait_for_fresh_runtime(model: &mut DefaultHwModel) {
 fn test_iccm_integrity_subsystem_current_and_warm_journey() {
     for debug_locked in [false, true] {
         let (mut model, image) = model_and_image(true, debug_locked);
+        model.assert_end_of_stash();
         helpers::test_upload_firmware(
             &mut model,
             &image.to_bytes().unwrap(),
@@ -156,6 +157,7 @@ fn test_iccm_integrity_update_runtime_only_journey_and_larger_bounds() {
     let pqc_key_type =
         caliptra_image_types::FwVerificationPqcKeyType::from_u8(image.manifest.pqc_key_type)
             .unwrap();
+    model.assert_end_of_stash();
     helpers::test_upload_firmware(&mut model, &image.to_bytes().unwrap(), pqc_key_type);
     wait_for_runtime(&mut model);
     let previous = read_pcr(&mut model, 5);
@@ -218,6 +220,7 @@ fn test_iccm_integrity_update_runtime_only_journey_and_larger_bounds() {
 )]
 fn test_iccm_integrity_production_passive_cold_and_warm_boot() {
     let (mut model, image) = model_and_image(false, true);
+    model.assert_end_of_stash();
     helpers::test_upload_firmware(
         &mut model,
         &image.to_bytes().unwrap(),
@@ -276,6 +279,7 @@ fn test_iccm_integrity_debug_passive_cold_boot() {
 fn test_iccm_integrity_passive_update_and_warm_boot() {
     for debug_locked in [false, true] {
         let (mut model, mut image) = model_and_image(false, debug_locked);
+        model.assert_end_of_stash();
         helpers::test_upload_firmware(
             &mut model,
             &image.to_bytes().unwrap(),
@@ -430,6 +434,7 @@ fn test_iccm_integrity_cold_rejects_staged_corruption() {
 fn test_iccm_integrity_update_rejects_staged_corruption() {
     for subsystem in [false, true] {
         let (mut model, mut image) = model_and_image(subsystem, true);
+        model.assert_end_of_stash();
         helpers::test_upload_firmware(
             &mut model,
             &image.to_bytes().unwrap(),
@@ -487,6 +492,7 @@ fn test_iccm_integrity_rejects_partial_word_components() {
                 )
                 .unwrap();
                 if update {
+                    model.assert_end_of_stash();
                     helpers::test_upload_firmware(
                         &mut model,
                         &image.to_bytes().unwrap(),
@@ -565,6 +571,7 @@ fn test_iccm_integrity_rejects_partial_word_bundles() {
                 .unwrap();
         let mut bytes = image.to_bytes().unwrap();
         if update {
+            model.assert_end_of_stash();
             helpers::test_upload_firmware(&mut model, &bytes, pqc_key_type);
             wait_for_runtime(&mut model);
         }
@@ -622,6 +629,7 @@ fn test_iccm_integrity_rejects_partial_word_bundles() {
 fn test_iccm_integrity_update_rejects_unaligned_axi_source() {
     let (mut model, image) = model_and_image(true, true);
     let bytes = image.to_bytes().unwrap();
+    model.assert_end_of_stash();
     helpers::test_upload_firmware(
         &mut model,
         &bytes,
