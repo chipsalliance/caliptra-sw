@@ -813,7 +813,8 @@ impl<'a> DmaRecovery<'a> {
             | CaliptraError::RUNTIME_AUTH_MANIFEST_INVALID_PQC_KEY_TYPE_IN_FUSE
             | CaliptraError::RUNTIME_AUTH_MANIFEST_INVALID_PQC_KEY_TYPE
             | CaliptraError::RUNTIME_AUTH_MANIFEST_PQC_KEY_TYPE_MISMATCH
-            | CaliptraError::RUNTIME_AUTH_MANIFEST_UEID_MISMATCH => {
+            | CaliptraError::RUNTIME_AUTH_MANIFEST_UEID_MISMATCH
+            | CaliptraError::RUNTIME_AUTH_MANIFEST_UEID_REQUIRED => {
                 Self::RECOVERY_REASON_KEY_MANIFEST_AUTHENTICATION_FAILURE
             }
             _ => Self::RECOVERY_REASON_CORRUPTED_CRITICAL_DATA,

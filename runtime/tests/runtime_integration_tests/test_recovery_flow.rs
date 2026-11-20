@@ -2,16 +2,20 @@
 
 #![allow(clippy::result_large_err)]
 
-use crate::common::{run_rt_test, run_rt_test_pqc, RuntimeTestArgs, PQC_KEY_TYPE};
+use crate::common::{
+    run_rt_test, run_rt_test_pqc, soc_manifest_measurements, RuntimeTestArgs, PQC_KEY_TYPE,
+};
 use crate::test_info::get_fwinfo_allow_attestation_disabled;
-use crate::test_set_auth_manifest::create_auth_manifest_with_metadata;
+use crate::test_set_auth_manifest::{
+    create_auth_manifest_with_metadata, create_ueid_bound_manifest, DEVICE_UEID, UEID_BOUND_FLAGS,
+};
 use caliptra_auth_man_gen::default_test_manifest::create_test_auth_manifest_with_config;
 use caliptra_auth_man_gen::{
     AuthManifestGenerator, AuthManifestGeneratorConfig, AuthManifestGeneratorKeyConfig,
 };
 use caliptra_auth_man_types::{
-    AuthManifestFlags, AuthManifestImageMetadata, AuthManifestPreamble, AuthManifestPrivKeysConfig,
-    AuthManifestPubKeysConfig, AuthorizationManifest, ImageMetadataFlags,
+    AuthManifestFlags, AuthManifestImageMetadata, AuthManifestPrivKeysConfig,
+    AuthManifestPubKeysConfig, AuthorizationManifest, ImageMetadataFlags, AUTH_MANIFEST_UEID_LEN,
 };
 use caliptra_common::mailbox_api::{
     CommandId, FwInfoResp, MailboxReq, MailboxReqHeader, QuotePcrsEcc384Req, QuotePcrsEcc384Resp,
@@ -91,16 +95,18 @@ fn sha384_digest(data: &[u8]) -> [u8; 48] {
 fn create_recovery_auth_manifest(
     mcu_fw: &[u8],
     manifest_flags: AuthManifestFlags,
+    ueid: Option<&[u8; AUTH_MANIFEST_UEID_LEN]>,
     pqc_key_type: FwVerificationPqcKeyType,
 ) -> AuthorizationManifest {
     let mut image_flags = ImageMetadataFlags(0);
     image_flags.set_image_source(1);
-    let metadata = vec![AuthManifestImageMetadata {
+    let mut metadata = vec![AuthManifestImageMetadata {
         fw_id: 2,
         flags: image_flags.0,
         digest: sha384_digest(mcu_fw),
         ..Default::default()
     }];
+    metadata.extend(ueid.map(AuthManifestImageMetadata::new_ueid));
     create_test_auth_manifest_with_config(
         metadata,
         manifest_flags,
@@ -110,28 +116,12 @@ fn create_recovery_auth_manifest(
     )
 }
 
-fn preamble_range_digest(
-    preamble: &AuthManifestPreamble,
-    range: core::ops::Range<u32>,
-) -> [u8; 48] {
-    let preamble_bytes = preamble.as_bytes();
-    sha384_digest(&preamble_bytes[range.start as usize..range.end as usize])
-}
-
 fn somv_measurement(manifest: &AuthorizationManifest) -> [u8; 48] {
-    preamble_range_digest(
-        &manifest.preamble,
-        AuthManifestPreamble::vendor_signed_data_range(),
-    )
+    soc_manifest_measurements(manifest).0
 }
 
 fn somo_measurement(manifest: &AuthorizationManifest) -> [u8; 48] {
-    let preamble_bytes = manifest.preamble.as_bytes();
-    let mut hasher = Sha384::new();
-    for range in AuthManifestPreamble::owner_signed_data_ranges() {
-        hasher.update(&preamble_bytes[range.start as usize..range.end as usize]);
-    }
-    hasher.finalize().into()
+    soc_manifest_measurements(manifest).1
 }
 
 fn create_auth_manifest_with_alt_owner_keys(
@@ -347,7 +337,7 @@ fn test_recovery_flow_reports_debug_auth_manifest() {
     let debug_flags = AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED | AuthManifestFlags::DEBUG_IMAGE;
 
     for pqc_key_type in PQC_KEY_TYPE {
-        let soc_manifest = create_recovery_auth_manifest(&mcu_fw, debug_flags, pqc_key_type);
+        let soc_manifest = create_recovery_auth_manifest(&mcu_fw, debug_flags, None, pqc_key_type);
         let rom = crate::common::rom_for_fw_integration_tests().unwrap();
         let args = RuntimeTestArgs {
             init_params: Some(InitParams {
@@ -386,7 +376,7 @@ fn test_recovery_flow_debug_auth_manifest_requires_debug_intent() {
     let debug_flags = AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED | AuthManifestFlags::DEBUG_IMAGE;
 
     for pqc_key_type in PQC_KEY_TYPE {
-        let soc_manifest = create_recovery_auth_manifest(&mcu_fw, debug_flags, pqc_key_type);
+        let soc_manifest = create_recovery_auth_manifest(&mcu_fw, debug_flags, None, pqc_key_type);
         let rom = crate::common::rom_for_fw_integration_tests().unwrap();
         let args = RuntimeTestArgs {
             init_params: Some(InitParams {
@@ -424,7 +414,7 @@ fn test_recovery_flow_debug_auth_manifest_disabled_by_strap() {
     let debug_flags = AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED | AuthManifestFlags::DEBUG_IMAGE;
 
     for pqc_key_type in PQC_KEY_TYPE {
-        let soc_manifest = create_recovery_auth_manifest(&mcu_fw, debug_flags, pqc_key_type);
+        let soc_manifest = create_recovery_auth_manifest(&mcu_fw, debug_flags, None, pqc_key_type);
         let rom = crate::common::rom_for_fw_integration_tests().unwrap();
         let args = RuntimeTestArgs {
             init_params: Some(InitParams {
@@ -452,6 +442,92 @@ fn test_recovery_flow_debug_auth_manifest_disabled_by_strap() {
             &mut model,
             SOC_MANIFEST_INDEX,
             DmaRecovery::RECOVERY_REASON_DEBUG_IMAGE_NOT_ALLOWED,
+        );
+    }
+}
+
+#[cfg_attr(any(feature = "verilator", feature = "fpga_realtime"), ignore)]
+#[test]
+fn test_recovery_flow_ueid_bound_manifest() {
+    let mcu_fw = vec![0x37u8; 256];
+
+    for pqc_key_type in PQC_KEY_TYPE {
+        let soc_manifest = create_recovery_auth_manifest(
+            &mcu_fw,
+            UEID_BOUND_FLAGS,
+            Some(&DEVICE_UEID),
+            pqc_key_type,
+        );
+        let rom = crate::common::rom_for_fw_integration_tests().unwrap();
+        let args = RuntimeTestArgs {
+            init_params: Some(InitParams {
+                rom: &rom,
+                subsystem_mode: true,
+                ..Default::default()
+            }),
+            subsystem_mode: true,
+            ueid: Some(DEVICE_UEID),
+            soc_manifest: Some(soc_manifest.as_bytes()),
+            mcu_fw_image: Some(&mcu_fw),
+            ..Default::default()
+        };
+        let mut model = run_rt_test_pqc(args, pqc_key_type);
+        model.step_until_boot_status(RT_READY_FOR_COMMANDS, true);
+
+        assert_eq!(
+            get_fwinfo_allow_attestation_disabled(&mut model).debug_policy,
+            FwInfoResp::UEID_BOUND_PREAMBLE_ACTIVE
+        );
+        // SOMV / SOMO include the device UEID.
+        let snapshots = dpe_tcb_snapshots(&mut model);
+        assert_eq!(
+            find_tcb_snapshot(&snapshots, b"SOMV").digest,
+            Some(somv_measurement(&soc_manifest))
+        );
+        assert_eq!(
+            find_tcb_snapshot(&snapshots, b"SOMO").digest,
+            Some(somo_measurement(&soc_manifest))
+        );
+    }
+}
+
+#[cfg_attr(
+    any(
+        feature = "verilator",
+        feature = "fpga_realtime",
+        feature = "fpga_subsystem"
+    ),
+    ignore
+)]
+#[test]
+fn test_recovery_flow_ueid_bound_manifest_other_device() {
+    let mcu_fw = vec![0x37u8; 256];
+
+    for pqc_key_type in PQC_KEY_TYPE {
+        let soc_manifest = create_recovery_auth_manifest(
+            &mcu_fw,
+            UEID_BOUND_FLAGS,
+            Some(&[0xA5; AUTH_MANIFEST_UEID_LEN]),
+            pqc_key_type,
+        );
+        let rom = crate::common::rom_for_fw_integration_tests().unwrap();
+        let args = RuntimeTestArgs {
+            init_params: Some(InitParams {
+                rom: &rom,
+                subsystem_mode: true,
+                ..Default::default()
+            }),
+            subsystem_mode: true,
+            ueid: Some(DEVICE_UEID),
+            soc_manifest: Some(soc_manifest.as_bytes()),
+            mcu_fw_image: Some(&mcu_fw),
+            successful_reach_rt: false,
+            ..Default::default()
+        };
+        let mut model = run_rt_test_pqc(args, pqc_key_type);
+        model.step_until_fatal_error(
+            CaliptraError::RUNTIME_AUTH_MANIFEST_VENDOR_ECC_SIGNATURE_INVALID.into(),
+            30_000_000,
         );
     }
 }
@@ -721,4 +797,49 @@ fn test_set_auth_manifest_updates_soc_manifest_dpe_contexts() {
     );
     assert_ne!(owner_updated_somo.digest, updated_somo.digest);
     assert_ne!(quote_pcr31(&mut model), pcr31_after_somv_update);
+}
+
+#[cfg_attr(
+    any(
+        feature = "verilator",
+        feature = "fpga_realtime",
+        feature = "fpga_subsystem"
+    ),
+    ignore
+)]
+#[test]
+fn test_set_auth_manifest_ueid_bound_updates_soc_manifest_dpe_contexts() {
+    let mcu_fw = vec![0x37u8; 256];
+    let pqc_key_type = FwVerificationPqcKeyType::MLDSA;
+    let soc_manifest = create_recovery_auth_manifest(
+        &mcu_fw,
+        AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED,
+        None,
+        pqc_key_type,
+    );
+    let rom = crate::common::rom_for_fw_integration_tests().unwrap();
+    let args = RuntimeTestArgs {
+        init_params: Some(InitParams {
+            rom: &rom,
+            subsystem_mode: true,
+            ..Default::default()
+        }),
+        ueid: Some(DEVICE_UEID),
+        soc_manifest: Some(soc_manifest.as_bytes()),
+        mcu_fw_image: Some(&mcu_fw),
+        key_type: Some(pqc_key_type),
+        ..Default::default()
+    };
+    let mut model = run_rt_test(args);
+    model.step_until_boot_status(RT_READY_FOR_COMMANDS, true);
+
+    let bound_manifest = create_ueid_bound_manifest(&DEVICE_UEID, UEID_BOUND_FLAGS, pqc_key_type);
+    set_auth_manifest(&mut model, &bound_manifest);
+    let snapshots = dpe_tcb_snapshots(&mut model);
+    let somv = find_tcb_snapshot(&snapshots, b"SOMV");
+    assert_eq!(somv.digest, Some(somv_measurement(&bound_manifest)));
+    assert_ne!(somv.digest, Some(somv_measurement(&soc_manifest)));
+    let somo = find_tcb_snapshot(&snapshots, b"SOMO");
+    assert_eq!(somo.digest, Some(somo_measurement(&bound_manifest)));
+    assert_ne!(somo.digest, Some(somo_measurement(&soc_manifest)));
 }

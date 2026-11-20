@@ -76,29 +76,43 @@ impl SetAuthManifestCmd {
         Array4x12::from(digest).into()
     }
 
-    /// SHA2-384 digest of the owner-signed preamble data
-    /// (see `AuthManifestPreamble::owner_signed_data_ranges`).
-    fn owner_signed_data_digest(
+    /// SHA2-384 digest of a signed message given as ordered chunks
+    /// (see `AuthManifestPreamble::{vendor,owner}_signed_data_chunks`).
+    fn chunks_digest<'a>(
         sha2: &mut Sha2_512_384,
-        auth_manifest_preamble: &AuthManifestPreamble,
+        chunks: impl IntoIterator<Item = &'a [u8]>,
     ) -> CaliptraResult<ImageDigest384> {
-        let manifest_bytes = auth_manifest_preamble.as_bytes();
         let mut digest_op = sha2.sha384_digest_init()?;
-        for range in AuthManifestPreamble::owner_signed_data_ranges().iter() {
-            digest_op.update(Self::offset_data(
-                manifest_bytes,
-                range.start,
-                range.len() as u32,
-            )?)?;
+        for chunk in chunks {
+            digest_op.update(chunk)?;
         }
         let mut digest = Array4x12::default();
         digest_op.finalize(&mut digest)?;
         Ok(digest.into())
     }
 
+    /// Pure ML-DSA-87 verification (empty context) of a message given as
+    /// ordered chunks: mu = SHAKE256(tr || 0x00 || 0x00 || M).
+    fn mldsa87_verify_chunks<'a>(
+        sha3: &mut Sha3,
+        mldsa: &mut Mldsa87<'_>,
+        pub_key: &Mldsa87PubKey,
+        sig: &Mldsa87Signature,
+        chunks: impl IntoIterator<Item = &'a [u8]>,
+    ) -> CaliptraResult<Mldsa87Result> {
+        let mut mu_op = sha3.mldsa_external_mu_init(pub_key.as_bytes())?;
+        for chunk in chunks {
+            mu_op.update(chunk)?;
+        }
+        let mut mu = Mldsa87Mu::default();
+        mu_op.finalize(&mut mu)?;
+        mldsa.verify_external_mu(pub_key, &mu, sig)
+    }
+
     fn update_soc_manifest_dpe_contexts(
         drivers: &mut Drivers,
         auth_manifest_preamble: &AuthManifestPreamble,
+        ueid: Option<&[u8; AUTH_MANIFEST_UEID_LEN]>,
         update_mode: AuthManifestUpdateMode,
     ) -> CaliptraResult<()> {
         if drivers
@@ -116,18 +130,15 @@ impl SetAuthManifestCmd {
             update_mode,
             AuthManifestUpdateMode::CreateMissingDpeContexts
         );
-        let manifest_bytes = auth_manifest_preamble.as_bytes();
-        let vendor_range = AuthManifestPreamble::vendor_signed_data_range();
-        let vendor_measurement = Self::digest_to_measurement(&Self::sha384_digest(
+        // SOMV / SOMO measure exactly what the FW vendor / FW owner signed.
+        // For a UEID_BOUND_PREAMBLE manifest this includes the device UEID.
+        let vendor_measurement = Self::digest_to_measurement(&Self::chunks_digest(
             &mut drivers.sha2_512_384,
-            manifest_bytes,
-            vendor_range.start,
-            vendor_range.len() as u32,
+            auth_manifest_preamble.vendor_signed_data_chunks(ueid),
         )?);
-        // SOMO measures everything the owner signed: policy fields + owner_pub_keys.
-        let owner_measurement = Self::digest_to_measurement(&Self::owner_signed_data_digest(
+        let owner_measurement = Self::digest_to_measurement(&Self::chunks_digest(
             &mut drivers.sha2_512_384,
-            auth_manifest_preamble,
+            auth_manifest_preamble.owner_signed_data_chunks(ueid),
         )?);
         let pl0_pauser_locality = drivers
             .persistent_data
@@ -187,22 +198,22 @@ impl SetAuthManifestCmd {
         Lms::default().verify_lms_signature_cfi(sha256, &message, pub_key, sig)
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn verify_vendor_signed_data(
         auth_manifest_preamble: &AuthManifestPreamble,
+        ueid: Option<&[u8; AUTH_MANIFEST_UEID_LEN]>,
         fw_preamble: &ImagePreamble,
         sha2: &mut Sha2_512_384,
         ecc384: &mut Ecc384,
         sha256: &mut Sha256,
+        sha3: &mut Sha3,
         mldsa: &mut Mldsa87<'_>,
         pqc_key_type: FwVerificationPqcKeyType,
     ) -> CaliptraResult<()> {
-        let range = AuthManifestPreamble::vendor_signed_data_range();
-        let digest_vendor = Self::sha384_digest(
-            sha2,
-            auth_manifest_preamble.as_bytes(),
-            range.start,
-            range.len() as u32,
-        )?;
+        // The vendor signs version, svn, flags, vendor_pub_keys and, only if
+        // UEID_BOUND_PREAMBLE, the device UEID.
+        let vendor_chunks = auth_manifest_preamble.vendor_signed_data_chunks(ueid);
+        let digest_vendor = Self::chunks_digest(sha2, vendor_chunks.clone())?;
 
         // Verify the vendor ECC signature.
         let verify_r = Self::ecc384_verify(
@@ -257,12 +268,6 @@ impl SetAuthManifestCmd {
                 caliptra_cfi_lib::cfi_assert_eq_6_words(&candidate_key.0, &pub_key_digest.0);
             }
         } else {
-            let vendor_data = Self::offset_data(
-                auth_manifest_preamble.as_bytes(),
-                range.start,
-                range.len() as u32,
-            )?;
-
             let (vendor_fw_mldsa_key, _) =
                 Mldsa87PubKey::ref_from_prefix(fw_preamble.vendor_pqc_active_pub_key.0.as_bytes())
                     .or(Err(
@@ -280,7 +285,13 @@ impl SetAuthManifestCmd {
                 CaliptraError::RUNTIME_AUTH_MANIFEST_MLDSA_VENDOR_SIG_READ_FAILED,
             ))?;
 
-            let result = mldsa.verify_var(vendor_fw_mldsa_key, vendor_data, mldsa_sig)?;
+            let result = Self::mldsa87_verify_chunks(
+                sha3,
+                mldsa,
+                vendor_fw_mldsa_key,
+                mldsa_sig,
+                vendor_chunks,
+            )?;
             if cfi_launder(result) != Mldsa87Result::Success {
                 Err(CaliptraError::RUNTIME_AUTH_MANIFEST_MLDSA_VENDOR_SIG_INVALID)?;
             }
@@ -292,6 +303,7 @@ impl SetAuthManifestCmd {
     #[allow(clippy::too_many_arguments)]
     fn verify_owner_signed_data(
         auth_manifest_preamble: &AuthManifestPreamble,
+        ueid: Option<&[u8; AUTH_MANIFEST_UEID_LEN]>,
         fw_preamble: &ImagePreamble,
         sha2: &mut Sha2_512_384,
         ecc384: &mut Ecc384,
@@ -300,12 +312,11 @@ impl SetAuthManifestCmd {
         mldsa: &mut Mldsa87<'_>,
         pqc_key_type: FwVerificationPqcKeyType,
     ) -> CaliptraResult<()> {
-        // The owner signs version, svn, flags and owner_pub_keys. The message
-        // is not contiguous in the preamble, so stream each range into the
-        // hash / ML-DSA mu.
-        let manifest_bytes = auth_manifest_preamble.as_bytes();
-        let owner_ranges = AuthManifestPreamble::owner_signed_data_ranges();
-        let digest_owner = Self::owner_signed_data_digest(sha2, auth_manifest_preamble)?;
+        // The owner signs version, svn, flags, owner_pub_keys and, only if
+        // UEID_BOUND_PREAMBLE, the device UEID. The message is not contiguous
+        // in the preamble, so stream each chunk into the hash / ML-DSA mu.
+        let owner_chunks = auth_manifest_preamble.owner_signed_data_chunks(ueid);
+        let digest_owner = Self::chunks_digest(sha2, owner_chunks.clone())?;
 
         // Verify the owner ECC signature.
         let owner_fw_ecc_key = &fw_preamble.owner_pub_keys.ecc_pub_key;
@@ -375,19 +386,13 @@ impl SetAuthManifestCmd {
                 CaliptraError::RUNTIME_AUTH_MANIFEST_MLDSA_OWNER_SIG_READ_FAILED,
             ))?;
 
-            // Pure ML-DSA with an empty context: mu = SHAKE256(tr || 0x00 || 0x00 || M).
-            let mut mu_op = sha3.mldsa_external_mu_init(owner_fw_mldsa_key.as_bytes())?;
-            for range in owner_ranges.iter() {
-                mu_op.update(Self::offset_data(
-                    manifest_bytes,
-                    range.start,
-                    range.len() as u32,
-                )?)?;
-            }
-            let mut mu = Mldsa87Mu::default();
-            mu_op.finalize(&mut mu)?;
-
-            let result = mldsa.verify_external_mu(owner_fw_mldsa_key, &mu, mldsa_sig)?;
+            let result = Self::mldsa87_verify_chunks(
+                sha3,
+                mldsa,
+                owner_fw_mldsa_key,
+                mldsa_sig,
+                owner_chunks,
+            )?;
             if cfi_launder(result) != Mldsa87Result::Success {
                 Err(CaliptraError::RUNTIME_AUTH_MANIFEST_MLDSA_OWNER_SIG_INVALID)?;
             }
@@ -651,11 +656,15 @@ impl SetAuthManifestCmd {
     fn verify_ueid(
         image_metadata_list: &[AuthManifestImageMetadata],
         device_ueid: &[u8; AUTH_MANIFEST_UEID_LEN],
+        required: bool,
     ) -> CaliptraResult<()> {
         let Some(ueid_metadata) = image_metadata_list
             .iter()
             .find(|metadata| metadata.fw_id == AUTH_MANIFEST_UEID_FW_ID)
         else {
+            if required {
+                Err(CaliptraError::RUNTIME_AUTH_MANIFEST_UEID_REQUIRED)?;
+            }
             return Ok(());
         };
 
@@ -679,6 +688,7 @@ impl SetAuthManifestCmd {
         metadata_persistent: &mut AuthManifestImageMetadataCollection,
         owner_metadata_persistent: &OwnerAuthManifestImageMetadataCollection,
         device_ueid: &[u8; AUTH_MANIFEST_UEID_LEN],
+        ueid_required: bool,
         sha2: &mut Sha2_512_384,
         ecc384: &mut Ecc384,
         sha256: &mut Sha256,
@@ -748,7 +758,7 @@ impl SetAuthManifestCmd {
             &mut metadata_mailbox.image_metadata_list[..metadata_mailbox.entry_count as usize];
 
         Self::sort_and_check_duplicate_fwid(slice)?;
-        Self::verify_ueid(slice, device_ueid)?;
+        Self::verify_ueid(slice, device_ueid, ueid_required)?;
 
         let owner_slice = owner_metadata_persistent
             .image_metadata_list
@@ -895,22 +905,34 @@ impl SetAuthManifestCmd {
         };
 
         let device_ueid = drivers.soc_ifc.fuse_bank().ueid();
+        let imc_buf = manifest_buf
+            .get(preamble_size..)
+            .ok_or(CaliptraError::RUNTIME_AUTH_MANIFEST_IMAGE_METADATA_LIST_INVALID_SIZE)?;
+
+        // For a UEID-bound preamble, the fuse UEID is part of both preamble
+        // signed messages. The flags are not authenticated yet: if they are
+        // forged (set or cleared), or the preamble was signed for another
+        // device, the signed message differs and the signature checks fail.
+        let flags = AuthManifestFlags::from(auth_manifest_preamble.flags);
+        let ueid_bound = flags.contains(AuthManifestFlags::UEID_BOUND_PREAMBLE);
+        let bound_ueid = ueid_bound.then_some(&device_ueid);
 
         {
             let persistent_data = drivers.persistent_data.get_mut();
             drivers.abr.with_mldsa87(|mut mldsa87| {
-                // Verify the vendor signed data (vendor public keys + flags).
+                // Verify the vendor signed data (policy fields + vendor public keys [+ UEID]).
                 Self::verify_vendor_signed_data(
                     auth_manifest_preamble,
+                    bound_ueid,
                     &persistent_data.rom.manifest1.preamble,
                     &mut drivers.sha2_512_384,
                     &mut drivers.ecc384,
                     &mut drivers.sha256,
+                    &mut drivers.sha3,
                     &mut mldsa87,
                     pqc_key_type,
                 )?;
 
-                let flags = AuthManifestFlags::from(auth_manifest_preamble.flags);
                 if flags.contains(AuthManifestFlags::DEBUG_IMAGE) {
                     if !flags.contains(AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED) {
                         Err(CaliptraError::RUNTIME_AUTH_MANIFEST_INVALID_FLAGS)?;
@@ -919,10 +941,16 @@ impl SetAuthManifestCmd {
                         Err(CaliptraError::RUNTIME_AUTH_MANIFEST_DEBUG_IMAGE_NOT_ALLOWED)?;
                     }
                 }
+                if flags.contains(AuthManifestFlags::UEID_BOUND_PREAMBLE)
+                    && !flags.contains(AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED)
+                {
+                    Err(CaliptraError::RUNTIME_AUTH_MANIFEST_INVALID_FLAGS)?;
+                }
 
-                // Verify the owner signature over the policy fields and owner public keys.
+                // Verify the owner signature over the policy fields, owner public keys [+ UEID].
                 Self::verify_owner_signed_data(
                     auth_manifest_preamble,
+                    bound_ueid,
                     &persistent_data.rom.manifest1.preamble,
                     &mut drivers.sha2_512_384,
                     &mut drivers.ecc384,
@@ -933,13 +961,12 @@ impl SetAuthManifestCmd {
                 )?;
 
                 Self::process_image_metadata_col(
-                    manifest_buf.get(preamble_size..).ok_or(
-                        CaliptraError::RUNTIME_AUTH_MANIFEST_IMAGE_METADATA_LIST_INVALID_SIZE,
-                    )?,
+                    imc_buf,
                     auth_manifest_preamble,
                     &mut persistent_data.fw.auth_manifest_image_metadata_col,
                     &persistent_data.fw.owner_auth_manifest_image_metadata_col,
                     &device_ueid,
+                    ueid_bound,
                     &mut drivers.sha2_512_384,
                     &mut drivers.ecc384,
                     &mut drivers.sha256,
@@ -961,12 +988,16 @@ impl SetAuthManifestCmd {
             // Store the SoC manifest SVN for use as the MCU RT current_svn
             // when creating the MCU RT DPE context during recovery boot or
             // hitless update.
-            Self::update_soc_manifest_dpe_contexts(drivers, auth_manifest_preamble, update_mode)?;
+            Self::update_soc_manifest_dpe_contexts(
+                drivers,
+                auth_manifest_preamble,
+                bound_ueid,
+                update_mode,
+            )?;
 
-            drivers.persistent_data.get_mut().fw.auth_manifest_is_debug = U8Bool::new(
-                AuthManifestFlags::from(auth_manifest_preamble.flags)
-                    .contains(AuthManifestFlags::DEBUG_IMAGE),
-            );
+            let fw = &mut drivers.persistent_data.get_mut().fw;
+            fw.auth_manifest_is_debug = U8Bool::new(flags.contains(AuthManifestFlags::DEBUG_IMAGE));
+            fw.auth_manifest_is_ueid_bound = U8Bool::new(ueid_bound);
         }
         Ok(())
     }

@@ -10,7 +10,7 @@ use caliptra_api::{
     SocManager,
 };
 use caliptra_auth_man_types::{
-    AuthManifestImageMetadata, AuthManifestPreamble, AuthorizationManifest, ImageMetadataFlags,
+    AuthManifestFlags, AuthManifestImageMetadata, AuthorizationManifest, ImageMetadataFlags,
 };
 use caliptra_builder::{
     firmware::{APP_WITH_UART_OCP_LOCK, APP_WITH_UART_OCP_LOCK_FPGA, FMC_WITH_UART},
@@ -115,17 +115,27 @@ fn default_soc_manifest(pqc_key_type: FwVerificationPqcKeyType, svn: u32) -> Aut
     create_auth_manifest_with_metadata_with_svn(metadata, pqc_key_type, svn)
 }
 
+fn sha384_chunks<'a>(chunks: impl Iterator<Item = &'a [u8]>) -> [u8; 48] {
+    let mut hasher = Sha384Hasher::new();
+    chunks.for_each(|c| hasher.update(c));
+    hasher.finalize().into()
+}
+
 pub fn soc_manifest_measurements(manifest: &AuthorizationManifest) -> ([u8; 48], [u8; 48]) {
-    let preamble = manifest.preamble.as_bytes();
-    let vendor_range = AuthManifestPreamble::vendor_signed_data_range();
-    let mut owner_hasher = Sha384Hasher::new();
-    for range in AuthManifestPreamble::owner_signed_data_ranges() {
-        owner_hasher.update(&preamble[range.start as usize..range.end as usize]);
-    }
+    // A UEID_BOUND_PREAMBLE preamble also signs (and measures) the device UEID,
+    // which the IMC's UEID entry must carry.
+    let ueid = AuthManifestFlags::from(manifest.preamble.flags)
+        .contains(AuthManifestFlags::UEID_BOUND_PREAMBLE)
+        .then(|| {
+            let col = &manifest.image_metadata_col;
+            col.image_metadata_list[..col.entry_count as usize]
+                .iter()
+                .find_map(AuthManifestImageMetadata::ueid)
+                .expect("UEID_BOUND_PREAMBLE manifest without UEID entry")
+        });
     (
-        Sha384Hasher::digest(&preamble[vendor_range.start as usize..vendor_range.end as usize])
-            .into(),
-        owner_hasher.finalize().into(),
+        sha384_chunks(manifest.preamble.vendor_signed_data_chunks(ueid.as_ref())),
+        sha384_chunks(manifest.preamble.owner_signed_data_chunks(ueid.as_ref())),
     )
 }
 
