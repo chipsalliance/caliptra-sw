@@ -250,7 +250,7 @@ static int derive_context(struct dpe_derive_context_response *out, int flags)
     derive_context_cmd.flags = flags;
 
     memset(&dpe_req, 0, sizeof(struct caliptra_invoke_dpe_req));
-    dpe_req.derive_context_cmd = derive_context_cmd;
+    dpe_req.payload.derive_context_cmd = derive_context_cmd;
     dpe_req.data_size = sizeof(struct dpe_derive_context_cmd);
 
     int status = caliptra_invoke_dpe_command(&dpe_req, &dpe_resp, false);
@@ -259,7 +259,7 @@ static int derive_context(struct dpe_derive_context_response *out, int flags)
         dump_caliptra_error_codes();
         return 1;
     } else {
-        memcpy(out, &dpe_resp.derive_context_resp, sizeof(struct dpe_derive_context_response));
+        memcpy(out, &dpe_resp.payload.derive_context_resp, sizeof(struct dpe_derive_context_response));
         printf("DPE Command: OK\n");
     }
 
@@ -279,7 +279,7 @@ static int derive_context_exported_cdi(struct dpe_derive_context_exported_cdi_re
     derive_context_cmd.flags = flags;
 
     memset(&dpe_req, 0, sizeof(struct caliptra_invoke_dpe_req));
-    dpe_req.derive_context_cmd = derive_context_cmd;
+    dpe_req.payload.derive_context_cmd = derive_context_cmd;
     dpe_req.data_size = sizeof(struct dpe_derive_context_cmd);
 
     int status = caliptra_invoke_dpe_command(&dpe_req, &dpe_resp, false);
@@ -288,7 +288,7 @@ static int derive_context_exported_cdi(struct dpe_derive_context_exported_cdi_re
         dump_caliptra_error_codes();
         return 1;
     } else {
-        memcpy(out, &dpe_resp.derive_context_exported_cdi_resp, sizeof(struct dpe_derive_context_exported_cdi_response));
+        memcpy(out, &dpe_resp.payload.derive_context_exported_cdi_resp, sizeof(struct dpe_derive_context_exported_cdi_response));
         printf("DPE Command: OK\n");
     }
 
@@ -459,7 +459,7 @@ int rom_test_all_commands(const test_info *info)
 
     // NOTE: Response structs are uninitialized to confirm libcaliptra handles this properly
     // STASH_MEASUREMENT
-    struct caliptra_stash_measurement_req stash_req = {};
+    struct caliptra_stash_measurement_req stash_req = { 0 };
     struct caliptra_stash_measurement_resp stash_resp;
 
     status = caliptra_stash_measurement(&stash_req, &stash_resp, false);
@@ -557,7 +557,7 @@ int test_all_mldsa87_commands()
     int failure = 0;
 
     // GET_IDEV_MLDSA87_CERT
-    struct caliptra_get_idev_mldsa87_cert_req idev_mldsa87_cert_req = {};
+    struct caliptra_get_idev_mldsa87_cert_req idev_mldsa87_cert_req = { 0 };
     struct caliptra_get_idev_mldsa87_cert_resp idev_mldsa87_cert_resp;
 
     int status = caliptra_get_idev_mldsa87_cert(&idev_mldsa87_cert_req, &idev_mldsa87_cert_resp, false);
@@ -590,7 +590,7 @@ int test_all_mldsa87_commands()
     }
 
     // POPULATE_IDEV_MLDSA87_CERT
-    struct caliptra_populate_idev_mldsa87_cert_req populate_idev_req = {};
+    struct caliptra_populate_idev_mldsa87_cert_req populate_idev_req = { 0 };
 
     status = caliptra_populate_idev_mldsa87_cert(&populate_idev_req, false);
 
@@ -694,7 +694,7 @@ int rt_test_all_commands(const test_info *info)
     }
 
     // GET_IDEV_ECC384_CERT
-    struct caliptra_get_idev_ecc384_cert_req idev_ecc384_cert_req = {};
+    struct caliptra_get_idev_ecc384_cert_req idev_ecc384_cert_req = { 0 };
     struct caliptra_get_idev_ecc384_cert_resp idev_ecc384_cert_resp;
 
     status = caliptra_get_idev_ecc384_cert(&idev_ecc384_cert_req, &idev_ecc384_cert_resp, false);
@@ -727,7 +727,7 @@ int rt_test_all_commands(const test_info *info)
     }
 
     // POPULATE_IDEV_ECC384_CERT
-    struct caliptra_populate_idev_ecc384_cert_req populate_idev_req = {};
+    struct caliptra_populate_idev_ecc384_cert_req populate_idev_req = { 0 };
 
     status = caliptra_populate_idev_ecc384_cert(&populate_idev_req, false);
 
@@ -819,7 +819,7 @@ int rt_test_all_commands(const test_info *info)
     failure = test_all_mldsa87_commands();
 
     // ECDSA384_VERIFY
-    struct caliptra_ecdsa_verify_v2_req ecdsa_req = {};
+    struct caliptra_ecdsa_verify_v2_req ecdsa_req = { 0 };
 
     status = caliptra_ecdsa384_verify(&ecdsa_req, false);
 
@@ -840,7 +840,7 @@ int rt_test_all_commands(const test_info *info)
     }
 
     // LMS_VERIFY
-    struct caliptra_lms_verify_v2_req lms_req = {};
+    struct caliptra_lms_verify_v2_req lms_req = { 0 };
 
     status = caliptra_lms_verify(&lms_req, false);
 
@@ -861,7 +861,7 @@ int rt_test_all_commands(const test_info *info)
     }
 
     // STASH_MEASUREMENT
-    struct caliptra_stash_measurement_req stash_req = {};
+    struct caliptra_stash_measurement_req stash_req = { 0 };
     struct caliptra_stash_measurement_resp stash_resp;
 
     status = caliptra_stash_measurement(&stash_req, &stash_resp, false);
@@ -880,13 +880,13 @@ int rt_test_all_commands(const test_info *info)
     // INVOKE_DPE_ECC384
     // Using GET_PROFILE as an example command
     // TODO: Coverage of other DPE commands should be added
-    struct caliptra_invoke_dpe_req dpe_req = {};
+    struct caliptra_invoke_dpe_req dpe_req = { 0 };
     struct caliptra_invoke_dpe_resp dpe_resp;
 
     dpe_req.data_size = sizeof(struct dpe_get_profile_cmd);
-    dpe_req.get_profile_cmd.cmd_hdr.magic = DPE_MAGIC;
-    dpe_req.get_profile_cmd.cmd_hdr.cmd_id = DPE_GET_PROFILE;
-    dpe_req.get_profile_cmd.cmd_hdr.profile = 0x2;
+    dpe_req.payload.get_profile_cmd.cmd_hdr.magic = DPE_MAGIC;
+    dpe_req.payload.get_profile_cmd.cmd_hdr.cmd_id = DPE_GET_PROFILE;
+    dpe_req.payload.get_profile_cmd.cmd_hdr.profile = 0x2;
 
     status = caliptra_invoke_dpe_command(&dpe_req, &dpe_resp, false);
 
@@ -904,12 +904,12 @@ int rt_test_all_commands(const test_info *info)
     // INVOKE_DPE_MLDSA87
     // Using GET_PROFILE as an example command
     // TODO: Coverage of other DPE commands should be added
-    struct caliptra_invoke_dpe_mldsa87_req dpe_mldsa87_req = {};
+    struct caliptra_invoke_dpe_mldsa87_req dpe_mldsa87_req = { 0 };
 
     dpe_mldsa87_req.data_size = sizeof(struct dpe_get_profile_cmd);
-    dpe_mldsa87_req.get_profile_cmd.cmd_hdr.magic = DPE_MAGIC;
-    dpe_mldsa87_req.get_profile_cmd.cmd_hdr.cmd_id = DPE_GET_PROFILE;
-    dpe_mldsa87_req.get_profile_cmd.cmd_hdr.profile = 0x2;
+    dpe_mldsa87_req.payload.get_profile_cmd.cmd_hdr.magic = DPE_MAGIC;
+    dpe_mldsa87_req.payload.get_profile_cmd.cmd_hdr.cmd_id = DPE_GET_PROFILE;
+    dpe_mldsa87_req.payload.get_profile_cmd.cmd_hdr.profile = 0x2;
 
     status = caliptra_invoke_dpe_mldsa87_command(&dpe_mldsa87_req, &dpe_resp, false);
 
@@ -941,7 +941,7 @@ int rt_test_all_commands(const test_info *info)
     }
 
     // DPE_TAG_TCI
-    struct caliptra_dpe_tag_tci_req tag_tci_req = {};
+    struct caliptra_dpe_tag_tci_req tag_tci_req = { 0 };
 
     status = caliptra_dpe_tag_tci(&tag_tci_req, false);
 
@@ -957,7 +957,7 @@ int rt_test_all_commands(const test_info *info)
     }
 
     // DPE_GET_TAGGED_TCI
-    struct caliptra_get_tagged_tci_req get_tagged_tci_req = {};
+    struct caliptra_get_tagged_tci_req get_tagged_tci_req = { 0 };
     struct caliptra_get_tagged_tci_resp get_tagged_tci_resp;
 
     status = caliptra_dpe_get_tagged_tci(&get_tagged_tci_req, &get_tagged_tci_resp, false);
@@ -974,7 +974,7 @@ int rt_test_all_commands(const test_info *info)
     }
 
     // Increment PCR Reset Counter
-    struct caliptra_increment_pcr_reset_counter_req inc_pcr_rst_cntr_req = {};
+    struct caliptra_increment_pcr_reset_counter_req inc_pcr_rst_cntr_req = { 0 };
 
     status = caliptra_increment_pcr_reset_counter(&inc_pcr_rst_cntr_req, false);
 
@@ -990,7 +990,7 @@ int rt_test_all_commands(const test_info *info)
     }
 
     // Quote PCRs - ECC
-    struct caliptra_quote_pcrs_req quote_pcrs_ecc_req = {};
+    struct caliptra_quote_pcrs_req quote_pcrs_ecc_req = { 0 };
     struct caliptra_quote_pcrs_ecc384_resp quote_pcrs_ecc_resp;
 
     status = caliptra_quote_pcrs_ecc384(&quote_pcrs_ecc_req, &quote_pcrs_ecc_resp, false);
@@ -1007,7 +1007,7 @@ int rt_test_all_commands(const test_info *info)
     }
 
     // Quote PCRs - MLDSA
-    struct caliptra_quote_pcrs_req quote_pcrs_mldsa_req = {};
+    struct caliptra_quote_pcrs_req quote_pcrs_mldsa_req = { 0 };
     struct caliptra_quote_pcrs_mldsa87_resp quote_pcrs_mldsa_resp;
 
     status = caliptra_quote_pcrs_mldsa87(&quote_pcrs_mldsa_req, &quote_pcrs_mldsa_resp, false);
@@ -1024,7 +1024,7 @@ int rt_test_all_commands(const test_info *info)
     }
 
     // Extend PCR
-    struct caliptra_extend_pcr_req extend_pcr_req = {};
+    struct caliptra_extend_pcr_req extend_pcr_req = { 0 };
     extend_pcr_req.pcr_idx = 0x4; // First non-reserved index
 
     status = caliptra_extend_pcr(&extend_pcr_req, false);
@@ -1041,7 +1041,7 @@ int rt_test_all_commands(const test_info *info)
     }
 
     // Add subject alt name
-    struct caliptra_add_subject_alt_name_req add_subject_alt_name_req = {};
+    struct caliptra_add_subject_alt_name_req add_subject_alt_name_req = { 0 };
     strcpy((char *)add_subject_alt_name_req.dmtf_device_info, "ChipsAlliance:Caliptra:0123456789");
     add_subject_alt_name_req.dmtf_device_info_size = strlen((char *)add_subject_alt_name_req.dmtf_device_info);
 
@@ -1060,7 +1060,7 @@ int rt_test_all_commands(const test_info *info)
 
     // Certify key extended
     int caliptra_certify_key_extended_ecc384(struct caliptra_certify_key_extended_ecc384_req * req, struct caliptra_certify_key_extended_resp * resp, bool async);
-    struct caliptra_certify_key_extended_ecc384_req certify_key_extended_ecc384_req = {};
+    struct caliptra_certify_key_extended_ecc384_req certify_key_extended_ecc384_req = { 0 };
     struct caliptra_certify_key_extended_resp certify_key_extended_resp;
 
     status = caliptra_certify_key_extended_ecc384(&certify_key_extended_ecc384_req, &certify_key_extended_resp, false);
@@ -1078,7 +1078,7 @@ int rt_test_all_commands(const test_info *info)
 
     // Certify key extended
     int caliptra_certify_key_extended_mldsa87(struct caliptra_certify_key_extended_mldsa87_req * req, struct caliptra_certify_key_extended_resp * resp, bool async);
-    struct caliptra_certify_key_extended_mldsa87_req certify_key_extended_mldsa87_req = {};
+    struct caliptra_certify_key_extended_mldsa87_req certify_key_extended_mldsa87_req = { 0 };
 
     status = caliptra_certify_key_extended_mldsa87(&certify_key_extended_mldsa87_req, &certify_key_extended_resp, false);
 
@@ -1094,7 +1094,7 @@ int rt_test_all_commands(const test_info *info)
     }
 
     // Set Auth Manifest
-    struct caliptra_set_auth_manifest_req set_auth_man_req = {};
+    struct caliptra_set_auth_manifest_req set_auth_man_req = { 0 };
     set_auth_man_req.manifest_size = 34*1024;
 
     status = caliptra_set_auth_manifest(&set_auth_man_req, false);
@@ -1113,7 +1113,7 @@ int rt_test_all_commands(const test_info *info)
     }
 
     // Authorize and Stash
-    struct caliptra_authorize_and_stash_req auth_and_stash_req = {};
+    struct caliptra_authorize_and_stash_req auth_and_stash_req = { 0 };
     struct caliptra_authorize_and_stash_resp auth_and_stash_resp;
 
     status = caliptra_authorize_and_stash(&auth_and_stash_req, &auth_and_stash_resp, false);
@@ -1132,7 +1132,7 @@ int rt_test_all_commands(const test_info *info)
     }
 
     // Reallocate DPE Context Limits
-    struct caliptra_reallocate_dpe_context_limits_req reallocate_context_limits_req = {};
+    struct caliptra_reallocate_dpe_context_limits_req reallocate_context_limits_req = { 0 };
     struct caliptra_reallocate_dpe_context_limits_resp reallocate_context_limits_resp;
 
     reallocate_context_limits_req.pl0_context_limit = 20;
