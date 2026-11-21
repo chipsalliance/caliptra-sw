@@ -27,3 +27,5 @@ default = ["std", "cfi"]
 std = ["caliptra-image-types/std"]
 cfi = []
 fips-test-hooks = []
+# Runtime image policy; leave disabled in frozen ROM builds.
+strict-image-alignment = []

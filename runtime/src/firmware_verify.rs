@@ -57,6 +57,9 @@ impl FirmwareVerifyCmd {
                 axi_address,
                 image_size,
             } => {
+                if image_size < size_of::<ImageManifest>() as u32 {
+                    return Err(CaliptraError::IMAGE_VERIFIER_ERR_MANIFEST_SIZE_MISMATCH);
+                }
                 Self::load_manifest_from_external(&mut manifest, &mut drivers.dma, axi_address)?;
                 (
                     image_size,
