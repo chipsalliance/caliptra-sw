@@ -2094,7 +2094,7 @@ impl Commands {
                 hkdf_extract(
                     &mut drivers.hmac,
                     &ikm.key_material[..ikm.length as usize],
-                    &salt.key_material[..48],
+                    &salt.key_material[..salt.length as usize],
                     &mut drivers.trng,
                     (&mut tag).into(),
                     HmacMode::Hmac384,
@@ -2111,7 +2111,7 @@ impl Commands {
                 hkdf_extract(
                     &mut drivers.hmac,
                     &ikm.key_material[..ikm.length as usize],
-                    &salt.key_material[..64],
+                    &salt.key_material[..salt.length as usize],
                     &mut drivers.trng,
                     (&mut tag).into(),
                     HmacMode::Hmac512,
