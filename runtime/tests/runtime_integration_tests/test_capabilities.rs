@@ -5,16 +5,14 @@ use caliptra_api::{
     mailbox::{CapabilitiesResp, CommandId, MailboxReqHeader, MailboxRespHeader},
     Capabilities,
 };
-use caliptra_hw_model::HwModel;
+use caliptra_hw_model::{DefaultHwModel, HwModel};
 use caliptra_runtime::RtBootStatus;
 
 use crate::common::{run_rt_test, RuntimeTestArgs};
 
 use zerocopy::{FromBytes, IntoBytes};
 
-#[test]
-fn test_capabilities() {
-    let mut model = run_rt_test(RuntimeTestArgs::default());
+pub fn get_capabilities(model: &mut DefaultHwModel) -> Capabilities {
     model.step_until(|m| {
         m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
     });
@@ -42,7 +40,13 @@ fn test_capabilities() {
         MailboxRespHeader::FIPS_STATUS_APPROVED
     );
 
-    let caps = Capabilities::try_from(capabilities_resp.capabilities.as_bytes()).unwrap();
+    Capabilities::try_from(capabilities_resp.capabilities.as_bytes()).unwrap()
+}
+
+#[test]
+fn test_capabilities() {
+    let mut model = run_rt_test(RuntimeTestArgs::default());
+    let caps = get_capabilities(&mut model);
     assert!(caps.contains(Capabilities::RT_BASE));
 
     if model.subsystem_mode() && model.supports_ocp_lock() {
@@ -50,4 +54,20 @@ fn test_capabilities() {
     } else {
         assert!(!caps.contains(Capabilities::RT_OCP_LOCK));
     }
+    assert_eq!(
+        caps.contains(Capabilities::RT_SHA_DMA),
+        model.subsystem_mode()
+    );
+}
+
+#[cfg_attr(any(feature = "verilator", feature = "fpga_realtime"), ignore)]
+#[test]
+fn test_capabilities_subsystem_mode() {
+    let mut model = run_rt_test(RuntimeTestArgs {
+        subsystem_mode: true,
+        ..Default::default()
+    });
+    let caps = get_capabilities(&mut model);
+    assert!(caps.contains(Capabilities::RT_BASE));
+    assert!(caps.contains(Capabilities::RT_SHA_DMA));
 }
