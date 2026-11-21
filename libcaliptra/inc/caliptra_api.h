@@ -235,6 +235,9 @@ int caliptra_quote_pcrs_ecc384(struct caliptra_quote_pcrs_req *req, struct calip
 
 int caliptra_quote_pcrs_mldsa87(struct caliptra_quote_pcrs_req *req, struct caliptra_quote_pcrs_mldsa87_resp *resp, bool async);
 
+// Get image info
+int caliptra_get_image_info(struct caliptra_get_image_info_req *req, struct caliptra_get_image_info_resp *resp, bool async);
+
 // Extend PCR
 int caliptra_extend_pcr(struct caliptra_extend_pcr_req *req, bool async);
 

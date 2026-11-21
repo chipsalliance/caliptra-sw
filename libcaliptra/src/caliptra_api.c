@@ -1357,6 +1357,19 @@ int caliptra_quote_pcrs_mldsa87(struct caliptra_quote_pcrs_req *req, struct cali
     return pack_and_execute_command(&p, async);
 }
 
+// Get image info
+int caliptra_get_image_info(struct caliptra_get_image_info_req *req, struct caliptra_get_image_info_resp *resp, bool async)
+{
+    if (!req || !resp)
+    {
+        return INVALID_PARAMS;
+    }
+
+    CREATE_PARCEL(p, OP_GET_IMAGE_INFO, req, resp);
+
+    return pack_and_execute_command(&p, async);
+}
+
 // Extend PCR
 int caliptra_extend_pcr(struct caliptra_extend_pcr_req *req, bool async)
 {
