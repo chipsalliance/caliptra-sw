@@ -28,7 +28,7 @@ use caliptra_emu_types::{RvAddr, RvData, RvSize};
 use caliptra_hw_model_types::{CaliptraHwVersion, EtrngResponse};
 use caliptra_registers::soc_ifc::regs::CptraHwConfigReadVal;
 use caliptra_registers::soc_ifc_trng::regs::{CptraTrngStatusReadVal, CptraTrngStatusWriteVal};
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use std::sync::mpsc;
 use tock_registers::interfaces::{ReadWriteable, Readable, Writeable};
@@ -117,6 +117,7 @@ mod constants {
     pub const INTERNAL_NMI_VECTOR_START: u32 = 0x62c;
     pub const INTERNAL_RV_MTIME_L_START: u32 = 0x640;
     pub const INTERNAL_RV_MTIME_H_START: u32 = 0x644;
+    pub const INTERNAL_CSR_HMAC_KEY_LOCK_START: u32 = 0x668;
     pub const STASH_DATA_START: u32 = 0xc00;
     pub const STASH_DATA_SIZE: usize = 0x340;
     pub const STASH_SOC_LOCK_START: u32 = 0xf40;
@@ -125,6 +126,22 @@ mod constants {
     pub const STASH_STATUS_START: u32 = 0xf4c;
 }
 use constants::*;
+
+/// State of `INTERNAL_CSR_HMAC_KEY_LOCK`, shared between the SoC interface
+/// registers (which own it) and the HMAC engine (which uses an all-zero key in
+/// CSR mode while it is set).
+#[derive(Clone, Default)]
+pub struct CsrHmacKeyLock(Rc<Cell<bool>>);
+
+impl CsrHmacKeyLock {
+    pub fn is_locked(&self) -> bool {
+        self.0.get()
+    }
+
+    pub(crate) fn set(&self, locked: bool) {
+        self.0.set(locked);
+    }
+}
 
 register_bitfields! [
     u32,
@@ -463,6 +480,11 @@ impl SocRegistersInternal {
         self.regs.borrow_mut().ss_strap_generic = *val;
     }
 
+    /// Handle to the `INTERNAL_CSR_HMAC_KEY_LOCK` state.
+    pub fn csr_hmac_key_lock(&self) -> CsrHmacKeyLock {
+        self.regs.borrow().csr_hmac_key_lock.clone()
+    }
+
     pub fn external_regs(&self) -> SocRegistersExternal {
         SocRegistersExternal {
             regs: self.regs.clone(),
@@ -564,6 +586,11 @@ impl Bus for SocRegistersExternal {
                 } else {
                     Err(StoreAccessFault)
                 }
+            }
+            // SoC writes to INTERNAL_CSR_HMAC_KEY_LOCK are silently ignored; only the
+            // Caliptra core can write it (RDL: swwel = soc_req).
+            INTERNAL_CSR_HMAC_KEY_LOCK_START if self.regs.borrow().csr_hmac_key_lock_supported => {
+                Ok(())
             }
             // SoC cannot write CPTRA_LOCK.
             STASH_CPTRA_LOCK_START => {
@@ -975,6 +1002,17 @@ struct SocRegistersImpl {
     #[register(offset= 0x0644, read_fn = on_read_internal_rv_mtime_h)]
     internal_rv_mtime_h: ReadOnlyRegister<u32>,
 
+    /// INTERNAL_CSR_HMAC_KEY_LOCK Register (2.2+)
+    #[register(
+        offset = 0x0668,
+        read_fn = on_read_internal_csr_hmac_key_lock,
+        write_fn = on_write_internal_csr_hmac_key_lock
+    )]
+    csr_hmac_key_lock: CsrHmacKeyLock,
+
+    /// Whether this hardware version implements INTERNAL_CSR_HMAC_KEY_LOCK
+    csr_hmac_key_lock_supported: bool,
+
     /// GLOBAL_INTR_EN_R Register
     #[register(offset = 0x0800)]
     global_intr_en_r: ReadWriteRegister<u32, GlobalIntrEn::Register>,
@@ -1227,6 +1265,11 @@ impl SocRegistersImpl {
             internal_nmi_vector: ReadWriteRegister::new(0),
             internal_rv_mtime_l: ReadOnlyRegister::new(0),
             internal_rv_mtime_h: ReadOnlyRegister::new(0),
+            csr_hmac_key_lock: CsrHmacKeyLock::default(),
+            csr_hmac_key_lock_supported: matches!(
+                args.hw_version,
+                CaliptraHwVersion::V2_2 | CaliptraHwVersion::Latest
+            ),
             global_intr_en_r: ReadWriteRegister::new(0),
             error_intr_en_r: ReadWriteRegister::new(0),
             notif_intr_en_r: ReadWriteRegister::new(0),
@@ -1620,6 +1663,28 @@ impl SocRegistersImpl {
         Ok(())
     }
 
+    fn on_read_internal_csr_hmac_key_lock(&mut self, _size: RvSize) -> Result<u32, BusError> {
+        if !self.csr_hmac_key_lock_supported {
+            return Err(LoadAccessFault);
+        }
+        Ok(u32::from(self.csr_hmac_key_lock.is_locked()))
+    }
+
+    fn on_write_internal_csr_hmac_key_lock(
+        &mut self,
+        _size: RvSize,
+        val: RvData,
+    ) -> Result<(), BusError> {
+        if !self.csr_hmac_key_lock_supported {
+            return Err(StoreAccessFault);
+        }
+        // Write-1-to-set; only a warm or cold reset clears it.
+        if val & 1 != 0 {
+            self.csr_hmac_key_lock.set(true);
+        }
+        Ok(())
+    }
+
     fn on_read_internal_rv_mtime_h(&mut self, _size: RvSize) -> Result<u32, BusError> {
         Ok((self.timer.now() >> 32) as u32)
     }
@@ -1753,6 +1818,10 @@ impl SocRegistersImpl {
         for reg in self.cptra_mbox_valid_axi_user.iter_mut() {
             *reg = 0xffffffff;
         }
+
+        // The CSR HMAC key lock is on cptra_rst_b: cleared by warm reset, but
+        // not by update reset.
+        self.csr_hmac_key_lock.set(false);
 
         self.reset_common();
     }
@@ -2546,5 +2615,81 @@ mod tests {
         let reg = SocRegistersInternal::new(mailbox.clone(), Iccm::new(&clock), mci.clone(), args);
         let rev_id = CptraHwRevIdReadVal::from(reg.regs.borrow().cptra_hw_rev_id.reg.get());
         assert_eq!(CPTRA_HW_REV_2_1, rev_id.cptra_generation());
+    }
+
+    fn new_soc_reg(hw_version: CaliptraHwVersion) -> SocRegistersInternal {
+        let clock = Rc::new(Clock::new());
+        let mailbox = MailboxInternal::new(&clock, MailboxRam::default());
+        let args = CaliptraRootBusArgs {
+            hw_version,
+            clock: clock.clone(),
+            ..CaliptraRootBusArgs::default()
+        };
+        SocRegistersInternal::new(mailbox, Iccm::new(&clock), Mci::new(vec![]), args)
+    }
+
+    #[test]
+    fn test_csr_hmac_key_lock() {
+        for hw_version in [CaliptraHwVersion::V2_2, CaliptraHwVersion::Latest] {
+            let mut reg = new_soc_reg(hw_version);
+            let lock = reg.csr_hmac_key_lock();
+            let read = |reg: &mut SocRegistersInternal| {
+                reg.read(RvSize::Word, INTERNAL_CSR_HMAC_KEY_LOCK_START)
+                    .unwrap()
+            };
+            assert_eq!(read(&mut reg), 0);
+            assert!(!lock.is_locked());
+
+            // SoC writes are ignored.
+            reg.external_regs()
+                .write(RvSize::Word, INTERNAL_CSR_HMAC_KEY_LOCK_START, 1)
+                .unwrap();
+            assert_eq!(read(&mut reg), 0);
+
+            // Writing 0 doesn't set it.
+            reg.write(RvSize::Word, INTERNAL_CSR_HMAC_KEY_LOCK_START, 0)
+                .unwrap();
+            assert_eq!(read(&mut reg), 0);
+
+            // Write-1-to-set; the HMAC handle sees the new state.
+            reg.write(RvSize::Word, INTERNAL_CSR_HMAC_KEY_LOCK_START, 1)
+                .unwrap();
+            assert_eq!(read(&mut reg), 1);
+            assert!(lock.is_locked());
+
+            // Firmware can't clear it.
+            reg.write(RvSize::Word, INTERNAL_CSR_HMAC_KEY_LOCK_START, 0)
+                .unwrap();
+            assert_eq!(read(&mut reg), 1);
+
+            // Kept across update reset.
+            reg.update_reset();
+            assert_eq!(read(&mut reg), 1);
+            assert!(lock.is_locked());
+
+            // Cleared by warm reset.
+            reg.warm_reset();
+            assert_eq!(read(&mut reg), 0);
+            assert!(!lock.is_locked());
+        }
+    }
+
+    #[test]
+    fn test_csr_hmac_key_lock_not_available_in_old_versions() {
+        let mut reg = new_soc_reg(CaliptraHwVersion::V2_1);
+        assert_eq!(
+            reg.read(RvSize::Word, INTERNAL_CSR_HMAC_KEY_LOCK_START),
+            Err(BusError::LoadAccessFault)
+        );
+        assert_eq!(
+            reg.write(RvSize::Word, INTERNAL_CSR_HMAC_KEY_LOCK_START, 1),
+            Err(BusError::StoreAccessFault)
+        );
+        assert_eq!(
+            reg.external_regs()
+                .write(RvSize::Word, INTERNAL_CSR_HMAC_KEY_LOCK_START, 1),
+            Err(BusError::StoreAccessFault)
+        );
+        assert!(!reg.csr_hmac_key_lock().is_locked());
     }
 }

@@ -19,6 +19,7 @@ use caliptra_cfi_derive::Launder;
 use caliptra_error::{CaliptraError, CaliptraResult};
 use caliptra_registers::soc_ifc::enums::DeviceLifecycleE;
 use caliptra_registers::soc_ifc::{self, SocIfcReg};
+use caliptra_registers::CsrHmacKeyLockFacade;
 
 use crate::{memory_layout, FuseBank};
 
@@ -246,6 +247,18 @@ impl SocIfc {
     pub fn set_iccm_lock(&mut self, lock: bool) {
         let soc_ifc_regs = self.soc_ifc.regs_mut();
         soc_ifc_regs.internal_iccm_lock().modify(|w| w.lock(lock));
+    }
+
+    /// Locks the CSR HMAC key.
+    ///
+    /// Once set, the CSR HMAC key is removed from the HMAC engine
+    /// (`HMAC512_CTRL.CSR_MODE` uses an all-zero key). The lock can't be
+    /// cleared by firmware; it survives an update reset and is cleared only by
+    /// a warm or cold reset. ROM must set it before handing off to FMC.
+    ///
+    /// No-op on hardware revisions before 2.2, which lack this lock.
+    pub fn set_csr_hmac_key_lock(&mut self) {
+        self.soc_ifc.regs_mut().set_csr_hmac_key_lock();
     }
 
     /// Retrieve reset reason

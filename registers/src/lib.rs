@@ -116,6 +116,22 @@ mod register_facade {
         }
     }
 
+    // `CPTRA_iTRNG_ENTROPY_CONFIG_1[31:16]` is named `alert_threshold` natively.
+    pub trait EntropyConfig1ReadValFacade {}
+
+    pub trait CsrHmacKeyLockFacade {
+        /// Set the sticky `INTERNAL_CSR_HMAC_KEY_LOCK`, which removes the CSR
+        /// HMAC key from the HMAC engine until the next warm or cold reset.
+        fn set_csr_hmac_key_lock(&self);
+    }
+
+    impl<TMmio: caliptra_ureg::MmioMut> CsrHmacKeyLockFacade for crate::soc_ifc::RegisterBlock<TMmio> {
+        fn set_csr_hmac_key_lock(&self) {
+            // RW1S register: writing 0 to the other bits has no effect.
+            self.internal_csr_hmac_key_lock().write(|w| w.lock(true));
+        }
+    }
+
     pub use crate::{
         entropy_src::regs::{
             AdaptpHiThresholdReadVal as AdaptpHiThresholdsReadVal,
@@ -135,6 +151,26 @@ mod register_facade {
     pub trait EntropyThresholdReadValFacade {}
     pub trait EntropyThresholdWriteValFacade {}
     pub trait EntropySrcRegisterBlockFacade {}
+
+    pub trait EntropyConfig1ReadValFacade {
+        fn alert_threshold(&self) -> u32;
+    }
+
+    // `CPTRA_iTRNG_ENTROPY_CONFIG_1[31:16]` is named `rsvd` before 2.2.
+    impl EntropyConfig1ReadValFacade for crate::soc_ifc::regs::CptraItrngEntropyConfig1ReadVal {
+        fn alert_threshold(&self) -> u32 {
+            self.rsvd()
+        }
+    }
+
+    pub trait CsrHmacKeyLockFacade {
+        /// `INTERNAL_CSR_HMAC_KEY_LOCK` does not exist before 2.2; this is a no-op.
+        fn set_csr_hmac_key_lock(&self);
+    }
+
+    impl<TMmio: caliptra_ureg::MmioMut> CsrHmacKeyLockFacade for crate::soc_ifc::RegisterBlock<TMmio> {
+        fn set_csr_hmac_key_lock(&self) {}
+    }
 
     pub use crate::{
         entropy_src::regs::{
