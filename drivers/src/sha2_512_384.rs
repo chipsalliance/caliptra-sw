@@ -52,12 +52,13 @@ impl Sha2_512_384 {
     pub fn new(sha512: Sha512Reg) -> Self {
         Self { sha512 }
     }
-    /// Initialize multi step digest operation
+    /// Initialize a fresh multi step digest operation, clearing previous hardware state.
     ///
     /// # Returns
     ///
     /// * `Sha2DigestOp` - Object representing the digest operation
     pub fn sha384_digest_init(&mut self) -> CaliptraResult<Sha2DigestOp<'_, Sha384>> {
+        self.zeroize_internal();
         let op = Sha2DigestOp {
             sha: self,
             state: Sha2DigestState::Init,
@@ -70,12 +71,13 @@ impl Sha2_512_384 {
         Ok(op)
     }
 
-    /// Initialize multi step digest operation
+    /// Initialize a fresh multi step digest operation, clearing previous hardware state.
     ///
     /// # Returns
     ///
     /// * `Sha2DigestOp` - Object representing the digest operation
     pub fn sha512_digest_init(&mut self) -> CaliptraResult<Sha2DigestOp<'_, Sha512>> {
+        self.zeroize_internal();
         let op = Sha2DigestOp {
             sha: self,
             state: Sha2DigestState::Init,
@@ -99,6 +101,7 @@ impl Sha2_512_384 {
             return Err(CaliptraError::DRIVER_SHA2_512_384_MAX_DATA_ERR);
         }
 
+        self.zeroize_internal();
         let mut first = true;
         let mut bytes_remaining = buf.len();
 
@@ -594,7 +597,7 @@ pub trait Sha2DigestOpTrait<'a, V>: Sized {
         Ok(())
     }
 
-    /// Finalize the digest operation
+    /// Finalize the digest operation and zeroize hardware after copying the digest.
     fn finalize(mut self, digest: &mut Self::DigestType) -> CaliptraResult<()> {
         let this = self.as_digest_op();
         if this.state == Sha2DigestState::Final {
@@ -617,6 +620,7 @@ pub trait Sha2DigestOpTrait<'a, V>: Sized {
 
         this.state = Sha2DigestState::Final;
         *digest = Self::read_digest(this.sha);
+        this.sha.zeroize_internal();
 
         Ok(())
     }
