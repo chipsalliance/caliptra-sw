@@ -933,6 +933,9 @@ fn test_upload_single_measurement() {
             },
         )
         .unwrap();
+        let stash_measurement_registers_enabled =
+            caliptra_builder::default_features(hw.hw_revision(), "caliptra-rom")
+                .contains(&"caliptra-rom/stash-measurement-registers");
 
         let image_bundle = caliptra_builder::build_and_sign_image(
             &TEST_FMC_INTERACTIVE,
@@ -960,7 +963,16 @@ fn test_upload_single_measurement() {
             ..measurement
         };
 
-        hw.upload_measurement(measurement.as_bytes()).unwrap();
+        let result = hw.upload_measurement(measurement.as_bytes());
+        if stash_measurement_registers_enabled {
+            assert_eq!(
+                result,
+                Err(ModelError::MailboxCmdFailed(
+                    CaliptraError::FW_PROC_MAILBOX_INVALID_COMMAND.into()
+                ))
+            );
+            break;
+        }
 
         crate::helpers::test_upload_firmware(
             &mut hw,
@@ -1014,6 +1026,9 @@ fn test_upload_measurement_limit() {
             },
         )
         .unwrap();
+        let stash_measurement_registers_enabled =
+            caliptra_builder::default_features(hw.hw_revision(), "caliptra-rom")
+                .contains(&"caliptra-rom/stash-measurement-registers");
 
         let image_bundle = caliptra_builder::build_and_sign_image(
             &TEST_FMC_INTERACTIVE,
@@ -1046,7 +1061,20 @@ fn test_upload_measurement_limit() {
                 ..measurement
             };
 
-            hw.upload_measurement(measurement.as_bytes()).unwrap();
+            let result = hw.upload_measurement(measurement.as_bytes());
+            if stash_measurement_registers_enabled {
+                assert_eq!(
+                    result,
+                    Err(ModelError::MailboxCmdFailed(
+                        CaliptraError::FW_PROC_MAILBOX_INVALID_COMMAND.into()
+                    ))
+                );
+                break;
+            }
+        }
+
+        if stash_measurement_registers_enabled {
+            return;
         }
 
         crate::helpers::test_upload_firmware(
@@ -1100,6 +1128,9 @@ fn test_upload_measurement_limit_plus_one() {
         },
     )
     .unwrap();
+    let stash_measurement_registers_enabled =
+        caliptra_builder::default_features(hw.hw_revision(), "caliptra-rom")
+            .contains(&"caliptra-rom/stash-measurement-registers");
 
     let mut measurement = StashMeasurementReq {
         measurement: [0xdeadbeef_u32; 12].as_bytes().try_into().unwrap(),
@@ -1125,7 +1156,20 @@ fn test_upload_measurement_limit_plus_one() {
             ..measurement
         };
 
-        hw.upload_measurement(measurement.as_bytes()).unwrap();
+        let result = hw.upload_measurement(measurement.as_bytes());
+        if stash_measurement_registers_enabled {
+            assert_eq!(
+                result,
+                Err(ModelError::MailboxCmdFailed(
+                    CaliptraError::FW_PROC_MAILBOX_INVALID_COMMAND.into()
+                ))
+            );
+            break;
+        }
+    }
+
+    if stash_measurement_registers_enabled {
+        return;
     }
 
     // Upload a 9th measurement, which should fail and raise a fatal error.
