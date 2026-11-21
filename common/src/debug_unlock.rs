@@ -18,7 +18,7 @@ use caliptra_api::mailbox::{
     MailboxReqHeader, MailboxRespHeader, ProductionAuthDebugUnlockChallenge,
     ProductionAuthDebugUnlockReq, ProductionAuthDebugUnlockToken,
 };
-use caliptra_cfi_lib::{cfi_assert_eq_12_words, cfi_assert_eq_8_words, cfi_launder};
+use caliptra_cfi_lib::{cfi_assert_eq, cfi_assert_eq_12_words, cfi_assert_eq_8_words, cfi_launder};
 use caliptra_drivers::{
     sha2_512_384::Sha2DigestOpTrait, Array4x12, Array4x16, Array4x8, AxiAddr, Dma, Ecc384,
     Ecc384PubKey, Ecc384Result, Ecc384Scalar, Ecc384Signature, LEArray4x16, Mldsa87, Mldsa87PubKey,
@@ -26,6 +26,9 @@ use caliptra_drivers::{
 };
 use caliptra_error::{CaliptraError, CaliptraResult};
 use zerocopy::IntoBytes;
+
+pub const PROD_DBG_UNLOCK_VALID: u32 = 0xAAAA_AAAA;
+pub const PROD_DBG_UNLOCK_INVALID: u32 = 0x5555_5555;
 
 /// Create a challenge for production debug unlock
 ///
@@ -110,16 +113,18 @@ pub fn validate_debug_unlock_token(
     request: &ProductionAuthDebugUnlockReq,
     challenge: &ProductionAuthDebugUnlockChallenge,
     token: &ProductionAuthDebugUnlockToken,
-) -> CaliptraResult<()> {
+) -> CaliptraResult<u32> {
     // Validate the payload size.
-    if token.length as usize * size_of::<u32>()
-        != size_of::<ProductionAuthDebugUnlockToken>() - size_of::<MailboxReqHeader>()
-    {
+    let expected_len = size_of::<ProductionAuthDebugUnlockToken>() - size_of::<MailboxReqHeader>();
+    let actual_len = (token.length as usize).saturating_mul(size_of::<u32>());
+    if cfi_launder(actual_len) != expected_len {
         crate::cprintln!(
             "Invalid ProductionAuthDebugUnlockToken payload length: {}",
             token.length
         );
-        Err(CaliptraError::SS_DBG_UNLOCK_PROD_INVALID_TOKEN_CHALLENGE)?
+        Err(CaliptraError::SS_DBG_UNLOCK_PROD_INVALID_TOKEN_CHALLENGE)?;
+    } else {
+        cfi_assert_eq(actual_len, expected_len);
     }
     if token.mldsa_signature.as_bytes().last() != Some(&0) {
         crate::cprintln!("Invalid ML-DSA signature padding byte");
@@ -127,9 +132,13 @@ pub fn validate_debug_unlock_token(
     }
 
     // Check if the debug level is same as the request.
-    if token.unlock_level != request.unlock_level {
+    let token_unlock_level = u32::from(token.unlock_level);
+    let req_unlock_level = u32::from(request.unlock_level);
+    if cfi_launder(token_unlock_level) != req_unlock_level {
         crate::cprintln!("Invalid unlock level: {}", token.unlock_level);
         Err(CaliptraError::SS_DBG_UNLOCK_PROD_INVALID_TOKEN_CHALLENGE)?;
+    } else {
+        cfi_assert_eq(token_unlock_level, req_unlock_level);
     }
 
     // Check if the challenge is same as the request.
@@ -202,9 +211,11 @@ pub fn validate_debug_unlock_token(
     let mut ecc_msg = Array4x12::default();
     digest_op.finalize(&mut ecc_msg)?;
     let result = ecc384.verify(&pubkey, &ecc_msg, &signature)?;
-    if result == Ecc384Result::SigVerifyFailed {
+    if cfi_launder(result) != Ecc384Result::Success {
         crate::cprintln!("ECC Signature verification failed");
         Err(CaliptraError::SS_DBG_UNLOCK_PROD_INVALID_TOKEN_INVALID_SIGNATURE)?;
+    } else {
+        cfi_assert_eq(result, Ecc384Result::Success);
     }
 
     // Create MLDSA message hash
@@ -225,10 +236,12 @@ pub fn validate_debug_unlock_token(
         &Mldsa87Signature::from(&token.mldsa_signature),
     )?;
 
-    if result == Mldsa87Result::SigVerifyFailed {
+    if cfi_launder(result) != Mldsa87Result::Success {
         crate::cprintln!("MLDSA Signature verification failed");
         Err(CaliptraError::SS_DBG_UNLOCK_PROD_INVALID_TOKEN_INVALID_SIGNATURE)?;
+    } else {
+        cfi_assert_eq(result, Mldsa87Result::Success);
     }
 
-    Ok(())
+    Ok(PROD_DBG_UNLOCK_VALID)
 }
