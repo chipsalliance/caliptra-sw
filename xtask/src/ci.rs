@@ -132,28 +132,44 @@ fn validate_bitstream(
     manifest: &bitstream_downloader::Manifest,
     variant: &str,
 ) -> anyhow::Result<()> {
-    let (repository, branch) = match variant {
-        "core" => ("chipsalliance/caliptra-sw", "caliptra-2.2-dev"),
-        "subsystem" => ("chipsalliance/caliptra-mcu-sw", "caliptra-mcu-dev-2.2"),
+    // (repository, branch, published variant name) of accepted 2.2 builders.
+    // caliptra-infra builds both flavors; keep the legacy in-repo core builder
+    // until the core manifest has moved.
+    let sources: &[(&str, &str, &str)] = match variant {
+        "core" => &[
+            ("chipsalliance/caliptra-sw", "caliptra-2.2-dev", "core"),
+            ("chipsalliance/caliptra-infra", "main", "core-2.2-segmented"),
+        ],
+        "subsystem" => &[(
+            "chipsalliance/caliptra-infra",
+            "main",
+            "subsystem-2.2-segmented",
+        )],
         _ => anyhow::bail!("Unsupported FPGA variant: {variant}"),
     };
     ensure!(
         manifest.hw_major_version == "2.2"
-            && manifest.caliptra_variant == variant
-            && manifest.repository == repository
-            && manifest.target_branch == branch,
-        "Expected a HW 2.2 {variant} manifest from {repository} branch {branch}"
+            && sources.iter().any(|(repository, branch, name)| {
+                manifest.repository == *repository
+                    && manifest.target_branch == *branch
+                    && manifest.caliptra_variant == *name
+            }),
+        "Expected a HW 2.2 {variant} manifest from one of {sources:?}"
     );
     ensure!(
         manifest.segmented,
         "FPGA tests require a segmented bitstream"
     );
+    let published_prefix = format!(
+        "https://storage.googleapis.com/caliptra-github-ci-bitstreams/v1/{}/",
+        manifest.commit_hash
+    );
     ensure!(
         manifest
             .pdi_url
             .as_deref()
-            .is_some_and(|url| url.starts_with("https://")),
-        "Bitstream manifest requires an HTTPS PDI URL"
+            .is_some_and(|url| url.starts_with(&published_prefix)),
+        "Bitstream manifest requires a PDI URL under {published_prefix}"
     );
     ensure!(
         manifest.pdi_hash.as_deref().is_some_and(|hash| {
@@ -197,6 +213,21 @@ mod tests {
     }
 
     #[test]
+    fn accepts_caliptra_infra_manifests_for_matching_flavor() {
+        let mut manifest = core_manifest();
+        manifest.repository = "chipsalliance/caliptra-infra".into();
+        manifest.target_branch = "main".into();
+        manifest.caliptra_variant = "core-2.2-segmented".into();
+        validate_bitstream(&manifest, "core").unwrap();
+        assert!(validate_bitstream(&manifest, "subsystem").is_err());
+        manifest.caliptra_variant = "subsystem-2.2-segmented".into();
+        validate_bitstream(&manifest, "subsystem").unwrap();
+        assert!(validate_bitstream(&manifest, "core").is_err());
+        manifest.caliptra_variant = "subsystem-2.1-segmented".into();
+        assert!(validate_bitstream(&manifest, "subsystem").is_err());
+    }
+
+    #[test]
     fn rejects_non_runtime_or_unpublished_manifests() {
         let mut manifest = core_manifest();
         manifest.segmented = false;
@@ -206,6 +237,12 @@ mod tests {
         assert!(validate_bitstream(&manifest, "core").is_err());
         let mut manifest = core_manifest();
         manifest.pdi_hash = Some("invalid".into());
+        assert!(validate_bitstream(&manifest, "core").is_err());
+        let mut manifest = core_manifest();
+        manifest.pdi_url = Some("https://example.com/runtime.pdi".into());
+        assert!(validate_bitstream(&manifest, "core").is_err());
+        let mut manifest = core_manifest();
+        manifest.commit_hash = "0".repeat(40);
         assert!(validate_bitstream(&manifest, "core").is_err());
     }
 }
