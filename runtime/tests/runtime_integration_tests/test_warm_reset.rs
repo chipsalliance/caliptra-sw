@@ -14,6 +14,11 @@ use caliptra_test::image_pk_desc_hash;
 
 use crate::common::{run_rt_test, RuntimeTestArgs};
 
+// TODO: Re-enable on FPGA once the pinned Caliptra-SS includes caliptra-rtl
+// #1556, which disables the boot-flow monitor. With the monitor enabled on a
+// debug-locked part, the RT key slots are write-locked, so runtime cannot
+// disable attestation after the PCR mismatch and reports a fatal error.
+#[cfg_attr(any(feature = "fpga_realtime", feature = "fpga_subsystem"), ignore)]
 #[test]
 fn test_rt_journey_pcr_validation() {
     let security_state = *SecurityState::default()
@@ -84,6 +89,11 @@ fn test_rt_journey_pcr_validation() {
     model.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_runtime());
 }
 
+// TODO: Re-enable on FPGA once the pinned Caliptra-SS includes caliptra-rtl
+// #1556, which disables the boot-flow monitor. With the monitor enabled on a
+// debug-locked part, the RT key slots are write-locked, so runtime cannot
+// disable attestation after the PCR mismatch and reports a fatal error.
+#[cfg_attr(any(feature = "fpga_realtime", feature = "fpga_subsystem"), ignore)]
 #[test]
 fn test_rt_current_pcr_validation() {
     let security_state = *SecurityState::default()
