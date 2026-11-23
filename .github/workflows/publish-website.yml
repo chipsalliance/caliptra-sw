@@ -14,6 +14,9 @@ on:
       www_out:
         type: string
         default: /tmp/www
+      branch:
+        type: string
+        default: main
 
 jobs:
   build:
@@ -24,10 +27,11 @@ jobs:
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       RUST_LOG: "info"
+      TEST_BRANCH: ${{ inputs.branch || 'main' }}
   
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #v5
   
       - name: Generate HTML
         run: |
@@ -36,7 +40,10 @@ jobs:
 
           cargo +1.93 run --release -- \
             --token ${GITHUB_TOKEN} \
+            --org "$GITHUB_REPOSITORY_OWNER" \
+            --repo "${GITHUB_REPOSITORY#*/}" \
             --workflow ${{inputs.workflow_file}} \
+            --branch "$TEST_BRANCH" \
             --out ${{inputs.www_out}}
       
       - name: Generate GitHub Pages artifacts

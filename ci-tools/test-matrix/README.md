@@ -7,6 +7,7 @@ The test matrix runner needs two environment variables set:
 - `GITHUB_TOKEN`: A Github token with the proper access rights for the CI results
 
 Optionally, you can set `RUST_LOG=info` to get verbose processing information.
+Use `--branch caliptra-2.2-dev` to query that branch instead of the default `main`.
 
 ## Example
 ```sh
