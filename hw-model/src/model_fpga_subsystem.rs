@@ -1677,6 +1677,9 @@ impl ModelFpgaSubsystem {
             let offset = otp::SECRET_MANUF_PARTITION_OFFSET;
             otp_data[offset..offset + mem.len()].copy_from_slice(&mem);
 
+            // An all-zero field entropy chunk leaves its partition unwritten (blank on
+            // a fresh OTP image; otp_init contents are kept), so tests can program it
+            // at runtime with FE_PROG.
             println!("Provisioning SECRET_PROD partitions.");
             for (i, (chunk, offset)) in field_entropy_bytes
                 .chunks_exact(8)
@@ -1687,6 +1690,7 @@ impl ModelFpgaSubsystem {
                     otp::SECRET_PROD_PARTITION_3_OFFSET,
                 ])
                 .enumerate()
+                .filter(|(_, (chunk, _))| chunk.iter().any(|&b| b != 0))
             {
                 let mem = otp_generate_secret_partition_mem(chunk, SECRET_PROD_KEY_IDX + i)?;
                 assert_eq!(mem.len(), otp::SECRET_PROD_PARTITION_0_SIZE);

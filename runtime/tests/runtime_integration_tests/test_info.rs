@@ -159,6 +159,12 @@ fn test_fw_info_fe_live_programming() {
     for &granularity_64 in granularities {
         let mut model = fw_info_subsystem_model(InitParams {
             uds_fuse_row_granularity_64: granularity_64,
+            // The FPGA model leaves SECRET_PROD partitions with zero field
+            // entropy blank, so FE_PROG can program them.
+            fuses: Fuses {
+                field_entropy: [0; 8],
+                ..Default::default()
+            },
             ..Default::default()
         });
         assert_eq!(get_fwinfo(&mut model).fe_status, 0);

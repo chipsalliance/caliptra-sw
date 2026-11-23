@@ -393,6 +393,7 @@ pub fn start_rt_test_pqc_model(
         fw_svn: svn_to_bitmap(production_state.fw_svn),
         hek_seed: args.hek_seed.unwrap_or([0xABDEu32; 8]),
         idevid_cert_attr,
+        field_entropy: init_params.fuses.field_entropy,
         ..Default::default()
     };
 

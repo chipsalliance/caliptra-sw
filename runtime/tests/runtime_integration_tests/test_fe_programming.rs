@@ -9,7 +9,7 @@ use caliptra_builder::ImageOptions;
 use caliptra_common::mailbox_api::CommandId;
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{
-    DeviceLifecycle, HwModel, InitParams, ModelError, SecurityState, SubsystemInitParams,
+    DeviceLifecycle, Fuses, HwModel, InitParams, ModelError, SecurityState, SubsystemInitParams,
 };
 use caliptra_runtime::RtBootStatus;
 
@@ -20,6 +20,12 @@ fn test_fe_programming_cmd() {
     let init_params = InitParams {
         rom: &rom,
         security_state: *SecurityState::default().set_device_lifecycle(DeviceLifecycle::Production),
+        // Zero field entropy leaves the SECRET_PROD partitions blank on the
+        // subsystem FPGA, so FE_PROG starts from unprogrammed partitions.
+        fuses: Fuses {
+            field_entropy: [0; 8],
+            ..Default::default()
+        },
         ss_init_params: SubsystemInitParams {
             enable_mcu_uart_log: true,
             ..Default::default()
@@ -98,6 +104,12 @@ fn test_fe_programming_cannot_be_called_from_pl1() {
         security_state: *SecurityState::default()
             .set_device_lifecycle(DeviceLifecycle::Production)
             .set_debug_locked(true),
+        // Zero field entropy leaves the SECRET_PROD partitions blank on the
+        // subsystem FPGA, so FE_PROG starts from unprogrammed partitions.
+        fuses: Fuses {
+            field_entropy: [0; 8],
+            ..Default::default()
+        },
         ss_init_params: SubsystemInitParams {
             enable_mcu_uart_log: true,
             ..Default::default()
