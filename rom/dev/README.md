@@ -73,6 +73,10 @@ SoC must service eTRNG requests. When the RTL is built with the internal TRNG, t
 `etrng_req` output is the entropy source enable rather than the eTRNG request, so the
 SoC must poll `CPTRA_TRNG_STATUS.DATA_REQ`.
 
+`EXTERNAL_DIRECT` takes precedence over the manufacturing `RNG_SUPPORT_UNAVAILABLE` flag
+(`CPTRA_DBG_MANUF_SERVICE_REG` bit 1): the flag is ignored while `EXTERNAL_DIRECT` is set,
+so the fake RNG is not selected.
+
 `EXTERNAL_DIRECT` should generally be held constant permanently (for example set once by
 the SoC and never changed), because Caliptra FMC and runtime re-sample it when they
 initialize their TRNG.

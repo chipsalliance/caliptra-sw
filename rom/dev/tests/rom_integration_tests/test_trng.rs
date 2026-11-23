@@ -16,9 +16,12 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::{iter, mem};
 
-#[test]
-#[cfg_attr(any(feature = "verilator", feature = "fpga_realtime"), ignore)]
-fn test_cold_reset_external_direct() {
+// Boots with the iTRNG panicking on use and returns the number of eTRNG requests.
+fn cold_reset_etrng_requests(
+    trng_mode: TrngMode,
+    initial_dbg_manuf_service_reg: u32,
+    generic_input_wires: [u32; 2],
+) -> usize {
     let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env()).unwrap();
     let image_bundle = caliptra_builder::build_and_sign_image(
         &TEST_FMC_WITH_UART,
@@ -28,46 +31,65 @@ fn test_cold_reset_external_direct() {
     .unwrap();
     let image_bytes = image_bundle.to_bytes().unwrap();
 
+    let mut init_params = InitParams {
+        rom: &rom,
+        itrng_nibbles: Box::new(iter::from_fn(|| panic!("unexpected iTRNG request"))),
+        trng_mode: Some(trng_mode),
+        generic_input_wires,
+        ..Default::default()
+    };
+    let etrng_requests = Arc::new(AtomicUsize::new(0));
+    let counter = etrng_requests.clone();
+    init_params.etrng_responses = Box::new(
+        mem::replace(&mut init_params.etrng_responses, Box::new(iter::empty())).inspect(
+            move |_| {
+                counter.fetch_add(1, Ordering::Relaxed);
+            },
+        ),
+    );
+    let mut hw = caliptra_hw_model::new_unbooted(init_params).unwrap();
+    hw.boot(BootParams {
+        initial_dbg_manuf_service_reg,
+        ..Default::default()
+    })
+    .unwrap();
+
+    hw.step_until_boot_status(CfiInitialized.into(), false);
+    hw.step_until_boot_status(KatStarted.into(), false);
+    hw.step_until_boot_status(KatComplete.into(), false);
+    hw.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_fw());
+    hw.upload_firmware(&image_bytes).unwrap();
+    hw.step_until_boot_status(ColdResetComplete.into(), true);
+    hw.step_until_exit_success().unwrap();
+    assert_eq!(u32::from(hw.soc_ifc_trng().cptra_trng_status().read()), 0);
+    etrng_requests.load(Ordering::Relaxed)
+}
+
+#[test]
+#[cfg_attr(any(feature = "verilator", feature = "fpga_realtime"), ignore)]
+fn test_cold_reset_external_direct() {
     for trng_mode in [TrngMode::Internal, TrngMode::External] {
         for initial_dbg_manuf_service_reg in [0, MfgFlags::RNG_SUPPORT_UNAVAILABLE.bits()] {
-            // EXTERNAL_DIRECT selects the eTRNG, so any iTRNG use panics.
-            let mut init_params = InitParams {
-                rom: &rom,
-                itrng_nibbles: Box::new(iter::from_fn(|| panic!("unexpected iTRNG request"))),
-                trng_mode: Some(trng_mode),
-                generic_input_wires: [GENERIC_INPUT_EXTERNAL_DIRECT, 0],
-                ..Default::default()
-            };
-            let etrng_requests = Arc::new(AtomicUsize::new(0));
-            let counter = etrng_requests.clone();
-            init_params.etrng_responses = Box::new(
-                mem::replace(&mut init_params.etrng_responses, Box::new(iter::empty())).inspect(
-                    move |_| {
-                        counter.fetch_add(1, Ordering::Relaxed);
-                    },
-                ),
-            );
-            let mut hw = caliptra_hw_model::new_unbooted(init_params).unwrap();
-            hw.boot(BootParams {
+            // EXTERNAL_DIRECT selects the eTRNG, and it overrides the
+            // manufacturing RNG-unavailable flag.
+            let requests = cold_reset_etrng_requests(
+                trng_mode,
                 initial_dbg_manuf_service_reg,
-                ..Default::default()
-            })
-            .unwrap();
-
-            hw.step_until_boot_status(CfiInitialized.into(), false);
-            hw.step_until_boot_status(KatStarted.into(), false);
-            hw.step_until_boot_status(KatComplete.into(), false);
-            hw.step_until(|m| m.soc_ifc().cptra_flow_status().read().ready_for_fw());
-            hw.upload_firmware(&image_bytes).unwrap();
-            hw.step_until_boot_status(ColdResetComplete.into(), true);
-            hw.step_until_exit_success().unwrap();
-            assert_eq!(u32::from(hw.soc_ifc_trng().cptra_trng_status().read()), 0);
-
-            // The manufacturing RNG-unavailable flag still selects the fake RNG,
-            // which makes no eTRNG requests.
-            let used_etrng = etrng_requests.load(Ordering::Relaxed) != 0;
-            assert_eq!(used_etrng, initial_dbg_manuf_service_reg == 0);
+                [GENERIC_INPUT_EXTERNAL_DIRECT, 0],
+            );
+            assert_ne!(requests, 0);
         }
+    }
+}
+
+#[test]
+#[cfg_attr(any(feature = "verilator", feature = "fpga_realtime"), ignore)]
+fn test_cold_reset_rng_unavailable_without_external_direct() {
+    // The RNG-unavailable flag selects the fake RNG when EXTERNAL_DIRECT is clear.
+    for trng_mode in [TrngMode::Internal, TrngMode::External] {
+        let requests =
+            cold_reset_etrng_requests(trng_mode, MfgFlags::RNG_SUPPORT_UNAVAILABLE.bits(), [0, 0]);
+        assert_eq!(requests, 0);
     }
 }
 

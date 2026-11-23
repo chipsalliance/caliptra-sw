@@ -7,7 +7,11 @@ use caliptra_registers::{
     csrng::CsrngReg, entropy_src::EntropySrcReg, soc_ifc::SocIfcReg, soc_ifc_trng::SocIfcTrngReg,
 };
 
-use crate::{soc_ifc::internal_trng, trng_ext::TrngExt, Array4x12, Csrng, MfgFlags};
+use crate::{
+    soc_ifc::{external_direct, internal_trng},
+    trng_ext::TrngExt,
+    Array4x12, Csrng, MfgFlags,
+};
 
 #[repr(u32)]
 pub enum Trng {
@@ -30,9 +34,11 @@ impl Trng {
         soc_ifc: &SocIfcReg,
     ) -> CaliptraResult<Self> {
         // If device is unlocked for debug and RNG support is unavailable, return a fake RNG.
+        // EXTERNAL_DIRECT overrides RNG support being unavailable.
         let flags: MfgFlags = (soc_ifc.regs().cptra_dbg_manuf_service_reg().read() & 0xffff).into();
         if !soc_ifc.regs().cptra_security_state().read().debug_locked()
             & flags.contains(MfgFlags::RNG_SUPPORT_UNAVAILABLE)
+            & !external_direct(soc_ifc)
         {
             Ok(Self::MfgMode())
         } else if internal_trng(soc_ifc) {
