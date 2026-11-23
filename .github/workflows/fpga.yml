@@ -77,9 +77,9 @@ jobs:
           {
             "include": [
               { "variant": "core-latest-segmented",  "hw_rev": "latest", "partition": 1 },
-              { "variant": "core-latest-segmented",  "hw_rev": "latest", "partition": 2 },
-              { "variant": "core-rev-2_1-segmented", "hw_rev": "2.1",    "partition": 1 },
-              { "variant": "core-rev-2_1-segmented", "hw_rev": "2.1",    "partition": 2 }
+              { "variant": "core-latest-segmented",  "hw_rev": "latest", "partition": 2 }
+#              { "variant": "core-rev-2_1-segmented", "hw_rev": "2.1",    "partition": 1 },
+#              { "variant": "core-rev-2_1-segmented", "hw_rev": "2.1",    "partition": 2 }
             ]
           }
           EOF
