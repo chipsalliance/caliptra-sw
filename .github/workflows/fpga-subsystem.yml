@@ -63,7 +63,7 @@ permissions:
 
 env:
   CALIPTRA_HW_REV: ${{ inputs.hw-version || '2.2' }}
-  CALIPTRA_MCU_COMMIT: ${{ inputs.mcu-commit || '07798b1eff359c7bf20326ba1cb0605274503ae4' }}
+  CALIPTRA_MCU_COMMIT: ${{ inputs.mcu-commit || 'a4a3ec05e3189f8c700fa72458c6e741df9160ed' }}
 
 jobs:
   check_cache:
@@ -101,10 +101,10 @@ jobs:
     steps:
       - name: Check MCU Commit validity
         run: |
-          git clone https://github.com/chipsalliance/caliptra-mcu-sw.git --single-branch --branch caliptra-mcu-dev-2.2
+          git clone https://github.com/chipsalliance/caliptra-mcu-sw.git --single-branch --branch main-2.1
           pushd caliptra-mcu-sw
-          if ! git merge-base --is-ancestor "${CALIPTRA_MCU_COMMIT}" origin/caliptra-mcu-dev-2.2; then
-            echo 'CALIPTRA_MCU_COMMIT is not in the `caliptra-mcu-dev-2.2` branch!'
+          if ! git merge-base --is-ancestor "${CALIPTRA_MCU_COMMIT}" origin/main-2.1; then
+            echo 'CALIPTRA_MCU_COMMIT is not in the `main-2.1` branch!'
             exit 1
           fi
           popd
@@ -194,7 +194,7 @@ jobs:
           # This MCU revision calls its 2.2 hardware selector "latest".
           CALIPTRA_HW_REV: latest
         run: |
-          git clone --depth=1 --branch caliptra-mcu-dev-2.2 "https://github.com/chipsalliance/caliptra-mcu-sw" /tmp/caliptra-mcu-sw
+          git clone --depth=1 --branch main-2.1 "https://github.com/chipsalliance/caliptra-mcu-sw" /tmp/caliptra-mcu-sw
           pushd /tmp/caliptra-mcu-sw
           git fetch --depth 1 origin ${CALIPTRA_MCU_COMMIT}
           git reset --hard ${CALIPTRA_MCU_COMMIT}
@@ -256,7 +256,10 @@ jobs:
       - name: Download bitstream
         run: |
           cargo xtask ci bitstream-downloader hw/fpga/bitstream_manifests/subsystem.toml
-          mv subsystem.pdi /tmp/caliptra-bitstream.pdi
+          # The downloader names the PDI after the manifest's caliptra_variant.
+          VARIANT=$(sed -nE 's/^caliptra_variant[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/p' hw/fpga/bitstream_manifests/subsystem.toml)
+          test -n "${VARIANT}" && test -f "${VARIANT}.pdi"
+          mv "${VARIANT}.pdi" /tmp/caliptra-bitstream.pdi
 
       - name: 'Upload bitstream'
         uses: actions/upload-artifact@v4
