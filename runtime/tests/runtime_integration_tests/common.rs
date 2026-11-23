@@ -393,6 +393,7 @@ pub fn start_rt_test_pqc_model(
         fw_svn: svn_to_bitmap(production_state.fw_svn),
         hek_seed: args.hek_seed.unwrap_or([0xABDEu32; 8]),
         idevid_cert_attr,
+        field_entropy: init_params.fuses.field_entropy,
         ..Default::default()
     };
 
@@ -598,6 +599,19 @@ pub fn mailbox_execute_with_lock_retry(
         }
     }
     Err(ModelError::UnableToLockMailbox)
+}
+
+/// Warm reset after runtime has finished the previous mailbox command.
+///
+/// The host sees the response before runtime returns to its command loop.
+/// A warm reset in that window counts as a reset during a command, which makes
+/// runtime disable attestation.
+pub fn warm_reset_when_idle(model: &mut impl HwModel) {
+    model.step_until(|m| m.soc_ifc().cptra_flow_status().read().mailbox_flow_done());
+    for _ in 0..1000 {
+        model.step();
+    }
+    model.warm_reset_flow().unwrap();
 }
 
 pub fn check_header_checksum(resp: &[u8]) -> anyhow::Result<()> {

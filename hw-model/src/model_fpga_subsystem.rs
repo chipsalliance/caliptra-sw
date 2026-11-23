@@ -13,8 +13,9 @@ use crate::mcu_boot_status::McuBootMilestones;
 use crate::openocd::openocd_jtag_tap::{JtagParams, JtagTap, OpenOcdJtagTap};
 use crate::otp_provision::{
     lc_generate_memory, otp_generate_lifecycle_tokens_mem, otp_generate_linear_majority_vote,
-    otp_generate_manuf_debug_unlock_token_mem, otp_generate_sw_manuf_partition_mem,
-    LifecycleControllerState, OtpSwManufPartition,
+    otp_generate_manuf_debug_unlock_token_mem, otp_generate_secret_partition_mem,
+    otp_generate_sw_manuf_partition_mem, LifecycleControllerState, OtpSwManufPartition,
+    SECRET_MANUF_KEY_IDX, SECRET_PROD_KEY_IDX,
 };
 use crate::recovery::{DeviceStatus, ProtCap2};
 use crate::xi3c::XI3cError;
@@ -1633,8 +1634,8 @@ impl ModelFpgaSubsystem {
             otp_data[offset..offset + mem.len()].copy_from_slice(&mem);
 
             // Provision UDS seed in FPGA test vendor non-secret fuse slots.
-            // The MCU ROM `core_test` path reads UDS from these slots because the
-            // real SECRET_MANUF partition is hardware-scrambled and not DAI-accessible.
+            // The MCU ROM `core_test` path copies these slots into Caliptra's fuse
+            // registers.
             println!("Provisioning UDS seed in FPGA test fuse slots.");
             let uds_seed_bytes: Vec<u8> = self
                 .fuses
@@ -1666,6 +1667,35 @@ impl ModelFpgaSubsystem {
             otp_data[otp::FPGA_TEST_FIELD_ENTROPY_OFFSET
                 ..otp::FPGA_TEST_FIELD_ENTROPY_OFFSET + field_entropy_bytes.len()]
                 .copy_from_slice(&field_entropy_bytes);
+
+            // On 2.2, Caliptra takes UDS and field entropy from the fuse controller's
+            // secret partitions and ignores fuse register writes from the MCU ROM, so
+            // also provision the secret partitions through the OTP backdoor.
+            println!("Provisioning SECRET_MANUF partition.");
+            let mem = otp_generate_secret_partition_mem(&uds_seed_bytes, SECRET_MANUF_KEY_IDX)?;
+            assert_eq!(mem.len(), otp::SECRET_MANUF_PARTITION_SIZE);
+            let offset = otp::SECRET_MANUF_PARTITION_OFFSET;
+            otp_data[offset..offset + mem.len()].copy_from_slice(&mem);
+
+            // An all-zero field entropy chunk leaves its partition unwritten (blank on
+            // a fresh OTP image; otp_init contents are kept), so tests can program it
+            // at runtime with FE_PROG.
+            println!("Provisioning SECRET_PROD partitions.");
+            for (i, (chunk, offset)) in field_entropy_bytes
+                .chunks_exact(8)
+                .zip([
+                    otp::SECRET_PROD_PARTITION_0_OFFSET,
+                    otp::SECRET_PROD_PARTITION_1_OFFSET,
+                    otp::SECRET_PROD_PARTITION_2_OFFSET,
+                    otp::SECRET_PROD_PARTITION_3_OFFSET,
+                ])
+                .enumerate()
+                .filter(|(_, (chunk, _))| chunk.iter().any(|&b| b != 0))
+            {
+                let mem = otp_generate_secret_partition_mem(chunk, SECRET_PROD_KEY_IDX + i)?;
+                assert_eq!(mem.len(), otp::SECRET_PROD_PARTITION_0_SIZE);
+                otp_data[offset..offset + mem.len()].copy_from_slice(&mem);
+            }
 
             let vendor_pk_hash = self.fuses.vendor_pk_hash.as_bytes();
             println!(
