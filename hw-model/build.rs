@@ -127,6 +127,7 @@ fn build_fuse_aliases() -> HashMap<String, Vec<String>> {
 fn mcu_commit_from_workflow() -> String {
     let manifest_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
     let workflow_path = Path::new(&manifest_dir).join("../.github/workflows/fpga-subsystem.yml");
+    println!("cargo:rerun-if-changed={}", workflow_path.display());
     let content = fs::read_to_string(&workflow_path).unwrap_or_else(|err| {
         panic!(
             "failed to read workflow file {}: {err}",
@@ -158,7 +159,7 @@ fn mcu_commit_from_workflow() -> String {
 /// Download fuses.hjson from GitHub at the given commit.
 fn download_fuses_hjson(commit: &str) -> String {
     let url = format!(
-        "https://raw.githubusercontent.com/chipsalliance/caliptra-mcu-sw/{commit}/hw/fuses.hjson"
+        "https://raw.githubusercontent.com/chipsalliance/caliptra-mcu-sw/{commit}/hw/rev-2_1/fuses.hjson"
     );
     let output = Command::new("curl")
         .args(["-sfL", &url])
