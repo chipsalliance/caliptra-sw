@@ -582,70 +582,70 @@ impl<TMmio: caliptra_ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn err_code_rf(&self) -> ErrCodeRfBlock<&TMmio> {
         ErrCodeRfBlock {
-            ptr: unsafe { self.ptr.add(0x14 / core::mem::size_of::<u32>()) },
+            ptr: self.ptr.wrapping_add(0x14 / core::mem::size_of::<u32>()),
             mmio: core::borrow::Borrow::borrow(&self.mmio),
         }
     }
     #[inline(always)]
     pub fn dai_wdata_rf(&self) -> DaiWdataRfBlock<&TMmio> {
         DaiWdataRfBlock {
-            ptr: unsafe { self.ptr.add(0x88 / core::mem::size_of::<u32>()) },
+            ptr: self.ptr.wrapping_add(0x88 / core::mem::size_of::<u32>()),
             mmio: core::borrow::Borrow::borrow(&self.mmio),
         }
     }
     #[inline(always)]
     pub fn dai_rdata_rf(&self) -> DaiRdataRfBlock<&TMmio> {
         DaiRdataRfBlock {
-            ptr: unsafe { self.ptr.add(0x90 / core::mem::size_of::<u32>()) },
+            ptr: self.ptr.wrapping_add(0x90 / core::mem::size_of::<u32>()),
             mmio: core::borrow::Borrow::borrow(&self.mmio),
         }
     }
     #[inline(always)]
     pub fn sw_test_unlock_partition_digest(&self) -> SwTestUnlockPartitionDigestBlock<&TMmio> {
         SwTestUnlockPartitionDigestBlock {
-            ptr: unsafe { self.ptr.add(0xf4 / core::mem::size_of::<u32>()) },
+            ptr: self.ptr.wrapping_add(0xf4 / core::mem::size_of::<u32>()),
             mmio: core::borrow::Borrow::borrow(&self.mmio),
         }
     }
     #[inline(always)]
     pub fn secret_manuf_partition_digest(&self) -> SecretManufPartitionDigestBlock<&TMmio> {
         SecretManufPartitionDigestBlock {
-            ptr: unsafe { self.ptr.add(0xfc / core::mem::size_of::<u32>()) },
+            ptr: self.ptr.wrapping_add(0xfc / core::mem::size_of::<u32>()),
             mmio: core::borrow::Borrow::borrow(&self.mmio),
         }
     }
     #[inline(always)]
     pub fn secret_prod_partition_0_digest(&self) -> SecretProdPartition0DigestBlock<&TMmio> {
         SecretProdPartition0DigestBlock {
-            ptr: unsafe { self.ptr.add(0x104 / core::mem::size_of::<u32>()) },
+            ptr: self.ptr.wrapping_add(0x104 / core::mem::size_of::<u32>()),
             mmio: core::borrow::Borrow::borrow(&self.mmio),
         }
     }
     #[inline(always)]
     pub fn secret_prod_partition_1_digest(&self) -> SecretProdPartition1DigestBlock<&TMmio> {
         SecretProdPartition1DigestBlock {
-            ptr: unsafe { self.ptr.add(0x10c / core::mem::size_of::<u32>()) },
+            ptr: self.ptr.wrapping_add(0x10c / core::mem::size_of::<u32>()),
             mmio: core::borrow::Borrow::borrow(&self.mmio),
         }
     }
     #[inline(always)]
     pub fn secret_prod_partition_2_digest(&self) -> SecretProdPartition2DigestBlock<&TMmio> {
         SecretProdPartition2DigestBlock {
-            ptr: unsafe { self.ptr.add(0x114 / core::mem::size_of::<u32>()) },
+            ptr: self.ptr.wrapping_add(0x114 / core::mem::size_of::<u32>()),
             mmio: core::borrow::Borrow::borrow(&self.mmio),
         }
     }
     #[inline(always)]
     pub fn secret_prod_partition_3_digest(&self) -> SecretProdPartition3DigestBlock<&TMmio> {
         SecretProdPartition3DigestBlock {
-            ptr: unsafe { self.ptr.add(0x11c / core::mem::size_of::<u32>()) },
+            ptr: self.ptr.wrapping_add(0x11c / core::mem::size_of::<u32>()),
             mmio: core::borrow::Borrow::borrow(&self.mmio),
         }
     }
     #[inline(always)]
     pub fn sw_manuf_partition_digest(&self) -> SwManufPartitionDigestBlock<&TMmio> {
         SwManufPartitionDigestBlock {
-            ptr: unsafe { self.ptr.add(0x124 / core::mem::size_of::<u32>()) },
+            ptr: self.ptr.wrapping_add(0x124 / core::mem::size_of::<u32>()),
             mmio: core::borrow::Borrow::borrow(&self.mmio),
         }
     }
@@ -654,14 +654,14 @@ impl<TMmio: caliptra_ureg::Mmio> RegisterBlock<TMmio> {
         &self,
     ) -> SecretLcTransitionPartitionDigestBlock<&TMmio> {
         SecretLcTransitionPartitionDigestBlock {
-            ptr: unsafe { self.ptr.add(0x12c / core::mem::size_of::<u32>()) },
+            ptr: self.ptr.wrapping_add(0x12c / core::mem::size_of::<u32>()),
             mmio: core::borrow::Borrow::borrow(&self.mmio),
         }
     }
     #[inline(always)]
     pub fn vendor_test_partition_digest(&self) -> VendorTestPartitionDigestBlock<&TMmio> {
         VendorTestPartitionDigestBlock {
-            ptr: unsafe { self.ptr.add(0x134 / core::mem::size_of::<u32>()) },
+            ptr: self.ptr.wrapping_add(0x134 / core::mem::size_of::<u32>()),
             mmio: core::borrow::Borrow::borrow(&self.mmio),
         }
     }
@@ -670,7 +670,7 @@ impl<TMmio: caliptra_ureg::Mmio> RegisterBlock<TMmio> {
         &self,
     ) -> VendorHashesManufPartitionDigestBlock<&TMmio> {
         VendorHashesManufPartitionDigestBlock {
-            ptr: unsafe { self.ptr.add(0x13c / core::mem::size_of::<u32>()) },
+            ptr: self.ptr.wrapping_add(0x13c / core::mem::size_of::<u32>()),
             mmio: core::borrow::Borrow::borrow(&self.mmio),
         }
     }
@@ -679,7 +679,7 @@ impl<TMmio: caliptra_ureg::Mmio> RegisterBlock<TMmio> {
         &self,
     ) -> VendorHashesProdPartitionDigestBlock<&TMmio> {
         VendorHashesProdPartitionDigestBlock {
-            ptr: unsafe { self.ptr.add(0x144 / core::mem::size_of::<u32>()) },
+            ptr: self.ptr.wrapping_add(0x144 / core::mem::size_of::<u32>()),
             mmio: core::borrow::Borrow::borrow(&self.mmio),
         }
     }
@@ -688,7 +688,7 @@ impl<TMmio: caliptra_ureg::Mmio> RegisterBlock<TMmio> {
         &self,
     ) -> VendorRevocationsProdPartitionDigestBlock<&TMmio> {
         VendorRevocationsProdPartitionDigestBlock {
-            ptr: unsafe { self.ptr.add(0x14c / core::mem::size_of::<u32>()) },
+            ptr: self.ptr.wrapping_add(0x14c / core::mem::size_of::<u32>()),
             mmio: core::borrow::Borrow::borrow(&self.mmio),
         }
     }
@@ -697,7 +697,7 @@ impl<TMmio: caliptra_ureg::Mmio> RegisterBlock<TMmio> {
         &self,
     ) -> VendorSecretProdPartitionDigestBlock<&TMmio> {
         VendorSecretProdPartitionDigestBlock {
-            ptr: unsafe { self.ptr.add(0x154 / core::mem::size_of::<u32>()) },
+            ptr: self.ptr.wrapping_add(0x154 / core::mem::size_of::<u32>()),
             mmio: core::borrow::Borrow::borrow(&self.mmio),
         }
     }
@@ -706,63 +706,63 @@ impl<TMmio: caliptra_ureg::Mmio> RegisterBlock<TMmio> {
         &self,
     ) -> VendorNonSecretProdPartitionDigestBlock<&TMmio> {
         VendorNonSecretProdPartitionDigestBlock {
-            ptr: unsafe { self.ptr.add(0x15c / core::mem::size_of::<u32>()) },
+            ptr: self.ptr.wrapping_add(0x15c / core::mem::size_of::<u32>()),
             mmio: core::borrow::Borrow::borrow(&self.mmio),
         }
     }
     #[inline(always)]
     pub fn cptra_ss_lock_hek_prod_0_digest(&self) -> CptraSsLockHekProd0DigestBlock<&TMmio> {
         CptraSsLockHekProd0DigestBlock {
-            ptr: unsafe { self.ptr.add(0x164 / core::mem::size_of::<u32>()) },
+            ptr: self.ptr.wrapping_add(0x164 / core::mem::size_of::<u32>()),
             mmio: core::borrow::Borrow::borrow(&self.mmio),
         }
     }
     #[inline(always)]
     pub fn cptra_ss_lock_hek_prod_1_digest(&self) -> CptraSsLockHekProd1DigestBlock<&TMmio> {
         CptraSsLockHekProd1DigestBlock {
-            ptr: unsafe { self.ptr.add(0x16c / core::mem::size_of::<u32>()) },
+            ptr: self.ptr.wrapping_add(0x16c / core::mem::size_of::<u32>()),
             mmio: core::borrow::Borrow::borrow(&self.mmio),
         }
     }
     #[inline(always)]
     pub fn cptra_ss_lock_hek_prod_2_digest(&self) -> CptraSsLockHekProd2DigestBlock<&TMmio> {
         CptraSsLockHekProd2DigestBlock {
-            ptr: unsafe { self.ptr.add(0x174 / core::mem::size_of::<u32>()) },
+            ptr: self.ptr.wrapping_add(0x174 / core::mem::size_of::<u32>()),
             mmio: core::borrow::Borrow::borrow(&self.mmio),
         }
     }
     #[inline(always)]
     pub fn cptra_ss_lock_hek_prod_3_digest(&self) -> CptraSsLockHekProd3DigestBlock<&TMmio> {
         CptraSsLockHekProd3DigestBlock {
-            ptr: unsafe { self.ptr.add(0x17c / core::mem::size_of::<u32>()) },
+            ptr: self.ptr.wrapping_add(0x17c / core::mem::size_of::<u32>()),
             mmio: core::borrow::Borrow::borrow(&self.mmio),
         }
     }
     #[inline(always)]
     pub fn cptra_ss_lock_hek_prod_4_digest(&self) -> CptraSsLockHekProd4DigestBlock<&TMmio> {
         CptraSsLockHekProd4DigestBlock {
-            ptr: unsafe { self.ptr.add(0x184 / core::mem::size_of::<u32>()) },
+            ptr: self.ptr.wrapping_add(0x184 / core::mem::size_of::<u32>()),
             mmio: core::borrow::Borrow::borrow(&self.mmio),
         }
     }
     #[inline(always)]
     pub fn cptra_ss_lock_hek_prod_5_digest(&self) -> CptraSsLockHekProd5DigestBlock<&TMmio> {
         CptraSsLockHekProd5DigestBlock {
-            ptr: unsafe { self.ptr.add(0x18c / core::mem::size_of::<u32>()) },
+            ptr: self.ptr.wrapping_add(0x18c / core::mem::size_of::<u32>()),
             mmio: core::borrow::Borrow::borrow(&self.mmio),
         }
     }
     #[inline(always)]
     pub fn cptra_ss_lock_hek_prod_6_digest(&self) -> CptraSsLockHekProd6DigestBlock<&TMmio> {
         CptraSsLockHekProd6DigestBlock {
-            ptr: unsafe { self.ptr.add(0x194 / core::mem::size_of::<u32>()) },
+            ptr: self.ptr.wrapping_add(0x194 / core::mem::size_of::<u32>()),
             mmio: core::borrow::Borrow::borrow(&self.mmio),
         }
     }
     #[inline(always)]
     pub fn cptra_ss_lock_hek_prod_7_digest(&self) -> CptraSsLockHekProd7DigestBlock<&TMmio> {
         CptraSsLockHekProd7DigestBlock {
-            ptr: unsafe { self.ptr.add(0x19c / core::mem::size_of::<u32>()) },
+            ptr: self.ptr.wrapping_add(0x19c / core::mem::size_of::<u32>()),
             mmio: core::borrow::Borrow::borrow(&self.mmio),
         }
     }

@@ -1043,7 +1043,7 @@ fn generate_subblock_code(
                 pub fn #subblock_fn_name(&self, index: usize) -> #subblock_name<&TMmio> {
                     assert!(index < #len);
                     #subblock_name{
-                        ptr: unsafe { self.ptr.add((#start_offset + index * #stride) / core::mem::size_of::<#raw_ptr_type>()) },
+                        ptr: self.ptr.wrapping_add((#start_offset + index * #stride) / core::mem::size_of::<#raw_ptr_type>()),
                         mmio: core::borrow::Borrow::borrow(&self.mmio),
                     }
                 }
@@ -1054,7 +1054,7 @@ fn generate_subblock_code(
                 #[inline(always)]
                 pub fn #subblock_fn_name(&self) -> #subblock_name<&TMmio> {
                     #subblock_name{
-                        ptr: unsafe { self.ptr.add(#start_offset / core::mem::size_of::<#raw_ptr_type>()) },
+                        ptr: self.ptr.wrapping_add(#start_offset / core::mem::size_of::<#raw_ptr_type>()),
                         mmio: core::borrow::Borrow::borrow(&self.mmio),
                     }
                 }

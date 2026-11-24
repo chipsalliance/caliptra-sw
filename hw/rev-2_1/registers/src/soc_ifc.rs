@@ -1913,7 +1913,7 @@ impl<TMmio: caliptra_ureg::Mmio> RegisterBlock<TMmio> {
     #[inline(always)]
     pub fn intr_block_rf(&self) -> IntrBlockRfBlock<&TMmio> {
         IntrBlockRfBlock {
-            ptr: unsafe { self.ptr.add(0x800 / core::mem::size_of::<u32>()) },
+            ptr: self.ptr.wrapping_add(0x800 / core::mem::size_of::<u32>()),
             mmio: core::borrow::Borrow::borrow(&self.mmio),
         }
     }
