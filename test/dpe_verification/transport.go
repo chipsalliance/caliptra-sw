@@ -126,7 +126,7 @@ func getHWModel() *C.struct_caliptra_model {
 	cRom := C.CBytes(rom)
 	defer C.free(cRom)
 
-	params.hw_version = C.CALIPTRA_HW_VERSION_2_1
+	params.hw_version = C.CALIPTRA_HW_VERSION_2_2
 	params.rom.data = (*C.uchar)(cRom)
 	params.rom.len = C.uintptr_t(len(rom))
 	params.soc_user = 1
@@ -177,6 +177,7 @@ func (s *CptraModel) PowerOn() error {
 
 	bundleBuf.data = (*C.uchar)(cBundle)
 	bundleBuf.len = C.uintptr_t(len(fwBundle))
+	C.caliptra_assert_end_of_stash()
 	C.caliptra_upload_fw(&bundleBuf, false)
 
 	return nil
