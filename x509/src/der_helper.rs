@@ -23,8 +23,8 @@ fn trim_leading_zeros(val: &[u8]) -> &[u8] {
             return &val[i..];
         }
     }
-    // If everything is 0, then we need len 1, and 0 as value
-    &val[0..1] // single 0
+    // If everything is 0 (or empty), then we need len 1, and 0 as value
+    &[0]
 }
 
 #[inline(never)]
@@ -44,7 +44,7 @@ pub fn der_uint_len(val: &[u8]) -> usize {
 
     let len_field_size = match encode_length {
         0..=127 => 1,
-        128.. => trim_leading_zeros(&encode_length.to_be_bytes()).len(),
+        128.. => 1 + trim_leading_zeros(&encode_length.to_be_bytes()).len(),
     };
 
     // Tag + len + int
@@ -55,7 +55,7 @@ pub fn der_uint_len(val: &[u8]) -> usize {
 #[inline(never)]
 pub fn der_encode_len(len: usize, buf: &mut [u8]) -> Option<usize> {
     match len {
-        1..=127 => {
+        0..=127 => {
             *buf.get_mut(0)? = len as u8;
             Some(1)
         }
@@ -69,7 +69,6 @@ pub fn der_encode_len(len: usize, buf: &mut [u8]) -> Option<usize> {
                 .copy_from_slice(len_in_be_bytes);
             Some(len + 1)
         }
-        _ => None?,
     }
 }
 
