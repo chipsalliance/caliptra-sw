@@ -169,7 +169,6 @@ impl Hmac {
         }();
 
         // Clean up state.
-        unsafe { caliptra_drivers::Sha2_512_384::zeroize() }
         pubkey_digest.zeroize();
         keypair.pub_key.zeroize();
         drivers.key_vault.erase_key(keypair.priv_key)?;

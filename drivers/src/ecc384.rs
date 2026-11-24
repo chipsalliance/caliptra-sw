@@ -15,7 +15,7 @@ Abstract:
 use crate::kv_access::{KvAccess, KvAccessErr};
 use crate::{
     array_concat3, okmutref, wait, Array4x12, Array4xN, CaliptraError, CaliptraResult, KeyReadArgs,
-    KeyWriteArgs, Trng,
+    KeyWriteArgs, PcrDigestLive, Trng,
 };
 #[cfg(feature = "cfi")]
 use caliptra_cfi_derive::cfi_impl_fn;
@@ -531,13 +531,19 @@ impl Ecc384 {
     ///
     /// # Arguments
     ///
+    /// * `pcr_digest` - Witness proving a PCR digest is currently live in SHA512 hardware
     /// * `trng` - TRNG driver instance
     ///
     /// # Returns
     ///
     /// * `Ecc384Signature` - Generated signature
     #[cfg_attr(feature = "cfi", cfi_impl_fn)]
-    pub fn pcr_sign_flow(&mut self, trng: &mut Trng) -> CaliptraResult<Ecc384Signature> {
+    pub fn pcr_sign_flow(
+        &mut self,
+        pcr_digest: PcrDigestLive<'_>,
+        trng: &mut Trng,
+    ) -> CaliptraResult<Ecc384Signature> {
+        let _ = pcr_digest;
         let ecc = self.ecc.regs_mut();
 
         // Wait for hardware ready

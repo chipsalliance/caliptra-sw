@@ -220,6 +220,17 @@ pub struct HashSha512Regs {
     op_pcr_gen_hash_complete_action: Option<ActionHandle>,
 
     pcr_present: bool,
+
+    /// Set once an operation starts (INIT, NEXT/RESTORE, or PCR gen hash) and cleared only by ZEROIZE.
+    init_lock: bool,
+
+    /// Latched when INIT is issued while `init_lock` is set; cleared only by ZEROIZE.
+    init_rejected: bool,
+
+    /// Tracks an in-progress PCR hash-extend operation.
+    pcr_hash_extend_ip: bool,
+    pcr_hash_extend_init_done: bool,
+    pcr_hash_extend_last_done: bool,
 }
 
 impl HashSha512Regs {
@@ -262,6 +273,11 @@ impl HashSha512Regs {
             op_hash_write_complete_action: None,
             op_pcr_gen_hash_complete_action: None,
             pcr_present: false,
+            init_lock: false,
+            init_rejected: false,
+            pcr_hash_extend_ip: false,
+            pcr_hash_extend_init_done: false,
+            pcr_hash_extend_last_done: false,
         }
     }
 
@@ -284,61 +300,82 @@ impl HashSha512Regs {
         // Set the control register
         self.control.reg.set(val);
 
-        // Reset the pcr_present flag.
-        self.pcr_present = false;
-
-        if self.control.reg.is_set(Control::RESTORE) {
-            // Restore the hash state.
-            self.sha512.set_hash(self.hash.data());
+        if self.control.reg.is_set(Control::ZEROIZE) {
+            self.zeroize();
+            return Ok(());
         }
 
-        if self.control.reg.is_set(Control::INIT) || self.control.reg.is_set(Control::NEXT) {
+        if self.control.reg.is_set(Control::INIT) {
+            if self.init_lock {
+                // Reject repeated INIT without an intervening ZEROIZE (caliptra-rtl#1552).
+                self.init_rejected = true;
+                self.hash.data_mut().fill(0);
+                self.status.reg.modify(Status::VALID::CLEAR);
+                return Ok(());
+            }
+
+            self.init_lock = true;
+            self.pcr_present = false;
+            if self.pcr_hash_extend_ip {
+                self.pcr_hash_extend_init_done = true;
+                if self.control.reg.is_set(Control::LAST) {
+                    self.pcr_hash_extend_last_done = true;
+                }
+            }
+
             // Reset the Ready and Valid status bits
             self.status
                 .reg
                 .modify(Status::READY::CLEAR + Status::VALID::CLEAR);
 
-            if self.control.reg.is_set(Control::INIT) {
-                // Initialize the SHA512 engine with the mode.
-                let mut mode = Sha512Mode::Sha512;
-                let modebits = self.control.reg.read(Control::MODE);
+            // Initialize the SHA512 engine with the mode.
+            let modebits = self.control.reg.read(Control::MODE);
+            let mode = match modebits {
+                0 => Sha512Mode::Sha224,
+                1 => Sha512Mode::Sha256,
+                2 => Sha512Mode::Sha384,
+                3 => Sha512Mode::Sha512,
+                _ => Err(BusError::StoreAccessFault)?,
+            };
 
-                match modebits {
-                    0 => {
-                        mode = Sha512Mode::Sha224;
-                    }
-                    1 => {
-                        mode = Sha512Mode::Sha256;
-                    }
-                    2 => {
-                        mode = Sha512Mode::Sha384;
-                    }
-                    3 => {
-                        mode = Sha512Mode::Sha512;
-                    }
-                    _ => Err(BusError::StoreAccessFault)?,
-                }
+            self.sha512.reset(mode);
 
-                self.sha512.reset(mode);
+            // Update the SHA512 engine with a new block
+            self.sha512
+                .update(&sha512_block_bytes_from_words_le(&self.block));
 
-                // Update the SHA512 engine with a new block
-                self.sha512
-                    .update(&sha512_block_bytes_from_words_le(&self.block));
-
-                // Schedule a future call to poll() complete the operation.
-                self.op_complete_action = Some(self.timer.schedule_poll_in(INIT_TICKS));
-            } else if self.control.reg.is_set(Control::NEXT) {
-                // Update the SHA512 engine with a new block
-                self.sha512
-                    .update(&sha512_block_bytes_from_words_le(&self.block));
-
-                // Schedule a future call to poll() complete the operation.
-                self.op_complete_action = Some(self.timer.schedule_poll_in(UPDATE_TICKS));
+            // Schedule a future call to poll() to complete the operation.
+            self.op_complete_action = Some(self.timer.schedule_poll_in(INIT_TICKS));
+        } else if self.control.reg.is_set(Control::NEXT) {
+            if self.init_rejected
+                || (self.pcr_hash_extend_ip
+                    && (!self.pcr_hash_extend_init_done || self.pcr_hash_extend_last_done))
+            {
+                return Ok(());
             }
-        }
 
-        if self.control.reg.is_set(Control::ZEROIZE) {
-            self.zeroize();
+            self.init_lock = true;
+            self.pcr_present = false;
+            if self.pcr_hash_extend_ip && self.control.reg.is_set(Control::LAST) {
+                self.pcr_hash_extend_last_done = true;
+            }
+
+            if self.control.reg.is_set(Control::RESTORE) && !self.pcr_hash_extend_ip {
+                // Restore the hash state.
+                self.sha512.set_hash(self.hash.data());
+            }
+
+            // Reset the Ready and Valid status bits
+            self.status
+                .reg
+                .modify(Status::READY::CLEAR + Status::VALID::CLEAR);
+
+            // Update the SHA512 engine with a new block
+            self.sha512
+                .update(&sha512_block_bytes_from_words_le(&self.block));
+
+            // Schedule a future call to poll() to complete the operation.
+            self.op_complete_action = Some(self.timer.schedule_poll_in(UPDATE_TICKS));
         }
 
         Ok(())
@@ -394,6 +431,13 @@ impl HashSha512Regs {
         );
 
         if block_read_ctrl.is_set(BlockReadControl::KEY_READ_EN) {
+            if block_read_ctrl.is_set(BlockReadControl::PCR_HASH_EXTEND) {
+                self.pcr_hash_extend_ip = true;
+                self.pcr_hash_extend_init_done = false;
+                self.pcr_hash_extend_last_done = false;
+                self.pcr_hash_status.reg.modify(PcrHashStatus::READY::CLEAR);
+            }
+
             self.block_read_status.reg.modify(
                 BlockReadStatus::READY::CLEAR
                     + BlockReadStatus::VALID::CLEAR
@@ -455,13 +499,24 @@ impl HashSha512Regs {
             Err(BusError::StoreAccessFault)?
         }
 
-        // Bail out if not ready
-        if !self.pcr_hash_status.reg.is_set(PcrHashStatus::READY) {
+        // Set the Pcr Gen Hash Control register
+        self.pcr_hash_control.reg.set(val);
+        let start_requested = (val & 1) != 0;
+
+        if start_requested {
+            self.pcr_hash_status.reg.modify(PcrHashStatus::VALID::CLEAR);
+        }
+
+        // Bail out if not ready, PCR hash extend is in progress, or ZEROIZE is required first.
+        if !start_requested
+            || !self.pcr_hash_status.reg.is_set(PcrHashStatus::READY)
+            || self.pcr_hash_extend_ip
+            || self.init_lock
+        {
             return Ok(());
         }
 
-        // Set the Pcr Gen Hash Control register
-        self.pcr_hash_control.reg.set(val);
+        self.init_lock = true;
 
         // Clear the status bits
         self.pcr_hash_status
@@ -541,6 +596,10 @@ impl HashSha512Regs {
             self.block_read_ctrl
                 .reg
                 .modify(BlockReadControl::PCR_HASH_EXTEND::CLEAR);
+            self.pcr_hash_extend_ip = false;
+            self.pcr_hash_extend_init_done = false;
+            self.pcr_hash_extend_last_done = false;
+            self.pcr_hash_status.reg.modify(PcrHashStatus::READY::SET);
         }
 
         // Update Ready and Valid status bits
@@ -685,6 +744,24 @@ impl HashSha512Regs {
     fn zeroize(&mut self) {
         self.block.fill(0);
         self.hash.data_mut().fill(0);
+        self.pcr_hash_digest.fill(0);
+        self.pcr_present = false;
+        self.init_lock = false;
+        self.init_rejected = false;
+        self.pcr_hash_extend_ip = false;
+        self.pcr_hash_extend_init_done = false;
+        self.pcr_hash_extend_last_done = false;
+        self.block_read_ctrl
+            .reg
+            .modify(BlockReadControl::PCR_HASH_EXTEND::CLEAR);
+        self.op_complete_action = None;
+        self.op_pcr_gen_hash_complete_action = None;
+        self.status
+            .reg
+            .modify(Status::READY::SET + Status::VALID::CLEAR);
+        self.pcr_hash_status
+            .reg
+            .modify(PcrHashStatus::READY::SET + PcrHashStatus::VALID::CLEAR);
     }
 }
 
@@ -1383,5 +1460,100 @@ mod tests {
         ];
 
         test_pcr_hash_extend(&data, &mut pcr_data, &expected);
+    }
+
+    #[test]
+    fn test_mandatory_zeroize_between_operations() {
+        const OFFSET_PCR_HASH_CTRL: RvAddr = 0x630;
+        const OFFSET_PCR_HASH_STATUS: RvAddr = 0x634;
+        const OFFSET_PCR_HASH_DIGEST: RvAddr = 0x638;
+
+        let clock = Clock::new();
+        let mut sha512 = HashSha512Regs::new(&clock, KeyVault::new());
+
+        let init_cmd = (Control::MODE.val(Sha512Mode::Sha384.into()) + Control::INIT::SET).value;
+        sha512
+            .write(RvSize::Word, OFFSET_CONTROL, init_cmd)
+            .unwrap();
+        loop {
+            let status = InMemoryRegister::<u32, Status::Register>::new(
+                sha512.read(RvSize::Word, OFFSET_STATUS).unwrap(),
+            );
+            if status.is_set(Status::VALID) && status.is_set(Status::READY) {
+                break;
+            }
+            clock.increment_and_process_timer_actions(1, &mut sha512);
+        }
+        assert!(sha512.hash().iter().any(|&b| b != 0));
+
+        // Second INIT without ZEROIZE must be rejected: digest cleared, VALID stays low.
+        sha512
+            .write(RvSize::Word, OFFSET_CONTROL, init_cmd)
+            .unwrap();
+        for _ in 0..(INIT_TICKS + 10) {
+            clock.increment_and_process_timer_actions(1, &mut sha512);
+        }
+        let status = InMemoryRegister::<u32, Status::Register>::new(
+            sha512.read(RvSize::Word, OFFSET_STATUS).unwrap(),
+        );
+        assert!(status.is_set(Status::READY));
+        assert!(!status.is_set(Status::VALID));
+        assert!(sha512.hash().iter().all(|&b| b == 0));
+
+        // PCR gen hash START without ZEROIZE must also be rejected.
+        sha512
+            .write(
+                RvSize::Word,
+                OFFSET_PCR_HASH_CTRL,
+                PcrHashControl::START::SET.value,
+            )
+            .unwrap();
+        for _ in 0..(UPDATE_TICKS + 10) {
+            clock.increment_and_process_timer_actions(1, &mut sha512);
+        }
+        let pcr_status = InMemoryRegister::<u32, PcrHashStatus::Register>::new(
+            sha512.read(RvSize::Word, OFFSET_PCR_HASH_STATUS).unwrap(),
+        );
+        assert!(pcr_status.is_set(PcrHashStatus::READY));
+        assert!(!pcr_status.is_set(PcrHashStatus::VALID));
+
+        // ZEROIZE unlocks the engine for GEN_PCR_HASH.
+        sha512
+            .write(RvSize::Word, OFFSET_CONTROL, Control::ZEROIZE::SET.value)
+            .unwrap();
+        sha512
+            .write(
+                RvSize::Word,
+                OFFSET_PCR_HASH_CTRL,
+                PcrHashControl::START::SET.value,
+            )
+            .unwrap();
+        loop {
+            let pcr_status = InMemoryRegister::<u32, PcrHashStatus::Register>::new(
+                sha512.read(RvSize::Word, OFFSET_PCR_HASH_STATUS).unwrap(),
+            );
+            if pcr_status.is_set(PcrHashStatus::VALID) && pcr_status.is_set(PcrHashStatus::READY) {
+                break;
+            }
+            clock.increment_and_process_timer_actions(1, &mut sha512);
+        }
+        assert_ne!(
+            sha512.read(RvSize::Word, OFFSET_PCR_HASH_DIGEST).unwrap(),
+            0
+        );
+
+        // ZEROIZE clears PCR hash digest and VALID.
+        sha512
+            .write(RvSize::Word, OFFSET_CONTROL, Control::ZEROIZE::SET.value)
+            .unwrap();
+        let pcr_status = InMemoryRegister::<u32, PcrHashStatus::Register>::new(
+            sha512.read(RvSize::Word, OFFSET_PCR_HASH_STATUS).unwrap(),
+        );
+        assert!(pcr_status.is_set(PcrHashStatus::READY));
+        assert!(!pcr_status.is_set(PcrHashStatus::VALID));
+        assert_eq!(
+            sha512.read(RvSize::Word, OFFSET_PCR_HASH_DIGEST).unwrap(),
+            0
+        );
     }
 }

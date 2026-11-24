@@ -265,10 +265,10 @@ fn test_pcr_hash_extend_single_block() {
     ];
     pcr_bank.erase_all_pcrs();
 
-    // Call gen_pcr_hash first to ensure that software workaround for
+    // Call with_pcr_hash first to ensure that software workaround for
     // https://github.com/chipsalliance/caliptra-rtl/issues/375 in SHA
     // driver works as expected.
-    let _ = sha384.gen_pcr_hash([0; 32].into());
+    let _ = sha384.with_pcr_hash([0; 32].into(), |_| Ok(()));
 
     // Round 1: PCR is all zeros.
     let result = sha384.pcr_extend(PcrId::PcrId0, &data);
@@ -385,13 +385,16 @@ fn test_pcr_hash_extend_limit() {
 
 fn test_operation_zeroization() {
     let mut sha = unsafe { Sha2_512_384::new(Sha512Reg::new()) };
+    let mut pcr_bank = unsafe { PcrBank::new(PvReg::new()) };
     let regs = unsafe { Sha512Reg::new() };
     let expected = sha.sha384_digest(b"abc").unwrap();
 
+    // Abandoned streaming op must zeroize hardware immediately on Drop.
     {
         let mut abandoned = sha.sha384_digest_init().unwrap();
         abandoned.update(&[0xa5; 128]).unwrap();
     }
+    assert_eq!(regs.regs().digest().read(), [0; 16]);
     let mut digest = Array4x12::default();
     let mut op = sha.sha384_digest_init().unwrap();
     assert_eq!(regs.regs().digest().read(), [0; 16]);
@@ -404,6 +407,44 @@ fn test_operation_zeroization() {
         let mut abandoned = sha.sha384_digest_init().unwrap();
         abandoned.update(&[0xa5; 128]).unwrap();
     }
+    assert_eq!(regs.regs().digest().read(), [0; 16]);
+    assert_eq!(sha.sha384_digest(b"abc").unwrap(), expected);
+
+    // Back-to-back PCR extensions must zeroize after each extend and on error.
+    pcr_bank.erase_all_pcrs();
+    sha.pcr_extend(PcrId::PcrId0, &[0x11; 48]).unwrap();
+    assert_eq!(regs.regs().digest().read(), [0; 16]);
+    sha.pcr_extend(PcrId::PcrId1, &[0x22; 48]).unwrap();
+    assert_eq!(regs.regs().digest().read(), [0; 16]);
+    assert_ne!(pcr_bank.read_pcr(PcrId::PcrId0), Array4x12::default());
+    assert_ne!(pcr_bank.read_pcr(PcrId::PcrId1), Array4x12::default());
+
+    // with_pcr_hash keeps its digest live inside the closure and zeroizes on both Ok and Err.
+    // Check gen_pcr_hash_digest rather than !gen_pcr_hash_status.valid(), because pre-caliptra-rtl#1552
+    // bitstreams clear the digest on ctrl.zeroize without clearing gen_pcr_hash_status.valid.
+    let (pcr_hash_1, ()) = sha
+        .with_pcr_hash([0x33; 32].into(), |_| {
+            assert!(regs.regs().gen_pcr_hash_status().read().valid());
+            assert_ne!(regs.regs().gen_pcr_hash_digest().read(), [0; 16]);
+            Ok(())
+        })
+        .unwrap();
+    assert_eq!(regs.regs().gen_pcr_hash_digest().read(), [0; 16]);
+    let err: Result<(caliptra_drivers::Array4x16, ()), _> =
+        sha.with_pcr_hash([0x33; 32].into(), |_| {
+            assert!(regs.regs().gen_pcr_hash_status().read().valid());
+            assert_ne!(regs.regs().gen_pcr_hash_digest().read(), [0; 16]);
+            Err(caliptra_drivers::CaliptraError::DRIVER_SHA2_512_384_INVALID_STATE_ERR)
+        });
+    assert!(err.is_err());
+    assert_eq!(regs.regs().gen_pcr_hash_digest().read(), [0; 16]);
+    let (pcr_hash_2, ()) = sha.with_pcr_hash([0x33; 32].into(), |_| Ok(())).unwrap();
+    assert_eq!(pcr_hash_1, pcr_hash_2);
+    assert_eq!(regs.regs().gen_pcr_hash_digest().read(), [0; 16]);
+    // An oversized pcr_extend error must still leave hardware zeroized.
+    assert!(sha.pcr_extend(PcrId::PcrId0, &[0u8; 80]).is_err());
+    assert_eq!(regs.regs().gen_pcr_hash_digest().read(), [0; 16]);
+    assert_eq!(regs.regs().digest().read(), [0; 16]);
     assert_eq!(sha.sha384_digest(b"abc").unwrap(), expected);
 }
 
