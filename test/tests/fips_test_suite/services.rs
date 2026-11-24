@@ -713,7 +713,11 @@ pub fn execute_all_services_rom() {
     exec_cmd_capabilities(&mut hw);
 
     // STASH MEASUREMENT
-    exec_cmd_stash_measurement(&mut hw);
+    if !caliptra_builder::default_features(hw.hw_revision(), "caliptra-rom")
+        .contains(&"caliptra-rom/stash-measurement-registers")
+    {
+        exec_cmd_stash_measurement(&mut hw);
+    }
 
     // SHUTDOWN
     // (Do this last)
