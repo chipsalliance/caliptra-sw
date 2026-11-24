@@ -147,11 +147,15 @@ fn test_encrypted_firmware_decrypt_dma() {
             0x1
         );
 
+        // 'Recovery successful' is about the MCU firmware, the last image the
+        // recovery flow downloads, so bits [7:4] of byte 0 hold the MCU
+        // firmware index.
         let recovery_status =
             read_recovery_register(&mut model, RecoveryCommandCode::RecoveryStatus);
         assert_eq!(
-            u16::from_le_bytes(recovery_status[..2].try_into().unwrap()),
-            0x3
+            u32::from(u16::from_le_bytes(recovery_status[..2].try_into().unwrap())),
+            (crate::test_recovery_flow::MCU_FIRMWARE_INDEX << 4)
+                | DmaRecovery::RECOVERY_STATUS_SUCCESSFUL
         );
     }
 }
