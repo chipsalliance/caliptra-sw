@@ -55,7 +55,7 @@ use caliptra_drivers::{
     Ecc384PubKey, Ecc384Result, Ecc384Seed, Ecc384Signature, HmacMode, KeyReadArgs, LEArray4x1157,
     LEArray4x3, LEArray4x392, LEArray4x4, LEArray4x8, MlKem1024, MlKem1024Message, MlKem1024Seed,
     MlKem1024Seeds, MlKem1024SharedKey, MlKem1024SharedKeyOut, Mldsa87Result, Mldsa87Seed,
-    PersistentDataAccessor, Sha2_512_384, Trng, AES_BLOCK_SIZE_BYTES, AES_CONTEXT_SIZE_BYTES,
+    PersistentDataAccessor, Trng, AES_BLOCK_SIZE_BYTES, AES_CONTEXT_SIZE_BYTES,
     AES_GCM_CONTEXT_SIZE_BYTES, MAX_SEED_WORDS,
 };
 use caliptra_error::CaliptraError;
@@ -688,17 +688,21 @@ impl Commands {
 
         let data = &cmd.input[..cmd.input_size as usize];
 
-        let data_len = match cm_hash_algorithm {
+        let (data_len, intermediate_digest) = match cm_hash_algorithm {
             CmHashAlgorithm::Sha384 => {
                 let mut op = drivers.sha2_512_384.sha384_digest_init()?;
                 op.update(data)?;
-                op.save_buffer(&mut context.input_buffer)?
+                let len = op.save_buffer(&mut context.input_buffer)?;
+                let digest = (len >= SHA512_BLOCK_BYTE_SIZE).then(|| op.read_intermediate_digest());
+                (len, digest)
             }
 
             CmHashAlgorithm::Sha512 => {
                 let mut op = drivers.sha2_512_384.sha512_digest_init()?;
                 op.update(data)?;
-                op.save_buffer(&mut context.input_buffer)?
+                let len = op.save_buffer(&mut context.input_buffer)?;
+                let digest = (len >= SHA512_BLOCK_BYTE_SIZE).then(|| op.read_intermediate_digest());
+                (len, digest)
             }
             _ => {
                 return Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
@@ -708,19 +712,13 @@ impl Commands {
         context.length = data_len as u32;
 
         // copy the intermediate hash if we had enough data to generate one
-        if data_len >= SHA512_BLOCK_BYTE_SIZE {
-            let mut intermediate_digest = drivers.sha2_512_384.sha512_read_digest();
+        if let Some(mut intermediate_digest) = intermediate_digest {
             intermediate_digest.0.iter_mut().for_each(|x| {
                 *x = x.swap_bytes();
             });
             context
                 .intermediate_hash
                 .copy_from_slice(intermediate_digest.as_bytes());
-        }
-
-        // Safety: we've copied the state, so it is safe to zeroize
-        unsafe {
-            Sha2_512_384::zeroize();
         }
 
         let resp = mutrefbytes::<CmShaInitResp>(resp)?;
@@ -756,7 +754,8 @@ impl Commands {
 
         let context_buffer_len = context.length as usize % SHA512_BLOCK_BYTE_SIZE;
         let resume_len = context.length as usize - context_buffer_len;
-        let data_len = match cm_hash_algorithm {
+        let has_new_intermediate = context_buffer_len + data.len() >= SHA512_BLOCK_BYTE_SIZE;
+        let (data_len, intermediate_digest) = match cm_hash_algorithm {
             CmHashAlgorithm::Sha384 => {
                 let mut op = drivers.sha2_512_384.sha384_digest_init()?;
                 op.resume(
@@ -765,7 +764,9 @@ impl Commands {
                     &context.input_buffer[..context_buffer_len],
                 )?;
                 op.update(data)?;
-                op.save_buffer(&mut context.input_buffer)?
+                let len = op.save_buffer(&mut context.input_buffer)?;
+                let digest = has_new_intermediate.then(|| op.read_intermediate_digest());
+                (len, digest)
             }
             CmHashAlgorithm::Sha512 => {
                 let mut op = drivers.sha2_512_384.sha512_digest_init()?;
@@ -775,7 +776,9 @@ impl Commands {
                     &context.input_buffer[..context_buffer_len],
                 )?;
                 op.update(data)?;
-                op.save_buffer(&mut context.input_buffer)?
+                let len = op.save_buffer(&mut context.input_buffer)?;
+                let digest = has_new_intermediate.then(|| op.read_intermediate_digest());
+                (len, digest)
             }
             _ => Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?,
         };
@@ -783,19 +786,13 @@ impl Commands {
         context.length = data_len as u32;
 
         // copy the intermediate hash if we had enough data to generate new one
-        if context_buffer_len + data.len() >= SHA512_BLOCK_BYTE_SIZE {
-            let mut intermediate_digest = drivers.sha2_512_384.sha512_read_digest();
+        if let Some(mut intermediate_digest) = intermediate_digest {
             intermediate_digest.0.iter_mut().for_each(|x| {
                 *x = x.swap_bytes();
             });
             context
                 .intermediate_hash
                 .copy_from_slice(intermediate_digest.as_bytes());
-        }
-
-        // Safety: we've copied the state, so it is safe to zeroize
-        unsafe {
-            Sha2_512_384::zeroize();
         }
 
         let resp = mutrefbytes::<CmShaInitResp>(resp)?;
@@ -862,11 +859,6 @@ impl Commands {
             }
             _ => Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?,
         };
-
-        // Safety: we've copied the digest, so it is safe to zeroize
-        unsafe {
-            Sha2_512_384::zeroize();
-        }
 
         let resp = mutrefbytes::<CmShaFinalResp>(resp)?;
         resp.hdr = MailboxRespHeaderVarSize::default();

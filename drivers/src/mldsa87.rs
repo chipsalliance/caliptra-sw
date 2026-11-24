@@ -16,7 +16,7 @@ Abstract:
 use crate::{
     array::{LEArray4x1157, LEArray4x1224, LEArray4x16, LEArray4x648, LEArray4x8},
     kv_access::{KvAccess, KvAccessErr},
-    wait, CaliptraError, CaliptraResult, KeyReadArgs, Trng,
+    wait, CaliptraError, CaliptraResult, KeyReadArgs, PcrDigestLive, Trng,
 };
 #[cfg(feature = "cfi")]
 use caliptra_cfi_derive::cfi_impl_fn;
@@ -664,13 +664,19 @@ impl<'a> Mldsa87<'a> {
     ///
     /// # Arguments
     ///
+    /// * `pcr_digest` - Witness proving a PCR digest is currently live in SHA512 hardware
     /// * `trng` - TRNG driver instance
     ///
     /// # Returns
     ///
     /// * `Mldsa87Signature` - Generated signature
     #[cfg_attr(feature = "cfi", cfi_impl_fn)]
-    pub fn pcr_sign_flow(&mut self, trng: &mut Trng) -> CaliptraResult<Mldsa87Signature> {
+    pub fn pcr_sign_flow(
+        &mut self,
+        pcr_digest: PcrDigestLive<'_>,
+        trng: &mut Trng,
+    ) -> CaliptraResult<Mldsa87Signature> {
+        let _ = pcr_digest;
         let mldsa = self.mldsa87.regs_mut();
 
         // Wait for hardware ready

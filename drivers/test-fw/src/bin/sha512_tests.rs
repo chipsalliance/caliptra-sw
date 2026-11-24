@@ -144,6 +144,7 @@ fn test_operation_zeroization() {
         let mut abandoned = sha.sha512_digest_init().unwrap();
         abandoned.update(&[0xa5; 128]).unwrap();
     }
+    assert_eq!(regs.regs().digest().read(), [0; 16]);
     let mut digest = Array4x16::default();
     let mut op = sha.sha512_digest_init().unwrap();
     assert_eq!(regs.regs().digest().read(), [0; 16]);
@@ -156,6 +157,7 @@ fn test_operation_zeroization() {
         let mut abandoned = sha.sha512_digest_init().unwrap();
         abandoned.update(&[0xa5; 128]).unwrap();
     }
+    assert_eq!(regs.regs().digest().read(), [0; 16]);
     assert_eq!(sha.sha512_digest(b"abc").unwrap(), expected);
 }
 

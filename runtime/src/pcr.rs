@@ -65,9 +65,11 @@ impl GetPcrQuoteCmd {
             AlgorithmType::Ecc384 => {
                 let args = QuotePcrsEcc384Req::ref_from_bytes(cmd_bytes)
                     .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
-                let pcr_hash = drivers.sha2_512_384.gen_pcr_hash(args.nonce.into())?;
-
-                let signature = drivers.ecc384.pcr_sign_flow(&mut drivers.trng)?;
+                let (pcr_hash, signature) = drivers
+                    .sha2_512_384
+                    .with_pcr_hash(args.nonce.into(), |pcr_digest| {
+                        drivers.ecc384.pcr_sign_flow(pcr_digest, &mut drivers.trng)
+                    })?;
 
                 let resp = mutrefbytes::<QuotePcrsEcc384Resp>(resp)?;
                 resp.hdr = MailboxRespHeader::default();
@@ -91,13 +93,16 @@ impl GetPcrQuoteCmd {
             AlgorithmType::Mldsa87 => {
                 let args = QuotePcrsMldsa87Req::ref_from_bytes(cmd_bytes)
                     .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
-                let mut pcr_hash = drivers.sha2_512_384.gen_pcr_hash(args.nonce.into())?;
+                let (mut pcr_hash, signature) =
+                    drivers
+                        .sha2_512_384
+                        .with_pcr_hash(args.nonce.into(), |pcr_digest| {
+                            drivers.abr.with_mldsa87(|mut mldsa| {
+                                mldsa.pcr_sign_flow(pcr_digest, &mut drivers.trng)
+                            })
+                        })?;
 
                 pcr_hash.0.reverse(); // Reverse the order of the DWORDs for MLDSA.
-
-                let signature = drivers
-                    .abr
-                    .with_mldsa87(|mut mldsa| mldsa.pcr_sign_flow(&mut drivers.trng))?;
 
                 let resp = mutrefbytes::<QuotePcrsMldsa87Resp>(resp)?;
                 resp.hdr = MailboxRespHeader::default();
