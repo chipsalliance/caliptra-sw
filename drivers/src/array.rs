@@ -35,6 +35,7 @@ macro_rules! static_assert {
 pub struct Array4xN<const W: usize, const B: usize>(pub [u32; W]);
 impl<const W: usize, const B: usize> Array4xN<W, B> {
     pub const fn new(val: [u32; W]) -> Self {
+        const { assert!(B == 4 * W) };
         Self(val)
     }
     pub const fn bytes_size() -> usize {
@@ -88,6 +89,7 @@ unsafe fn u32_be_to_u8_impl<const W: usize, const B: usize>(
     dest: &mut MaybeUninit<[u8; B]>,
     src: &Array4xN<W, B>,
 ) {
+    const { assert!(B == 4 * W) };
     let ptr = dest.as_mut_ptr() as *mut [u8; 4];
     for i in 0..W {
         ptr.add(i).write(src.0[i].to_be_bytes());
@@ -117,6 +119,7 @@ unsafe fn u8_to_u32_be_impl<const W: usize, const B: usize>(
     dest: &mut MaybeUninit<Array4xN<W, B>>,
     src: &[u8; B],
 ) {
+    const { assert!(B == 4 * W) };
     let dest = dest.as_mut_ptr() as *mut u32;
     for i in 0..W {
         dest.add(i)
@@ -171,6 +174,7 @@ impl<const W: usize, const B: usize> From<Array4xN<W, B>> for LEArray4xN<W, B> {
 pub struct LEArray4xN<const W: usize, const B: usize>(pub [u32; W]);
 impl<const W: usize, const B: usize> LEArray4xN<W, B> {
     pub const fn new(val: [u32; W]) -> Self {
+        const { assert!(B == 4 * W) };
         Self(val)
     }
 }
@@ -222,6 +226,7 @@ unsafe fn u32_le_to_u8_impl<const W: usize, const B: usize>(
     dest: &mut MaybeUninit<[u8; B]>,
     src: &LEArray4xN<W, B>,
 ) {
+    const { assert!(B == 4 * W) };
     let ptr = dest.as_mut_ptr() as *mut [u8; 4];
     for i in 0..W {
         ptr.add(i).write(src.0[i].to_le_bytes());
@@ -251,6 +256,7 @@ unsafe fn u8_to_u32_le_impl<const W: usize, const B: usize>(
     dest: &mut MaybeUninit<LEArray4xN<W, B>>,
     src: &[u8; B],
 ) {
+    const { assert!(B == 4 * W) };
     let dest = dest.as_mut_ptr() as *mut u32;
     for i in 0..W {
         dest.add(i)
