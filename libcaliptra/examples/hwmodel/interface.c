@@ -76,10 +76,14 @@ struct caliptra_model* hwmod_get_or_init(void)
 int caliptra_write_u32(uint32_t address, uint32_t data)
 {
     struct caliptra_model *m = hwmod_get_or_init();
+    if (m == NULL) {
+        return CALIPTRA_MODEL_ERROR;
+    }
 
     int result = caliptra_model_apb_write_u32(m, address, (int)data);
-
-    caliptra_model_step(m);
+    if (result == CALIPTRA_MODEL_STATUS_OK) {
+        caliptra_model_step(m);
+    }
 
     return result;
 }
@@ -96,7 +100,15 @@ int caliptra_write_u32(uint32_t address, uint32_t data)
  */
 int caliptra_read_u32(uint32_t address, uint32_t *data)
 {
-    return caliptra_model_apb_read_u32(hwmod_get_or_init(), address, (uint*)data);
+    struct caliptra_model *m = hwmod_get_or_init();
+    if (m == NULL) {
+        if (data != NULL) {
+            *data = 0;
+        }
+        return CALIPTRA_MODEL_ERROR;
+    }
+
+    return caliptra_model_apb_read_u32(m, address, (uint*)data);
 }
 
 /**
@@ -106,5 +118,8 @@ int caliptra_read_u32(uint32_t address, uint32_t *data)
  */
 void caliptra_wait(void)
 {
-    caliptra_model_step(hwmod_get_or_init());
+    struct caliptra_model *m = hwmod_get_or_init();
+    if (m != NULL) {
+        caliptra_model_step(m);
+    }
 }
