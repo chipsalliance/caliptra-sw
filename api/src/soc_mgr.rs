@@ -28,13 +28,15 @@ pub const NUM_PAUSERS: usize = 5;
 /// const fn caliptra_address_remap(addr : u32) -> u32 {
 ///     addr
 /// }
-/// impl SocManager for RealSocManager {
+/// impl RealSocManager {
 ///     /// Address of the mailbox, remapped for the SoC.
 ///     const SOC_MBOX_ADDR: u32 = caliptra_address_remap(CPTRA_SOC_MBOX_ADDR);
 ///
 ///     /// Address of the SoC interface, remapped for the SoC.
 ///     const SOC_IFC_ADDR: u32 = caliptra_address_remap(CPTRA_SOC_IFC_ADDR);
+/// }
 ///
+/// impl SocManager for RealSocManager {
 ///     /// Maximum number of wait cycles.
 ///     const MAX_WAIT_CYCLES: u32 = 400000;
 ///
@@ -50,15 +52,19 @@ pub const NUM_PAUSERS: usize = 5;
 ///     fn delay(&mut self) {
 ///         //real_soc_delay_fn(1);
 ///     }
+///
+///     /// Base address of the soc_ifc register block, as seen by the SoC.
+///     fn soc_ifc_addr(&self) -> u32 {
+///         Self::SOC_IFC_ADDR
+///     }
+///
+///     /// Base address of the mbox register block, as seen by the SoC.
+///     fn soc_mbox_addr(&self) -> u32 {
+///         Self::SOC_MBOX_ADDR
+///     }
 /// }
 /// ```
 pub trait SocManager {
-    /// Base address of the soc_ifc register block in the SoC address map.
-    const SOC_IFC_ADDR: u32;
-
-    /// Base address of the mbox register block in the SoC address map.
-    const SOC_MBOX_ADDR: u32;
-
     const MAX_WAIT_CYCLES: u32;
 
     /// Default for [`Self::mailbox_size_limit`].
@@ -252,19 +258,16 @@ pub trait SocManager {
 
     /// Base address of the soc_ifc register block, as seen by the SoC.
     ///
-    /// Defaults to [`Self::SOC_IFC_ADDR`]. Override it if the address is only known
-    /// at run time, so that [`Self::soc_ifc`] does not have to be re-implemented.
-    fn soc_ifc_addr(&self) -> u32 {
-        Self::SOC_IFC_ADDR
-    }
+    /// The address is specific to the integration, so there is no default.
+    /// It is a method rather than a constant because an implementation may
+    /// only learn it at link or run time.
+    fn soc_ifc_addr(&self) -> u32;
 
     /// Base address of the mbox register block, as seen by the SoC.
     ///
-    /// Defaults to [`Self::SOC_MBOX_ADDR`]. Override it if the address is only
-    /// known at run time, so that [`Self::soc_mbox`] does not have to be re-implemented.
-    fn soc_mbox_addr(&self) -> u32 {
-        Self::SOC_MBOX_ADDR
-    }
+    /// The address is specific to the integration, so there is no default.
+    /// See [`Self::soc_ifc_addr`].
+    fn soc_mbox_addr(&self) -> u32;
 
     /// A register block that can be used to manipulate the soc_ifc peripheral
     /// over the simulated SoC->Caliptra APB bus.

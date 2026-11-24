@@ -45,10 +45,13 @@ extern "C" fn cfi_panic_handler(_code: u32) -> ! {
 /// A minimal SocManager implementation for compilation purposes.
 struct TestSocManager;
 
-impl SocManager for TestSocManager {
-    const MAX_WAIT_CYCLES: u32 = 400_000;
+impl TestSocManager {
     const SOC_IFC_ADDR: u32 = 0x3003_0000;
     const SOC_MBOX_ADDR: u32 = 0x3002_0000;
+}
+
+impl SocManager for TestSocManager {
+    const MAX_WAIT_CYCLES: u32 = 400_000;
 
     type TMmio<'a> = RealMmioMut<'a>;
 
@@ -57,6 +60,14 @@ impl SocManager for TestSocManager {
     }
 
     fn delay(&mut self) {}
+
+    fn soc_ifc_addr(&self) -> u32 {
+        Self::SOC_IFC_ADDR
+    }
+
+    fn soc_mbox_addr(&self) -> u32 {
+        Self::SOC_MBOX_ADDR
+    }
 }
 
 /// Calls mailbox_exec_req to ensure it is linked into the binary.

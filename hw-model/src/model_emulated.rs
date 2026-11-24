@@ -165,6 +165,9 @@ impl ModelEmulated {
 }
 
 impl ModelEmulated {
+    const SOC_IFC_ADDR: u32 = 0x3003_0000;
+    const SOC_MBOX_ADDR: u32 = 0x3002_0000;
+
     /// Drive the core's generic input pins without writing the read-only SoC registers.
     pub fn set_generic_input_wires(&mut self, value: &[u32; 2]) {
         self.cpu
@@ -249,8 +252,6 @@ impl ModelEmulated {
 
 impl SocManager for ModelEmulated {
     const MAX_WAIT_CYCLES: u32 = 20_000_000;
-    const SOC_IFC_ADDR: u32 = 0x3003_0000;
-    const SOC_MBOX_ADDR: u32 = 0x3002_0000;
 
     type TMmio<'a> = BusMmio<EmulatedApbBus<'a>>;
 
@@ -264,6 +265,14 @@ impl SocManager for ModelEmulated {
 
     fn log_mailbox(&mut self, args: core::fmt::Arguments<'_>) {
         writeln!(self.output().logger(), "{args}").unwrap()
+    }
+
+    fn soc_ifc_addr(&self) -> u32 {
+        Self::SOC_IFC_ADDR
+    }
+
+    fn soc_mbox_addr(&self) -> u32 {
+        Self::SOC_MBOX_ADDR
     }
 }
 
