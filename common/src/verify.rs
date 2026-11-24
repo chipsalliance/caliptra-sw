@@ -42,11 +42,13 @@ impl EcdsaVerifyCmd {
 
         let success = ecc384.verify(&pubkey, &digest, &sig)?;
         if success != Ecc384Result::Success {
-            if cfg!(feature = "rom") {
-                return Err(CaliptraError::ROM_ECDSA_VERIFY_FAILED);
+            return Err(if cfg!(feature = "rom") {
+                CaliptraError::ROM_ECDSA_VERIFY_FAILED
             } else if cfg!(feature = "runtime") {
-                return Err(CaliptraError::RUNTIME_ECDSA_VERIFY_FAILED);
-            }
+                CaliptraError::RUNTIME_ECDSA_VERIFY_FAILED
+            } else {
+                CaliptraError::CALIPTRA_INTERNAL
+            });
         }
 
         Ok(0)
@@ -74,11 +76,13 @@ impl MldsaVerifyCmd {
 
         let success = mldsa87.verify_var(pubkey, message, &signature)?;
         if success != Mldsa87Result::Success {
-            if cfg!(feature = "rom") {
-                return Err(CaliptraError::ROM_MLDSA_VERIFY_FAILED);
+            return Err(if cfg!(feature = "rom") {
+                CaliptraError::ROM_MLDSA_VERIFY_FAILED
             } else if cfg!(feature = "runtime") {
-                return Err(CaliptraError::RUNTIME_MLDSA_VERIFY_FAILED);
-            }
+                CaliptraError::RUNTIME_MLDSA_VERIFY_FAILED
+            } else {
+                CaliptraError::CALIPTRA_INTERNAL
+            });
         }
 
         Ok(0)
