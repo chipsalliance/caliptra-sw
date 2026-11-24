@@ -24,7 +24,6 @@ pub const NUM_PAUSERS: usize = 5;
 /// use caliptra_ureg::RealMmioMut;
 /// struct RealSocManager;
 /// const CPTRA_SOC_IFC_ADDR: u32 = 0x3003_0000;
-/// const CPTRA_SOC_IFC_TRNG_ADDR: u32 = 0x3003_0000;
 /// const CPTRA_SOC_MBOX_ADDR: u32 = 0x3002_0000;
 /// const fn caliptra_address_remap(addr : u32) -> u32 {
 ///     addr
@@ -35,9 +34,6 @@ pub const NUM_PAUSERS: usize = 5;
 ///
 ///     /// Address of the SoC interface, remapped for the SoC.
 ///     const SOC_IFC_ADDR: u32 = caliptra_address_remap(CPTRA_SOC_IFC_ADDR);
-///
-///     /// Address of the SoC TRNG interface, remapped for the SoC.
-///     const SOC_IFC_TRNG_ADDR: u32 = caliptra_address_remap(CPTRA_SOC_IFC_TRNG_ADDR);
 ///
 ///     /// Maximum number of wait cycles.
 ///     const MAX_WAIT_CYCLES: u32 = 400000;
@@ -58,12 +54,10 @@ pub const NUM_PAUSERS: usize = 5;
 /// ```
 pub trait SocManager {
     /// Base address of the soc_ifc register block in the SoC address map.
-    const SOC_IFC_ADDR: u32 = 0x3003_0000;
+    const SOC_IFC_ADDR: u32;
+
     /// Base address of the mbox register block in the SoC address map.
-    const SOC_MBOX_ADDR: u32 = 0x3002_0000;
-    /// Base address of the soc_ifc TRNG registers, which are part of the
-    /// soc_ifc register block.
-    const SOC_IFC_TRNG_ADDR: u32 = Self::SOC_IFC_ADDR;
+    const SOC_MBOX_ADDR: u32;
 
     const MAX_WAIT_CYCLES: u32;
 
@@ -264,14 +258,6 @@ pub trait SocManager {
         Self::SOC_IFC_ADDR
     }
 
-    /// Base address of the soc_ifc TRNG register block, as seen by the SoC.
-    ///
-    /// Defaults to [`Self::SOC_IFC_TRNG_ADDR`]. Override it if the address is only
-    /// known at run time, so that [`Self::soc_ifc_trng`] does not have to be re-implemented.
-    fn soc_ifc_trng_addr(&self) -> u32 {
-        Self::SOC_IFC_TRNG_ADDR
-    }
-
     /// Base address of the mbox register block, as seen by the SoC.
     ///
     /// Defaults to [`Self::SOC_MBOX_ADDR`]. Override it if the address is only
@@ -286,17 +272,6 @@ pub trait SocManager {
         unsafe {
             caliptra_registers::soc_ifc::RegisterBlock::new_with_mmio(
                 self.soc_ifc_addr() as *mut u32,
-                self.mmio_mut(),
-            )
-        }
-    }
-
-    /// A register block that can be used to manipulate the soc_ifc peripheral TRNG registers
-    /// over the simulated SoC->Caliptra APB bus.
-    fn soc_ifc_trng(&mut self) -> caliptra_registers::soc_ifc_trng::RegisterBlock<Self::TMmio<'_>> {
-        unsafe {
-            caliptra_registers::soc_ifc_trng::RegisterBlock::new_with_mmio(
-                self.soc_ifc_trng_addr() as *mut u32,
                 self.mmio_mut(),
             )
         }

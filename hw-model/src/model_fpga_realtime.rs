@@ -387,6 +387,8 @@ unsafe impl Send for SendPtr {}
 
 impl SocManager for ModelFpgaRealtime {
     const MAX_WAIT_CYCLES: u32 = 20_000_000;
+    const SOC_IFC_ADDR: u32 = 0x3003_0000;
+    const SOC_MBOX_ADDR: u32 = 0x3002_0000;
 
     type TMmio<'a> = BusMmio<FpgaRealtimeBus<'a>>;
 
