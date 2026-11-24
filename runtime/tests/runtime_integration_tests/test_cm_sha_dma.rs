@@ -2,13 +2,12 @@
 
 use crate::common::{assert_error, run_rt_test, RuntimeTestArgs};
 use crate::test_activate_firmware::TEST_SRAM_BASE;
-use crate::test_capabilities::get_capabilities;
 use caliptra_api::{
     mailbox::{
         CmHashAlgorithm, CmShaDmaReq, CmShaDmaResp, CommandId, MailboxReq, MailboxReqHeader,
         MailboxRespHeader, MailboxRespHeaderVarSize, ResponseVarSize,
     },
-    Capabilities, SocManager,
+    SocManager,
 };
 use caliptra_builder::ImageOptions;
 use caliptra_common::checksum::{calc_checksum, verify_checksum};
@@ -345,7 +344,6 @@ fn test_cm_sha_dma_rejects_passive_mode() {
         subsystem_mode: false,
         ..Default::default()
     });
-    assert!(!get_capabilities(&mut model).contains(Capabilities::RT_SHA_DMA));
     assert_rejected(
         &mut model,
         request(CmHashAlgorithm::Sha384, 0x1000, 64),

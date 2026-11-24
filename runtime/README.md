@@ -469,7 +469,6 @@ Command Code: `0x4341_5053` ("CAPS")
 | --------------- | ------- | ---------------
 | `RT_BASE`       | 64      | Base capabilities for Caliptra Runtime v2.1.
 | `RT_OCP_LOCK`   | 65      | Runtime firmware and hardware supports OCP LOCK.
-| `RT_SHA_DMA`    | 66      | Runtime firmware supports `CM_SHA_DMA`. Set only in subsystem mode.
 
 ### GET\_IDEV\_ECC384\_CERT
 
