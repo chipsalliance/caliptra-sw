@@ -402,6 +402,54 @@ fn test_digest_max_mailbox_size() {
     };
 }
 
+fn test_digest_slices() {
+    let mut sha_acc = unsafe { Sha2_512_384Acc::new(Sha512AccCsr::new()) };
+    let msg: &[u8] = b"0123456789abcd"; // 14 bytes (non-word-aligned final word)
+    let slices: &[&[u8]] = &[b"", b"0", b"12", b"", b"345", b"6789a", b"b", b"cd", b""];
+
+    for endianness in [StreamEndianness::Native, StreamEndianness::Reorder] {
+        let mut expected_384 = Array4x12::default();
+        let mut actual_384 = Array4x12::default();
+        {
+            let mut op = sha_acc
+                .try_start_operation(ShaAccLockState::NotAcquired)
+                .unwrap()
+                .unwrap();
+            op.digest_384_slice(msg, endianness, (&mut expected_384).into())
+                .unwrap();
+        }
+        {
+            let mut op = sha_acc
+                .try_start_operation(ShaAccLockState::NotAcquired)
+                .unwrap()
+                .unwrap();
+            op.digest_384_slices(slices, endianness, (&mut actual_384).into())
+                .unwrap();
+        }
+        assert_eq!(actual_384, expected_384);
+
+        let mut expected_512 = Array4x16::default();
+        let mut actual_512 = Array4x16::default();
+        {
+            let mut op = sha_acc
+                .try_start_operation(ShaAccLockState::NotAcquired)
+                .unwrap()
+                .unwrap();
+            op.digest_512_slice(msg, endianness, (&mut expected_512).into())
+                .unwrap();
+        }
+        {
+            let mut op = sha_acc
+                .try_start_operation(ShaAccLockState::NotAcquired)
+                .unwrap()
+                .unwrap();
+            op.digest_512_slices(slices, endianness, (&mut actual_512).into())
+                .unwrap();
+        }
+        assert_eq!(actual_512, expected_512);
+    }
+}
+
 fn test_kat() {
     let mut sha_acc = unsafe { Sha2_512_384Acc::new(Sha512AccCsr::new()) };
     assert_eq!(
@@ -414,6 +462,7 @@ fn test_kat() {
 
 test_suite! {
     test_kat,
+    test_digest_slices,
     test_digest_max_mailbox_size,
     test_digest_offset,
     test_digest0,

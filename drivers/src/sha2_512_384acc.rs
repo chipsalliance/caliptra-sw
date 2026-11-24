@@ -194,6 +194,35 @@ impl Sha2_512_384AccOp<'_> {
         }
     }
 
+    /// Write multiple concatenated slices dword by dword to the datain register
+    /// without injecting zero padding at intermediate slice boundaries.
+    fn write_slices_to_datain(&mut self, slices: &[&[u8]]) {
+        let mut dword = [0u8; 4];
+        let mut fill = 0usize;
+        for data in slices {
+            for &byte in *data {
+                if let Some(slot) = dword.get_mut(fill) {
+                    *slot = byte;
+                }
+                fill += 1;
+                if fill == 4 {
+                    self.sha512_acc
+                        .regs_mut()
+                        .datain()
+                        .write(|_| u32::from_le_bytes(dword));
+                    dword = [0u8; 4];
+                    fill = 0;
+                }
+            }
+        }
+        if fill > 0 {
+            self.sha512_acc
+                .regs_mut()
+                .datain()
+                .write(|_| u32::from_le_bytes(dword));
+        }
+    }
+
     /// Perform SHA 384 digest on a byte slice
     ///
     /// # Arguments
@@ -212,7 +241,8 @@ impl Sha2_512_384AccOp<'_> {
             crate::FipsTestHook::error_if_hook_set(crate::FipsTestHook::SHA384_DIGEST_FAILURE)?
         }
 
-        let dlen = data.len() as u32;
+        let dlen = u32::try_from(data.len())
+            .map_err(|_| CaliptraError::DRIVER_SHA2_512_384ACC_INDEX_OUT_OF_BOUNDS)?;
 
         // Start streaming
         self.stream_start_384(dlen, endianness)?;
@@ -245,15 +275,18 @@ impl Sha2_512_384AccOp<'_> {
         }
 
         // Calculate total length
-        let dlen: u32 = slices.iter().map(|s| s.len() as u32).sum();
+        let dlen: u32 = slices.iter().try_fold(0u32, |acc, s| {
+            let len = u32::try_from(s.len())
+                .map_err(|_| CaliptraError::DRIVER_SHA2_512_384ACC_INDEX_OUT_OF_BOUNDS)?;
+            acc.checked_add(len)
+                .ok_or(CaliptraError::DRIVER_SHA2_512_384ACC_INDEX_OUT_OF_BOUNDS)
+        })?;
 
         // Start streaming
         self.stream_start_384(dlen, endianness)?;
 
         // Write data from all slices dword by dword to datain register
-        for data in slices {
-            self.write_data_to_datain(data);
-        }
+        self.write_slices_to_datain(slices);
 
         // Finish streaming and get digest
         self.stream_finish_384(digest)?;
@@ -281,7 +314,8 @@ impl Sha2_512_384AccOp<'_> {
             )?
         }
 
-        let dlen = data.len() as u32;
+        let dlen = u32::try_from(data.len())
+            .map_err(|_| CaliptraError::DRIVER_SHA2_512_384ACC_INDEX_OUT_OF_BOUNDS)?;
 
         // Start streaming
         self.stream_start_512(dlen, endianness)?;
@@ -316,15 +350,18 @@ impl Sha2_512_384AccOp<'_> {
         }
 
         // Calculate total length
-        let dlen: u32 = slices.iter().map(|s| s.len() as u32).sum();
+        let dlen: u32 = slices.iter().try_fold(0u32, |acc, s| {
+            let len = u32::try_from(s.len())
+                .map_err(|_| CaliptraError::DRIVER_SHA2_512_384ACC_INDEX_OUT_OF_BOUNDS)?;
+            acc.checked_add(len)
+                .ok_or(CaliptraError::DRIVER_SHA2_512_384ACC_INDEX_OUT_OF_BOUNDS)
+        })?;
 
         // Start streaming
         self.stream_start_512(dlen, endianness)?;
 
         // Write data from all slices dword by dword to datain register
-        for data in slices {
-            self.write_data_to_datain(data);
-        }
+        self.write_slices_to_datain(slices);
 
         // Finish streaming and get digest
         self.stream_finish_512(digest)?;
@@ -455,7 +492,11 @@ impl Sha2_512_384AccOp<'_> {
 
         let mbox_len = Mailbox::get_mbox_size();
 
-        if start_address >= mbox_len || (start_address + dlen) > mbox_len {
+        if start_address >= mbox_len
+            || start_address
+                .checked_add(dlen)
+                .is_none_or(|end| end > mbox_len)
+        {
             return Err(CaliptraError::DRIVER_SHA2_512_384ACC_INDEX_OUT_OF_BOUNDS);
         }
 
