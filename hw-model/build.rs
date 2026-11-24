@@ -236,6 +236,10 @@ fn otp_ctrl_mmap_offsets_rs(
             offset += 8;
         }
 
+        // The OTP generator pads every partition to a multiple of the 64-bit
+        // OTP word size, including partitions without a digest.
+        offset = offset.next_multiple_of(8);
+
         if let Some(size) = partition.size.as_ref() {
             let declared_size = size.parse().unwrap_or_else(|err| {
                 panic!(
