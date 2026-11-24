@@ -591,4 +591,9 @@ impl Lms {
     pub fn mark_kat_complete(&mut self) {
         self.kat_complete = true;
     }
+
+    // Reset the kat_complete state to false
+    pub fn clear_kat_complete(&mut self) {
+        self.kat_complete = false;
+    }
 }
