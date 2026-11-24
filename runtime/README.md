@@ -1224,7 +1224,7 @@ Command Code: `0x494E_464F` ("INFO")
 | soc_manifest_min_svn        | u32      | Minimum SoC manifest SVN encoded in `FUSE_SOC_MANIFEST_SVN` and enforced by `SET_AUTH_MANIFEST` when anti-rollback checks are enabled.               |
 | owner_auth_manifest_current_svn | u32   | SVN of the owner authorization manifest accepted by `SET_OWNER_AUTH_MANIFEST`, or zero if none has been accepted.                                  |
 | owner_auth_manifest_min_svn | u32      | Minimum owner authorization manifest SVN encoded in `SS_STRAP_GENERIC[3][15:8]` and enforced by `SET_OWNER_AUTH_MANIFEST` when anti-rollback checks are enabled. |
-| debug_policy                | u32      | Active vendor-authorized debug policy. Bit 0 (`DEBUG_FIRMWARE_ACTIVE`) indicates that the active firmware bundle is marked as debug. Bit 1 (`DEBUG_AUTH_MANIFEST_ACTIVE`) indicates that the installed SoC authorization manifest is marked as debug. Bits 31:2 are zero. |
+| debug_policy                | u32      | Active vendor-authorized debug policy. Bit 0 (`DEBUG_FIRMWARE_ACTIVE`) indicates that the active firmware bundle is marked as debug. Bit 1 (`DEBUG_AUTH_MANIFEST_ACTIVE`) indicates that the installed SoC authorization manifest is marked as debug. Bit 2 (`UEID_BOUND_PREAMBLE_ACTIVE`) indicates that the installed SoC authorization manifest is `UEID_BOUND_PREAMBLE`. Bits 31:3 are zero. |
 | fe_status                   | u32      | Live OTP provisioning/zeroization status of all four FE partitions in subsystem mode. Partition `i` occupies bits `[2*i+1:2*i]`: `0` = unprovisioned, `1` = provisioned, `2` = zeroized, `3` = error/indeterminate. Outside subsystem mode, all partitions report error/indeterminate. Bits 31:8 are zero. |
 
 The response is 400 bytes in both subsystem and standalone modes. The `fe_status`
@@ -1554,8 +1554,11 @@ Command Code: `0x4154_4D4E` ("ATMN")
 | ------------------------- | --------- |
 | VENDOR_SIGNATURE_REQUIRED | 1 << 0    |
 | DEBUG_IMAGE               | 1 << 1    |
+| UEID_BOUND_PREAMBLE       | 1 << 2    |
 
 `DEBUG_IMAGE` is valid only when `VENDOR_SIGNATURE_REQUIRED` is also set. Runtime rejects an invalid combination with `RUNTIME_AUTH_MANIFEST_INVALID_FLAGS`. Runtime rejects a debug manifest unless it is running in subsystem mode with `SS_DEBUG_INTENT` asserted and `SS_STRAP_GENERIC[3][31]` clear, returning `RUNTIME_AUTH_MANIFEST_DEBUG_IMAGE_NOT_ALLOWED`. Existing vendor and owner authentication remain required.
+
+`UEID_BOUND_PREAMBLE` binds the preamble to one device. It is valid only when `VENDOR_SIGNATURE_REQUIRED` is also set (`RUNTIME_AUTH_MANIFEST_INVALID_FLAGS`). Both the vendor and owner preamble signatures cover `version`, `svn`, `flags`, the respective public keys, and then the 17-byte device UEID. Runtime uses the UEID from fuses, so a preamble signed for another device fails preamble signature verification, and the keys it delegates cannot be used on another device. After authenticating the IMC, Runtime also requires the device UEID IME (`RUNTIME_AUTH_MANIFEST_UEID_REQUIRED`) and checks that it matches (`RUNTIME_AUTH_MANIFEST_UEID_MISMATCH`). SOMV and SOMO measure the same messages, including the UEID. Runtime sets `FW_INFO.debug_policy[2]` after a successful `SET_AUTH_MANIFEST` of a UEID-bound-preamble manifest, with the same lifetime rules as bit 1.
 
 After a successful `SET_AUTH_MANIFEST`, Runtime sets `FW_INFO.debug_policy[1]` for a debug manifest and clears it for a normal manifest. Failed installations and `VERIFY_AUTH_MANIFEST` do not change the active bit. The bit survives warm and update resets, is cleared on cold reset, and is not modified by `SET_OWNER_AUTH_MANIFEST`.
 

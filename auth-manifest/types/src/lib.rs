@@ -26,12 +26,6 @@ use zeroize::Zeroize;
 pub const AUTH_MANIFEST_MARKER: u32 = 0x324D_5441;
 pub const AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT: usize = 80;
 pub const AUTH_MANIFEST_PREAMBLE_SIZE: usize = 24292;
-/// Size of the message signed by `AuthManifestPreamble::owner_pub_keys_signatures`:
-/// `version`, `svn`, `flags`, `owner_pub_keys`.
-pub const AUTH_MANIFEST_OWNER_SIGNED_DATA_SIZE: usize = {
-    let [policy, owner] = AuthManifestPreamble::owner_signed_data_ranges();
-    ((policy.end - policy.start) + (owner.end - owner.start)) as usize
-};
 
 // The vendor-signed data is a single contiguous range only if the policy
 // fields are immediately followed by `vendor_pub_keys`.
@@ -57,6 +51,11 @@ bitflags::bitflags! {
     pub struct AuthManifestFlags : u32 {
         const VENDOR_SIGNATURE_REQUIRED = 0b1;
         const DEBUG_IMAGE = 0b10;
+        /// Binds the preamble to one device. When set, the vendor and owner
+        /// preamble signatures also cover the 17-byte device UEID (appended
+        /// after the public keys), and the IMC must contain the device UEID
+        /// entry (`AUTH_MANIFEST_UEID_FW_ID`). Requires `VENDOR_SIGNATURE_REQUIRED`.
+        const UEID_BOUND_PREAMBLE = 0b100;
     }
 }
 
@@ -176,16 +175,47 @@ impl AuthManifestPreamble {
         [Self::policy_fields_range(), Self::owner_pub_keys_range()]
     }
 
-    /// Writes the owner-signed message (see [`Self::owner_signed_data_ranges`])
-    /// into `out`.
-    pub fn owner_signed_data(&self, out: &mut [u8; AUTH_MANIFEST_OWNER_SIGNED_DATA_SIZE]) {
-        let bytes = self.as_bytes();
-        let mut offset = 0;
-        for range in Self::owner_signed_data_ranges() {
-            let src = &bytes[range.start as usize..range.end as usize];
-            out[offset..offset + src.len()].copy_from_slice(src);
-            offset += src.len();
-        }
+    /// Returns, in order, the chunks of the message signed by
+    /// `vendor_pub_keys_signatures`: `version`, `svn`, `flags`,
+    /// `vendor_pub_keys`, then the device UEID (only if
+    /// `UEID_BOUND_PREAMBLE`).
+    ///
+    /// With `ueid == None` the concatenation equals
+    /// [`Self::vendor_signed_data_range`].
+    pub fn vendor_signed_data_chunks<'a>(
+        &'a self,
+        ueid: Option<&'a [u8; AUTH_MANIFEST_UEID_LEN]>,
+    ) -> impl Iterator<Item = &'a [u8]> + Clone + 'a {
+        self.signed_data_chunks(ueid, self.vendor_pub_keys.as_bytes())
+    }
+
+    /// Returns, in order, the chunks of the message signed by
+    /// `owner_pub_keys_signatures`: `version`, `svn`, `flags`,
+    /// `owner_pub_keys`, then the device UEID (only if
+    /// `UEID_BOUND_PREAMBLE`).
+    ///
+    /// With `ueid == None` the concatenation equals
+    /// [`Self::owner_signed_data_ranges`].
+    pub fn owner_signed_data_chunks<'a>(
+        &'a self,
+        ueid: Option<&'a [u8; AUTH_MANIFEST_UEID_LEN]>,
+    ) -> impl Iterator<Item = &'a [u8]> + Clone + 'a {
+        self.signed_data_chunks(ueid, self.owner_pub_keys.as_bytes())
+    }
+
+    fn signed_data_chunks<'a>(
+        &'a self,
+        ueid: Option<&'a [u8; AUTH_MANIFEST_UEID_LEN]>,
+        pub_keys: &'a [u8],
+    ) -> impl Iterator<Item = &'a [u8]> + Clone + 'a {
+        [
+            self.version.as_bytes(),
+            self.svn.as_bytes(),
+            self.flags.as_bytes(),
+            pub_keys,
+        ]
+        .into_iter()
+        .chain(ueid.map(|ueid| ueid.as_slice()))
     }
 
     /// Returns `Range<u32>` containing the owner_pub_keys_signatures
@@ -248,6 +278,14 @@ impl AuthManifestImageMetadata {
             digest,
             ..Default::default()
         }
+    }
+
+    /// Returns the UEID if this is a UEID entry (`AUTH_MANIFEST_UEID_FW_ID`).
+    pub fn ueid(&self) -> Option<[u8; AUTH_MANIFEST_UEID_LEN]> {
+        if self.fw_id != AUTH_MANIFEST_UEID_FW_ID {
+            return None;
+        }
+        self.digest[..AUTH_MANIFEST_UEID_LEN].try_into().ok()
     }
 }
 
@@ -430,10 +468,12 @@ pub struct OwnerAuthorizationManifest {
 
 #[cfg(test)]
 mod test {
+    extern crate std;
+    use std::vec::Vec;
+
     use crate::{
         AuthManifestImageMetadata, AuthManifestPreamble, ImageMetadataFlags,
-        OwnerAuthManifestPreamble, OwnerAuthorizationManifest,
-        AUTH_MANIFEST_OWNER_SIGNED_DATA_SIZE, AUTH_MANIFEST_PREAMBLE_SIZE,
+        OwnerAuthManifestPreamble, OwnerAuthorizationManifest, AUTH_MANIFEST_PREAMBLE_SIZE,
         AUTH_MANIFEST_UEID_FW_ID, AUTH_MANIFEST_UEID_LEN, OWNER_AUTH_MANIFEST_MARKER,
         OWNER_AUTH_MANIFEST_PREAMBLE_SIZE, OWNER_AUTH_MANIFEST_SIZE,
     };
@@ -451,6 +491,8 @@ mod test {
             &metadata.digest[AUTH_MANIFEST_UEID_LEN..],
             &[0; 48 - AUTH_MANIFEST_UEID_LEN]
         );
+        assert_eq!(metadata.ueid(), Some(ueid));
+        assert_eq!(AuthManifestImageMetadata::default().ueid(), None);
     }
 
     #[test]
@@ -512,10 +554,6 @@ mod test {
     fn test_auth_manifest_owner_signed_data() {
         let [policy, owner] = AuthManifestPreamble::owner_signed_data_ranges();
         assert_eq!(owner, AuthManifestPreamble::owner_pub_keys_range());
-        assert_eq!(
-            policy.len() + owner.len(),
-            AUTH_MANIFEST_OWNER_SIGNED_DATA_SIZE
-        );
         // Starts at `version` (skips marker and size) and stops before
         // the vendor public keys; vendor keys and signatures are not covered.
         let vendor = AuthManifestPreamble::vendor_signed_data_range();
@@ -527,18 +565,74 @@ mod test {
         assert_eq!(vendor.end, vendor_pub_keys.end);
         let vendor_sigs = AuthManifestPreamble::vendor_pub_keys_signatures_range();
         assert_eq!(vendor_sigs.end, owner.start);
+    }
 
+    fn patterned_preamble() -> AuthManifestPreamble {
         let mut preamble = AuthManifestPreamble::default();
         preamble
             .as_mut_bytes()
             .iter_mut()
             .enumerate()
             .for_each(|(i, b)| *b = i as u8);
-        let mut out = [0u8; AUTH_MANIFEST_OWNER_SIGNED_DATA_SIZE];
-        preamble.owner_signed_data(&mut out);
+        preamble
+    }
+
+    fn concat<'a>(chunks: impl Iterator<Item = &'a [u8]>) -> Vec<u8> {
+        chunks.flatten().copied().collect()
+    }
+
+    #[test]
+    fn test_signed_data_chunks_without_ueid_match_ranges() {
+        let preamble = patterned_preamble();
         let bytes = preamble.as_bytes();
-        let (head, tail) = out.split_at(policy.len());
-        assert_eq!(head, &bytes[policy.start as usize..policy.end as usize]);
-        assert_eq!(tail, &bytes[owner.start as usize..owner.end as usize]);
+
+        assert_eq!(preamble.vendor_signed_data_chunks(None).count(), 4);
+        let vendor = concat(preamble.vendor_signed_data_chunks(None));
+        let range = AuthManifestPreamble::vendor_signed_data_range();
+        assert_eq!(vendor, &bytes[range.start as usize..range.end as usize]);
+
+        assert_eq!(preamble.owner_signed_data_chunks(None).count(), 4);
+        let owner = concat(preamble.owner_signed_data_chunks(None));
+        let expected = concat(
+            AuthManifestPreamble::owner_signed_data_ranges()
+                .into_iter()
+                .map(|r| &bytes[r.start as usize..r.end as usize]),
+        );
+        assert_eq!(owner, expected);
+    }
+
+    #[test]
+    fn test_signed_data_chunks_with_ueid() {
+        let preamble = patterned_preamble();
+        let bytes = preamble.as_bytes();
+        let ueid = [0xA5; AUTH_MANIFEST_UEID_LEN];
+        let policy = AuthManifestPreamble::policy_fields_range();
+        let policy = &bytes[policy.start as usize..policy.end as usize];
+
+        let vendor_keys = AuthManifestPreamble::vendor_pub_keys_range();
+        let expected = [
+            policy,
+            &bytes[vendor_keys.start as usize..vendor_keys.end as usize],
+            &ueid,
+        ]
+        .concat();
+        assert_eq!(preamble.vendor_signed_data_chunks(Some(&ueid)).count(), 5);
+        assert_eq!(
+            concat(preamble.vendor_signed_data_chunks(Some(&ueid))),
+            expected
+        );
+
+        let owner_keys = AuthManifestPreamble::owner_pub_keys_range();
+        let expected = [
+            policy,
+            &bytes[owner_keys.start as usize..owner_keys.end as usize],
+            &ueid,
+        ]
+        .concat();
+        assert_eq!(preamble.owner_signed_data_chunks(Some(&ueid)).count(), 5);
+        assert_eq!(
+            concat(preamble.owner_signed_data_chunks(Some(&ueid))),
+            expected
+        );
     }
 }

@@ -56,6 +56,26 @@ impl<Crypto: ImageGeneratorCrypto> AuthManifestGenerator<Crypto> {
         auth_manifest.preamble.svn = config.svn;
         auth_manifest.preamble.flags = config.flags.bits();
 
+        // A UEID-bound preamble is bound to one device: both preamble
+        // signatures also cover the device UEID, taken from the IMC's
+        // UEID entry (which Runtime requires to be present).
+        let ueid = if config
+            .flags
+            .contains(AuthManifestFlags::UEID_BOUND_PREAMBLE)
+        {
+            Some(
+                config
+                    .image_metadata_list
+                    .iter()
+                    .find_map(AuthManifestImageMetadata::ueid)
+                    .ok_or_else(|| {
+                        anyhow::anyhow!("UEID_BOUND_PREAMBLE requires a UEID image metadata entry")
+                    })?,
+            )
+        } else {
+            None
+        };
+
         // Sign the vendor manifest public keys.
         if let Some(vendor_man_config) = &config.vendor_man_key_info {
             auth_manifest.preamble.vendor_pub_keys.ecc_pub_key =
@@ -71,20 +91,15 @@ impl<Crypto: ImageGeneratorCrypto> AuthManifestGenerator<Crypto> {
         }
 
         if let Some(vendor_fw_config) = &config.vendor_fw_key_info {
-            let range = AuthManifestPreamble::vendor_signed_data_range();
-
             if let Some(priv_keys) = vendor_fw_config.priv_keys {
-                let data = auth_manifest
+                let data: Vec<u8> = auth_manifest
                     .preamble
-                    .as_bytes()
-                    .get(range.start as usize..)
-                    .ok_or_else(|| anyhow::anyhow!("Failed to get vendor signed data range start"))?
-                    .get(..range.len())
-                    .ok_or(anyhow::anyhow!(
-                        "Failed to get vendor signed data range length"
-                    ))?;
+                    .vendor_signed_data_chunks(ueid.as_ref())
+                    .flatten()
+                    .copied()
+                    .collect();
 
-                let digest_sha384 = self.crypto.sha384_digest(data)?;
+                let digest_sha384 = self.crypto.sha384_digest(&data)?;
                 let sig = self.crypto.ecdsa384_sign(
                     &digest_sha384,
                     &priv_keys.ecc_priv_key,
@@ -100,19 +115,8 @@ impl<Crypto: ImageGeneratorCrypto> AuthManifestGenerator<Crypto> {
                     auth_manifest.preamble.vendor_pub_keys_signatures.pqc_sig.0[..sig.len()]
                         .copy_from_slice(sig);
                 } else {
-                    let data = auth_manifest
-                        .preamble
-                        .as_bytes()
-                        .get(range.start as usize..)
-                        .ok_or_else(|| {
-                            anyhow::anyhow!("Failed to get vendor signed data range start")
-                        })?
-                        .get(..range.len())
-                        .ok_or(anyhow::anyhow!(
-                            "Failed to get vendor signed data range length"
-                        ))?;
                     let mldsa_sig = self.crypto.mldsa_sign(
-                        data,
+                        &data,
                         &priv_keys.mldsa_priv_key,
                         &vendor_fw_config.pub_keys.mldsa_pub_key,
                     )?;
@@ -139,9 +143,14 @@ impl<Crypto: ImageGeneratorCrypto> AuthManifestGenerator<Crypto> {
             auth_manifest.preamble.owner_pub_keys.pqc_pub_key.0[..pqc_pub_key.len()]
                 .copy_from_slice(pqc_pub_key);
 
-            // The owner signs version, svn, flags and owner_pub_keys.
-            let mut owner_data = [0u8; AUTH_MANIFEST_OWNER_SIGNED_DATA_SIZE];
-            auth_manifest.preamble.owner_signed_data(&mut owner_data);
+            // The owner signs version, svn, flags, owner_pub_keys and the device
+            // UEID (if UEID_BOUND_PREAMBLE).
+            let owner_data: Vec<u8> = auth_manifest
+                .preamble
+                .owner_signed_data_chunks(ueid.as_ref())
+                .flatten()
+                .copied()
+                .collect();
             let digest = self.crypto.sha384_digest(&owner_data)?;
 
             if let Some(owner_fw_priv_keys) = owner_fw_config.priv_keys {

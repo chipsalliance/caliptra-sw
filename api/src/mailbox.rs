@@ -2075,6 +2075,7 @@ pub struct FwInfoResp {
 impl FwInfoResp {
     pub const DEBUG_FIRMWARE_ACTIVE: u32 = 1 << 0;
     pub const DEBUG_AUTH_MANIFEST_ACTIVE: u32 = 1 << 1;
+    pub const UEID_BOUND_PREAMBLE_ACTIVE: u32 = 1 << 2;
     pub const FE_STATUS_ERROR_ALL: u32 = 0xff;
 }
 

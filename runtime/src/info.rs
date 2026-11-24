@@ -67,6 +67,9 @@ impl FwInfoCmd {
         if pdata.fw.auth_manifest_is_debug.get() {
             resp.debug_policy |= FwInfoResp::DEBUG_AUTH_MANIFEST_ACTIVE;
         }
+        if pdata.fw.auth_manifest_is_ueid_bound.get() {
+            resp.debug_policy |= FwInfoResp::UEID_BOUND_PREAMBLE_ACTIVE;
+        }
         resp.most_recent_fw_error = match get_fw_error_non_fatal() {
             0 => drivers.persistent_data.get().rom.cleared_non_fatal_fw_error,
             e => e,

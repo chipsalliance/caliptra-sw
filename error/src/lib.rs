@@ -2058,6 +2058,11 @@ impl CaliptraError {
             0x000E00B6,
             "Runtime Error: Invalid or unsupported autonomous self-test configuration"
         ),
+        (
+            RUNTIME_AUTH_MANIFEST_UEID_REQUIRED,
+            0x000E00B8,
+            "Runtime Error: UEID_BOUND_PREAMBLE auth manifest is missing the UEID image metadata entry"
+        ),
         // FMC Errors
         (FMC_GLOBAL_NMI, 0x000F0001, "FMC Error: Global NMI"),
         (

@@ -5,6 +5,7 @@ use crate::{
     common::{assert_error, run_rt_test_pqc, RuntimeTestArgs, PQC_KEY_TYPE},
     test_authorize_and_stash::IMAGE_DIGEST1,
     test_info::{get_fwinfo, get_fwinfo_allow_attestation_disabled},
+    test_update_reset::update_fw,
 };
 use caliptra_api::mailbox::{AuthManifestSource, ExternalMailboxCmdReq, GetImageInfoReq};
 use caliptra_api::{mailbox::ImageHashSource, SocManager};
@@ -15,7 +16,7 @@ use caliptra_auth_man_types::{
     AuthManifestFlags, AuthManifestImageMetadata, AuthorizationManifest, ImageMetadataFlags,
     AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT, AUTH_MANIFEST_UEID_LEN,
 };
-use caliptra_builder::ImageOptions;
+use caliptra_builder::{firmware::APP_WITH_UART, ImageOptions};
 use caliptra_common::mailbox_api::{
     CommandId, FwInfoResp, MailboxReq, MailboxReqHeader, SetAuthManifestReq, VerifyAuthManifestReq,
 };
@@ -35,7 +36,7 @@ pub struct AuthManifestBuilderCfg {
     pub svn: u32,
 }
 
-const DEVICE_UEID: [u8; AUTH_MANIFEST_UEID_LEN] = [
+pub(crate) const DEVICE_UEID: [u8; AUTH_MANIFEST_UEID_LEN] = [
     1, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F,
     0x10,
 ];
@@ -383,6 +384,237 @@ fn test_auth_manifest_ueid_nonzero_padding() {
             &mut model,
             manifest,
             Some(CaliptraError::RUNTIME_AUTH_MANIFEST_UEID_MISMATCH),
+        );
+    }
+}
+
+pub(crate) const UEID_BOUND_FLAGS: AuthManifestFlags =
+    AuthManifestFlags::VENDOR_SIGNATURE_REQUIRED.union(AuthManifestFlags::UEID_BOUND_PREAMBLE);
+
+pub(crate) fn create_ueid_bound_manifest(
+    ueid: &[u8; AUTH_MANIFEST_UEID_LEN],
+    flags: AuthManifestFlags,
+    pqc_key_type: FwVerificationPqcKeyType,
+) -> AuthorizationManifest {
+    create_test_auth_manifest_with_config(
+        vec![
+            AuthManifestImageMetadata {
+                fw_id: 1,
+                digest: IMAGE_DIGEST1,
+                ..Default::default()
+            },
+            AuthManifestImageMetadata::new_ueid(ueid),
+        ],
+        flags,
+        pqc_key_type,
+        1,
+        Crypto::default(),
+    )
+}
+
+fn run_rt_test_with_device_ueid(pqc_key_type: FwVerificationPqcKeyType) -> DefaultHwModel {
+    run_rt_test_pqc(
+        RuntimeTestArgs {
+            ueid: Some(DEVICE_UEID),
+            ..Default::default()
+        },
+        pqc_key_type,
+    )
+}
+
+#[test]
+fn test_ueid_bound_manifest_matching_ueid() {
+    for pqc_key_type in PQC_KEY_TYPE {
+        let mut model = run_rt_test_with_device_ueid(pqc_key_type);
+        let manifest = create_ueid_bound_manifest(&DEVICE_UEID, UEID_BOUND_FLAGS, pqc_key_type);
+
+        model_manifest_command_execute(&mut model, manifest, CommandId::VERIFY_AUTH_MANIFEST, None);
+        assert_eq!(get_fwinfo(&mut model).debug_policy, 0);
+
+        model_set_manifest_command_execute(&mut model, manifest, None);
+        assert_eq!(
+            get_fwinfo(&mut model).debug_policy,
+            FwInfoResp::UEID_BOUND_PREAMBLE_ACTIVE
+        );
+
+        // A normal manifest clears the bit.
+        model_set_manifest_command_execute(
+            &mut model,
+            create_auth_manifest(&AuthManifestBuilderCfg {
+                pqc_key_type,
+                ..Default::default()
+            }),
+            None,
+        );
+        assert_eq!(get_fwinfo(&mut model).debug_policy, 0);
+    }
+}
+
+/// The FW_INFO bit survives update and warm resets.
+#[test]
+fn test_ueid_bound_manifest_policy_survives_resets() {
+    for pqc_key_type in PQC_KEY_TYPE {
+        let mut model = run_rt_test_with_device_ueid(pqc_key_type);
+        model_set_manifest_command_execute(
+            &mut model,
+            create_ueid_bound_manifest(&DEVICE_UEID, UEID_BOUND_FLAGS, pqc_key_type),
+            None,
+        );
+
+        update_fw(
+            &mut model,
+            &APP_WITH_UART,
+            ImageOptions {
+                pqc_key_type,
+                ..Default::default()
+            },
+        );
+        assert_eq!(
+            get_fwinfo_allow_attestation_disabled(&mut model).debug_policy,
+            FwInfoResp::UEID_BOUND_PREAMBLE_ACTIVE
+        );
+
+        model.warm_reset_flow().unwrap();
+        assert_eq!(
+            get_fwinfo_allow_attestation_disabled(&mut model).debug_policy,
+            FwInfoResp::UEID_BOUND_PREAMBLE_ACTIVE
+        );
+    }
+}
+
+#[test]
+fn test_ueid_bound_manifest_other_device() {
+    for pqc_key_type in PQC_KEY_TYPE {
+        let mut model = run_rt_test_with_device_ueid(pqc_key_type);
+        // Signed for another UEID: Runtime signs over its fuse UEID, so the
+        // preamble signature fails.
+        let manifest = create_ueid_bound_manifest(
+            &[0xA5; AUTH_MANIFEST_UEID_LEN],
+            UEID_BOUND_FLAGS,
+            pqc_key_type,
+        );
+        model_manifest_command_execute(
+            &mut model,
+            manifest,
+            CommandId::VERIFY_AUTH_MANIFEST,
+            Some(CaliptraError::RUNTIME_AUTH_MANIFEST_VENDOR_ECC_SIGNATURE_INVALID),
+        );
+        model_set_manifest_command_execute(
+            &mut model,
+            manifest,
+            Some(CaliptraError::RUNTIME_AUTH_MANIFEST_VENDOR_ECC_SIGNATURE_INVALID),
+        );
+    }
+}
+
+/// Combines the preamble (and its preamble signatures) of `preamble_src` with
+/// the IMC (and its IMC signatures) of `imc_src`. The preamble signatures do
+/// not cover the IMC, so both sets of signatures stay valid.
+fn graft_imc(
+    preamble_src: &AuthorizationManifest,
+    imc_src: &AuthorizationManifest,
+) -> AuthorizationManifest {
+    let mut manifest = *preamble_src;
+    manifest.preamble.vendor_image_metdata_signatures =
+        imc_src.preamble.vendor_image_metdata_signatures;
+    manifest.preamble.owner_image_metdata_signatures =
+        imc_src.preamble.owner_image_metdata_signatures;
+    manifest.image_metadata_col = imc_src.image_metadata_col;
+    manifest
+}
+
+#[test]
+fn test_ueid_bound_manifest_ueid_entry_mismatch() {
+    for pqc_key_type in PQC_KEY_TYPE {
+        let mut model = run_rt_test_with_device_ueid(pqc_key_type);
+        let manifest = graft_imc(
+            &create_ueid_bound_manifest(&DEVICE_UEID, UEID_BOUND_FLAGS, pqc_key_type),
+            &create_ueid_bound_manifest(
+                &[0xA5; AUTH_MANIFEST_UEID_LEN],
+                UEID_BOUND_FLAGS,
+                pqc_key_type,
+            ),
+        );
+        model_set_manifest_command_execute(
+            &mut model,
+            manifest,
+            Some(CaliptraError::RUNTIME_AUTH_MANIFEST_UEID_MISMATCH),
+        );
+    }
+}
+
+#[test]
+fn test_ueid_bound_manifest_missing_ueid_entry() {
+    for pqc_key_type in PQC_KEY_TYPE {
+        let mut model = run_rt_test_with_device_ueid(pqc_key_type);
+        // The generator refuses to sign a UEID-bound manifest without the
+        // entry, so graft an entry-less IMC onto a valid UEID-bound preamble.
+        let manifest = graft_imc(
+            &create_ueid_bound_manifest(&DEVICE_UEID, UEID_BOUND_FLAGS, pqc_key_type),
+            &create_auth_manifest(&AuthManifestBuilderCfg {
+                pqc_key_type,
+                ..Default::default()
+            }),
+        );
+        model_set_manifest_command_execute(
+            &mut model,
+            manifest,
+            Some(CaliptraError::RUNTIME_AUTH_MANIFEST_UEID_REQUIRED),
+        );
+    }
+}
+
+#[test]
+fn test_ueid_bound_manifest_requires_vendor_signature() {
+    for pqc_key_type in PQC_KEY_TYPE {
+        let mut model = run_rt_test_with_device_ueid(pqc_key_type);
+        let manifest = create_ueid_bound_manifest(
+            &DEVICE_UEID,
+            AuthManifestFlags::UEID_BOUND_PREAMBLE,
+            pqc_key_type,
+        );
+        model_set_manifest_command_execute(
+            &mut model,
+            manifest,
+            Some(CaliptraError::RUNTIME_AUTH_MANIFEST_INVALID_FLAGS),
+        );
+    }
+}
+
+#[test]
+fn test_ueid_bound_manifest_flag_strip_rejected() {
+    for pqc_key_type in PQC_KEY_TYPE {
+        let mut model = run_rt_test_with_device_ueid(pqc_key_type);
+        let mut manifest = create_ueid_bound_manifest(&DEVICE_UEID, UEID_BOUND_FLAGS, pqc_key_type);
+        manifest.preamble.flags &= !AuthManifestFlags::UEID_BOUND_PREAMBLE.bits();
+        model_set_manifest_command_execute(
+            &mut model,
+            manifest,
+            Some(CaliptraError::RUNTIME_AUTH_MANIFEST_VENDOR_ECC_SIGNATURE_INVALID),
+        );
+    }
+}
+
+/// The delegated (IMC) keys can re-sign an IMC for another device, but the
+/// FW-key-signed preamble stays bound to the original UEID.
+#[test]
+fn test_ueid_bound_preamble_not_transferable() {
+    for pqc_key_type in PQC_KEY_TYPE {
+        let mut model = run_rt_test_with_device_ueid(pqc_key_type);
+        let other_device = create_ueid_bound_manifest(
+            &[0xA5; AUTH_MANIFEST_UEID_LEN],
+            UEID_BOUND_FLAGS,
+            pqc_key_type,
+        );
+        let mut manifest = create_ueid_bound_manifest(&DEVICE_UEID, UEID_BOUND_FLAGS, pqc_key_type);
+        manifest.preamble.vendor_pub_keys_signatures =
+            other_device.preamble.vendor_pub_keys_signatures;
+        manifest.preamble.owner_pub_keys_signatures =
+            other_device.preamble.owner_pub_keys_signatures;
+        model_set_manifest_command_execute(
+            &mut model,
+            manifest,
+            Some(CaliptraError::RUNTIME_AUTH_MANIFEST_VENDOR_ECC_SIGNATURE_INVALID),
         );
     }
 }
