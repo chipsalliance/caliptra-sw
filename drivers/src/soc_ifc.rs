@@ -716,9 +716,13 @@ impl SocIfc {
     }
 
     pub fn get_timestamp(&self) -> u64 {
-        let low = self.soc_ifc.regs().internal_rv_mtime_l().read();
-        let high = self.soc_ifc.regs().internal_rv_mtime_h().read();
-        ((high as u64) << 32) | low as u64
+        loop {
+            let high = self.soc_ifc.regs().internal_rv_mtime_h().read();
+            let low = self.soc_ifc.regs().internal_rv_mtime_l().read();
+            if self.soc_ifc.regs().internal_rv_mtime_h().read() == high {
+                return ((high as u64) << 32) | low as u64;
+            }
+        }
     }
 
     pub fn get_clock_period(&self) -> u32 {
