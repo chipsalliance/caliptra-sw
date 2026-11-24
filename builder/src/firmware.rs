@@ -538,6 +538,11 @@ pub mod driver_tests {
         ..BASE_FWID
     };
 
+    pub const CSRNG_ZEROIZE_TESTS: FwId = FwId {
+        bin_name: "csrng_zeroize_tests",
+        ..BASE_FWID
+    };
+
     pub const CSRNG_RESEED_HEALTH_FAIL_TESTS: FwId = FwId {
         bin_name: "csrng_reseed_health_fail_tests",
         // Enables the CSRNG_RESEED_FAILURE hook to simulate a reseed failure.
@@ -852,6 +857,7 @@ pub const REGISTERED_FW: &[&FwId] = &[
     &driver_tests::CSRNG_RUNTIME_HEALTH_FAIL_TESTS,
     &driver_tests::ENTROPY_COMBINER_TESTS,
     &driver_tests::CSRNG_RESEED_TESTS,
+    &driver_tests::CSRNG_ZEROIZE_TESTS,
     &driver_tests::CSRNG_RESEED_HEALTH_FAIL_TESTS,
     &driver_tests::TRNG_DRIVER_RESPONDER,
     &driver_tests::PERSISTENT,

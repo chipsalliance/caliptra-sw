@@ -143,7 +143,7 @@ read-only until power-good reset.
 **Caching and locking:**
 - On cold reset the decoded configuration is stored in ROM persistent data. Warm and update resets reapply the cached values.
 - In production (`debug_locked == true`), the ROM clears `SW_REGUPD` after programming each source. Debug-unlocked parts stay writable for characterization.
-- Before jumping to FMC, the ROM uninstantiates the DRBG, disables the entropy sources, zeroizes the dual-iTRNG combiner, and disables and re-enables CSRNG, so no DRBG or seed state is handed over. FMC and Runtime instantiate their own DRBG.
+- Before jumping to FMC, the ROM uninstantiates the DRBG, disables the entropy sources, zeroizes the dual-iTRNG combiner and active entropy sources (`ENTROPY_SRC_CTRL.ZEROIZE`), and disables and re-enables CSRNG, so no DRBG or seed state is handed over. FMC and Runtime enable the already-configured entropy sources and instantiate their own DRBG.
 
 ### Dual-iTRNG Entropy Combiner
 

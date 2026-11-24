@@ -24,6 +24,7 @@ pub struct HealthTester {
     first_symbol: u8,
     symbol_matches: u32,
     symbol_count: usize,
+    symbol_adaptive_watermark: u32,
 }
 
 impl HealthTester {
@@ -41,6 +42,7 @@ impl HealthTester {
             first_symbol: 0,
             symbol_matches: 0,
             symbol_count: 0,
+            symbol_adaptive_watermark: 0,
         }
     }
 
@@ -86,13 +88,30 @@ impl HealthTester {
         self.repcnt.prev_nibble = [None; BITS_PER_NIBBLE];
         self.repcnt.repetition_count = [1; BITS_PER_NIBBLE];
         self.repcnt.failures = 0;
+        self.repcnt.watermark = 0;
         self.repcnts.reset_progress();
         self.adaptp.per_lane_ones.fill(0);
         self.adaptp.num_samples_seen = 0;
         self.adaptp.lo_failures = 0;
         self.adaptp.hi_failures = 0;
+        self.adaptp.hi_watermark = 0;
+        self.adaptp.lo_watermark = 0xffff;
+        self.first_symbol = 0;
+        self.symbol_matches = 0;
         self.symbol_count = 0;
         self.symbol_adaptive_failures = 0;
+        self.symbol_adaptive_watermark = 0;
+    }
+
+    pub fn watermark(&self, num: u32) -> u32 {
+        match num {
+            0 => self.repcnt.watermark(),
+            1 => self.repcnts.watermark(),
+            2 => self.adaptp.hi_watermark(),
+            3 => self.adaptp.lo_watermark(),
+            4 => self.symbol_adaptive_watermark,
+            _ => 0,
+        }
     }
 
     pub fn sample(&mut self, nibbles: &mut dyn Iterator<Item = u8>) -> Option<u8> {
@@ -114,6 +133,8 @@ impl HealthTester {
         self.symbol_matches += u32::from(self.first_symbol == symbol);
         self.symbol_count += 1;
         if self.symbol_count == self.window_size_samples {
+            self.symbol_adaptive_watermark =
+                self.symbol_adaptive_watermark.max(self.symbol_matches);
             // entropy_src_adaptps_ht.sv: fail when the count reaches the threshold.
             self.symbol_adaptive_failures +=
                 u32::from(self.symbol_matches >= self.symbol_adaptive_threshold);
@@ -181,6 +202,7 @@ pub struct RepetitionCountTester {
     prev_nibble: [Option<Bit>; BITS_PER_NIBBLE],
     repetition_count: [u32; BITS_PER_NIBBLE],
     failures: u32,
+    watermark: u32,
     rng_bit_enable: bool,
     rng_bit_sel: usize,
 }
@@ -192,9 +214,14 @@ impl RepetitionCountTester {
             prev_nibble: [None; BITS_PER_NIBBLE],
             repetition_count: [1; BITS_PER_NIBBLE], // the hardware starts the counter at 1
             failures: 0,
+            watermark: 0,
             rng_bit_enable: false,
             rng_bit_sel: 0,
         }
+    }
+
+    pub fn watermark(&self) -> u32 {
+        self.watermark
     }
 
     pub fn set_threshold(&mut self, threshold: RepcntThresholdReadVal) {
@@ -225,16 +252,19 @@ impl RepetitionCountTester {
 
             let is_repeat = self.prev_nibble[i] == Some(bit);
 
+            let lane_scored = !self.rng_bit_enable || i == self.rng_bit_sel;
             if is_repeat {
                 self.repetition_count[i] += 1;
 
-                let lane_scored = !self.rng_bit_enable || i == self.rng_bit_sel;
                 if lane_scored && self.repetition_count[i] >= self.threshold {
                     self.failures += 1;
                 }
             } else {
                 self.repetition_count[i] = 1;
                 self.prev_nibble[i] = Some(bit);
+            }
+            if lane_scored {
+                self.watermark = self.watermark.max(self.repetition_count[i]);
             }
         }
     }
@@ -245,6 +275,8 @@ pub struct AdaptiveProportionTester {
     hi_threshold: u32,
     lo_failures: u32,
     hi_failures: u32,
+    hi_watermark: u32,
+    lo_watermark: u32,
     // Reset/default is false, matching CONF.THRESHOLD_SCOPE. ROM configures
     // false as well; conf_write updates this if software chooses true.
     threshold_scope: bool,
@@ -262,6 +294,8 @@ impl AdaptiveProportionTester {
             hi_threshold: 0xffff,
             lo_failures: 0,
             hi_failures: 0,
+            hi_watermark: 0,
+            lo_watermark: 0,
             threshold_scope: false,
             per_lane_ones: [0; BITS_PER_NIBBLE],
             num_samples_seen: 0,
@@ -306,6 +340,14 @@ impl AdaptiveProportionTester {
         self.hi_failures
     }
 
+    pub fn hi_watermark(&self) -> u32 {
+        self.hi_watermark
+    }
+
+    pub fn lo_watermark(&self) -> u32 {
+        self.lo_watermark
+    }
+
     pub fn feed(&mut self, nibble: u8) {
         assert!(
             nibble.count_ones() <= 4,
@@ -335,6 +377,9 @@ impl AdaptiveProportionTester {
                 )
             };
 
+            self.hi_watermark = self.hi_watermark.max(test_cnt_hi);
+            self.lo_watermark = self.lo_watermark.min(test_cnt_lo);
+
             if self.lo_threshold != 0 && test_cnt_lo <= self.lo_threshold {
                 self.lo_failures += 1;
             }
@@ -362,6 +407,7 @@ pub struct RepetitionCountSymbolTester {
     prev_nibble: Option<u8>,
     repetition_count: u32,
     failures: u32,
+    watermark: u32,
 }
 
 impl RepetitionCountSymbolTester {
@@ -371,13 +417,19 @@ impl RepetitionCountSymbolTester {
             prev_nibble: None,
             repetition_count: 1, // the hardware starts the counter at 1
             failures: 0,
+            watermark: 0,
         }
+    }
+
+    pub fn watermark(&self) -> u32 {
+        self.watermark
     }
 
     fn reset_progress(&mut self) {
         self.prev_nibble = None;
         self.repetition_count = 1;
         self.failures = 0;
+        self.watermark = 0;
     }
 
     pub fn set_threshold(&mut self, threshold: RepcntsThresholdReadVal) {
@@ -405,6 +457,7 @@ impl RepetitionCountSymbolTester {
             self.repetition_count = 1;
             self.prev_nibble = Some(nibble);
         }
+        self.watermark = self.watermark.max(self.repetition_count);
     }
 }
 

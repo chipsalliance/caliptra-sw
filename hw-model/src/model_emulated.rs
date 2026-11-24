@@ -205,6 +205,11 @@ impl ModelEmulated {
         self.cpu.bus.inner().bus.entropy_combiner_kat_starts()
     }
 
+    /// Number of zeroize pulses issued to `(ES0, ES1, combiner)` since model creation.
+    pub fn entropy_zeroize_counts(&self) -> (u64, u64, u64) {
+        self.cpu.bus.inner().bus.entropy_zeroize_counts()
+    }
+
     /// Set the modeled combiner's sticky error status through its test register.
     pub fn inject_entropy_combiner_error(&mut self, mask: u32) {
         self.cpu

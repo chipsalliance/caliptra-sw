@@ -570,6 +570,15 @@ impl CaliptraRootBus {
         self.entropy_combiner.inject_error(mask);
     }
 
+    /// Zeroize pulses issued to `(ES0, ES1, combiner)` since model creation.
+    pub fn entropy_zeroize_counts(&self) -> (u64, u64, u64) {
+        (
+            self.entropy_src0.borrow().zeroize_count(),
+            self.entropy_src1.zeroize_count(),
+            self.entropy_combiner.zeroize_count(),
+        )
+    }
+
     pub fn enable_secondary_itrng(&mut self, nibbles: Box<dyn Iterator<Item = u8>>) {
         self.entropy_src0
             .borrow_mut()
@@ -679,7 +688,7 @@ mod tests {
             Err(BusError::StoreAccessFault)
         );
         bus.enable_secondary_itrng(Box::new(std::iter::empty()));
-        assert_eq!(bus.read(word, ES1_MAIN_SM_STATE), Ok(0x2c));
+        assert_eq!(bus.read(word, ES1_MAIN_SM_STATE), Ok(0x0f5)); // Idle while disabled
         assert_eq!(bus.read(word, ES1_CONF + 1), Err(BusError::LoadAccessFault));
         assert_eq!(
             bus.write(word, ES1_MAIN_SM_STATE, 0),
@@ -702,7 +711,7 @@ mod tests {
         bus.warm_reset();
         assert_eq!(bus.read(word, ES0_CONF), Ok(0x999999));
         assert_eq!(bus.read(word, ES1_SW_REGUPD), Ok(1));
-        assert_eq!(bus.read(word, ES1_MAIN_SM_STATE), Ok(0x2c));
+        assert_eq!(bus.read(word, ES1_MAIN_SM_STATE), Ok(0x0f5)); // Idle while disabled
         assert_eq!(bus.read(word, CSRNG_RESEED_INTERVAL), Ok(u32::MAX));
     }
 

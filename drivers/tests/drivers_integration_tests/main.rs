@@ -1655,6 +1655,66 @@ fn run_entropy_combiner_dual(bad_es1: bool) {
     model.step_until_exit_success().unwrap();
 }
 
+#[test]
+#[cfg_attr(
+    all(
+        any(
+            feature = "verilator",
+            feature = "fpga_realtime",
+            feature = "fpga_subsystem"
+        ),
+        not(feature = "itrng")
+    ),
+    ignore
+)]
+fn test_csrng_zeroize() {
+    let rom =
+        caliptra_builder::build_firmware_rom(&firmware::driver_tests::CSRNG_ZEROIZE_TESTS).unwrap();
+    let mut model = caliptra_hw_model::new(
+        InitParams {
+            rom: &rom,
+            trng_mode: Some(TrngMode::Internal),
+            ..default_init_params()
+        },
+        BootParams::default(),
+    )
+    .unwrap();
+    model.step_until_exit_success().unwrap();
+    #[cfg(not(any(
+        feature = "verilator",
+        feature = "fpga_realtime",
+        feature = "fpga_subsystem"
+    )))]
+    {
+        let (es0, es1, comb) = model.entropy_zeroize_counts();
+        assert!(es0 > 0);
+        assert_eq!((es1, comb), (0, 0));
+    }
+}
+
+#[cfg(not(any(
+    feature = "verilator",
+    feature = "fpga_realtime",
+    feature = "fpga_subsystem"
+)))]
+#[test]
+fn test_csrng_zeroize_dual() {
+    let rom =
+        caliptra_builder::build_firmware_rom(&firmware::driver_tests::CSRNG_ZEROIZE_TESTS).unwrap();
+    let mut model = caliptra_hw_model::new_unbooted(InitParams {
+        rom: &rom,
+        trng_mode: Some(TrngMode::Internal),
+        subsystem_mode: true,
+        itrng1_nibbles: Some(Box::new(trng_nibbles().skip(257))),
+        ..default_init_params()
+    })
+    .unwrap();
+    model.boot(BootParams::default()).unwrap();
+    model.step_until_exit_success().unwrap();
+    let (es0, es1, comb) = model.entropy_zeroize_counts();
+    assert!(es0 > 0 && es1 > 0 && comb > 0);
+}
+
 /// TC-1..TC-5: reseed/counter/interval/disable tests with good entropy.
 /// Runs on all targets including FPGA itrng (TC-5 exercises auto-enable).
 #[test]

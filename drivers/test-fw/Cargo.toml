@@ -295,6 +295,11 @@ path = "src/bin/csrng_reseed_tests.rs"
 required-features = ["riscv"]
 
 [[bin]]
+name = "csrng_zeroize_tests"
+path = "src/bin/csrng_zeroize_tests.rs"
+required-features = ["riscv"]
+
+[[bin]]
 name = "csrng_reseed_health_fail_tests"
 path = "src/bin/csrng_reseed_health_fail_tests.rs"
 required-features = ["riscv"]

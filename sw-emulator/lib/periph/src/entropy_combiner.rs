@@ -137,6 +137,9 @@ impl EntropyCombiner {
     pub(crate) fn inject_error(&mut self, mask: u32) {
         self.write(RvSize::Word, ERROR_INTR_TRIG, mask).unwrap();
     }
+    pub(crate) fn zeroize_count(&self) -> u64 {
+        self.link.zeroize_epoch()
+    }
 
     pub(crate) fn link(&self) -> Rc<CombinerLink> {
         self.link.clone()

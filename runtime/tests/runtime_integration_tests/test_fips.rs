@@ -576,3 +576,41 @@ fn test_fips_shutdown_zeroizes_persistent_data() {
         );
     }
 }
+
+#[cfg(not(any(
+    feature = "verilator",
+    feature = "fpga_realtime",
+    feature = "fpga_subsystem"
+)))]
+#[test]
+fn test_fips_shutdown_dual_itrng_zeroizes_all_sources() {
+    use caliptra_hw_model::{InitParams, TrngMode};
+
+    let rom = crate::common::rom_for_fw_integration_tests().unwrap();
+    let mut model = run_rt_test(RuntimeTestArgs {
+        subsystem_mode: true,
+        init_params: Some(InitParams {
+            rom: &rom,
+            subsystem_mode: true,
+            trng_mode: Some(TrngMode::Internal),
+            itrng1_nibbles: Some(InitParams::default().itrng_nibbles),
+            ..Default::default()
+        }),
+        ..Default::default()
+    });
+    model.step_until(|m| m.soc_mbox().status().read().mbox_fsm_ps().mbox_idle());
+
+    let (es0_before, es1_before, comb_before) = model.entropy_zeroize_counts();
+    let payload = MailboxReqHeader {
+        chksum: caliptra_common::checksum::calc_checksum(u32::from(CommandId::SHUTDOWN), &[]),
+    };
+    model
+        .mailbox_execute(u32::from(CommandId::SHUTDOWN), payload.as_bytes())
+        .unwrap()
+        .unwrap();
+
+    assert_eq!(
+        model.entropy_zeroize_counts(),
+        (es0_before + 1, es1_before + 1, comb_before + 1)
+    );
+}

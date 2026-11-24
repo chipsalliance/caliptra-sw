@@ -441,45 +441,44 @@ impl Csrng {
         let _ = self.send_command(Command::Uninstantiate);
     }
 
-    /// Uninstantiate the DRBG, then check the dual-iTRNG combiner (if active).
+    /// Zeroize the DRBG, the dual-iTRNG combiner (if active) and the active
+    /// entropy sources.
     ///
-    /// The entropy sources stay enabled, and neither they nor the combiner are
-    /// zeroized. The combiner check still runs if Uninstantiate fails; the
-    /// Uninstantiate error takes precedence.
+    /// Uninstantiates CSRNG first so no entropy request stays in flight to the
+    /// combiner or entropy sources, then pulses combiner and entropy-source
+    /// zeroize. The sources keep their configuration and enable state. The
+    /// pulses are still issued if Uninstantiate fails; its error takes
+    /// precedence.
     pub fn zeroize(&mut self) -> CaliptraResult<()> {
-        let (uninst, sources) = self.uninstantiate_for_scrub();
-        uninst.and(sources.check_combiner())
+        let uninst = self.send_command(Command::Uninstantiate);
+        uninst.and(self.zeroize_entropy())
     }
 
-    /// Clear DRBG and seed state before handing off to the next boot stage.
+    /// Leave no DRBG or entropy state behind for the next boot stage.
     ///
-    /// Uninstantiates the DRBG, disables the entropy sources (dropping queued
-    /// seeds), zeroizes the dual-iTRNG combiner if active, checks the combiner,
-    /// and disables then re-enables CSRNG. The entropy sources themselves are
-    /// not zeroized. Cleanup continues if Uninstantiate fails; its error takes
-    /// precedence. The next stage instantiates a fresh DRBG through
-    /// [`Csrng::new_configured`].
+    /// Uninstantiates the DRBG, disables the entropy sources, zeroizes the
+    /// dual-iTRNG combiner (if active) and the active entropy sources, checks
+    /// the combiner, and disables then re-enables CSRNG. Cleanup continues if
+    /// Uninstantiate fails; its error takes precedence. The next stage
+    /// instantiates a fresh DRBG through [`Csrng::new_configured`].
     pub fn clear_for_handoff(&mut self) -> CaliptraResult<()> {
-        let (uninst, sources) = self.uninstantiate_for_scrub();
-        sources.set_module_enable(MULTIBIT_FALSE);
-        if let Some(sec) = &sources.secondary {
-            // Zeroize leaves the lock and FIPS policy in place.
-            sec.combiner.combiner_ctrl().modify(|w| w.zeroize(true));
-        }
-        let combiner_ok = sources.check_combiner();
+        let uninst = self.send_command(Command::Uninstantiate);
+        self.disable_entropy_source();
+        let entropy = self.zeroize_entropy();
         let c = self.csrng.regs_mut();
         let ctrl = u32::from(c.ctrl().read());
         c.ctrl().modify(|w| w.enable(MULTIBIT_FALSE));
         c.ctrl().write(|_| ctrl.into());
-        uninst.and(combiner_ok)
+        uninst.and(entropy)
     }
 
-    /// Common start of `zeroize` and `clear_for_handoff`. Kept as one function
-    /// because inlining it into both costs ROM space.
-    fn uninstantiate_for_scrub(&mut self) -> (CaliptraResult<()>, EntropySources<RealMmioMut<'_>>) {
-        let uninst = self.send_command(Command::Uninstantiate);
+    /// Pulse zeroize on the combiner (if active) and the active entropy
+    /// sources, then check the combiner.
+    #[inline(never)]
+    fn zeroize_entropy(&mut self) -> CaliptraResult<()> {
         let sources = EntropySources::from_hw(&mut self.entropy);
-        (uninst, sources)
+        sources.pulse_zeroize();
+        sources.check_combiner()
     }
 
     /// Wait for the CSRNG command interface to be ready to accept a word.
@@ -757,6 +756,22 @@ impl<M: MmioMut> EntropySources<M> {
             sec.es1.module_enable().write(|w| w.module_enable(enable));
         }
     }
+
+    /// Pulse zeroize on the active combiner (if any) and entropy sources in
+    /// order.
+    ///
+    /// `ENTROPY_SRC_CTRL` is a write-only single-cycle pulse; never read it
+    /// back or poll for completion.
+    fn pulse_zeroize(&self) {
+        if let Some(sec) = &self.secondary {
+            // Single-cycle pulse; preserves AHB_LOCK and FIPS policy.
+            sec.combiner.combiner_ctrl().modify(|w| w.zeroize(true));
+        }
+        self.es0.ctrl().write(|w| w.zeroize(true));
+        if let Some(sec) = &self.secondary {
+            sec.es1.ctrl().write(|w| w.zeroize(true));
+        }
+    }
 }
 
 #[inline(never)]
@@ -1024,5 +1039,108 @@ fn program_entropy_source(
     // so firmware can power the source down between reseeds.
     if lock {
         e.sw_regupd().modify(|w| w.sw_regupd(false));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    extern crate std;
+
+    use super::*;
+    use caliptra_ureg::{Mmio, Uint};
+    use core::cell::RefCell;
+    use std::vec::Vec;
+
+    fn combiner_ctrl_addr() -> usize {
+        EntropyCombinerReg::PTR as usize + 0xac
+    }
+
+    fn es0_ctrl_addr() -> usize {
+        EntropySrcReg::PTR as usize + 0xd4
+    }
+
+    fn es1_ctrl_addr() -> usize {
+        EntropySrc1Reg::PTR as usize + 0xd4
+    }
+
+    struct RecordingMmio {
+        combiner_ctrl_value: u32,
+        reads: RefCell<Vec<usize>>,
+        writes: RefCell<Vec<(usize, u32)>>,
+    }
+
+    impl RecordingMmio {
+        fn new(combiner_ctrl_value: u32) -> Self {
+            Self {
+                combiner_ctrl_value,
+                reads: RefCell::new(Vec::new()),
+                writes: RefCell::new(Vec::new()),
+            }
+        }
+    }
+
+    impl Mmio for RecordingMmio {
+        // SAFETY: fake MMIO records addresses without dereferencing them.
+        unsafe fn read_volatile<T: Uint>(&self, src: *const T) -> T {
+            let addr = src as usize;
+            self.reads.borrow_mut().push(addr);
+            let val = if addr == combiner_ctrl_addr() {
+                self.combiner_ctrl_value
+            } else {
+                0
+            };
+            T::try_from(val).ok().unwrap()
+        }
+    }
+
+    impl MmioMut for RecordingMmio {
+        // SAFETY: fake MMIO records writes without dereferencing addresses.
+        unsafe fn write_volatile<T: Uint>(&self, dst: *mut T, src: T) {
+            let val: u32 = src.try_into().ok().unwrap();
+            self.writes.borrow_mut().push((dst as usize, val));
+        }
+    }
+
+    #[test]
+    fn pulse_entropy_zeroize_dual_order_and_write_only_semantics() {
+        // Policy = 1, es_fips_cfg = true (0x101) should be preserved by modify.
+        let mmio = RecordingMmio::new(0x101);
+        let combiner = unsafe {
+            entropy_combiner::RegisterBlock::new_with_mmio(EntropyCombinerReg::PTR, &mmio)
+        };
+        let es0 = unsafe { entropy_src::RegisterBlock::new_with_mmio(EntropySrcReg::PTR, &mmio) };
+        let es1 = unsafe { entropy_src::RegisterBlock::new_with_mmio(EntropySrc1Reg::PTR, &mmio) };
+
+        EntropySources {
+            es0,
+            secondary: Some(DualSources { es1, combiner }),
+        }
+        .pulse_zeroize();
+
+        assert_eq!(
+            mmio.writes.borrow().as_slice(),
+            &[
+                (combiner_ctrl_addr(), 0x101 | (1 << 16)),
+                (es0_ctrl_addr(), 1),
+                (es1_ctrl_addr(), 1),
+            ]
+        );
+        // ENTROPY_SRC_CTRL is write-only; must never be read or polled.
+        assert_eq!(mmio.reads.borrow().as_slice(), &[combiner_ctrl_addr()]);
+    }
+
+    #[test]
+    fn pulse_entropy_zeroize_single_source_only_writes_es0() {
+        let mmio = RecordingMmio::new(0);
+        let es0 = unsafe { entropy_src::RegisterBlock::new_with_mmio(EntropySrcReg::PTR, &mmio) };
+
+        EntropySources {
+            es0,
+            secondary: None,
+        }
+        .pulse_zeroize();
+
+        assert_eq!(mmio.writes.borrow().as_slice(), &[(es0_ctrl_addr(), 1)]);
+        assert!(mmio.reads.borrow().as_slice().is_empty());
     }
 }

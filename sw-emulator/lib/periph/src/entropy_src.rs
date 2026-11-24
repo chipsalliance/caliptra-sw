@@ -17,13 +17,25 @@ use health_test::HealthTester;
 
 const BITS_PER_NIBBLE: usize = 4;
 const MODULE_ENABLE: RvAddr = 0x20;
+const HT_WATERMARK: RvAddr = 0x64;
 const MAIN_SM_STATE: RvAddr = 0xd0;
+// Write-only; a read faults.
+const ENTROPY_SRC_CTRL: RvAddr = 0xd4;
+const CTRL_ZEROIZE: u32 = 1;
 
 pub(crate) type SharedEntropySrc = Rc<RefCell<EntropySrc>>;
 
 /// The ES1 slot faults when the second source isn't wired up.
 #[derive(Default)]
 pub(crate) struct OptionalEntropySrc(pub(crate) Option<SharedEntropySrc>);
+
+impl OptionalEntropySrc {
+    pub(crate) fn zeroize_count(&self) -> u64 {
+        self.0
+            .as_ref()
+            .map_or(0, |source| source.borrow().zeroize_count())
+    }
+}
 
 impl Bus for OptionalEntropySrc {
     fn read(&mut self, size: RvSize, addr: RvAddr) -> Result<RvData, BusError> {
@@ -79,6 +91,8 @@ pub(crate) struct EntropySrc {
     nibbles: Box<dyn Iterator<Item = u8>>,
     sampling: SamplingMode,
     state: EntropySrcState,
+    /// Zeroize pulses since model creation; survives reset.
+    zeroize_count: u64,
 }
 
 #[derive(Default)]
@@ -87,7 +101,6 @@ struct ClockedProgress {
     conditioning_symbols: Vec<u8>,
     previous_window_failures: u32,
     consecutive_failed_windows: u32,
-    startup_complete: bool,
     conditioned_seed: Option<Seed>,
 }
 
@@ -131,6 +144,10 @@ struct EntropySrcState {
     #[register(offset = 0x48, write_fn = adaptps_threshold_write)]
     adaptps_threshold: u32,
 
+    // Selects the health test reported by HT_WATERMARK (0x64).
+    #[register(offset = 0x60, write_fn = ht_watermark_num_write)]
+    ht_watermark_num: u32,
+
     #[register(offset = 0x90)]
     alert_threshold: u32, // TODO: implement this
 
@@ -142,6 +159,8 @@ struct EntropySrcState {
 
     health_tester: HealthTester,
     boot_instantiate_complete: bool,
+    /// The startup health tests have passed since the last enable or zeroize.
+    startup_complete: bool,
     clocked: ClockedProgress,
 }
 
@@ -159,11 +178,13 @@ impl Default for EntropySrcState {
             adaptp_hi_threshold: 0xffff,
             adaptp_lo_threshold: 0,
             adaptps_threshold: 0xffff,
+            ht_watermark_num: 0,
             alert_threshold: 0xfffd0002,
             alert_summary_fail_counts: ReadOnlyRegister::new(0),
             alert_fail_counts: ReadOnlyRegister::new(0),
             health_tester: HealthTester::new(),
             boot_instantiate_complete: false,
+            startup_complete: false,
             clocked: ClockedProgress::default(),
         }
     }
@@ -284,6 +305,12 @@ impl EntropySrcState {
         Ok(())
     }
 
+    fn ht_watermark_num_write(&mut self, _: RvSize, data: RvData) -> Result<(), BusError> {
+        let num = data & 0xf;
+        self.ht_watermark_num = if num <= 9 { num } else { 0 };
+        Ok(())
+    }
+
     fn alert_summary_fail_counts_read(&mut self, _: RvSize) -> Result<RvData, BusError> {
         let failures = self.health_tester.failures();
         self.alert_summary_fail_counts = ReadOnlyRegister::new(failures);
@@ -314,6 +341,7 @@ impl Bus for EntropySrc {
     fn read(&mut self, size: RvSize, addr: RvAddr) -> Result<RvData, BusError> {
         match addr {
             MAIN_SM_STATE => Ok(self.main_sm_state_read()),
+            HT_WATERMARK => Ok(self.ht_watermark_read()),
             _ => self.state.read(size, addr),
         }
     }
@@ -321,6 +349,12 @@ impl Bus for EntropySrc {
     fn write(&mut self, size: RvSize, addr: RvAddr, val: RvData) -> Result<(), BusError> {
         match addr {
             MODULE_ENABLE => self.module_enable_write(val),
+            ENTROPY_SRC_CTRL => {
+                if val & CTRL_ZEROIZE != 0 {
+                    self.zeroize();
+                }
+                Ok(())
+            }
             _ => self.state.write(size, addr, val),
         }
     }
@@ -337,7 +371,12 @@ impl EntropySrc {
             nibbles,
             sampling: SamplingMode::Synchronous,
             state: EntropySrcState::default(),
+            zeroize_count: 0,
         }
+    }
+
+    pub(crate) fn zeroize_count(&self) -> u64 {
+        self.zeroize_count
     }
 
     pub(crate) fn use_clocked_sampling(&mut self, clock: Rc<Clock>) {
@@ -357,62 +396,122 @@ impl EntropySrc {
         if self.state.me_regwen == 0 {
             return Ok(());
         }
+        let was_enabled = self.state.module_enable == MultiBitBool::True as u32;
+        let now_enabled = data == MultiBitBool::True as u32;
         match &self.sampling {
             SamplingMode::Clocked(clock) => {
                 if self.state.module_enable != data {
-                    self.state.clocked = ClockedProgress {
-                        last_sample_cycle: clock.now(),
-                        ..Default::default()
-                    };
-                    self.state.health_tester.clear_progress();
+                    let progress = &mut self.state.clocked;
+                    progress.last_sample_cycle = clock.now();
+                    progress.conditioning_symbols.clear();
+                    progress.conditioned_seed = None;
+                    self.state.startup_complete = false;
+                    // RTL clears health-test watermarks and alert fail counters on
+                    // enable (0 -> 1) and zeroize, not on disable.
+                    if now_enabled && !was_enabled {
+                        self.state.health_tester.clear_progress();
+                        progress.previous_window_failures = 0;
+                        progress.consecutive_failed_windows = 0;
+                    }
                     self.state.module_enable = data;
                 }
             }
             SamplingMode::Synchronous => {
                 self.state.module_enable = data;
-                if data != MultiBitBool::False as u32 {
-                    if ConfReadVal::from(self.state.conf).fips_enable()
-                        == MultiBitBool::False as u32
-                    {
-                        unimplemented!("emulation of non-FIPS mode");
-                    }
-                    assert!(
-                        self.state
-                            .health_tester
-                            .test_startup_windows(self.nibbles.as_mut()),
-                        "iTRNG iterator ended during startup"
-                    );
+                if data == MultiBitBool::False as u32 {
+                    self.state.startup_complete = false;
+                    return Ok(());
                 }
+                self.require_fips_mode();
+                if !was_enabled {
+                    self.state.health_tester.clear_progress();
+                }
+                assert!(
+                    self.state
+                        .health_tester
+                        .test_startup_windows(self.nibbles.as_mut()),
+                    "iTRNG iterator ended during startup"
+                );
+                self.state.startup_complete = true;
             }
         }
         Ok(())
     }
 
+    fn require_fips_mode(&self) {
+        if ConfReadVal::from(self.state.conf).fips_enable() == MultiBitBool::False as u32 {
+            unimplemented!("emulation of non-FIPS mode");
+        }
+    }
+
+    fn ht_watermark_read(&mut self) -> RvData {
+        if let SamplingMode::Clocked(clock) = &self.sampling {
+            self.progress_clocked(clock.now());
+        }
+        self.state
+            .health_tester
+            .watermark(self.state.ht_watermark_num)
+    }
+
+    /// Model `ENTROPY_SRC_CTRL.ZEROIZE`: scrub transient state, FIFOs,
+    /// health-test watermarks and alert fail counters while retaining
+    /// configuration registers and `MODULE_ENABLE`. Enabled sources restart
+    /// startup health tests automatically; disabled sources stay disabled.
+    fn zeroize(&mut self) {
+        self.zeroize_count += 1;
+        let state = &mut self.state;
+        state.health_tester.clear_progress();
+        state.alert_summary_fail_counts = ReadOnlyRegister::new(0);
+        state.alert_fail_counts = ReadOnlyRegister::new(0);
+        state.startup_complete = false;
+        state.boot_instantiate_complete = false;
+        match &self.sampling {
+            SamplingMode::Clocked(clock) => {
+                state.clocked = ClockedProgress {
+                    last_sample_cycle: clock.now(),
+                    ..Default::default()
+                };
+            }
+            SamplingMode::Synchronous => {
+                if self.state.module_enable == MultiBitBool::True as u32 {
+                    self.require_fips_mode();
+                    // Stay in startup if a finite stream runs out of samples.
+                    self.state.startup_complete = self
+                        .state
+                        .health_tester
+                        .test_startup_windows(self.nibbles.as_mut());
+                }
+            }
+        }
+    }
+
     fn main_sm_state_read(&mut self) -> RvData {
         // The RTL transitions to AlertHang when the failure count reaches the
         // configured alert threshold (entropy_src_core.sv).
+        const IDLE: u32 = 0x0f5;
         const ALERT_HANG: u32 = 0x1fb;
         const STARTUP_HT_START: u32 = 0x2c;
         const CONT_HT_RUNNING: u32 = 0x1a2;
 
-        let (failures, startup_complete) = match &self.sampling {
+        if self.state.module_enable != MultiBitBool::True as u32 {
+            return IDLE;
+        }
+
+        let failures = match &self.sampling {
             SamplingMode::Synchronous => {
                 self.simulate_continuous_health_testing();
-                (self.state.health_tester.failures(), true)
+                self.state.health_tester.failures()
             }
             SamplingMode::Clocked(clock) => {
                 self.progress_clocked(clock.now());
-                (
-                    self.state.clocked.consecutive_failed_windows,
-                    self.state.clocked.startup_complete,
-                )
+                self.state.clocked.consecutive_failed_windows
             }
         };
 
         let alert_threshold = self.state.alert_threshold & 0xffff;
         if failures >= alert_threshold {
             ALERT_HANG
-        } else if !startup_complete {
+        } else if !self.state.startup_complete {
             STARTUP_HT_START
         } else {
             CONT_HT_RUNNING
@@ -466,7 +565,7 @@ impl EntropySrc {
             return;
         }
         let window = self.state.health_tester.nibbles_per_window();
-        let needed = window * if progress.startup_complete { 1 } else { 2 };
+        let needed = window * if self.state.startup_complete { 1 } else { 2 };
         for _ in 0..elapsed {
             if progress.consecutive_failed_windows >= self.state.alert_threshold & 0xffff {
                 break;
@@ -494,7 +593,7 @@ impl EntropySrc {
                     bytes[i * bits / 8] |= symbol << (i * bits % 8);
                 }
                 progress.conditioned_seed = Some(Sha3_384::digest(bytes).into());
-                progress.startup_complete = true;
+                self.state.startup_complete = true;
                 break;
             }
         }
@@ -615,5 +714,155 @@ mod tests {
             MultiBitBool::False as u32,
             "After warm reset, module_enable should be MultiBitBool::False (0x9)"
         );
+    }
+
+    #[test]
+    fn test_entropy_src_ctrl_is_write_only() {
+        let mut source = EntropySrc::new(make_itrng_nibbles());
+        assert_eq!(
+            source.read(RvSize::Word, ENTROPY_SRC_CTRL),
+            Err(BusError::LoadAccessFault)
+        );
+    }
+
+    #[test]
+    fn test_entropy_src_zeroize_enabled_clears_state_and_retains_config() {
+        // First 16 nibbles are identical (triggering repcnt failures with threshold=2),
+        // followed by alternating good nibbles so post-zeroize startup passes.
+        let nibbles = std::iter::repeat_n(0xAu8, 16).chain((0u64..).map(|i| {
+            if i % 2 == 0 {
+                0x5u8
+            } else {
+                0xAu8
+            }
+        }));
+        let mut source = EntropySrc::new(Box::new(nibbles));
+        source.write(RvSize::Word, 0x30, 8).unwrap(); // HEALTH_TEST_WINDOWS
+        source.write(RvSize::Word, 0x38, 2).unwrap(); // REPCNT_THRESHOLD
+        source.write(RvSize::Word, OFFSET_CONF, 0x999996).unwrap();
+        source.write(RvSize::Word, 0x14, 0).unwrap(); // Lock SW_REGUPD
+        source
+            .write(RvSize::Word, MODULE_ENABLE, MultiBitBool::True as u32)
+            .unwrap();
+
+        assert!(source.read(RvSize::Word, 0x94).unwrap() > 0);
+        assert!(source.read(RvSize::Word, HT_WATERMARK).unwrap() > 0);
+        assert_eq!(source.read(RvSize::Word, MAIN_SM_STATE).unwrap(), 0x1fb); // ALERT_HANG
+
+        // Write 0 is a no-op.
+        source.write(RvSize::Word, ENTROPY_SRC_CTRL, 0).unwrap();
+        assert_eq!(source.zeroize_count(), 0);
+        assert!(source.read(RvSize::Word, 0x94).unwrap() > 0);
+
+        // Pulse ZEROIZE: clears fail counts, leaves ALERT_HANG, retains config
+        // and MODULE_ENABLE, and automatically restarts startup health tests.
+        source.write(RvSize::Word, ENTROPY_SRC_CTRL, 1).unwrap();
+        assert_eq!(source.zeroize_count(), 1);
+        assert_eq!(
+            source.read(RvSize::Word, MODULE_ENABLE).unwrap(),
+            MultiBitBool::True as u32
+        );
+        assert_eq!(source.read(RvSize::Word, OFFSET_CONF).unwrap(), 0x999996);
+        assert_eq!(source.read(RvSize::Word, 0x30).unwrap(), 8);
+        assert_eq!(source.read(RvSize::Word, 0x38).unwrap(), 2);
+        assert_eq!(source.read(RvSize::Word, 0x14).unwrap(), 0);
+        assert_eq!(source.read(RvSize::Word, 0x94).unwrap(), 0);
+        assert_eq!(source.read(RvSize::Word, 0x98).unwrap(), 0);
+        assert_eq!(source.read(RvSize::Word, MAIN_SM_STATE).unwrap(), 0x1a2); // CONT_HT_RUNNING
+        assert!(source.take_seed().is_some());
+    }
+
+    #[test]
+    fn test_entropy_src_zeroize_disabled_stays_disabled_and_clears_watermark() {
+        let nibbles = (0u64..).map(|i| ((i * 5 + 1) & 0xf) as u8);
+        let mut source = EntropySrc::new(Box::new(nibbles));
+        source.write(RvSize::Word, 0x30, 8).unwrap();
+        source.write(RvSize::Word, OFFSET_CONF, 0x999996).unwrap();
+        source
+            .write(RvSize::Word, MODULE_ENABLE, MultiBitBool::True as u32)
+            .unwrap();
+        assert!(source.read(RvSize::Word, HT_WATERMARK).unwrap() > 0);
+
+        // Disable retains watermark (RTL only clears on enable or zeroize).
+        source
+            .write(RvSize::Word, MODULE_ENABLE, MultiBitBool::False as u32)
+            .unwrap();
+        assert!(source.read(RvSize::Word, HT_WATERMARK).unwrap() > 0);
+        assert_eq!(source.read(RvSize::Word, MAIN_SM_STATE).unwrap(), 0x0f5); // Idle
+
+        // Zeroize clears watermark while keeping disabled source disabled.
+        source.write(RvSize::Word, ENTROPY_SRC_CTRL, 1).unwrap();
+        assert_eq!(source.zeroize_count(), 1);
+        assert_eq!(
+            source.read(RvSize::Word, MODULE_ENABLE).unwrap(),
+            MultiBitBool::False as u32
+        );
+        assert_eq!(source.read(RvSize::Word, MAIN_SM_STATE).unwrap(), 0x0f5); // Idle
+        assert_eq!(source.read(RvSize::Word, HT_WATERMARK).unwrap(), 0);
+        assert_eq!(source.read(RvSize::Word, OFFSET_CONF).unwrap(), 0x999996);
+        assert_eq!(source.read(RvSize::Word, 0x30).unwrap(), 8);
+    }
+
+    #[test]
+    fn test_clocked_entropy_src_zeroize() {
+        let clock = Rc::new(Clock::new());
+        let nibbles = (0u64..).map(|i| ((i * 7 + 3) & 0xf) as u8);
+        let mut es1 = EntropySrc::new(Box::new(nibbles));
+        es1.use_clocked_sampling(clock.clone());
+
+        es1.write(RvSize::Word, 0x30, 8).unwrap(); // HEALTH_TEST_WINDOWS
+        es1.write(RvSize::Word, OFFSET_CONF, 0x999996).unwrap();
+        es1.write(RvSize::Word, MODULE_ENABLE, MultiBitBool::True as u32)
+            .unwrap();
+
+        clock.increment(32);
+        assert_eq!(es1.read(RvSize::Word, MAIN_SM_STATE).unwrap(), 0x1a2); // CONT_HT_RUNNING
+        assert!(es1.read(RvSize::Word, HT_WATERMARK).unwrap() > 0);
+
+        // Zeroize while enabled: clears watermark and restarts startup HT.
+        es1.write(RvSize::Word, ENTROPY_SRC_CTRL, 1).unwrap();
+        assert_eq!(es1.zeroize_count(), 1);
+        assert_eq!(
+            es1.read(RvSize::Word, MODULE_ENABLE).unwrap(),
+            MultiBitBool::True as u32
+        );
+        assert_eq!(es1.read(RvSize::Word, HT_WATERMARK).unwrap(), 0);
+        assert_eq!(es1.read(RvSize::Word, MAIN_SM_STATE).unwrap(), 0x2c); // StartupHTStart
+
+        // Advancing clock automatically completes startup and produces a seed.
+        clock.increment(32);
+        assert_eq!(es1.read(RvSize::Word, MAIN_SM_STATE).unwrap(), 0x1a2);
+        assert!(es1.read(RvSize::Word, HT_WATERMARK).unwrap() > 0);
+
+        // Disable then zeroize: stays disabled and clears watermark.
+        es1.write(RvSize::Word, MODULE_ENABLE, MultiBitBool::False as u32)
+            .unwrap();
+        assert!(es1.read(RvSize::Word, HT_WATERMARK).unwrap() > 0);
+        es1.write(RvSize::Word, ENTROPY_SRC_CTRL, 1).unwrap();
+        assert_eq!(es1.zeroize_count(), 2);
+        assert_eq!(
+            es1.read(RvSize::Word, MODULE_ENABLE).unwrap(),
+            MultiBitBool::False as u32
+        );
+        assert_eq!(es1.read(RvSize::Word, MAIN_SM_STATE).unwrap(), 0x0f5);
+        assert_eq!(es1.read(RvSize::Word, HT_WATERMARK).unwrap(), 0);
+    }
+
+    #[test]
+    fn test_entropy_src_zeroize_short_stream_stays_in_startup() {
+        // Enough nibbles for initial startup (2 * 8 = 16) plus a partial post-zeroize window.
+        let nibbles = (0u64..20).map(|i| ((i * 5 + 1) & 0xf) as u8);
+        let mut source = EntropySrc::new(Box::new(nibbles));
+        source.write(RvSize::Word, 0x30, 8).unwrap();
+        source.write(RvSize::Word, OFFSET_CONF, 0x999996).unwrap();
+        source
+            .write(RvSize::Word, MODULE_ENABLE, MultiBitBool::True as u32)
+            .unwrap();
+        assert_eq!(source.read(RvSize::Word, MAIN_SM_STATE).unwrap(), 0x1a2); // CONT_HT_RUNNING
+
+        // Zeroize with insufficient remaining nibbles must not claim startup completed.
+        source.write(RvSize::Word, ENTROPY_SRC_CTRL, 1).unwrap();
+        assert_eq!(source.zeroize_count(), 1);
+        assert_eq!(source.read(RvSize::Word, MAIN_SM_STATE).unwrap(), 0x2c); // StartupHTStart
     }
 }
