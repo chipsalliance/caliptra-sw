@@ -864,7 +864,7 @@ impl<'a> DmaRecovery<'a> {
 
     fn with_sha_acc<T, F>(&self, f: F) -> CaliptraResult<T>
     where
-        F: FnOnce(ShaAccRegisterBlock<&DmaMmio>) -> T,
+        F: FnOnce(&ShaAccRegisterBlock<&DmaMmio>) -> CaliptraResult<T>,
     {
         let mmio = DmaMmio::new(self.caliptra_base, self.dma);
         // SAFETY: we aren't referencing memory directly
@@ -876,8 +876,14 @@ impl<'a> DmaRecovery<'a> {
                 &mmio,
             )
         };
-        let t = f(regs);
-        mmio.check_error(t)
+        if regs.lock().read().lock() {
+            return Err(CaliptraError::DRIVER_DMA_SHA_ACCELERATOR_NOT_LOCKED);
+        }
+        let res = f(&regs);
+        // Release the SHA accelerator lock over DMA on every exit path (including
+        // Err from f), because CPU-side Drop uses the wrong AXI user and cannot release it.
+        regs.lock().write(|w| w.lock(true));
+        mmio.check_error(res)?
     }
 
     /// Returns the appropriate block mode for the given AXI address.
@@ -1524,10 +1530,6 @@ impl<'a> DmaRecovery<'a> {
 
         // Lock the SHA accelerator to ensure that the AXI user is set to the DMA user.
         self.with_sha_acc(|dma_sha| {
-            if dma_sha.lock().read().lock() {
-                return Err(CaliptraError::DRIVER_DMA_SHA_ACCELERATOR_NOT_LOCKED);
-            }
-
             // we only use the raw SHA accelerator driver to get the digest at the end.
             let mut acc_op = sha_acc
                 .try_start_operation(ShaAccLockState::AssumedLocked)?
@@ -1553,10 +1555,7 @@ impl<'a> DmaRecovery<'a> {
 
             // this is read-only so is safe to do with acc_op
             acc_op.stream_wait_for_done_384(&mut digest)?;
-            drop(acc_op); // this causes acc_op to try to drop the lock, but it will fail
-
-            // we have to release the SHA accelerator lock over DMA for it to take effect
-            dma_sha.lock().write(|w| w.lock(true));
+            drop(acc_op);
 
             #[cfg(feature = "fips-test-hooks")]
             let digest = unsafe {
@@ -1567,7 +1566,7 @@ impl<'a> DmaRecovery<'a> {
             };
 
             Ok(digest)
-        })?
+        })
     }
 
     /// Hash an image using one four-byte DMA command per source word.
@@ -1594,10 +1593,6 @@ impl<'a> DmaRecovery<'a> {
         }
 
         self.with_sha_acc(|dma_sha| {
-            if dma_sha.lock().read().lock() {
-                return Err(CaliptraError::DRIVER_DMA_SHA_ACCELERATOR_NOT_LOCKED);
-            }
-
             let mut acc_op = sha_acc
                 .try_start_operation(ShaAccLockState::AssumedLocked)?
                 .ok_or(CaliptraError::RUNTIME_INTERNAL)?;
@@ -1627,8 +1622,6 @@ impl<'a> DmaRecovery<'a> {
             acc_op.stream_wait_for_done_384(&mut digest)?;
             drop(acc_op);
 
-            dma_sha.lock().write(|w| w.lock(true));
-
             #[cfg(feature = "fips-test-hooks")]
             let digest = unsafe {
                 crate::FipsTestHook::corrupt_data_if_hook_set(
@@ -1638,7 +1631,7 @@ impl<'a> DmaRecovery<'a> {
             };
 
             Ok(digest)
-        })?
+        })
     }
 
     pub fn sha512_image(
@@ -1663,11 +1656,7 @@ impl<'a> DmaRecovery<'a> {
 
         // Lock the SHA accelerator to ensure that the AXI user is set to the DMA user.
         self.with_sha_acc(|dma_sha| {
-            if dma_sha.lock().read().lock() {
-                return Err(CaliptraError::DRIVER_DMA_SHA_ACCELERATOR_NOT_LOCKED);
-            }
-
-            // we only use the raw SHA accelerator driver to get the digest at the end and unlock when dropped.
+            // we only use the raw SHA accelerator driver to get the digest at the end.
             let mut acc_op = sha_acc
                 .try_start_operation(ShaAccLockState::AssumedLocked)?
                 .ok_or(CaliptraError::RUNTIME_INTERNAL)?;
@@ -1696,10 +1685,7 @@ impl<'a> DmaRecovery<'a> {
 
             let mut digest = Array4x16::default();
             acc_op.stream_wait_for_done_512(&mut digest)?;
-            drop(acc_op); // this causes acc_op to try to drop the lock, but it will fail
-
-            // we have to release the SHA accelerator lock over DMA for it to take effect
-            dma_sha.lock().write(|w| w.lock(true));
+            drop(acc_op);
 
             #[cfg(feature = "fips-test-hooks")]
             let digest = unsafe {
@@ -1710,7 +1696,7 @@ impl<'a> DmaRecovery<'a> {
             };
 
             Ok(digest)
-        })?
+        })
     }
 }
 
