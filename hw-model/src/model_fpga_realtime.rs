@@ -131,6 +131,7 @@ pub struct ModelFpgaRealtime {
     dev: UioDevice,
     wrapper: *mut u32,
     mmio: *mut u32,
+    rom: *mut u8,
     output: Output,
     fuses: Fuses,
 
@@ -237,6 +238,9 @@ impl ModelFpgaRealtime {
                     .read_volatile(),
             );
             val.set_axi_reset(1);
+            self.wrapper
+                .offset(FPGA_WRAPPER_CONTROL_OFFSET)
+                .write_volatile(val.0);
             // wait a few clock cycles or we can crash the FPGA
             std::thread::sleep(std::time::Duration::from_micros(1));
         }
@@ -523,6 +527,7 @@ impl HwModel for ModelFpgaRealtime {
             dev,
             wrapper,
             mmio,
+            rom,
             output,
             fuses: params.fuses,
 
@@ -797,7 +802,7 @@ impl Drop for ModelFpgaRealtime {
         // Unmap UIO memory space so that the file lock is released
         self.unmap_mapping(self.wrapper, FPGA_WRAPPER_MAPPING);
         self.unmap_mapping(self.mmio, CALIPTRA_MAPPING);
-        self.unmap_mapping(self.mmio, ROM_MAPPING);
+        self.unmap_mapping(self.rom as *mut u32, ROM_MAPPING);
 
         // Close openocd
         match &mut self.openocd {
