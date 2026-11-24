@@ -448,7 +448,7 @@ pub struct ModelFpgaSubsystem {
     pub wrapper: Arc<Wrapper>,
     pub caliptra_rom_backdoor: *mut u8,
     pub mcu_rom_backdoor: *mut u8,
-    pub otp_mem_backdoor: *mut u8,
+    otp_mem_backdoor: *mut u8,
     // Reset sensitive MMIO UIO pointers. Accessing these while subsystem is in reset will trigger
     // a kernel panic.
     pub mmio: SensitiveMmio,
@@ -873,7 +873,7 @@ impl ModelFpgaSubsystem {
     }
 
     // UIO crate doesn't provide a way to unmap memory.
-    pub fn unmap_mapping(&self, addr: *mut u32, mapping: (usize, usize)) {
+    fn unmap_mapping(&self, addr: *mut u32, mapping: (usize, usize)) {
         let map_size = self.devs[mapping.0].map_size(mapping.1).unwrap();
 
         unsafe {
@@ -1806,10 +1806,6 @@ impl ModelFpgaSubsystem {
         }
     }
 
-    pub fn otp_slice(&self) -> &mut [u8] {
-        unsafe { core::slice::from_raw_parts_mut(self.otp_mem_backdoor, OTP_SIZE) }
-    }
-
     /// Override the lifecycle controller state that will be provisioned into
     /// OTP on the next `cold_reset()`. Useful for tests that perform JTAG
     /// lifecycle transitions and need the new state to survive a cold reset.
@@ -1826,18 +1822,9 @@ impl ModelFpgaSubsystem {
         self.otp_init = otp_init;
     }
 
-    pub fn flash_slice(&self) -> &mut [u8] {
-        unsafe {
-            core::slice::from_raw_parts_mut(
-                self.otp_mem_backdoor.offset(OTP_SIZE as isize),
-                FLASH_SIZE,
-            )
-        }
-    }
-
     pub fn print_otp_memory(&self) {
-        let otp = self.otp_slice();
-        for (i, oi) in otp.iter().copied().enumerate() {
+        let otp = self.read_otp_memory();
+        for (i, oi) in otp.into_iter().enumerate() {
             if oi != 0 {
                 println!("OTP mem: {:03x}: {:02x}", i, oi);
             }
