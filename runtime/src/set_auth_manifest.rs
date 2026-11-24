@@ -38,8 +38,7 @@ use caliptra_image_types::{
     ImageLmsSignature, ImagePreamble, SHA192_DIGEST_WORD_SIZE, SHA384_DIGEST_BYTE_SIZE,
 };
 use memoffset::offset_of;
-use zerocopy::{FromBytes, IntoBytes};
-use zeroize::Zeroize;
+use zerocopy::{FromBytes, FromZeros, IntoBytes};
 
 #[derive(Clone, Copy)]
 pub(crate) enum AuthManifestUpdateMode {
@@ -673,6 +672,7 @@ impl SetAuthManifestCmd {
     }
 
     #[allow(clippy::too_many_arguments)]
+    #[inline(never)]
     fn process_image_metadata_col(
         cmd_buf: &[u8],
         auth_manifest_preamble: &AuthManifestPreamble,
@@ -700,20 +700,22 @@ impl SetAuthManifestCmd {
             .get(..metadata_size)
             .ok_or(CaliptraError::RUNTIME_AUTH_MANIFEST_IMAGE_METADATA_LIST_INVALID_SIZE)?;
 
-        // Typecast the mailbox buffer to the image metadata collection.
-        let metadata_mailbox =
-            unsafe { &mut *(buf.as_ptr() as *mut AuthManifestImageMetadataCollection) };
+        let entry_count = u32::from_le_bytes(
+            buf.get(..size_of::<u32>())
+                .ok_or(CaliptraError::RUNTIME_AUTH_MANIFEST_IMAGE_METADATA_LIST_INVALID_SIZE)?
+                .try_into()
+                .map_err(|_| {
+                    CaliptraError::RUNTIME_AUTH_MANIFEST_IMAGE_METADATA_LIST_INVALID_SIZE
+                })?,
+        );
 
-        if metadata_mailbox.entry_count == 0
-            || metadata_mailbox.entry_count > AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT as u32
-        {
+        if entry_count == 0 || entry_count > AUTH_MANIFEST_IMAGE_METADATA_MAX_COUNT as u32 {
             Err(CaliptraError::RUNTIME_AUTH_MANIFEST_IMAGE_METADATA_LIST_INVALID_ENTRY_COUNT)?;
         }
 
         // Check if the buffer contains the entry count and all the image metadata entries specified by the entry count.
         if buf.len()
-            < (size_of::<u32>()
-                + metadata_mailbox.entry_count as usize * size_of::<AuthManifestImageMetadata>())
+            < (size_of::<u32>() + entry_count as usize * size_of::<AuthManifestImageMetadata>())
         {
             Err(CaliptraError::RUNTIME_AUTH_MANIFEST_IMAGE_METADATA_LIST_INVALID_SIZE)?;
         }
@@ -743,9 +745,14 @@ impl SetAuthManifestCmd {
             buf,
         )?;
 
-        // Sort the image metadata list by firmware ID in place. Also check for duplicate firmware IDs.        let slice =
-        let slice =
-            &mut metadata_mailbox.image_metadata_list[..metadata_mailbox.entry_count as usize];
+        // Copy into an owned buffer before sorting so the shared input slice is
+        // never mutated (avoiding UB and preserving the original manifest bytes
+        // for digest calculation).
+        let mut metadata_candidate = AuthManifestImageMetadataCollection::new_zeroed();
+        metadata_candidate.as_mut_bytes()[..buf.len()].copy_from_slice(buf);
+
+        // Sort the image metadata list by firmware ID in place. Also check for duplicate firmware IDs.
+        let slice = &mut metadata_candidate.image_metadata_list[..entry_count as usize];
 
         Self::sort_and_check_duplicate_fwid(slice)?;
         Self::verify_ueid(slice, device_ueid)?;
@@ -759,11 +766,8 @@ impl SetAuthManifestCmd {
         }
 
         if !verify_only {
-            // Clear the previous image metadata collection.
-            metadata_persistent.zeroize();
-
-            // Copy the image metadata collection to the persistent data.
-            metadata_persistent.as_mut_bytes()[..buf.len()].copy_from_slice(buf);
+            // Copy the validated, sorted image metadata collection to persistent data.
+            *metadata_persistent = metadata_candidate;
         }
 
         Ok(())

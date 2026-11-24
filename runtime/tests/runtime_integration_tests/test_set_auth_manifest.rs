@@ -462,6 +462,152 @@ fn test_set_auth_manifest_fw_info() {
 }
 
 #[test]
+fn test_set_auth_manifest_unsorted_preserves_digest_and_verify_only() {
+    let mut model = run_rt_test_pqc(
+        RuntimeTestArgs::test_productions_args(),
+        FwVerificationPqcKeyType::MLDSA,
+    );
+    model.step_until_ready_for_runtime();
+
+    let mut flags = ImageMetadataFlags(0);
+    flags.set_ignore_auth_check(false);
+    flags.set_image_source(ImageHashSource::InRequest as u32);
+
+    // Deliberately supply out-of-order fw_ids so in-place sorting would mutate the input.
+    let digest_a = IMAGE_DIGEST1;
+    let mut digest_b = IMAGE_DIGEST1;
+    digest_b[0] ^= 0xFF;
+
+    let unsorted_manifest = create_auth_manifest_with_metadata(vec![
+        AuthManifestImageMetadata {
+            fw_id: 20,
+            flags: flags.0,
+            digest: digest_b,
+            ..Default::default()
+        },
+        AuthManifestImageMetadata {
+            fw_id: 10,
+            flags: flags.0,
+            digest: digest_a,
+            ..Default::default()
+        },
+    ]);
+
+    let buf = unsorted_manifest.as_bytes();
+    let mut manifest_bytes = [0u8; SetAuthManifestReq::MAX_MAN_SIZE];
+    manifest_bytes[..buf.len()].copy_from_slice(buf);
+
+    let mut set_cmd = MailboxReq::SetAuthManifest(SetAuthManifestReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        manifest_size: buf.len() as u32,
+        manifest: manifest_bytes,
+    });
+    set_cmd.populate_chksum().unwrap();
+
+    model
+        .mailbox_execute(
+            u32::from(CommandId::SET_AUTH_MANIFEST),
+            set_cmd.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .expect("SET_AUTH_MANIFEST should succeed");
+
+    // FW_INFO must report the SHA-384 digest of the original (pre-sort) manifest bytes.
+    let mut hasher = Sha384::new();
+    hasher.update(buf);
+    let expected_digest: Vec<u32> = hasher
+        .finalize()
+        .as_bytes()
+        .chunks_exact(4)
+        .map(|chunk| u32::from_be_bytes(chunk.try_into().unwrap()))
+        .collect();
+    let info = get_fwinfo(&mut model);
+    assert_eq!(info.authman_sha384_digest, expected_digest.as_slice());
+
+    // Both entries must be findable via binary search in the sorted active collection.
+    for fw_id in [10u32, 20u32] {
+        let mut get_cmd = MailboxReq::GetImageInfo(GetImageInfoReq {
+            hdr: MailboxReqHeader { chksum: 0 },
+            fw_id: fw_id.to_le_bytes(),
+            flags: 0,
+        });
+        get_cmd.populate_chksum().unwrap();
+        model
+            .mailbox_execute(
+                u32::from(CommandId::GET_IMAGE_INFO),
+                get_cmd.as_bytes().unwrap(),
+            )
+            .unwrap()
+            .expect("GET_IMAGE_INFO should find installed entry");
+    }
+
+    // VERIFY_AUTH_MANIFEST must validate without overwriting the active manifest or digest.
+    let verify_manifest = create_auth_manifest_with_metadata(vec![AuthManifestImageMetadata {
+        fw_id: 30,
+        flags: flags.0,
+        digest: digest_a,
+        ..Default::default()
+    }]);
+    let vbuf = verify_manifest.as_bytes();
+    let mut vbytes = [0u8; SetAuthManifestReq::MAX_MAN_SIZE];
+    vbytes[..vbuf.len()].copy_from_slice(vbuf);
+
+    let mut verify_cmd = MailboxReq::VerifyAuthManifest(VerifyAuthManifestReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        manifest_size: vbuf.len() as u32,
+        manifest: vbytes,
+    });
+    verify_cmd.populate_chksum().unwrap();
+    model
+        .mailbox_execute(
+            u32::from(CommandId::VERIFY_AUTH_MANIFEST),
+            verify_cmd.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .expect("VERIFY_AUTH_MANIFEST should succeed");
+
+    let info_after = get_fwinfo(&mut model);
+    assert_eq!(info_after.authman_sha384_digest, expected_digest.as_slice());
+
+    // fw_id 30 must not have been installed, while fw_id 10 remains active.
+    let mut get_30 = MailboxReq::GetImageInfo(GetImageInfoReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        fw_id: 30u32.to_le_bytes(),
+        flags: 0,
+    });
+    get_30.populate_chksum().unwrap();
+    assert_eq!(
+        model.mailbox_execute(
+            u32::from(CommandId::GET_IMAGE_INFO),
+            get_30.as_bytes().unwrap(),
+        ),
+        Err(caliptra_hw_model::ModelError::MailboxCmdFailed(
+            CaliptraError::RUNTIME_IMAGE_METADATA_NOT_FOUND.into(),
+        ))
+    );
+
+    let mut get_10 = MailboxReq::GetImageInfo(GetImageInfoReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        fw_id: 10u32.to_le_bytes(),
+        flags: 0,
+    });
+    get_10.populate_chksum().unwrap();
+    let resp_bytes = model
+        .mailbox_execute(
+            u32::from(CommandId::GET_IMAGE_INFO),
+            get_10.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .expect("GET_IMAGE_INFO should still find active entry fw_id 10");
+    let resp =
+        <caliptra_common::mailbox_api::GetImageInfoResp as zerocopy::FromBytes>::ref_from_bytes(
+            &resp_bytes,
+        )
+        .expect("valid GetImageInfoResp");
+    assert_eq!(resp.digest, digest_a);
+}
+
+#[test]
 fn test_set_auth_manifest_cmd_invalid_len() {
     for pqc_key_type in PQC_KEY_TYPE.iter() {
         let mut model = run_rt_test_pqc(RuntimeTestArgs::default(), *pqc_key_type);
