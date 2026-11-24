@@ -417,11 +417,21 @@ impl Lms {
         lms_sig: &LmsSignature<6, 51, 15>,
     ) -> CaliptraResult<LmsResult> {
         #[cfg(feature = "fips-test-hooks")]
-        let input_string = unsafe {
+        let first_byte = input_string.first().copied().unwrap_or(0);
+        #[cfg(feature = "fips-test-hooks")]
+        let corrupted_byte = unsafe {
             crate::FipsTestHook::corrupt_data_if_hook_set(
                 crate::FipsTestHook::LMS_CORRUPT_INPUT,
-                &input_string,
+                &first_byte,
             )
+        };
+        #[cfg(feature = "fips-test-hooks")]
+        let corrupted_input = [corrupted_byte];
+        #[cfg(feature = "fips-test-hooks")]
+        let input_string = if corrupted_byte != first_byte {
+            &corrupted_input[..]
+        } else {
+            input_string
         };
 
         let mut candidate_key =
