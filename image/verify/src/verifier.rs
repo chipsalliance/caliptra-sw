@@ -1175,8 +1175,13 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             caliptra_cfi_lib::cfi_assert_eq_12_words(&verify_info.digest, &actual);
         }
 
-        // Size and load-address overflow are checked in verify_toc.
-        let load_addr_end = verify_info.load_addr + verify_info.size - 1;
+        // Size and load-address overflow are checked in verify_toc; use checked
+        // arithmetic so load_addr + size == 1 << 32 cannot overflow before - 1.
+        let load_addr_end = verify_info
+            .size
+            .checked_sub(1)
+            .and_then(|s| verify_info.load_addr.checked_add(s))
+            .ok_or(CaliptraError::IMAGE_VERIFIER_ERR_FMC_LOAD_ADDR_INVALID)?;
         if !self.env.iccm_range().contains(&verify_info.load_addr)
             || !self.env.iccm_range().contains(&load_addr_end)
         {
@@ -1255,8 +1260,13 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             caliptra_cfi_lib::cfi_assert_eq_12_words(&verify_info.digest, &actual);
         }
 
-        // Size and load-address overflow are checked in verify_toc.
-        let load_addr_end = verify_info.load_addr + verify_info.size - 1;
+        // Size and load-address overflow are checked in verify_toc; use checked
+        // arithmetic so load_addr + size == 1 << 32 cannot overflow before - 1.
+        let load_addr_end = verify_info
+            .size
+            .checked_sub(1)
+            .and_then(|s| verify_info.load_addr.checked_add(s))
+            .ok_or(CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_LOAD_ADDR_INVALID)?;
         if !self.env.iccm_range().contains(&verify_info.load_addr)
             || !self.env.iccm_range().contains(&load_addr_end)
         {

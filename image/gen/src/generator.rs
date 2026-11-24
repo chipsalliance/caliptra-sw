@@ -53,9 +53,10 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
     where
         E: ImageGeneratorExecutable,
     {
-        let image_size =
-            IMAGE_MANIFEST_BYTE_SIZE as u32 + config.fmc.size() + config.runtime.size();
-        if image_size > IMAGE_BYTE_SIZE as u32 {
+        let image_size = u64::from(IMAGE_MANIFEST_BYTE_SIZE as u32)
+            + u64::from(config.fmc.size())
+            + u64::from(config.runtime.size());
+        if image_size > IMAGE_BYTE_SIZE as u64 {
             bail!(
                 "Image larger than {IMAGE_BYTE_SIZE} bytes; image size:{} bytes",
                 image_size
@@ -72,14 +73,27 @@ impl<Crypto: ImageGeneratorCrypto> ImageGenerator<Crypto> {
         let offset = offset + fmc_toc.size;
         let (runtime_toc, runtime) = self.gen_image(config, id, offset)?;
 
+        // Validate that load address ranges fit within the 32-bit address space.
+        for (name, toc) in [("FMC", &fmc_toc), ("Runtime", &runtime_toc)] {
+            if toc.size > 0
+                && u64::from(toc.load_addr) + u64::from(toc.size) > u64::from(u32::MAX) + 1
+            {
+                bail!(
+                    "{name}:[{:#x?}:{:#x?}] load address range overflows u32",
+                    toc.load_addr,
+                    u64::from(toc.load_addr) + u64::from(toc.size) - 1,
+                );
+            }
+        }
+
         // Check if fmc and runtime image load address ranges don't overlap.
         if fmc_toc.overlaps(&runtime_toc) {
             bail!(
                 "FMC:[{:#x?}:{:#x?}] and Runtime:[{:#x?}:{:#x?}] load address ranges overlap",
                 fmc_toc.load_addr,
-                fmc_toc.load_addr + fmc_toc.size - 1,
+                u64::from(fmc_toc.load_addr) + u64::from(fmc_toc.size) - 1,
                 runtime_toc.load_addr,
-                runtime_toc.load_addr + runtime_toc.size - 1
+                u64::from(runtime_toc.load_addr) + u64::from(runtime_toc.size) - 1
             );
         }
 
@@ -452,5 +466,165 @@ mod tests {
             image_header_flags(&config) & IMAGE_FLAGS_PL0_PAUSER,
             IMAGE_FLAGS_PL0_PAUSER
         );
+    }
+
+    #[derive(Default)]
+    struct DummyExec {
+        load_addr: u32,
+        content: Vec<u8>,
+        rev: ImageRevision,
+    }
+
+    impl ImageGeneratorExecutable for DummyExec {
+        fn version(&self) -> u32 {
+            1
+        }
+        fn rev(&self) -> &ImageRevision {
+            &self.rev
+        }
+        fn load_addr(&self) -> u32 {
+            self.load_addr
+        }
+        fn entry_point(&self) -> u32 {
+            self.load_addr
+        }
+        fn content(&self) -> &Vec<u8> {
+            &self.content
+        }
+        fn size(&self) -> u32 {
+            self.content.len() as u32
+        }
+    }
+
+    struct DummyHasher;
+    impl ImageGeneratorHasher for DummyHasher {
+        type Output = [u32; SHA256_DIGEST_WORD_SIZE];
+        fn update(&mut self, _data: &[u8]) {}
+        fn finish(self) -> Self::Output {
+            [0; SHA256_DIGEST_WORD_SIZE]
+        }
+    }
+
+    struct DummyCrypto;
+    impl ImageGeneratorCrypto for DummyCrypto {
+        type Sha256Hasher = DummyHasher;
+        fn sha256_start(&self) -> Self::Sha256Hasher {
+            DummyHasher
+        }
+        fn sha384_digest(&self, _data: &[u8]) -> anyhow::Result<ImageDigest384> {
+            Ok([0; SHA384_DIGEST_WORD_SIZE])
+        }
+        fn sha512_digest(&self, _data: &[u8]) -> anyhow::Result<ImageDigest512> {
+            Ok([0; SHA512_DIGEST_WORD_SIZE])
+        }
+        fn ecdsa384_sign(
+            &self,
+            _digest: &ImageDigest384,
+            _priv_key: &ImageEccPrivKey,
+            _pub_key: &ImageEccPubKey,
+        ) -> anyhow::Result<ImageEccSignature> {
+            unreachable!()
+        }
+        fn lms_sign(
+            &self,
+            _digest: &ImageDigest384,
+            _priv_key: &ImageLmsPrivKey,
+        ) -> anyhow::Result<ImageLmsSignature> {
+            unreachable!()
+        }
+        fn mldsa_sign(
+            &self,
+            _msg: &[u8],
+            _priv_key: &ImageMldsaPrivKey,
+            _pub_key: &ImageMldsaPubKey,
+        ) -> anyhow::Result<ImageMldsaSignature> {
+            unreachable!()
+        }
+        fn ecc_pub_key_from_pem_bytes(_key_bytes: &[u8]) -> anyhow::Result<ImageEccPubKey> {
+            unreachable!()
+        }
+        fn ecc_priv_key_from_pem_bytes(_key_bytes: &[u8]) -> anyhow::Result<ImageEccPrivKey> {
+            unreachable!()
+        }
+    }
+
+    #[test]
+    fn test_generate_rejects_overflowing_and_overlapping_load_ranges_without_panic() {
+        let gen = ImageGenerator::new(DummyCrypto);
+
+        // Overflowing FMC range overlapping Runtime must return Err without panicking.
+        let overflowing_cfg = ImageGeneratorConfig {
+            fmc: DummyExec {
+                load_addr: u32::MAX - 4,
+                content: vec![0u8; 16],
+                rev: ImageRevision::default(),
+            },
+            runtime: DummyExec {
+                load_addr: u32::MAX - 2,
+                content: vec![0u8; 4],
+                rev: ImageRevision::default(),
+            },
+            ..Default::default()
+        };
+        let err = gen.generate(&overflowing_cfg).unwrap_err();
+        assert!(err.to_string().contains("overflows u32"));
+
+        // Non-overflowing overlapping ranges must still return an overlap error.
+        let overlapping_cfg = ImageGeneratorConfig {
+            fmc: DummyExec {
+                load_addr: 0x4000_0000,
+                content: vec![0u8; 0x100],
+                rev: ImageRevision::default(),
+            },
+            runtime: DummyExec {
+                load_addr: 0x4000_0080,
+                content: vec![0u8; 0x100],
+                rev: ImageRevision::default(),
+            },
+            ..Default::default()
+        };
+        let err = gen.generate(&overlapping_cfg).unwrap_err();
+        assert!(err.to_string().contains("overlap"));
+
+        // Executable sizes whose u32 sum wraps must be rejected without panicking.
+        #[derive(Default)]
+        struct HugeSizeExec {
+            size: u32,
+            content: Vec<u8>,
+            rev: ImageRevision,
+        }
+        impl ImageGeneratorExecutable for HugeSizeExec {
+            fn version(&self) -> u32 {
+                1
+            }
+            fn rev(&self) -> &ImageRevision {
+                &self.rev
+            }
+            fn load_addr(&self) -> u32 {
+                0x4000_0000
+            }
+            fn entry_point(&self) -> u32 {
+                0x4000_0000
+            }
+            fn content(&self) -> &Vec<u8> {
+                &self.content
+            }
+            fn size(&self) -> u32 {
+                self.size
+            }
+        }
+        let huge_cfg = ImageGeneratorConfig {
+            fmc: HugeSizeExec {
+                size: u32::MAX,
+                ..Default::default()
+            },
+            runtime: HugeSizeExec {
+                size: 16,
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let err = gen.generate(&huge_cfg).unwrap_err();
+        assert!(err.to_string().contains("Image larger than"));
     }
 }
