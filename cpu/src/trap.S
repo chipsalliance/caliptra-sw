@@ -9,7 +9,7 @@ _trap_handler:
 
     // Allocate space for all relevant registers 
     // (ra, sp, a0-7, t0-6, mepc, mcause, mscause, mstatus, mtval)
-    addi sp, sp, -88
+    addi sp, sp, -96
 
     // Save relevant registers to stack except x2(sp) since that is in mscratch
     sw ra,  0x0(sp)
