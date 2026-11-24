@@ -1915,3 +1915,15 @@ int caliptra_cm_sha_final(struct caliptra_cm_sha_final_req *req, struct caliptra
 
     return pack_and_execute_command(&p, async);
 }
+
+/**
+ * caliptra_assert_end_of_stash
+ *
+ * Assert end-of-stash from the SoC side, telling Caliptra that
+ * the SoC has done stashing measurements.
+ *
+ * @return Status value
+ */
+void caliptra_assert_end_of_stash(void) {
+    caliptra_generic_and_fuse_write(GENERIC_AND_FUSE_REG_STASH_END_STASH, GENERIC_AND_FUSE_REG_STASH_END_STASH_END_STASH_MASK);
+}
