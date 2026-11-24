@@ -534,6 +534,7 @@ fn execute_command(
         CommandId::CM_SHA_FINAL => {
             cryptographic_mailbox::Commands::sha_final(drivers, cmd_bytes, resp)
         }
+        CommandId::CM_SHA_DMA => cryptographic_mailbox::Commands::sha_dma(drivers, cmd_bytes, resp),
         CommandId::CM_SHAKE256_INIT => {
             cryptographic_mailbox::Commands::shake256_init(drivers, cmd_bytes, resp)
         }

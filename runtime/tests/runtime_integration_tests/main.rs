@@ -11,6 +11,7 @@ mod test_certify_key_chunks;
 mod test_certify_key_extended;
 mod test_certs;
 mod test_certs_384_warmreset;
+mod test_cm_sha_dma;
 mod test_cryptographic_mailbox;
 mod test_debug_unlock;
 mod test_disable;
