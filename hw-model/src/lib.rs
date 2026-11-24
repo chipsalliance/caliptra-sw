@@ -175,7 +175,8 @@ impl TrngMode {
     }
 }
 
-const EXPECTED_CALIPTRA_BOOT_TIME_IN_CYCLES: u64 = 40_000_000; // 40 million cycles
+// Allow headroom for the added PCR-key derivation and FMC Alias regeneration work.
+const EXPECTED_CALIPTRA_BOOT_TIME_IN_CYCLES: u64 = 50_000_000; // 50 million cycles
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Default)]
 pub enum ProvisioningStage {

@@ -43,9 +43,6 @@ pub fn run(env: &mut FmcEnvFips) -> CaliptraResult<()> {
             pdata.rom.minor_version = RomPersistentData::MINOR_VERSION;
             pdata.fw.marker = FwPersistentData::MAGIC;
             pdata.fw.version = FwPersistentData::VERSION;
-
-            // Generate the FMC Alias Certificate Signing Request (CSR)
-            fmc_alias_csr::generate_csr(env)?;
         } else {
             cfi_assert_ne(env.soc_ifc.reset_reason(), ResetReason::ColdReset);
 
@@ -62,5 +59,7 @@ pub fn run(env: &mut FmcEnvFips) -> CaliptraResult<()> {
         }
     }
 
+    // Generate the cold-boot FMC Alias CSR inside the RT Alias flow,
+    // after FMC Alias key regeneration and public-key verification.
     RtAliasLayer::run(env)
 }

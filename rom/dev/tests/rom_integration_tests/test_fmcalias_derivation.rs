@@ -905,7 +905,8 @@ fn test_fht_info() {
         let data = hw.mailbox_execute(0x1000_0003, &[]).unwrap().unwrap();
         let fht = FirmwareHandoffTable::try_ref_from_bytes(data.as_bytes()).unwrap();
         assert_eq!(fht.ecc_ldevid_tbs_size, 595);
-        assert_eq!(fht.ecc_fmcalias_tbs_size, 918);
+        // Include the new signed PCR public-key binding in the expected certificate size.
+        assert_eq!(fht.ecc_fmcalias_tbs_size, 984);
     }
 }
 

@@ -104,8 +104,8 @@ fields may not be changed or removed). Table revisions with different Major Vers
 | manifest_load_addr    | 4            | ROM        | Physical base address of Manifest in DCCM SRAM. |
 | fips_fw_load_addr_hdl | 4            | ROM        | Handle of base address of FIPS Module in ROM or ICCM SRAM. May be 0xFF if there is no discrete module.   |
 | fmc_cdi_kv_hdl        | 4            | ROM        | Handle of FMC CDI value in the Key Vault. Value of 0xFF indicates not present. |
-| fmc_priv_key_ecdsa_kv_hdl   | 4            | ROM        | Handle of FMC Alias ECDSA Private Key in the Key Vault. |
-| fmc_keypair_seed_mldsa_kv_hdl   | 4            | ROM        | Handle of FMC Alias MLDSA Key Pair Generation Seed in the Key Vault. |
+| fmc_priv_key_ecdsa_kv_hdl   | 4            | ROM        | Destination slot for the regenerated FMC Alias ECDSA Private Key. |
+| fmc_keypair_seed_mldsa_kv_hdl   | 4            | ROM        | Destination slot for the regenerated FMC Alias MLDSA Key Pair Generation Seed. |
 | fmc_pub_key_ecdsa_x_dv_hdl  | 4            | ROM        | Handle of FMC Alias ECDSA Public Key X Coordinate in the DCCM datavault. |
 | fmc_pub_key_ecdsa_y_dv_hdl  | 4            | ROM        | Handle of FMC Alias ECDSA Public Key Y Coordinate in the DCCM datavault. |
 | fmc_pub_key_mldsa_dv_hdl  | 4            | ROM        | Handle of FMC Alias MLDSA Public Key in the DCCM datavault. |
@@ -155,6 +155,12 @@ The Major and Minor version numbers of the Firmware Handoff Table. All FHT versi
 Therefore, fields must remain at constant offsets, and no fields may be redefined. It is possible to deprecate existing fields or define new fields within the
 reserved space at the end of the table by incrementing the Minor version number
 
+FHT version 1.1 indicates that ROM generated dedicated PCR signing keys in Key
+Vault slots 7 and 8, retained the ECC public key in ROM persistent data, and
+moved the FMC Alias ECC and MLDSA private material referenced by the existing
+handles to slots 13 and 14. The MLDSA public key is regenerated from the seed in
+slot 8 as part of each PCR quote.
+
 For example, a Caliptra ROM is be frozen with FHT version 1.0. During later stages of development, it is found that an additional 4 byte data field must be
 passed from FMC to Runtime. During boot, the ROM will populate the FHT as version 1.0. When FMC executes, it will update the table version to 1.1 and add the
 additional data to the first 4 bytes of the reserved space at the end of the FHT.
@@ -176,11 +182,13 @@ This field provides the Handle into the Key Vault where the CDI<sub>FMC</sub> is
 
 ### fmc_priv_key_ecdsa_kv_hdl
 
-This field provides the Handle into the Key Vault where the ECDSA PrivateKey<sub>FMC</sub> is stored.
+This field identifies the Key Vault slot into which FMC regenerates ECDSA PrivateKey<sub>FMC</sub>.
+ROM erases its copy after certification, and FMC erases the regenerated private key before Runtime handoff.
 
 ### fmc_keypair_seed_mldsa_kv_hdl
 
-This field provides the Handle into the Key Vault where the MLDSA Key Generation Seed<sub>FMC</sub> is stored.
+This field identifies the Key Vault slot into which FMC regenerates the MLDSA Key Generation Seed<sub>FMC</sub>.
+ROM erases its copy after certification, and FMC erases the regenerated seed before Runtime handoff.
 
 ### fmc_pub_key_ecdsa_x_dv_hdl, fmc_pub_key_ecdsa_y_dv_hdl
 
@@ -356,6 +364,8 @@ it does not guarantee erasure of every key.
 1. FMC sanity checks FHT by verifying that fht.fht_marker == ‘CFHT’ and version is known/supported by FMC.
 1. FMC locates the discrete FW-based FIPS Crypto Module in ICCM using fht.fips_fw_base_addr (if not 0xFFFF_FFFF) and calls its initialization routine. Otherwise FMC
    utilizes the ROM-based FIPS Crypto Module or its own internal FIPS Crypto services in implementations without a discrete FW-based FIPS Crypto Module.
+1. FMC regenerates its Alias ECDSA private key and MLDSA keypair seed from retained CDI<sub>FMC</sub>, using the same derivation labels as ROM and the destination slots in the FHT (KV13 and KV14).
+1. FMC verifies the regenerated public keys against the ROM-certified public keys. A derivation failure or public-key mismatch blocks Runtime handoff. On cold boot, FMC generates its Alias CSRs only after this check.
 1. FMC locates the Manifest at fht.manifest_load_addr.
 1. FMC reads the measurement of the Runtime FW Module, TCI<sub>RT</sub>, from the DCCM datavault that has previously been validated by ROM.
 1. FMC applies the reset-specific PCR handling described above. When an extension is needed, it clears Current PCR, extends Current and Journey PCRs with TCI<sub>RT</sub>, and appends one `RtTci` log entry.
@@ -369,7 +379,7 @@ it does not guarantee erasure of every key.
 1. FMC stores the ECDSA and MLDSA Cert<sub>RT</sub> signatures in the DCCM datavault.
 1. FMC updates fht.rt_cert_sig_ecdsa_r_dv_hdl and fht.rt_cert_sig_ecdsa_s_dv_hdl in the FHT.
 1. FMC updates fht.rt_cert_sig_mldsa_dv_hdl in the FHT.
-1. FMC ensures that CDI<sub>FMC</sub>, ECDSA PrivateKey<sub>FMC</sub> and MLDSA KeyPair Generation Seed<sub>FMC</sub> are locked to block further usage until the next boot.
+1. FMC use-locks CDI<sub>FMC</sub> for retention across warm/update resets, erases ECDSA PrivateKey<sub>FMC</sub> and the MLDSA KeyPair Generation Seed<sub>FMC</sub>, and clears temporary secret state. An erasure failure blocks Runtime handoff.
 1. FMC locates the Runtime FW Module in ICCM at fht.rt_fw_load_addr.
 1. FMC jumps to the Runtime FW Module entry point at fht.rt_fw_entry_point.
 
@@ -380,8 +390,10 @@ it does not guarantee erasure of every key.
 | Slot | Key Vault                                  |
 |------|--------------------------------------------|
 | 6    | Alias FMC CDI (64 bytes)                   |
-| 7    | Alias FMC Private Key - ECDSA (48 bytes)   |
-| 8    | Alias FMC Key Pair Seed - MLDSA (32 bytes) |
+| 7    | Dedicated PCR ECDSA private key (write/use-locked) |
+| 8    | Dedicated PCR MLDSA keypair seed (write/use-locked) |
+| 13   | Erased; destination for FMC Alias ECDSA private key |
+| 14   | Erased; destination for FMC Alias MLDSA keypair seed |
 
 | DCCM datavault                    |
 |-----------------------------------|
@@ -423,6 +435,12 @@ sequenceDiagram
     FMC->>FMC: LocateFipsFw(fht) (if needed)
     FMC->>+FIPS: InitFipsFw() (if needed)
     FIPS-->>-FMC: return()
+    FMC->>+FIPS: RegenerateFmcAliasKeys(fht.fmc_cdi_kv_hdl)
+    FIPS-->>-FMC: return()
+    FMC->>FMC: Verify keys against ROM-certified public keys
+    opt Cold reset
+    FMC->>FMC: Generate FMC Alias CSRs
+    end
     FMC->>FMC: LocateManifest(fht)
     FMC->>FMC: GetRtMeasurement(data_vault.rt_tci)
 
@@ -460,8 +478,9 @@ sequenceDiagram
     FIPS-->>-FMC: return(fht.rt_cert_sig_mldsa_dv_hdl)
     FMC->>+FIPS: LockKey(fht.fmc_cdi_kv_hdl)
     FIPS-->>-FMC: return()
-    FMC->>+FIPS: LockKey(fht.fmc_priv_key_ecdsa_kv_hdl)
-    FMC->>+FIPS: LockKey(fht.fmc_seed_mldsa_kv_hdl)
+    FMC->>+FIPS: EraseKey(fht.fmc_priv_key_ecdsa_kv_hdl)
+    FIPS-->>-FMC: return()
+    FMC->>+FIPS: EraseKey(fht.fmc_seed_mldsa_kv_hdl)
     FIPS-->>-FMC: return()
 
     end %% rect
@@ -484,10 +503,12 @@ sequenceDiagram
 |------|--------------------------------------------|
 | 4    | Alias RT CDI (64 bytes)                    |
 | 5    | Alias RT Private Key (48 bytes)            |
-| 6    | Alias FMC CDI (64 bytes)                   |
-| 7    | Alias FMC Private Key (48 bytes)           |
-| 8    | Alias FMC Key Pair Seed - MLDSA (32 bytes) |
+| 6    | Alias FMC CDI (64 bytes, use-locked)        |
+| 7    | Dedicated PCR ECDSA private key (write/use-locked) |
+| 8    | Dedicated PCR MLDSA keypair seed (write/use-locked) |
 | 9    | Alias RT Key Pair Seed - MLDSA (32 bytes)  |
+| 13   | Erased FMC Alias ECDSA private key slot    |
+| 14   | Erased FMC Alias MLDSA keypair seed slot   |
 
 | DCCM datavault                      |
 |-------------------------------------|
@@ -517,11 +538,24 @@ retained value. FMC rejects an unknown reset reason with `FMC_UNKNOWN_RESET`.
 
 ## Update and recovery
 
+ROM generates and certifies the FMC Alias public keys on cold boot, then erases
+the corresponding private key and seed before entering FMC. FMC regenerates them
+from the retained FMC CDI on every boot and erases them again before entering
+Runtime. The ROM and FMC images must support this same key lifecycle.
+
 ROM handles firmware authentication and loading during an update. After ROM
 transfers control to FMC, FMC uses the Runtime TCI in the Data Vault to decide
 whether to update PCR2, PCR3, and the PCR log. It then derives the Runtime Alias
 identity and prepares the handoff to Runtime. FMC does not independently load
 or authenticate the update image.
+
+The dedicated PCR keys in KV7/KV8 are independent of these temporary FMC Alias
+keys and are provisioned only by ROM during cold boot. FMC never generates or
+regenerates PCR keys. Their contents survive all update resets and protected
+warm resets; ROM restores their write/use locks on both reset paths.
+Debug-unlocked warm reset can wipe the key vault. PCR quoting after that reset
+is unspecified, and FMC does not create replacement PCR keys. The separate FMC
+Alias dummy-key derivation needed by the debug boot flow is unchanged.
 
 ## Fake FMC
 

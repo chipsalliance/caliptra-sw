@@ -191,6 +191,16 @@ impl ModelEmulated {
     pub fn key_vault_snapshot(&self) -> caliptra_emu_periph::KeyVaultSnapshot {
         self.cpu.bus.inner().bus.key_vault.snapshot()
     }
+
+    /// Write a CPU-bus word for emulator-only fault injection.
+    /// The CPU-side bus reaches private KV/DCCM state that the SoC APB interface cannot access.
+    pub fn write_cpu_bus_word(
+        &mut self,
+        addr: u32,
+        value: u32,
+    ) -> Result<(), caliptra_emu_bus::BusError> {
+        self.cpu.bus.write(RvSize::Word, addr, value)
+    }
 }
 
 fn hash_slice(slice: &[u8]) -> u64 {
