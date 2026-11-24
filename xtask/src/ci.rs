@@ -133,13 +133,8 @@ fn validate_bitstream(
     variant: &str,
 ) -> anyhow::Result<()> {
     // (repository, branch, published variant name) of accepted 2.2 builders.
-    // caliptra-infra builds both flavors; keep the legacy in-repo core builder
-    // until the core manifest has moved.
     let sources: &[(&str, &str, &str)] = match variant {
-        "core" => &[
-            ("chipsalliance/caliptra-sw", "caliptra-2.2-dev", "core"),
-            ("chipsalliance/caliptra-infra", "main", "core-2.2-segmented"),
-        ],
+        "core" => &[("chipsalliance/caliptra-infra", "main", "core-2.2-segmented")],
         "subsystem" => &[(
             "chipsalliance/caliptra-infra",
             "main",
@@ -208,7 +203,7 @@ mod tests {
         assert!(validate_bitstream(&manifest, "core").is_err());
         assert!(validate_bitstream(&core_manifest(), "subsystem").is_err());
         let mut manifest = core_manifest();
-        manifest.target_branch = "main".into();
+        manifest.target_branch = "caliptra-2.2-dev".into();
         assert!(validate_bitstream(&manifest, "core").is_err());
     }
 
