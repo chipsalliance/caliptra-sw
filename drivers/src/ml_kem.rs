@@ -223,6 +223,28 @@ impl<'a> MlKem1024<'a> {
         Ok(())
     }
 
+    // Wait for the shared-key write to the key vault and check its result.
+    //
+    // Key-vault write failures are not part of the Adams Bridge error flag,
+    // so `wait` alone would report them as success; the KV write status
+    // error code must be checked explicitly. On failure, zeroize before
+    // returning: the engine stays parked (READY low) until zeroize, so
+    // returning directly would hang the next operation in
+    // `zeroize_internal`. The error code is captured before zeroize clears
+    // the KV status.
+    fn wait_kv_shared_key_write(
+        mlkem: RegisterBlock<caliptra_ureg::RealMmioMut>,
+        key: KeyWriteArgs,
+    ) -> CaliptraResult<()> {
+        MlKem1024::wait(mlkem, || {
+            mlkem.kv_mlkem_sharedkey_wr_status().read().valid()
+        })?;
+        KvAccess::end_copy_to_kv(mlkem.kv_mlkem_sharedkey_wr_status(), key).map_err(|err| {
+            mlkem.mlkem_ctrl().write(|w| w.zeroize(true));
+            err.into_write_shared_key_err()
+        })
+    }
+
     /// Generate ML-KEM-1024 Key Pair
     ///
     /// # Arguments
@@ -476,11 +498,8 @@ impl<'a> MlKem1024<'a> {
             MlKem1024SharedKeyOut::Array(shared_key) => {
                 **shared_key = MlKem1024SharedKey::read_from_reg(mlkem.mlkem_shared_key());
             }
-            MlKem1024SharedKeyOut::Key(_) => {
-                // Wait for key vault write to complete
-                MlKem1024::wait(mlkem, || {
-                    mlkem.kv_mlkem_sharedkey_wr_status().read().valid()
-                })?;
+            MlKem1024SharedKeyOut::Key(key) => {
+                MlKem1024::wait_kv_shared_key_write(mlkem, *key)?;
             }
         }
 
@@ -551,11 +570,8 @@ impl<'a> MlKem1024<'a> {
             MlKem1024SharedKeyOut::Array(shared_key) => {
                 **shared_key = MlKem1024SharedKey::read_from_reg(mlkem.mlkem_shared_key());
             }
-            MlKem1024SharedKeyOut::Key(_) => {
-                // Wait for key vault write to complete
-                MlKem1024::wait(mlkem, || {
-                    mlkem.kv_mlkem_sharedkey_wr_status().read().valid()
-                })?;
+            MlKem1024SharedKeyOut::Key(key) => {
+                MlKem1024::wait_kv_shared_key_write(mlkem, *key)?;
             }
         }
 
@@ -637,11 +653,8 @@ impl<'a> MlKem1024<'a> {
             MlKem1024SharedKeyOut::Array(shared_key) => {
                 **shared_key = MlKem1024SharedKey::read_from_reg(mlkem.mlkem_shared_key());
             }
-            MlKem1024SharedKeyOut::Key(_) => {
-                // Wait for key vault write to complete
-                MlKem1024::wait(mlkem, || {
-                    mlkem.kv_mlkem_sharedkey_wr_status().read().valid()
-                })?;
+            MlKem1024SharedKeyOut::Key(key) => {
+                MlKem1024::wait_kv_shared_key_write(mlkem, *key)?;
             }
         }
 
@@ -708,6 +721,8 @@ trait MlKemKeyAccessErr {
     fn into_read_seed_err(self) -> CaliptraError;
     /// Convert to read message operation error
     fn into_read_msg_err(self) -> CaliptraError;
+    /// Convert to write shared key operation error
+    fn into_write_shared_key_err(self) -> CaliptraError;
 }
 
 impl MlKemKeyAccessErr for KvAccessErr {
@@ -726,6 +741,15 @@ impl MlKemKeyAccessErr for KvAccessErr {
             KvAccessErr::KeyRead => CaliptraError::DRIVER_MLKEM_READ_MSG_KV_READ,
             KvAccessErr::KeyWrite => CaliptraError::DRIVER_MLKEM_READ_MSG_KV_WRITE,
             KvAccessErr::Generic => CaliptraError::DRIVER_MLKEM_READ_MSG_KV_UNKNOWN,
+        }
+    }
+
+    /// Convert to write shared key operation error
+    fn into_write_shared_key_err(self) -> CaliptraError {
+        match self {
+            KvAccessErr::KeyRead => CaliptraError::DRIVER_MLKEM_WRITE_SHARED_KEY_KV_READ,
+            KvAccessErr::KeyWrite => CaliptraError::DRIVER_MLKEM_WRITE_SHARED_KEY_KV_WRITE,
+            KvAccessErr::Generic => CaliptraError::DRIVER_MLKEM_WRITE_SHARED_KEY_KV_UNKNOWN,
         }
     }
 }

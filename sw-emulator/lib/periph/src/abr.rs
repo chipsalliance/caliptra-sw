@@ -26,6 +26,7 @@ use ml_kem::{
     EncodedSizeUser, KemCore, MlKem1024,
 };
 use rand::{CryptoRng, RngCore};
+use tock_registers::fields::FieldValue;
 use tock_registers::interfaces::{ReadWriteable, Readable, Writeable};
 use tock_registers::register_bitfields;
 use zerocopy::IntoBytes;
@@ -906,7 +907,11 @@ impl Abr {
         );
     }
 
-    fn mldsa_read_seed_from_keyvault(&mut self, key_id: u32, locked: bool) -> u32 {
+    fn mldsa_read_seed_from_keyvault(
+        &mut self,
+        key_id: u32,
+        locked: bool,
+    ) -> FieldValue<u32, KvStatus::Register> {
         let mut key_usage = KeyUsage::default();
         key_usage.set_mldsa_key_gen_seed(true);
 
@@ -918,11 +923,11 @@ impl Abr {
         let (seed_read_result, seed) = match result.err() {
             Some(BusError::LoadAccessFault)
             | Some(BusError::LoadAddrMisaligned)
-            | Some(BusError::InstrAccessFault) => (KvStatus::ERROR::KV_READ_FAIL.value, None),
+            | Some(BusError::InstrAccessFault) => (KvStatus::ERROR::KV_READ_FAIL, None),
             Some(BusError::StoreAccessFault) | Some(BusError::StoreAddrMisaligned) => {
-                (KvStatus::ERROR::KV_WRITE_FAIL.value, None)
+                (KvStatus::ERROR::KV_WRITE_FAIL, None)
             }
-            None => (KvStatus::ERROR::SUCCESS.value, Some(result.unwrap())),
+            None => (KvStatus::ERROR::SUCCESS, Some(result.unwrap())),
         };
 
         // Read the first 32 bytes from KV.
@@ -944,9 +949,9 @@ impl Abr {
         let key_id = self.kv_mldsa_seed_rd_ctrl.reg.read(KvRdCtrl::READ_ENTRY);
         let seed_read_result = self.mldsa_read_seed_from_keyvault(key_id, false);
 
-        self.kv_mldsa_seed_rd_status.reg.modify(
-            KvStatus::READY::SET + KvStatus::VALID::SET + KvStatus::ERROR.val(seed_read_result),
-        );
+        self.kv_mldsa_seed_rd_status
+            .reg
+            .modify(KvStatus::READY::SET + KvStatus::VALID::SET + seed_read_result);
     }
 
     fn mldsa_zeroize(&mut self) {
@@ -1109,7 +1114,11 @@ impl Abr {
         Ok(())
     }
 
-    fn mlkem_read_seed_from_keyvault(&mut self, key_id: u32, locked: bool) -> u32 {
+    fn mlkem_read_seed_from_keyvault(
+        &mut self,
+        key_id: u32,
+        locked: bool,
+    ) -> FieldValue<u32, KvStatus::Register> {
         let mut key_usage = KeyUsage::default();
         key_usage.set_mlkem_seed(true);
 
@@ -1121,11 +1130,11 @@ impl Abr {
         let (seed_read_result, seed) = match result.err() {
             Some(BusError::LoadAccessFault)
             | Some(BusError::LoadAddrMisaligned)
-            | Some(BusError::InstrAccessFault) => (KvStatus::ERROR::KV_READ_FAIL.value, None),
+            | Some(BusError::InstrAccessFault) => (KvStatus::ERROR::KV_READ_FAIL, None),
             Some(BusError::StoreAccessFault) | Some(BusError::StoreAddrMisaligned) => {
-                (KvStatus::ERROR::KV_WRITE_FAIL.value, None)
+                (KvStatus::ERROR::KV_WRITE_FAIL, None)
             }
-            None => (KvStatus::ERROR::SUCCESS.value, Some(result.unwrap())),
+            None => (KvStatus::ERROR::SUCCESS, Some(result.unwrap())),
         };
 
         if let Some(seed) = seed {
@@ -1147,7 +1156,11 @@ impl Abr {
         seed_read_result
     }
 
-    fn mlkem_read_msg_from_keyvault(&mut self, key_id: u32, locked: bool) -> u32 {
+    fn mlkem_read_msg_from_keyvault(
+        &mut self,
+        key_id: u32,
+        locked: bool,
+    ) -> FieldValue<u32, KvStatus::Register> {
         let mut key_usage = KeyUsage::default();
         key_usage.set_mlkem_msg(true);
 
@@ -1159,11 +1172,11 @@ impl Abr {
         let (msg_read_result, msg) = match result.err() {
             Some(BusError::LoadAccessFault)
             | Some(BusError::LoadAddrMisaligned)
-            | Some(BusError::InstrAccessFault) => (KvStatus::ERROR::KV_READ_FAIL.value, None),
+            | Some(BusError::InstrAccessFault) => (KvStatus::ERROR::KV_READ_FAIL, None),
             Some(BusError::StoreAccessFault) | Some(BusError::StoreAddrMisaligned) => {
-                (KvStatus::ERROR::KV_WRITE_FAIL.value, None)
+                (KvStatus::ERROR::KV_WRITE_FAIL, None)
             }
-            None => (KvStatus::ERROR::SUCCESS.value, Some(result.unwrap())),
+            None => (KvStatus::ERROR::SUCCESS, Some(result.unwrap())),
         };
 
         if let Some(msg) = msg {
@@ -1179,7 +1192,11 @@ impl Abr {
         msg_read_result
     }
 
-    fn mlkem_write_sharedkey_to_keyvault(&mut self, key_id: u32, key_usage: u32) -> u32 {
+    fn mlkem_write_sharedkey_to_keyvault(
+        &mut self,
+        key_id: u32,
+        key_usage: u32,
+    ) -> FieldValue<u32, KvStatus::Register> {
         let result = self
             .key_vault
             .write_key(key_id, &self.mlkem_shared_key_internal, key_usage);
@@ -1187,11 +1204,11 @@ impl Abr {
         match result.err() {
             Some(BusError::LoadAccessFault)
             | Some(BusError::LoadAddrMisaligned)
-            | Some(BusError::InstrAccessFault) => KvStatus::ERROR::KV_READ_FAIL.value,
+            | Some(BusError::InstrAccessFault) => KvStatus::ERROR::KV_READ_FAIL,
             Some(BusError::StoreAccessFault) | Some(BusError::StoreAddrMisaligned) => {
-                KvStatus::ERROR::KV_WRITE_FAIL.value
+                KvStatus::ERROR::KV_WRITE_FAIL
             }
-            None => KvStatus::ERROR::SUCCESS.value,
+            None => KvStatus::ERROR::SUCCESS,
         }
     }
 
@@ -1199,18 +1216,18 @@ impl Abr {
         let key_id = self.kv_mlkem_seed_rd_ctrl.reg.read(KvRdCtrl::READ_ENTRY);
         let seed_read_result = self.mlkem_read_seed_from_keyvault(key_id, false);
 
-        self.kv_mlkem_seed_rd_status.reg.modify(
-            KvStatus::READY::SET + KvStatus::VALID::SET + KvStatus::ERROR.val(seed_read_result),
-        );
+        self.kv_mlkem_seed_rd_status
+            .reg
+            .modify(KvStatus::READY::SET + KvStatus::VALID::SET + seed_read_result);
     }
 
     fn mlkem_msg_read_complete(&mut self) {
         let key_id = self.kv_mlkem_msg_rd_ctrl.reg.read(KvRdCtrl::READ_ENTRY);
         let msg_read_result = self.mlkem_read_msg_from_keyvault(key_id, false);
 
-        self.kv_mlkem_msg_rd_status.reg.modify(
-            KvStatus::READY::SET + KvStatus::VALID::SET + KvStatus::ERROR.val(msg_read_result),
-        );
+        self.kv_mlkem_msg_rd_status
+            .reg
+            .modify(KvStatus::READY::SET + KvStatus::VALID::SET + msg_read_result);
     }
 
     fn mlkem_sharedkey_write_complete(&mut self) {
@@ -1221,9 +1238,9 @@ impl Abr {
         // Clear internal shared key after writing to key vault for security
         self.mlkem_shared_key_internal = [0; ML_KEM_1024_SHARED_KEY_SIZE];
 
-        self.kv_mlkem_sharedkey_wr_status.reg.modify(
-            KvStatus::READY::SET + KvStatus::VALID::SET + KvStatus::ERROR.val(write_result),
-        );
+        self.kv_mlkem_sharedkey_wr_status
+            .reg
+            .modify(KvStatus::READY::SET + KvStatus::VALID::SET + write_result);
     }
 
     fn mlkem_gen_key(&mut self) {

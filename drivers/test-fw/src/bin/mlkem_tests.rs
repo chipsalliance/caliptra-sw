@@ -17,10 +17,10 @@ Abstract:
 
 use caliptra_cfi_lib::CfiCounter;
 use caliptra_drivers::{
-    Aes, Array4x12, Array4x16, Hmac, HmacData, HmacKey, HmacMode, HmacTag, KeyId, KeyReadArgs,
-    KeyUsage, KeyWriteArgs, LEArray4x8, MlKem1024, MlKem1024Message, MlKem1024MessageSource,
-    MlKem1024Seeds, MlKem1024SharedKey, MlKem1024SharedKeyOut, MlKemPctKvContext,
-    PersistentDataAccessor, Trng,
+    Aes, Array4x12, Array4x16, CaliptraError, Hmac, HmacData, HmacKey, HmacMode, HmacTag, KeyId,
+    KeyReadArgs, KeyUsage, KeyVault, KeyWriteArgs, LEArray4x8, MlKem1024, MlKem1024Message,
+    MlKem1024MessageSource, MlKem1024Seeds, MlKem1024SharedKey, MlKem1024SharedKeyOut,
+    MlKemPctKvContext, PersistentDataAccessor, Trng,
 };
 use caliptra_registers::abr::AbrReg;
 use caliptra_registers::aes::AesReg;
@@ -28,6 +28,7 @@ use caliptra_registers::aes_clp::AesClpReg;
 use caliptra_registers::csrng::CsrngReg;
 use caliptra_registers::entropy_src::EntropySrcReg;
 use caliptra_registers::hmac::HmacReg;
+use caliptra_registers::kv::KvReg;
 use caliptra_registers::soc_ifc::SocIfcReg;
 use caliptra_registers::soc_ifc_trng::SocIfcTrngReg;
 use caliptra_test_harness::test_suite;
@@ -756,6 +757,50 @@ fn test_keygen_decapsulate_with_kv() {
     // If we got here without error, the operation succeeded
 }
 
+// A failed shared-key write to the key vault must be reported, not treated
+// as success, and must leave the engine usable for the next operation.
+// Runs last: the key-vault write lock is sticky.
+fn test_encapsulate_kv_write_failure() {
+    seed_abr_entropy();
+    let mut abr_reg = unsafe { AbrReg::new() };
+    let mut mlkem = MlKem1024::new(&mut abr_reg);
+    let mut vault = unsafe { KeyVault::new(KvReg::new()) };
+
+    let seed_d = LEArray4x8::from(SEED_D);
+    let seed_z = LEArray4x8::from(SEED_Z);
+    let seeds = MlKem1024Seeds::Arrays(&seed_d, &seed_z);
+    let (encaps_key, _decaps_key) = mlkem.key_pair(seeds, None).unwrap();
+
+    // Write-lock the destination slot so the key-vault write fails.
+    let shared_key_id = KeyId::KeyId6;
+    vault.set_key_write_lock(shared_key_id);
+    assert!(vault.key_write_lock(shared_key_id));
+
+    let message = MlKem1024Message::from(MESSAGE);
+    let err = mlkem
+        .encapsulate(
+            &encaps_key,
+            MlKem1024MessageSource::Array(&message),
+            MlKem1024SharedKeyOut::Key(KeyWriteArgs::new(
+                shared_key_id,
+                KeyUsage::default().set_aes_key_en(),
+            )),
+        )
+        .unwrap_err();
+    assert_eq!(err, CaliptraError::DRIVER_MLKEM_WRITE_SHARED_KEY_KV_WRITE);
+
+    // The engine must not be left parked: a following operation succeeds.
+    let mut shared_key = MlKem1024SharedKey::default();
+    let ciphertext = mlkem
+        .encapsulate(
+            &encaps_key,
+            MlKem1024MessageSource::Array(&message),
+            MlKem1024SharedKeyOut::Array(&mut shared_key),
+        )
+        .unwrap();
+    assert_ne!(ciphertext.0, [0u32; 392]);
+}
+
 test_suite! {
     test_mlkem_name,
     test_key_pair_generation,
@@ -765,4 +810,5 @@ test_suite! {
     test_encapsulate_with_kv_output,
     test_keygen_decapsulate,
     test_keygen_decapsulate_with_kv,
+    test_encapsulate_kv_write_failure,
 }
