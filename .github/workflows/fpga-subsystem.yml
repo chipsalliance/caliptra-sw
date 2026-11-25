@@ -90,7 +90,7 @@ jobs:
             2.2|latest) RTL_VERSION=latest ;;
             *) echo "Unsupported FPGA hardware revision: $CALIPTRA_HW_REV"; exit 1 ;;
           esac
-          echo "rtl_cache_key=$(git rev-parse HEAD:hw/fpga/src)-$(git hash-object hw/fpga/fpga_configuration.tcl)-$(cd hw/${RTL_VERSION}/caliptra-ss/third_party/caliptra-rtl && git rev-parse HEAD)-${{ inputs.fpga-itrng }}-${{ env.CACHE_BUSTER }}" >> $GITHUB_OUTPUT
+          echo "rtl_cache_key=$(git hash-object hw/fpga/bitstream_manifests/subsystem.toml)-$(cd hw/${RTL_VERSION}/caliptra-ss/third_party/caliptra-rtl && git rev-parse HEAD)-${{ inputs.fpga-itrng }}-${{ env.CACHE_BUSTER }}" >> $GITHUB_OUTPUT
 
       - name: Validate bitstream manifest
         run: cargo xtask ci check-bitstream hw/fpga/bitstream_manifests/subsystem.toml subsystem
