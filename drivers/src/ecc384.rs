@@ -19,6 +19,7 @@ use crate::{
 };
 #[cfg(feature = "cfi")]
 use caliptra_cfi_derive::cfi_impl_fn;
+use caliptra_cfi_derive::Launder;
 use caliptra_registers::ecc::{EccReg, RegisterBlock};
 use core::cmp::Ordering;
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
@@ -29,7 +30,7 @@ pub type Ecc384Scalar = Array4x12;
 
 #[must_use]
 #[repr(u32)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Launder)]
 pub enum Ecc384Result {
     Success = 0xAAAAAAAA,
     SigVerifyFailed = 0x55555555,
