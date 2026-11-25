@@ -819,8 +819,14 @@ impl ImageTocEntry {
     }
 
     pub fn overlaps(&self, other: &ImageTocEntry) -> bool {
-        self.load_addr < (other.load_addr + other.image_size())
-            && (self.load_addr + self.image_size()) > other.load_addr
+        if self.image_size() == 0 || other.image_size() == 0 {
+            return false;
+        }
+        let self_start = u64::from(self.load_addr);
+        let self_end = self_start + u64::from(self.image_size());
+        let other_start = u64::from(other.load_addr);
+        let other_end = other_start + u64::from(other.image_size());
+        self_start < other_end && self_end > other_start
     }
 }
 
@@ -933,6 +939,24 @@ mod tests {
         image1.size = 100;
         image2.load_addr = 500;
         image2.size = 100;
+        assert!(!image1.overlaps(&image2));
+
+        // Case 13: empty range inside non-empty range does not overlap
+        image1.load_addr = 450;
+        image1.size = 0;
+        image2.load_addr = 400;
+        image2.size = 100;
+        assert!(!image1.overlaps(&image2));
+        assert!(!image2.overlaps(&image1));
+
+        // Case 14: endpoint addition near u32::MAX must not overflow
+        image1.load_addr = u32::MAX - 10;
+        image1.size = 20;
+        image2.load_addr = u32::MAX - 5;
+        image2.size = 10;
+        assert!(image1.overlaps(&image2));
+        image2.load_addr = 0;
+        image2.size = 10;
         assert!(!image1.overlaps(&image2));
     }
 

@@ -253,7 +253,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
                 // Verify the vendor LMS public key index and revocation status
                 let key_revocation = self.env.vendor_lms_pub_key_revocation();
                 let vendor_pqc_pub_key_idx =
-                    self.verify_vendor_pqc_pk_idx(preamble, reason, key_revocation)?;
+                    self.verify_vendor_pqc_pk_idx(preamble, reason, key_revocation, pqc_key_type)?;
 
                 // Return the public key index information
                 PubKeyIndexInfo {
@@ -280,7 +280,7 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
                 // Verify the vendor MLDSA public key index and revocation status
                 let key_revocation = self.env.vendor_mldsa_pub_key_revocation();
                 let vendor_pqc_pub_key_idx =
-                    self.verify_vendor_pqc_pk_idx(preamble, reason, key_revocation)?;
+                    self.verify_vendor_pqc_pk_idx(preamble, reason, key_revocation, pqc_key_type)?;
 
                 // Return the public key index information
                 PubKeyIndexInfo {
@@ -357,7 +357,12 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             .vendor_pub_key_info
             .ecc_key_descriptor
             .key_hash_count;
-        let last_key_idx: u32 = key_hash_count as u32 - 1;
+        if key_hash_count > VENDOR_ECC_MAX_KEY_COUNT as u8 {
+            Err(CaliptraError::IMAGE_VERIFIER_ERR_ECC_KEY_DESCRIPTOR_HASH_COUNT_GT_MAX)?;
+        }
+        let last_key_idx: u32 = (key_hash_count as u32)
+            .checked_sub(1)
+            .ok_or(CaliptraError::IMAGE_VERIFIER_ERR_ECC_KEY_DESCRIPTOR_INVALID_HASH_COUNT)?;
 
         // Check if the key index is within bounds.
         if key_idx > last_key_idx {
@@ -398,13 +403,23 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         preamble: &ImagePreamble,
         reason: ResetReason,
         revocation: u32,
+        pqc_key_type: FwVerificationPqcKeyType,
     ) -> CaliptraResult<u32> {
         let key_idx = preamble.vendor_pqc_pub_key_idx;
         let key_hash_count = preamble
             .vendor_pub_key_info
             .pqc_key_descriptor
             .key_hash_count;
-        let last_key_idx: u32 = key_hash_count as u32 - 1;
+        let max_key_count = match pqc_key_type {
+            FwVerificationPqcKeyType::LMS => VENDOR_LMS_MAX_KEY_COUNT as u8,
+            FwVerificationPqcKeyType::MLDSA => VENDOR_MLDSA_MAX_KEY_COUNT as u8,
+        };
+        if key_hash_count > max_key_count {
+            Err(CaliptraError::IMAGE_VERIFIER_ERR_PQC_KEY_DESCRIPTOR_HASH_COUNT_GT_MAX)?;
+        }
+        let last_key_idx: u32 = (key_hash_count as u32)
+            .checked_sub(1)
+            .ok_or(CaliptraError::IMAGE_VERIFIER_ERR_PQC_KEY_DESCRIPTOR_INVALID_HASH_COUNT)?;
 
         // Check if the key index is within bounds.
         if key_idx > last_key_idx {
@@ -442,12 +457,32 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         preamble: &ImagePreamble,
         pqc_key_type: FwVerificationPqcKeyType,
     ) -> Result<(), NonZeroU32> {
-        // We skip vendor public key check in unprovisioned state
+        // We skip vendor public key fuse digest check in unprovisioned state,
+        // but still validate descriptor key counts so downstream index and
+        // revocation bitmask checks stay in bounds.
         if cfi_launder(self.env.dev_lifecycle() as u32) == Lifecycle::Unprovisioned as u32 {
             cfi_assert_eq(
                 self.env.dev_lifecycle() as u32,
                 Lifecycle::Unprovisioned as u32,
             );
+            let pub_key_info = preamble.vendor_pub_key_info;
+            if pub_key_info.ecc_key_descriptor.key_hash_count == 0 {
+                Err(CaliptraError::IMAGE_VERIFIER_ERR_ECC_KEY_DESCRIPTOR_INVALID_HASH_COUNT)?;
+            }
+            if pub_key_info.ecc_key_descriptor.key_hash_count > VENDOR_ECC_MAX_KEY_COUNT as u8 {
+                Err(CaliptraError::IMAGE_VERIFIER_ERR_ECC_KEY_DESCRIPTOR_HASH_COUNT_GT_MAX)?;
+            }
+            if pub_key_info.pqc_key_descriptor.key_hash_count == 0 {
+                Err(CaliptraError::IMAGE_VERIFIER_ERR_PQC_KEY_DESCRIPTOR_INVALID_HASH_COUNT)?;
+            }
+            if (pqc_key_type == FwVerificationPqcKeyType::LMS
+                && pub_key_info.pqc_key_descriptor.key_hash_count > VENDOR_LMS_MAX_KEY_COUNT as u8)
+                || (pqc_key_type == FwVerificationPqcKeyType::MLDSA
+                    && pub_key_info.pqc_key_descriptor.key_hash_count
+                        > VENDOR_MLDSA_MAX_KEY_COUNT as u8)
+            {
+                Err(CaliptraError::IMAGE_VERIFIER_ERR_PQC_KEY_DESCRIPTOR_HASH_COUNT_GT_MAX)?;
+            }
             return Ok(());
         } else {
             cfi_assert_ne(
@@ -1140,8 +1175,13 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             caliptra_cfi_lib::cfi_assert_eq_12_words(&verify_info.digest, &actual);
         }
 
-        // Size and load-address overflow are checked in verify_toc.
-        let load_addr_end = verify_info.load_addr + verify_info.size - 1;
+        // Size and load-address overflow are checked in verify_toc; use checked
+        // arithmetic so load_addr + size == 1 << 32 cannot overflow before - 1.
+        let load_addr_end = verify_info
+            .size
+            .checked_sub(1)
+            .and_then(|s| verify_info.load_addr.checked_add(s))
+            .ok_or(CaliptraError::IMAGE_VERIFIER_ERR_FMC_LOAD_ADDR_INVALID)?;
         if !self.env.iccm_range().contains(&verify_info.load_addr)
             || !self.env.iccm_range().contains(&load_addr_end)
         {
@@ -1220,8 +1260,13 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             caliptra_cfi_lib::cfi_assert_eq_12_words(&verify_info.digest, &actual);
         }
 
-        // Size and load-address overflow are checked in verify_toc.
-        let load_addr_end = verify_info.load_addr + verify_info.size - 1;
+        // Size and load-address overflow are checked in verify_toc; use checked
+        // arithmetic so load_addr + size == 1 << 32 cannot overflow before - 1.
+        let load_addr_end = verify_info
+            .size
+            .checked_sub(1)
+            .and_then(|s| verify_info.load_addr.checked_add(s))
+            .ok_or(CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_LOAD_ADDR_INVALID)?;
         if !self.env.iccm_range().contains(&verify_info.load_addr)
             || !self.env.iccm_range().contains(&load_addr_end)
         {
@@ -1569,6 +1614,99 @@ mod tests {
         assert_eq!(
             result.err(),
             Some(CaliptraError::IMAGE_VERIFIER_ERR_MANIFEST_SIZE_MISMATCH)
+        );
+    }
+
+    #[test]
+    fn test_unprovisioned_invalid_key_hash_counts() {
+        let mut verifier = ImageVerifier::new(TestEnv {
+            lifecycle: Lifecycle::Unprovisioned,
+            ..Default::default()
+        });
+
+        let mut preamble = ImagePreamble::default();
+        // ECC key_hash_count == 0
+        assert_eq!(
+            verifier.verify_vendor_pub_key_info_digest(&preamble, FwVerificationPqcKeyType::MLDSA),
+            Err(CaliptraError::IMAGE_VERIFIER_ERR_ECC_KEY_DESCRIPTOR_INVALID_HASH_COUNT.into())
+        );
+        assert_eq!(
+            verifier
+                .verify_vendor_ecc_pk_idx(&preamble, ResetReason::ColdReset)
+                .err(),
+            Some(CaliptraError::IMAGE_VERIFIER_ERR_ECC_KEY_DESCRIPTOR_INVALID_HASH_COUNT)
+        );
+
+        // ECC key_hash_count > VENDOR_ECC_MAX_KEY_COUNT
+        preamble
+            .vendor_pub_key_info
+            .ecc_key_descriptor
+            .key_hash_count = (VENDOR_ECC_MAX_KEY_COUNT + 1) as u8;
+        preamble.vendor_ecc_pub_key_idx = VENDOR_ECC_MAX_KEY_COUNT;
+        assert_eq!(
+            verifier.verify_vendor_pub_key_info_digest(&preamble, FwVerificationPqcKeyType::MLDSA),
+            Err(CaliptraError::IMAGE_VERIFIER_ERR_ECC_KEY_DESCRIPTOR_HASH_COUNT_GT_MAX.into())
+        );
+        assert_eq!(
+            verifier
+                .verify_vendor_ecc_pk_idx(&preamble, ResetReason::ColdReset)
+                .err(),
+            Some(CaliptraError::IMAGE_VERIFIER_ERR_ECC_KEY_DESCRIPTOR_HASH_COUNT_GT_MAX)
+        );
+
+        // Valid ECC, PQC key_hash_count == 0
+        preamble
+            .vendor_pub_key_info
+            .ecc_key_descriptor
+            .key_hash_count = 1;
+        preamble.vendor_ecc_pub_key_idx = 0;
+        assert_eq!(
+            verifier.verify_vendor_pub_key_info_digest(&preamble, FwVerificationPqcKeyType::MLDSA),
+            Err(CaliptraError::IMAGE_VERIFIER_ERR_PQC_KEY_DESCRIPTOR_INVALID_HASH_COUNT.into())
+        );
+        assert_eq!(
+            verifier.verify_vendor_pqc_pk_idx(
+                &preamble,
+                ResetReason::ColdReset,
+                0,
+                FwVerificationPqcKeyType::MLDSA
+            ),
+            Err(CaliptraError::IMAGE_VERIFIER_ERR_PQC_KEY_DESCRIPTOR_INVALID_HASH_COUNT)
+        );
+
+        // Valid ECC, PQC key_hash_count > max (also guards against `1u32 << key_idx` shift overflow)
+        preamble
+            .vendor_pub_key_info
+            .pqc_key_descriptor
+            .key_hash_count = 255;
+        preamble.vendor_pqc_pub_key_idx = 32;
+        assert_eq!(
+            verifier.verify_vendor_pub_key_info_digest(&preamble, FwVerificationPqcKeyType::LMS),
+            Err(CaliptraError::IMAGE_VERIFIER_ERR_PQC_KEY_DESCRIPTOR_HASH_COUNT_GT_MAX.into())
+        );
+        assert_eq!(
+            verifier.verify_vendor_pqc_pk_idx(
+                &preamble,
+                ResetReason::ColdReset,
+                0,
+                FwVerificationPqcKeyType::LMS
+            ),
+            Err(CaliptraError::IMAGE_VERIFIER_ERR_PQC_KEY_DESCRIPTOR_HASH_COUNT_GT_MAX)
+        );
+
+        // Valid MLDSA vs LMS max distinction
+        preamble
+            .vendor_pub_key_info
+            .pqc_key_descriptor
+            .key_hash_count = (VENDOR_MLDSA_MAX_KEY_COUNT + 1) as u8;
+        preamble.vendor_pqc_pub_key_idx = 0;
+        assert_eq!(
+            verifier.verify_vendor_pub_key_info_digest(&preamble, FwVerificationPqcKeyType::MLDSA),
+            Err(CaliptraError::IMAGE_VERIFIER_ERR_PQC_KEY_DESCRIPTOR_HASH_COUNT_GT_MAX.into())
+        );
+        assert_eq!(
+            verifier.verify_vendor_pub_key_info_digest(&preamble, FwVerificationPqcKeyType::LMS),
+            Ok(())
         );
     }
 

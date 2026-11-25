@@ -203,10 +203,6 @@ impl<'a, S: Signature> CertBuilder<'a, S> {
         let sig_len = self.sig.der_len();
         let len = self.tbs.len() + S::oid_der().len() + sig_len;
 
-        if buf.len() < len + 4 {
-            return None;
-        }
-
         pos += der_encode_len(len, buf.get_mut(pos..)?)?;
 
         // Copy Value

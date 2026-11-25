@@ -141,9 +141,9 @@ impl Sha3 {
         }
         self.active_session_token = None;
         self.finalize()?;
-        let digest = self.read_digest::<16, 64>(Sha3Mode::Shake, Sha3KStrength::L256)?;
+        let digest = self.read_digest::<16, 64>(Sha3Mode::Shake, Sha3KStrength::L256);
         self.zeroize_internal();
-        Ok(digest)
+        digest
     }
 
     // Additional modes may be added by simply creating analogous functions for the two below
@@ -249,12 +249,12 @@ impl Sha3 {
         self.finalize()?;
 
         // READ DIGEST
-        let digest = self.read_digest(mode, strength)?;
+        let digest = self.read_digest(mode, strength);
 
-        // Complete and zeroize
+        // Complete and zeroize even if read_digest fails
         self.zeroize_internal();
 
-        Ok(digest)
+        digest
     }
 
     // Initialize the digest operation and wait for the absorb state to be set
@@ -353,7 +353,7 @@ impl Sha3 {
         // Error checking so we don't exceed the rate for the type
         // NOTE: This HW does support larger digests, but another RUN command needs to be issued to do so
         //       There was no need for this at the time this was written
-        if (W * core::mem::size_of::<u32>()) as u32 > mode.get_rate(strength) {
+        if W > (mode.get_rate(strength) / 32) as usize {
             return Err(CaliptraError::DRIVER_SHA3_DIGEST_EXCEEDS_RATE);
         }
 
@@ -453,11 +453,11 @@ impl Sha3DigestOp<'_> {
 
         self.sha3.finalize()?;
 
-        let digest = self.sha3.read_digest(self.mode, self.strength)?;
+        let digest = self.sha3.read_digest(self.mode, self.strength);
 
         self.sha3.zeroize_internal();
 
-        Ok(digest)
+        digest
     }
 }
 

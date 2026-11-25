@@ -25,9 +25,10 @@ pub struct LmsKat {}
 impl LmsKat {
     /// This function executes the Known Answer Tests (aka KAT) for LMS.
     pub fn execute(&self, sha256_driver: &mut Sha256, lms: &mut Lms) -> CaliptraResult<()> {
-        let result = self.kat_lms_24(sha256_driver, lms);
+        lms.clear_kat_complete();
+        self.kat_lms_24(sha256_driver, lms)?;
         lms.mark_kat_complete();
-        result
+        Ok(())
     }
 
     /// This calls execute only if it has not completed before
