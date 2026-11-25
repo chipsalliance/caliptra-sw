@@ -15,8 +15,8 @@ Abstract:
 use crate::{ec_dpe_env, mldsa_dpe_env, AxiAddr, Drivers, PauserPrivileges};
 use arrayvec::ArrayVec;
 use caliptra_api::mailbox::{
-    populate_checksum, AxiResponseInfo, InvokeDpeMldsa87Flags, InvokeDpeMldsa87Req,
-    MailboxReqHeader, MailboxRespHeader, SUBSYSTEM_MAILBOX_SIZE_LIMIT,
+    populate_checksum, InvokeDpeMldsa87Req, InvokeDpeMldsa87ReqHdr, InvokeDpeReqHdr,
+    InvokeDpeRespHdr, MailboxRespHeader, SUBSYSTEM_MAILBOX_SIZE_LIMIT,
 };
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_common::mailbox_api::{InvokeDpeReq, InvokeDpeResp};
@@ -31,7 +31,7 @@ use caliptra_dpe_platform::MAX_OTHER_NAME_SIZE;
 use caliptra_dpe_response_buffer::SliceResponseBuffer;
 use caliptra_drivers::{okmutref, CaliptraError, CaliptraResult};
 use ufmt::derive::uDebug;
-use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
+use zerocopy::{FromBytes, IntoBytes};
 
 #[derive(uDebug, Debug, Copy, Clone, PartialEq, Eq)]
 pub enum CaliptraDpeProfile {
@@ -66,7 +66,7 @@ impl InvokeDpeCmd {
         staging_buffer[..cmd_args.len()].copy_from_slice(cmd_args);
 
         // Parse the header to get the DPE command size and buffer
-        let (cmd, dpe_cmd_buf) = InvokeDpeEcc384Header::ref_from_prefix(staging_buffer)
+        let (cmd, dpe_cmd_buf) = InvokeDpeReqHdr::ref_from_prefix(staging_buffer)
             .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
         let dpe_cmd_buf = dpe_cmd_buf
             .get(..cmd.data_size as usize)
@@ -92,7 +92,7 @@ impl InvokeDpeCmd {
         staging_buffer[..cmd_args.len()].copy_from_slice(cmd_args);
 
         // Parse the header to get the DPE command size and buffer
-        let (cmd, dpe_cmd_buf) = InvokeDpeMldsa87Header::ref_from_prefix(staging_buffer)
+        let (cmd, dpe_cmd_buf) = InvokeDpeMldsa87ReqHdr::ref_from_prefix(staging_buffer)
             .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
         let dpe_cmd_buf = dpe_cmd_buf
             .get(..cmd.data_size as usize)
@@ -234,7 +234,7 @@ impl InvokeDpeCmd {
         };
 
         let ueid = Some(drivers.soc_ifc.fuse_bank().ueid());
-        let (invoke_resp, data) = InvokeDpeRespHeader::mut_from_prefix(mbox_resp)
+        let (invoke_resp, data) = InvokeDpeRespHdr::mut_from_prefix(mbox_resp)
             .map_err(|_| CaliptraError::RUNTIME_INSUFFICIENT_MEMORY)?;
         if data.len() < core::mem::size_of::<ResponseHdr>() {
             return Err(CaliptraError::RUNTIME_INSUFFICIENT_MEMORY);
@@ -351,39 +351,3 @@ fn invoke_mldsa_dpe_cmd(
     let mut resp_buf = SliceResponseBuffer::new(out);
     command.execute_serialized(dpe, env, locality, &mut resp_buf)
 }
-
-#[repr(C)]
-#[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
-struct InvokeDpeEcc384Header {
-    pub hdr: MailboxReqHeader,
-    pub data_size: u32,
-}
-
-const _: () = assert!(
-    size_of::<InvokeDpeEcc384Header>() == size_of::<InvokeDpeReq>() - InvokeDpeReq::DATA_MAX_SIZE
-);
-
-#[repr(C)]
-#[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
-struct InvokeDpeMldsa87Header {
-    pub hdr: MailboxReqHeader,
-    pub flags: InvokeDpeMldsa87Flags,
-    pub axi_response: AxiResponseInfo,
-    pub data_size: u32,
-}
-
-const _: () = assert!(
-    size_of::<InvokeDpeMldsa87Header>()
-        == size_of::<InvokeDpeMldsa87Req>() - InvokeDpeMldsa87Req::DATA_MAX_SIZE
-);
-
-#[repr(C)]
-#[derive(Debug, IntoBytes, FromBytes, Immutable, KnownLayout, PartialEq, Eq)]
-pub struct InvokeDpeRespHeader {
-    pub hdr: MailboxRespHeader,
-    pub data_size: u32,
-}
-
-const _: () = assert!(
-    size_of::<InvokeDpeRespHeader>() == size_of::<InvokeDpeResp>() - InvokeDpeResp::DATA_MAX_SIZE
-);
