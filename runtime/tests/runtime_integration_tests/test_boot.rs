@@ -2,7 +2,7 @@
 use caliptra_api::SocManager;
 use caliptra_builder::{
     firmware::{self, APP_WITH_UART, FMC_WITH_UART},
-    ImageOptions,
+    get_ci_rom_version, CiRomVersion, ImageOptions,
 };
 use caliptra_common::{
     mailbox_api::{CommandId, MailboxReq, MailboxReqHeader, QuotePcrsReq, StashMeasurementReq},
@@ -38,6 +38,15 @@ fn test_standard() {
 #[test]
 #[cfg_attr(any(feature = "verilator", feature = "fpga_realtime"), ignore)]
 fn test_external_direct_trng() {
+    // The frozen 1.0 and 1.1 CI ROMs predate EXTERNAL_DIRECT mode
+    if matches!(
+        get_ci_rom_version(),
+        CiRomVersion::Rom1_0 | CiRomVersion::Rom1_1
+    ) {
+        eprintln!("skipping: the frozen CI ROM does not support EXTERNAL_DIRECT");
+        return;
+    }
+
     // With the iTRNG enabled, EXTERNAL_DIRECT makes ROM, FMC and runtime use the
     // external TRNG. Any iTRNG use would panic in the nibble iterator.
     let rom = caliptra_builder::rom_for_fw_integration_tests().unwrap();
