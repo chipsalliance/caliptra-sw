@@ -337,6 +337,8 @@ fn test_loads_mcu_fw() {
             }
         }
         assert!(found);
+
+        assert_recovery_status_open(&mut model);
     }
 }
 
@@ -522,6 +524,33 @@ fn test_mcu_fw_bad_signature() {
 const SOC_MANIFEST_INDEX: u32 = 1;
 #[cfg(not(feature = "fpga_subsystem"))]
 pub(crate) const MCU_FIRMWARE_INDEX: u32 = 2;
+// `DmaRecovery` keeps the constants for 0x2 and 0x4 private.
+#[cfg(not(feature = "fpga_subsystem"))]
+const RECOVERY_STATUS_BOOTING_RECOVERY_IMAGE: u32 = 0x2;
+#[cfg(not(feature = "fpga_subsystem"))]
+const DEVICE_STATUS_PENDING: u32 = 0x4;
+
+/// Asserts what the recovery registers read after Caliptra RT loaded the MCU
+/// firmware: RECOVERY_STATUS 0x2 'Booting recovery image' with the MCU
+/// firmware index, and DEVICE_STATUS 0x4 'Recovery pending'. Caliptra RT
+/// writes no final status, so the MCU can load additional images over the
+/// recovery interface before the MCU writes the final status.
+#[cfg(not(feature = "fpga_subsystem"))]
+pub(crate) fn assert_recovery_status_open(model: &mut DefaultHwModel) {
+    use crate::test_encrypted_firmware::read_recovery_register;
+    use caliptra_emu_bus::RecoveryCommandCode;
+
+    // RECOVERY_STATUS byte 0 holds the status in bits [3:0] and the image
+    // index in bits [7:4].
+    let recovery_status = read_recovery_register(model, RecoveryCommandCode::RecoveryStatus);
+    assert_eq!(
+        u32::from(recovery_status[0]),
+        (MCU_FIRMWARE_INDEX << 4) | RECOVERY_STATUS_BOOTING_RECOVERY_IMAGE
+    );
+
+    let device_status = read_recovery_register(model, RecoveryCommandCode::DeviceStatus);
+    assert_eq!(u32::from(device_status[0]), DEVICE_STATUS_PENDING);
+}
 
 /// Asserts what `report_failure` writes after an authentication failure
 /// on `image_idx`: RECOVERY_STATUS 0xD 'Recovery image authentication error'

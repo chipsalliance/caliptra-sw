@@ -274,12 +274,11 @@ impl RecoveryFlow {
                 drivers.mcu_fw_info.size = ciphertext_size;
                 drivers.mcu_fw_info.sha384 = ciphertext_digest.into();
 
-                // we're done with recovery, but MCU will handle its own boot after decryption
-                dma_recovery.set_recovery_status(DmaRecovery::RECOVERY_STATUS_SUCCESSFUL, 0)?;
-                dma_recovery.set_device_status_with_recovery_reason(
-                    DmaRecovery::DEVICE_STATUS_HEALTHY,
-                    0,
-                )?;
+                // RECOVERY_STATUS keeps 0x2 'Booting recovery image' and
+                // DEVICE_STATUS keeps 0x4 'Recovery pending', as on the
+                // non-encrypted path. The MCU ROM writes the final recovery
+                // status after the decrypt, or keeps the interface open to
+                // load additional images.
                 return Ok(());
             }
 

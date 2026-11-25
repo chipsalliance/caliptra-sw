@@ -140,20 +140,7 @@ fn test_encrypted_firmware_decrypt_dma() {
     );
 
     #[cfg(not(feature = "fpga_subsystem"))]
-    {
-        let device_status = read_recovery_register(&mut model, RecoveryCommandCode::DeviceStatus);
-        assert_eq!(
-            u32::from_le_bytes(device_status[..4].try_into().unwrap()),
-            0x1
-        );
-
-        let recovery_status =
-            read_recovery_register(&mut model, RecoveryCommandCode::RecoveryStatus);
-        assert_eq!(
-            u16::from_le_bytes(recovery_status[..2].try_into().unwrap()),
-            0x3
-        );
-    }
+    crate::test_recovery_flow::assert_recovery_status_open(&mut model);
 }
 
 /// For an encrypted MCU image shorter than the GCM tag, the `checked_sub` of
