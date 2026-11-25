@@ -1102,6 +1102,8 @@ pub trait HwModel: SocManager {
         self.setup_mailbox_users(valid_pausers.as_slice())
             .map_err(ModelError::from)?;
 
+        self.assert_end_of_stash();
+
         // Continue boot
         writeln!(self.output().logger(), "writing to cptra_bootfsm_go")?;
         self.soc_ifc().cptra_bootfsm_go().write(|w| w.go(true));

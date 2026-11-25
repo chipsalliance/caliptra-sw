@@ -2714,6 +2714,8 @@ impl HwModel for ModelFpgaSubsystem {
         // Perform the warm reset
         self.warm_reset();
 
+        self.assert_end_of_stash();
+
         // TODO: support passing these into MCU ROM
 
         // self.soc_ifc()
