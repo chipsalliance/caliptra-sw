@@ -38,6 +38,9 @@ std = []
 emu = []
 riscv = []
 rom = []
+# TODO: remove rom-activate-rec-img-clear-0xf once the Caliptra TAC approves a
+# new frozen ROM image that writes 0xF.
+rom-activate-rec-img-clear-0xf = []
 runtime = ["dep:caliptra-dpe", "dep:caliptra-dpe-crypto"]
 fmc = []
 fpga_realtime = ["caliptra-hw-model/fpga_realtime"]

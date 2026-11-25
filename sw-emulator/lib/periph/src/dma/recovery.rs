@@ -136,7 +136,7 @@ pub struct RecoveryRegisterInterface {
     pub device_status_1: ReadWriteRegister<u32>,
     #[register(offset = 0x38)]
     pub device_reset: ReadWriteRegister<u32>,
-    #[register(offset = 0x3c)]
+    #[register(offset = 0x3c, write_fn = recovery_ctrl_write)]
     pub recovery_ctrl: ReadWriteRegister<u32, RecoveryControl::Register>,
     #[register(offset = 0x40, write_fn = recovery_status_write)]
     pub recovery_status: ReadWriteRegister<u32>,
@@ -165,6 +165,11 @@ pub struct RecoveryRegisterInterface {
 
     pub cms_data: Vec<Vec<u8>>,
     pub event_sender: Option<mpsc::Sender<Event>>,
+
+    /// Every word Caliptra writes to RECOVERY_CTRL, in order. The register
+    /// holds only the last write, so a test that checks what Caliptra wrote
+    /// reads these words instead.
+    pub recovery_ctrl_writes: Vec<u32>,
 }
 
 impl RecoveryRegisterInterface {
@@ -217,6 +222,7 @@ impl RecoveryRegisterInterface {
 
             cms_data: vec![],
             event_sender: None,
+            recovery_ctrl_writes: vec![],
         }
     }
 
@@ -303,6 +309,35 @@ impl RecoveryRegisterInterface {
         if load.reg.is_set(IndirectCtrl0::RESET) {
             self.load_image();
         }
+        Ok(())
+    }
+
+    /// Applies a Caliptra write to RECOVERY_CTRL the way the hardware does.
+    ///
+    /// The Recovery Agent sets the Activate Recovery Image field to 0xF to
+    /// request activation, and Caliptra clears the field to acknowledge the
+    /// request. A Caliptra write clears the field bitwise (`onwrite = woclr`
+    /// in `secure_firmware_recovery_interface.rdl`): each 1 bit in the
+    /// written value clears the same bit in the field, and each 0 bit keeps
+    /// it, so the field becomes `old & !written`. A write of 0x1 over 0xF
+    /// gives 0xE, and a write of 0xF gives 0x0. The other RECOVERY_CTRL
+    /// fields become `written`.
+    pub fn recovery_ctrl_write(&mut self, size: RvSize, val: RvData) -> Result<(), BusError> {
+        // Writes have to be Word aligned
+        if size != RvSize::Word {
+            Err(BusError::StoreAccessFault)?
+        }
+        self.recovery_ctrl_writes.push(val);
+
+        let next: ReadWriteRegister<u32, RecoveryControl::Register> = ReadWriteRegister::new(val);
+        let cleared_activate = self
+            .recovery_ctrl
+            .reg
+            .read(RecoveryControl::ACTIVATE_RECOVERY_IMAGE)
+            & !next.reg.read(RecoveryControl::ACTIVATE_RECOVERY_IMAGE);
+        next.reg
+            .modify(RecoveryControl::ACTIVATE_RECOVERY_IMAGE.val(cleared_activate));
+        self.recovery_ctrl.reg.set(next.reg.get());
         Ok(())
     }
 

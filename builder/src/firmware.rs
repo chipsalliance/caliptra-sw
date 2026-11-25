@@ -85,6 +85,16 @@ pub const ROM_WITH_FIPS_TEST_HOOKS: FwId = FwId {
     },
 };
 
+// TODO: remove ROM_WITH_ACTIVATE_REC_IMG_CLEAR_0XF once the Caliptra TAC
+// approves a new frozen ROM image that writes 0xF.
+pub const ROM_WITH_ACTIVATE_REC_IMG_CLEAR_0XF: FwId = FwId {
+    crate_name: "caliptra-rom",
+    bin_name: "caliptra-rom",
+    fw_type: FirmwareType::Source {
+        features: &["emu", "rom-activate-rec-img-clear-0xf", "cfi"],
+    },
+};
+
 /// Pre-built 2.0.1 ROM release binary target identifier.
 /// Represents the downloaded 2.0.1 release ROM artifact (caliptra-rom-with-log.bin)
 /// from the GitHub caliptra-sw release package.
@@ -778,6 +788,7 @@ pub const REGISTERED_FW: &[&FwId] = &[
     &ROM_FAKE_WITH_UART_FPGA,
     &ROM_WITH_FIPS_TEST_HOOKS,
     &ROM_WITH_FIPS_TEST_HOOKS_FPGA,
+    &ROM_WITH_ACTIVATE_REC_IMG_CLEAR_0XF,
     &ROM_FPGA_WITH_UART,
     &FMC_WITH_UART,
     &FMC_FAKE_WITH_UART,
