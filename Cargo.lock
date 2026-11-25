@@ -897,6 +897,7 @@ dependencies = [
  "caliptra-drivers",
  "caliptra-registers",
  "caliptra-test-harness",
+ "caliptra-test-harness-types",
  "caliptra-ureg",
  "ufmt",
 ]

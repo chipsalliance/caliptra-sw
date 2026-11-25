@@ -1,5 +1,9 @@
 // Licensed under the Apache-2.0 license
 
+#![no_std]
+
+pub mod mailbox_responder;
+
 /// Errors codes placed into CPTRA_FW_ERROR_NON_FATAL
 /// by the test harness.
 pub const ERROR_EXCEPTION: u32 = 0x0300_0002;

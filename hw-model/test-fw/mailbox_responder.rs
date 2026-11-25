@@ -11,6 +11,11 @@ use caliptra_test_harness;
 
 use caliptra_drivers::cprint;
 use caliptra_registers::{self, mbox::MboxCsr, sha512_acc::Sha512AccCsr, soc_ifc::SocIfcReg};
+use caliptra_test_harness_types::mailbox_responder::{
+    ECHO_MAX_LEN, FIXED_RESPONSE_LEN, FIXED_RESPONSE_WORDS, MBOX_CMD_ECHO, MBOX_CMD_EMPTY_RESPONSE,
+    MBOX_CMD_FIXED_RESPONSE, MBOX_CMD_GET_RESPONSE, MBOX_CMD_NODATA, MBOX_CMD_SET_RESPONSE,
+    MBOX_CMD_UNLOCK_SHA512_ACC,
+};
 
 #[panic_handler]
 pub fn panic(_info: &core::panic::PanicInfo) -> ! {
@@ -42,10 +47,10 @@ extern "C" fn main() {
         match cmd {
             // Consumes input, and echoes the request back as the response with
             // the command-id prepended.
-            0x1000_0000 => {
+            MBOX_CMD_ECHO => {
                 let dlen = mbox.dlen().read();
                 let dlen_words = usize::try_from((dlen + 3) / 4).unwrap();
-                let mut buf = [0u32; 8];
+                let mut buf = [0u32; ECHO_MAX_LEN / 4];
                 for i in 0..dlen_words {
                     buf[i] = mbox.dataout().read();
                 }
@@ -57,24 +62,25 @@ extern "C" fn main() {
                 mbox.status().write(|w| w.status(|w| w.data_ready()));
             }
             // Returns a response of 7 hard-coded bytes; doesn't consume input.
-            0x1000_1000 => {
-                mbox.dlen().write(|_| 7);
-                mbox.datain().write(|_| 0x6745_2301);
-                mbox.datain().write(|_| 0xefcd_ab89);
+            MBOX_CMD_FIXED_RESPONSE => {
+                mbox.dlen().write(|_| FIXED_RESPONSE_LEN);
+                for word in FIXED_RESPONSE_WORDS {
+                    mbox.datain().write(|_| word);
+                }
 
                 mbox.status().write(|w| w.status(|w| w.data_ready()));
             }
             // Returns a response of 0 bytes; doesn't consume input.
-            0x1000_2000 => {
+            MBOX_CMD_EMPTY_RESPONSE => {
                 mbox.dlen().write(|_| 0);
                 mbox.status().write(|w| w.status(|w| w.data_ready()));
             }
             // Returns a success response; doesn't consume input.
-            0x2000_0000 => {
+            MBOX_CMD_NODATA => {
                 mbox.status().write(|w| w.status(|w| w.cmd_complete()));
             }
-            // Store a buf to be returned by 0x3000_0001
-            0x3000_0000 => {
+            // Store a buf to be returned by MBOX_CMD_GET_RESPONSE
+            MBOX_CMD_SET_RESPONSE => {
                 let dlen = mbox.dlen().read();
                 let dlen_words = usize::try_from((dlen + 3) / 4).unwrap();
                 for i in 0..usize::min(dlen_words, replay_buf.len()) {
@@ -83,7 +89,7 @@ extern "C" fn main() {
                 replay_buf_len = u32::min(dlen, u32::try_from(replay_buf.len()).unwrap());
                 mbox.status().write(|w| w.status(|w| w.cmd_complete()));
             }
-            0x3000_0001 => {
+            MBOX_CMD_GET_RESPONSE => {
                 cprint!("|");
                 let dlen = mbox.dlen().read();
                 let dlen_words = usize::try_from((dlen + 3) / 4).unwrap();
@@ -105,7 +111,7 @@ extern "C" fn main() {
                 }
                 mbox.status().write(|w| w.status(|w| w.data_ready()));
             }
-            0x5000_0000 => {
+            MBOX_CMD_UNLOCK_SHA512_ACC => {
                 // Unlock sha512acc peripheral by writing 1
                 sha512acc.lock().write(|w| w.lock(true));
                 mbox.status().write(|w| w.status(|w| w.cmd_complete()));
