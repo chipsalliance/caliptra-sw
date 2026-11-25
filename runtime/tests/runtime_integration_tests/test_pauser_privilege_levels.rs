@@ -17,8 +17,9 @@ use caliptra_builder::{
     ImageOptions,
 };
 use caliptra_common::mailbox_api::{
-    CertifyKeyExtendedEcc384Req, CertifyKeyExtendedFlags, CommandId, MailboxReq, MailboxReqHeader,
-    PopulateIdevEcc384CertReq, SetAuthManifestReq, SetOwnerAuthManifestReq, StashMeasurementReq,
+    AddSubjectAltNameReq, CertifyKeyExtendedEcc384Req, CertifyKeyExtendedFlags, CommandId,
+    MailboxReq, MailboxReqHeader, PopulateIdevEcc384CertReq, SetAuthManifestReq,
+    SetOwnerAuthManifestReq, StashMeasurementReq,
 };
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{BootParams, Fuses, HwModel, InitParams, SecurityState};
@@ -1234,4 +1235,44 @@ fn test_disable_attestation_cannot_be_called_from_pl1() {
     // The rejected command must not have zeroized any CDIs: attestation is
     // still enabled. get_fwinfo() asserts attestation_disabled == 0.
     get_fwinfo(&mut model);
+}
+
+#[test]
+fn test_add_subject_alt_name_cannot_be_called_from_pl1() {
+    let mut image_opts = ImageOptions::default();
+    image_opts.vendor_config.pl0_pauser = None;
+
+    let args = RuntimeTestArgs {
+        test_image_options: Some(image_opts),
+        ..Default::default()
+    };
+
+    let mut model = run_rt_test_pqc(args, *pqc_key_type);
+
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    let dmtf_device_info_utf8 = "ChipsAlliance:Caliptra:0123456789";
+    let dmtf_device_info_bytes = dmtf_device_info_utf8.as_bytes();
+    let mut dmtf_device_info = [0u8; AddSubjectAltNameReq::MAX_DEVICE_INFO_LEN];
+    dmtf_device_info[..dmtf_device_info_bytes.len()].copy_from_slice(dmtf_device_info_bytes);
+    let mut cmd = MailboxReq::AddSubjectAltName(AddSubjectAltNameReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        dmtf_device_info_size: dmtf_device_info_bytes.len() as u32,
+        dmtf_device_info,
+    });
+    cmd.populate_chksum().unwrap();
+
+    let resp = model
+        .mailbox_execute(
+            u32::from(CommandId::ADD_SUBJECT_ALT_NAME),
+            cmd.as_bytes().unwrap(),
+        )
+        .unwrap_err();
+    assert_error(
+        &mut model,
+        CaliptraError::RUNTIME_INCORRECT_PAUSER_PRIVILEGE_LEVEL,
+        resp,
+    );
 }
