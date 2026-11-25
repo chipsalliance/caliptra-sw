@@ -345,3 +345,54 @@ fn test_get_tagged_tci_reports_context_svn() {
         "must report the SVN the tagged context was derived with"
     );
 }
+
+#[test]
+fn test_tagging_exported_cdi_context() {
+    let mut model = run_rt_test(RuntimeTestArgs::default());
+
+    // Tag the default context before exporting its CDI.
+    let mut cmd = MailboxReq::TagTci(TagTciReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        handle: DEFAULT_HANDLE,
+        tag: TAG,
+    });
+    cmd.populate_chksum().unwrap();
+    model
+        .mailbox_execute(u32::from(CommandId::DPE_TAG_TCI), cmd.as_bytes().unwrap())
+        .unwrap()
+        .expect("We expected a response");
+
+    // Without parent retention, DPE destroys the source context after export.
+    let export_cmd = DeriveContextCmd {
+        flags: caliptra_dpe::commands::DeriveContextFlags::EXPORT_CDI
+            | caliptra_dpe::commands::DeriveContextFlags::CREATE_CERTIFICATE,
+        ..Default::default()
+    };
+    let resp = execute_dpe_cmd(
+        &mut model,
+        CaliptraDpeProfile::Ecc384,
+        &mut Command::from(&export_cmd),
+        DpeResult::Success,
+    );
+    let Some(Response::DeriveContextExportedCdi(_)) = resp else {
+        panic!("Wrong response type!");
+    };
+
+    // The destroyed context's tag is no longer valid.
+    let mut cmd = MailboxReq::GetTaggedTci(GetTaggedTciReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        tag: TAG,
+    });
+    cmd.populate_chksum().unwrap();
+    let resp = model
+        .mailbox_execute(
+            u32::from(CommandId::DPE_GET_TAGGED_TCI),
+            cmd.as_bytes().unwrap(),
+        )
+        .unwrap_err();
+    assert_error(
+        &mut model,
+        caliptra_drivers::CaliptraError::RUNTIME_TAGGING_FAILURE,
+        resp,
+    );
+}
