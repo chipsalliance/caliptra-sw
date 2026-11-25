@@ -32,17 +32,22 @@ jobs:
     runs-on: ubuntu-22.04
 
     env:
-      NEXTEST_VERSION: 0.9.72
+      NEXTEST_VERSION: 0.9.100
       CACHE_BUSTER: f7c64774f17c
       CALIPTRA_HW_REV: ${{ inputs.hw-revision }}
 
     steps:
+      - name: Checkout repo
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #v5
+        with:
+          ref: ${{ inputs.branch }}
+
       - name: Restore cargo-nextest binary
         uses: actions/cache/restore@v3
         id: nextest_bin_restore
         with:
           path: ~/.cargo/bin/cargo-nextest
-          key: nextest-bin-${{ env.NEXTEST_VERSION}}-${{ env.CACHE_BUSTER }}
+          key: nextest-bin-${{ env.NEXTEST_VERSION }}-${{ env.CACHE_BUSTER }}
 
       - name: Install cargo-nextest
         if: steps.nextest_bin_restore.outputs.cache-hit != 'true'
@@ -55,11 +60,6 @@ jobs:
         with:
           path: ~/.cargo/bin/cargo-nextest
           key: ${{ steps.nextest_bin_restore.outputs.cache-primary-key }}
-
-      - name: Checkout repo
-        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #v5
-        with:
-          ref: ${{ inputs.branch }}
 
       - name: Build firmware
         run: |
