@@ -1017,7 +1017,7 @@ impl<'a> DmaRecovery<'a> {
         cprintln!("[dma-recovery] Waiting for activation");
         self.wait_for_activation()?;
         // Set the RECOVERY_STATUS register 'Device Recovery Status' field to 0x2 ('Booting recovery image').
-        self.set_recovery_status(Self::RECOVERY_STATUS_BOOTING_RECOVERY_IMAGE, 0)?;
+        self.set_recovery_status(Self::RECOVERY_STATUS_BOOTING_RECOVERY_IMAGE, fw_image_index)?;
         Ok(image_size_bytes)
     }
 
