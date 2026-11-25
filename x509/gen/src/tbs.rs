@@ -136,11 +136,41 @@ pub fn get_tbs(der: Vec<u8>) -> Vec<u8> {
         0..=0x7F => der[tbs_len_offset] as usize + 2,
         0x81 => (der[tbs_len_offset + 1]) as usize + 3,
         0x82 => {
-            (((der[tbs_len_offset + 1]) as usize) << u8::BITS)
-                | (((der[tbs_len_offset + 2]) as usize) + 4)
+            usize::from(u16::from_be_bytes([
+                der[tbs_len_offset + 1],
+                der[tbs_len_offset + 2],
+            ])) + 4
         }
         _ => panic!("Invalid DER Length"),
     };
 
     der[tbs_offset..tbs_offset + tbs_len].to_vec()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::get_tbs;
+
+    #[test]
+    fn test_get_tbs_two_byte_len_low_byte_carry() {
+        // TBS content length 0x01FE (510 bytes) + 4-byte header = 514 bytes.
+        // Without parenthesizing the low-byte addition, `(0x01 << 8) | (0xFE + 4)`
+        // yielded `0x0102` (258) instead of `0x0202` (514).
+        let tbs_content_len = 0x01FEusize;
+        let mut tbs = vec![0x30, 0x82, 0x01, 0xFE];
+        tbs.extend(vec![0xAA; tbs_content_len]);
+
+        let sig_trailing = vec![0x03, 0x02, 0x00, 0xFF];
+        let outer_content_len = tbs.len() + sig_trailing.len();
+        let mut der = vec![
+            0x30,
+            0x82,
+            (outer_content_len >> 8) as u8,
+            (outer_content_len & 0xFF) as u8,
+        ];
+        der.extend_from_slice(&tbs);
+        der.extend_from_slice(&sig_trailing);
+
+        assert_eq!(get_tbs(der), tbs);
+    }
 }

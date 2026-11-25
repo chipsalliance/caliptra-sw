@@ -549,3 +549,90 @@ fn test_poll() {
     assert_eq!(bus.log.take(), "poll; ");
     assert_eq!(bus.fake.log.take(), "poll()\n")
 }
+
+#[derive(Default)]
+struct EventProbe {
+    incoming_count: usize,
+    outgoing_registrations: usize,
+}
+
+impl Bus for EventProbe {
+    fn read(
+        &mut self,
+        _size: RvSize,
+        _addr: caliptra_emu_types::RvAddr,
+    ) -> Result<RvData, BusError> {
+        Err(BusError::LoadAccessFault)
+    }
+
+    fn write(
+        &mut self,
+        _size: RvSize,
+        _addr: caliptra_emu_types::RvAddr,
+        _val: RvData,
+    ) -> Result<(), BusError> {
+        Err(BusError::StoreAccessFault)
+    }
+
+    fn incoming_event(&mut self, _event: std::rc::Rc<caliptra_emu_bus::Event>) {
+        self.incoming_count += 1;
+    }
+
+    fn register_outgoing_events(
+        &mut self,
+        _sender: std::sync::mpsc::Sender<caliptra_emu_bus::Event>,
+    ) {
+        self.outgoing_registrations += 1;
+    }
+}
+
+#[derive(Bus)]
+#[incoming_event_fn(incoming_event)]
+#[register_outgoing_events_fn(register_outgoing_events)]
+struct EventDispatchBus {
+    #[peripheral(offset = 0x0000_0000, len = 0x10)]
+    direct: EventProbe,
+
+    #[peripheral(offset = 0x0000_0100, len = 0x10)]
+    refcell: std::cell::RefCell<EventProbe>,
+
+    unannotated: EventProbe,
+}
+
+impl EventDispatchBus {
+    fn incoming_event(&mut self, event: std::rc::Rc<caliptra_emu_bus::Event>) {
+        self.unannotated.incoming_event(event);
+    }
+
+    fn register_outgoing_events(
+        &mut self,
+        sender: std::sync::mpsc::Sender<caliptra_emu_bus::Event>,
+    ) {
+        self.unannotated.register_outgoing_events(sender);
+    }
+}
+
+#[test]
+fn test_event_dispatch_single_delivery() {
+    let mut bus = EventDispatchBus {
+        direct: EventProbe::default(),
+        refcell: std::cell::RefCell::new(EventProbe::default()),
+        unannotated: EventProbe::default(),
+    };
+
+    let (tx, _rx) = std::sync::mpsc::channel();
+    Bus::register_outgoing_events(&mut bus, tx);
+    assert_eq!(bus.direct.outgoing_registrations, 1);
+    assert_eq!(bus.refcell.borrow().outgoing_registrations, 1);
+    assert_eq!(bus.unannotated.outgoing_registrations, 1);
+
+    let event = std::rc::Rc::new(caliptra_emu_bus::Event::new(
+        caliptra_emu_bus::Device::MCU,
+        caliptra_emu_bus::Device::CaliptraCore,
+        caliptra_emu_bus::EventData::WireRequest { name: "test" },
+    ));
+    Bus::incoming_event(&mut bus, event);
+    assert_eq!(bus.direct.incoming_count, 1);
+    assert_eq!(bus.refcell.borrow().incoming_count, 1);
+    assert_eq!(bus.unannotated.incoming_count, 1);
+}

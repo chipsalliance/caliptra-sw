@@ -124,10 +124,12 @@ pub fn derive_bus(input: TokenStream) -> TokenStream {
             }
             fn incoming_event(&mut self, event: std::rc::Rc<caliptra_emu_bus::Event>) {
                 #(self.#field_idents.incoming_event(event.clone());)*
+                #(self.#field_idents_refcell.borrow_mut().incoming_event(event.clone());)*
                 #self_incoming_event_tokens
             }
             fn register_outgoing_events(&mut self, sender: std::sync::mpsc::Sender<caliptra_emu_bus::Event>) {
                 #(self.#field_idents.register_outgoing_events(sender.clone());)*
+                #(self.#field_idents_refcell.borrow_mut().register_outgoing_events(sender.clone());)*
                 #self_register_outgoing_events_tokens
             }
         }

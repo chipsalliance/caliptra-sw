@@ -689,7 +689,7 @@ impl<const LEN: usize, TItem: FromMmioPtr<TMmio = TMmio>, TMmio: Mmio + Copy> Ar
         if index >= LEN {
             panic!("register index out of bounds");
         }
-        unsafe { TItem::from_ptr(self.ptr.add(index * TItem::STRIDE), self.mmio) }
+        unsafe { TItem::from_ptr(self.ptr.wrapping_add(index * TItem::STRIDE), self.mmio) }
     }
 
     /// Returns the item at `index`, or None if `index` is out of bounds.
@@ -700,7 +700,7 @@ impl<const LEN: usize, TItem: FromMmioPtr<TMmio = TMmio>, TMmio: Mmio + Copy> Ar
         } else {
             unsafe {
                 Some(TItem::from_ptr(
-                    self.ptr.add(index * TItem::STRIDE),
+                    self.ptr.wrapping_add(index * TItem::STRIDE),
                     self.mmio,
                 ))
             }
@@ -805,7 +805,7 @@ unsafe fn read_volatile_slice<T: Uint, TMmio: Mmio>(
     len: usize,
 ) {
     for i in 0..len {
-        dst.add(i).write(mmio.read_volatile(src.add(i)));
+        dst.add(i).write(mmio.read_volatile(src.wrapping_add(i)));
     }
 }
 
@@ -813,7 +813,7 @@ unsafe fn read_volatile_slice<T: Uint, TMmio: Mmio>(
 unsafe fn write_volatile_slice<T: Uint, TMmio: MmioMut>(mmio: &TMmio, dest: *mut T, val: &[T]) {
     #[allow(clippy::needless_range_loop)]
     for i in 0..val.len() {
-        mmio.write_volatile(dest.add(i), val[i]);
+        mmio.write_volatile(dest.wrapping_add(i), val[i]);
     }
 }
 

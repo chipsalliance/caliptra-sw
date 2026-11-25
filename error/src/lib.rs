@@ -21,7 +21,10 @@ pub struct CaliptraError(pub NonZeroU32);
 
 impl core::fmt::Display for CaliptraError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.write_str(self.error_name().unwrap())
+        match self.error_name() {
+            Some(name) => f.write_str(name),
+            None => write!(f, "0x{:08x}", self.0.get()),
+        }
     }
 }
 

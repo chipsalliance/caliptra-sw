@@ -511,12 +511,12 @@ static int caliptra_mailbox_write_fifo(const struct caliptra_buffer *buffer)
 
     // We have data to write, better check if have a place to read it
     // from.
-    if (buffer->data == NULL)
+    if (buffer->data == NULL || buffer->len > CALIPTRA_MAILBOX_MAX_SIZE)
     {
         return INVALID_PARAMS;
     }
 
-    uint32_t remaining_len = buffer->len;
+    uint32_t remaining_len = (uint32_t)buffer->len;
     const uint8_t *data_p = buffer->data;
 
     // Copy DWord multiples
@@ -775,8 +775,13 @@ int caliptra_mailbox_send_complete(struct caliptra_buffer *mbox_rx_buffer, bool 
  */
 int caliptra_mailbox_execute(uint32_t cmd, const struct caliptra_buffer *mbox_tx_buffer, struct caliptra_buffer *mbox_rx_buffer, bool async)
 {
+    if (mbox_tx_buffer == NULL || mbox_tx_buffer->len > CALIPTRA_MAILBOX_MAX_SIZE ||
+        (mbox_tx_buffer->len > 0 && mbox_tx_buffer->data == NULL)) {
+        return INVALID_PARAMS;
+    }
+
     // Mailbox send start
-    int status = caliptra_mailbox_send_start(cmd, mbox_tx_buffer->len);
+    int status = caliptra_mailbox_send_start(cmd, (uint32_t)mbox_tx_buffer->len);
     if (status) {
         return status;
     }

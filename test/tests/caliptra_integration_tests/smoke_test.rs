@@ -1033,8 +1033,8 @@ fn smoke_test() {
 
             // Check that the new rt-alias cert was signed correctly
             assert!(
-                rt_alias_cert.verify(&fmc_alias_pubkey).unwrap(),
-                "rt_alias cert failed to validate with fmc_alias pubkey"
+                rt_alias_cert2.verify(&fmc_alias_pubkey).unwrap(),
+                "rt_alias cert2 failed to validate with fmc_alias pubkey"
             );
 
             let rt_alias_pubkey2 = rt_alias_cert2.public_key().unwrap();

@@ -78,8 +78,14 @@ impl FipsTestHook {
     /// # Safety
     ///
     /// This function returns an intentionally corrupted version of the data provided
-    /// (Only when the hook_cmd matches the value from get_fips_test_hook_code)
+    /// (only when `hook_cmd` matches the value from `get_fips_test_hook_code`).
+    ///
+    /// `T` must be nonzero-sized with an initialized first byte (no padding at
+    /// byte offset 0) for which bitwise-inverting byte 0 produces a valid value of
+    /// type `T` (e.g. plain integer/byte arrays, never references, `bool`, or enums
+    /// with niches).
     pub unsafe fn corrupt_data_if_hook_set<T: core::marker::Copy>(hook_cmd: u8, data: &T) -> T {
+        const { assert!(core::mem::size_of::<T>() > 0) };
         if get_fips_test_hook_code() == hook_cmd {
             let mut mut_data = *data;
             let ptr_t = &mut mut_data as *mut T;

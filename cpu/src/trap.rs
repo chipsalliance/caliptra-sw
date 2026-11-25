@@ -77,8 +77,8 @@ impl From<u32> for Exception {
             0x03 => Exception::Breakpoint,
             0x04 => Exception::LoadMisaligned,
             0x05 => Exception::LoadAccessFault,
-            0x07 => Exception::StoreMisaligned,
-            0x08 => Exception::StoreAccessFault,
+            0x06 => Exception::StoreMisaligned,
+            0x07 => Exception::StoreAccessFault,
             0x0b => Exception::MachineEnvCall,
             _ => Exception::NotImplemented,
         }

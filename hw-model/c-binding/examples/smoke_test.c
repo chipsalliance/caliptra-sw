@@ -89,8 +89,12 @@ int main(int argc, char *argv[])
     };
 
     // Initialize Model
-    struct caliptra_model *model;
-    caliptra_model_init_default(init_params, &model);
+    struct caliptra_model *model = NULL;
+    int status = caliptra_model_init_default(init_params, &model);
+    if (status != CALIPTRA_MODEL_STATUS_OK || model == NULL) {
+        fprintf(stderr, "caliptra_model_init_default failed: %d\n", status);
+        return status != 0 ? status : 1;
+    }
 
     // Initialize Fuses (Todo: Set real fuse values)
     struct caliptra_fuses fuses = {0};

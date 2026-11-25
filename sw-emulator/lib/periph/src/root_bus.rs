@@ -592,54 +592,13 @@ impl CaliptraRootBus {
     }
 
     fn incoming_event(&mut self, event: Rc<Event>) {
-        self.aes.incoming_event(event.clone());
-        self.aes_clp.incoming_event(event.clone());
-        self.rom.incoming_event(event.clone());
-        self.doe.incoming_event(event.clone());
-        self.doe.incoming_event(event.clone());
-        self.ecc384.incoming_event(event.clone());
-        self.hmac.incoming_event(event.clone());
-        self.key_vault.incoming_event(event.clone());
-        self.sha512.incoming_event(event.clone());
-        self.sha256.incoming_event(event.clone());
-        self.abr.incoming_event(event.clone());
-        self.iccm.incoming_event(event.clone());
-        self.dccm.incoming_event(event.clone());
-        self.uart.incoming_event(event.clone());
-        self.ctrl.incoming_event(event.clone());
-        self.soc_reg.incoming_event(event.clone());
-        self.mailbox_sram.incoming_event(event.clone());
-        self.mailbox.incoming_event(event.clone());
-        self.sha512_acc.incoming_event(event.clone());
-        self.dma.incoming_event(event.clone());
-        self.csrng.incoming_event(event.clone());
-        self.pic_regs.incoming_event(event);
+        // #[derive(Bus)] already forwards incoming_event to all #[peripheral] fields.
+        self.mci.incoming_event(event);
     }
 
     fn register_outgoing_events(&mut self, sender: mpsc::Sender<Event>) {
-        self.aes.register_outgoing_events(sender.clone());
-        self.aes_clp.register_outgoing_events(sender.clone());
-        self.rom.register_outgoing_events(sender.clone());
-        self.doe.register_outgoing_events(sender.clone());
-        self.doe.register_outgoing_events(sender.clone());
-        self.ecc384.register_outgoing_events(sender.clone());
-        self.hmac.register_outgoing_events(sender.clone());
-        self.key_vault.register_outgoing_events(sender.clone());
-        self.sha512.register_outgoing_events(sender.clone());
-        self.sha256.register_outgoing_events(sender.clone());
-        self.abr.register_outgoing_events(sender.clone());
-        self.iccm.register_outgoing_events(sender.clone());
-        self.dccm.register_outgoing_events(sender.clone());
-        self.uart.register_outgoing_events(sender.clone());
-        self.ctrl.register_outgoing_events(sender.clone());
-        self.soc_reg.register_outgoing_events(sender.clone());
-        self.mailbox_sram.register_outgoing_events(sender.clone());
-        self.mailbox.register_outgoing_events(sender.clone());
-        self.sha512_acc.register_outgoing_events(sender.clone());
-        self.dma.register_outgoing_events(sender.clone());
-        self.csrng.register_outgoing_events(sender.clone());
-        self.pic_regs.register_outgoing_events(sender.clone());
-        self.mci.register_outgoing_events(sender.clone());
+        // #[derive(Bus)] already forwards register_outgoing_events to all #[peripheral] fields.
+        self.mci.register_outgoing_events(sender);
     }
 }
 

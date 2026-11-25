@@ -833,7 +833,7 @@ impl<'a> DmaRecovery<'a> {
             I3CRegisterBlock::new_with_mmio(
                 // substract the recovery offset since all recovery registers are relative to 0 but need to be relative to 0x100
                 core::ptr::null_mut::<u32>()
-                    .sub(Self::RECOVERY_REGISTER_OFFSET / core::mem::size_of::<u32>()),
+                    .wrapping_sub(Self::RECOVERY_REGISTER_OFFSET / core::mem::size_of::<u32>()),
                 &mmio,
             )
         };
@@ -854,7 +854,7 @@ impl<'a> DmaRecovery<'a> {
             I3CRegisterBlock::new_with_mmio(
                 // substract the recovery offset since all recovery registers are relative to 0 but need to be relative to 0x100
                 core::ptr::null_mut::<u32>()
-                    .sub(Self::RECOVERY_REGISTER_OFFSET / core::mem::size_of::<u32>()),
+                    .wrapping_sub(Self::RECOVERY_REGISTER_OFFSET / core::mem::size_of::<u32>()),
                 &mmio,
             )
         };
@@ -872,7 +872,7 @@ impl<'a> DmaRecovery<'a> {
             ShaAccRegisterBlock::new_with_mmio(
                 // add the accelerator offset since all registers are relative to 0x2100 but need to be relative to 0x0
                 core::ptr::null_mut::<u32>()
-                    .add(Self::SHA_ACC_OFFSET / core::mem::size_of::<u32>()),
+                    .wrapping_add(Self::SHA_ACC_OFFSET / core::mem::size_of::<u32>()),
                 &mmio,
             )
         };
