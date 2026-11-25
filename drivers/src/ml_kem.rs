@@ -119,30 +119,6 @@ impl From<KeyReadArgs> for MlKem1024Seeds<'_> {
     }
 }
 
-/// ML-KEM-1024 Message source
-#[derive(Copy, Clone)]
-pub enum MlKem1024MessageSource<'a> {
-    /// Array
-    Array(&'a MlKem1024Message),
-
-    /// Key Vault Key
-    Key(KeyReadArgs),
-}
-
-impl<'a> From<&'a MlKem1024Message> for MlKem1024MessageSource<'a> {
-    /// Converts to this type from the input type.
-    fn from(value: &'a MlKem1024Message) -> Self {
-        Self::Array(value)
-    }
-}
-
-impl From<KeyReadArgs> for MlKem1024MessageSource<'_> {
-    /// Converts to this type from the input type.
-    fn from(value: KeyReadArgs) -> Self {
-        Self::Key(value)
-    }
-}
-
 /// ML-KEM-1024 Shared Key output
 pub enum MlKem1024SharedKeyOut<'a> {
     /// Array
@@ -324,7 +300,7 @@ impl<'a> MlKem1024<'a> {
             let pct_ciphertext = self
                 .encapsulate(
                     encaps_key,
-                    MlKem1024MessageSource::Array(&pct_msg),
+                    &pct_msg,
                     MlKem1024SharedKeyOut::Array(&mut pct_shared_key_enc),
                 )
                 .map_err(|_| CaliptraError::DRIVER_MLKEM_KEYGEN_PAIRWISE_CONSISTENCY_FAILURE)?;
@@ -364,7 +340,7 @@ impl<'a> MlKem1024<'a> {
         // Encapsulate → shared secret to scratch KV slot
         let pct_ciphertext = self.encapsulate(
             encaps_key,
-            MlKem1024MessageSource::Array(&pct_msg),
+            &pct_msg,
             MlKem1024SharedKeyOut::Key(KeyWriteArgs {
                 id: sk_slot,
                 usage: KeyUsage::default().set_aes_key_en(),
@@ -412,7 +388,7 @@ impl<'a> MlKem1024<'a> {
     /// # Arguments
     ///
     /// * `encaps_key` - Encapsulation key.
-    /// * `message` - Message source (array or key vault).
+    /// * `message` - 32-byte encapsulation message.
     /// * `shared_key_out` - Shared key output destination.
     ///
     /// # Returns
@@ -422,26 +398,16 @@ impl<'a> MlKem1024<'a> {
     pub fn encapsulate(
         &mut self,
         encaps_key: &MlKem1024EncapsKey,
-        message: MlKem1024MessageSource,
+        message: &MlKem1024Message,
         shared_key_out: MlKem1024SharedKeyOut,
     ) -> CaliptraResult<MlKem1024Ciphertext> {
         self.zeroize_internal()?;
 
         let mlkem = self.mlkem.regs_mut();
 
-        // Copy encapsulation key
+        // Copy encapsulation key and message
         encaps_key.write_to_reg(mlkem.mlkem_encaps_key());
-
-        // Copy message
-        match message {
-            MlKem1024MessageSource::Array(msg) => msg.write_to_reg(mlkem.mlkem_msg()),
-            MlKem1024MessageSource::Key(key) => KvAccess::copy_from_kv(
-                key,
-                mlkem.kv_mlkem_msg_rd_status(),
-                mlkem.kv_mlkem_msg_rd_ctrl(),
-            )
-            .map_err(|err| err.into_read_msg_err())?,
-        }
+        message.write_to_reg(mlkem.mlkem_msg());
 
         // Set up shared key output destination
         let mut shared_key_out = shared_key_out;
@@ -460,7 +426,6 @@ impl<'a> MlKem1024<'a> {
                         .ecc_seed_dest_valid(key.usage.ecc_key_gen_seed())
                         .aes_key_dest_valid(key.usage.aes_key())
                         .mlkem_seed_dest_valid(key.usage.mlkem_seed())
-                        .mlkem_msg_dest_valid(key.usage.mlkem_msg())
                 });
             }
         }
@@ -535,7 +500,6 @@ impl<'a> MlKem1024<'a> {
                         .ecc_seed_dest_valid(key.usage.ecc_key_gen_seed())
                         .aes_key_dest_valid(key.usage.aes_key())
                         .mlkem_seed_dest_valid(key.usage.mlkem_seed())
-                        .mlkem_msg_dest_valid(key.usage.mlkem_msg())
                 });
             }
         }
@@ -621,7 +585,6 @@ impl<'a> MlKem1024<'a> {
                         .ecc_seed_dest_valid(key.usage.ecc_key_gen_seed())
                         .aes_key_dest_valid(key.usage.aes_key())
                         .mlkem_seed_dest_valid(key.usage.mlkem_seed())
-                        .mlkem_msg_dest_valid(key.usage.mlkem_msg())
                 });
             }
         }
@@ -706,8 +669,6 @@ impl<'a> MlKem1024<'a> {
 trait MlKemKeyAccessErr {
     /// Convert to read seed operation error
     fn into_read_seed_err(self) -> CaliptraError;
-    /// Convert to read message operation error
-    fn into_read_msg_err(self) -> CaliptraError;
 }
 
 impl MlKemKeyAccessErr for KvAccessErr {
@@ -717,15 +678,6 @@ impl MlKemKeyAccessErr for KvAccessErr {
             KvAccessErr::KeyRead => CaliptraError::DRIVER_MLKEM_READ_SEED_KV_READ,
             KvAccessErr::KeyWrite => CaliptraError::DRIVER_MLKEM_READ_SEED_KV_WRITE,
             KvAccessErr::Generic => CaliptraError::DRIVER_MLKEM_READ_SEED_KV_UNKNOWN,
-        }
-    }
-
-    /// Convert to read message operation error
-    fn into_read_msg_err(self) -> CaliptraError {
-        match self {
-            KvAccessErr::KeyRead => CaliptraError::DRIVER_MLKEM_READ_MSG_KV_READ,
-            KvAccessErr::KeyWrite => CaliptraError::DRIVER_MLKEM_READ_MSG_KV_WRITE,
-            KvAccessErr::Generic => CaliptraError::DRIVER_MLKEM_READ_MSG_KV_UNKNOWN,
         }
     }
 }

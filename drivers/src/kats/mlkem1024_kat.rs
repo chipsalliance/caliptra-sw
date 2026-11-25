@@ -14,9 +14,8 @@ Abstract:
 --*/
 
 use crate::{
-    cprintln, Array4x16, CaliptraError, CaliptraResult, LEArray4x8, MlKem1024,
-    MlKem1024MessageSource, MlKem1024Seeds, MlKem1024SharedKey, MlKem1024SharedKeyOut,
-    Sha2_512_384,
+    cprintln, Array4x16, CaliptraError, CaliptraResult, LEArray4x8, MlKem1024, MlKem1024Seeds,
+    MlKem1024SharedKey, MlKem1024SharedKeyOut, Sha2_512_384,
 };
 use caliptra_registers::sha512::Sha512Reg;
 use zerocopy::IntoBytes;
@@ -97,7 +96,7 @@ fn kat_keygen_encaps_decaps(
     let mut ciphertext = mlkem
         .encapsulate(
             &ek,
-            MlKem1024MessageSource::Array(&ENCAPS_M),
+            &ENCAPS_M,
             MlKem1024SharedKeyOut::Array(&mut shared_key_enc),
         )
         .map_err(|_| CaliptraError::KAT_MLKEM1024_ENCAPSULATE_FAILURE)?;
