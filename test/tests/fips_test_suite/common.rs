@@ -83,7 +83,12 @@ const ROM_EXP_1_2_0: RomExpVals = RomExpVals {
     ..ROM_EXP_1_1_0
 };
 
-const ROM_EXP_CURRENT: RomExpVals = RomExpVals { ..ROM_EXP_1_2_0 };
+const ROM_EXP_1_2_1: RomExpVals = RomExpVals {
+    rom_version: 0x881, // 1.2.1
+    ..ROM_EXP_1_2_0
+};
+
+const ROM_EXP_CURRENT: RomExpVals = RomExpVals { ..ROM_EXP_1_2_1 };
 
 // ===  RUNTIME  ===
 pub struct RtExpVals {
@@ -183,7 +188,14 @@ const RT_EXP_1_3_1: RtExpVals = RtExpVals {
     ..RT_EXP_1_3_0
 };
 
-const RT_EXP_CURRENT: RtExpVals = RtExpVals { ..RT_EXP_1_3_1 };
+const RT_EXP_1_3_2: RtExpVals = RtExpVals {
+    fmc_version: 0x8C2,      // 1.3.2
+    fw_version: 0x0103_0002, // 1.3.2
+    supports_get_pcr_log: true,
+    ..RT_EXP_1_3_1
+};
+
+const RT_EXP_CURRENT: RtExpVals = RtExpVals { ..RT_EXP_1_3_2 };
 
 // === Getter implementations ===
 // TODO: These could be improved
@@ -232,6 +244,7 @@ impl RomExpVals {
                 "1_1_0" => ROM_EXP_1_1_0,
                 "1_1_1" => ROM_EXP_1_1_1,
                 "1_2_0" => ROM_EXP_1_2_0,
+                "1_2_1" => ROM_EXP_1_2_1,
                 _ => panic!(
                     "FIPS Test: Unknown version for expected ROM values ({})",
                     version
