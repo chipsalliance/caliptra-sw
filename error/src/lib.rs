@@ -2198,6 +2198,16 @@ impl CaliptraError {
             "FMC Error: Invalid firmware handoff table"
         ),
         (
+            FMC_REGENERATE_FMC_ECC_PUB_KEY_MISMATCH,
+            0x000F0001C,
+            "FMC Error: Regenerated FMC ECC public key mismatch"
+        ),
+        (
+            FMC_REGENERATE_FMC_MLDSA_PUB_KEY_MISMATCH,
+            0x000F0001D,
+            "FMC Error: Regenerated FMC MLDSA public key mismatch"
+        ),
+        (
             DRIVER_TRNG_EXT_TIMEOUT,
             0x00100001,
             "TRNG_EXT Error: Timeout"

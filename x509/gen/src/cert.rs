@@ -97,6 +97,21 @@ impl<AlgoIssuer: SigningAlgorithm, AlgoSubject: SigningAlgorithm>
         self
     }
 
+    /// Add the signed PCR key binding and register its digest for ROM template substitution.
+    pub fn add_pcr_signing_key_digest_ext(mut self, oid: &str, digest: &[u8]) -> Self {
+        self.exts
+            .push(x509::make_pcr_signing_key_digest_ext(oid, digest))
+            .unwrap();
+
+        // Locate the placeholder digest in DER so ROM can replace it with the actual key binding.
+        self.params.push(CertTemplateParam {
+            tbs_param: TbsParam::new("PCR_SIGNING_KEY_DIGEST", 0, digest.len()),
+            needle: digest.to_vec(),
+        });
+
+        self
+    }
+
     pub fn add_fmc_dice_tcb_info_ext(
         mut self,
         owner_device_fwids: &[FwidParam],

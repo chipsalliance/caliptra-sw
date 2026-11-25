@@ -39,6 +39,9 @@ const AUTH_KEY_ID_OID: &str = "2.5.29.35";
 const TCG_UEID_OID: &str = "2.23.133.5.4.4";
 const TCG_TCB_INFO_OID: &str = "2.23.133.5.4.1";
 const TCG_MULTI_TCB_INFO_OID: &str = "2.23.133.5.4.5";
+// Keep template OIDs aligned with the firmware binding helpers in caliptra_common::x509.
+pub const PCR_SIGNING_ECC384_PUB_KEY_DIGEST_OID: &str = "1.3.6.1.4.1.42623.2.1";
+pub const PCR_SIGNING_MLDSA87_PUB_KEY_DIGEST_OID: &str = "1.3.6.1.4.1.42623.2.2";
 
 // TCG DICE Key Purpose OIDs (2.23.133.5.4.100.X)
 pub const TCG_DICE_KP_IDENTITY_INIT: &str = "2.23.133.5.4.100.6";
@@ -454,6 +457,16 @@ pub fn make_tcg_ueid_ext(ueid: &[u8]) -> X509Extension {
     let der = asn1::write_single(&tcg_ueid).unwrap();
     let der = Asn1OctetString::new_from_bytes(&der).unwrap();
     let oid = Asn1Object::from_str(TCG_UEID_OID).unwrap();
+    X509Extension::new_from_der(&oid, false, &der).unwrap()
+}
+
+/// Encode the digest as a non-critical extension in the FMC Alias certificate.
+pub fn make_pcr_signing_key_digest_ext(oid: &str, digest: &[u8]) -> X509Extension {
+    // X.509 extnValue wraps a DER OCTET STRING containing the 48-byte binding digest.
+    let der = asn1::write_single(&digest).unwrap();
+    let der = Asn1OctetString::new_from_bytes(&der).unwrap();
+    let oid = Asn1Object::from_str(oid).unwrap();
+    // Non-critical for certificate compatibility; quote verifiers still must check this binding.
     X509Extension::new_from_der(&oid, false, &der).unwrap()
 }
 

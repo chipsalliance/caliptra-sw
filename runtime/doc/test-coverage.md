@@ -127,7 +127,15 @@ Checks the limit on the number of active DPE contexts belonging to PL0 by adding
 # **PCR Tests**
 Test Scenario| Test Name | Runtime Error Code
 ---|---|---
-Increments the PCR reset counter, calls the quote_pcr mailbox command, and verifies the response | **test_pcr_quote** | N/A
+Increments the PCR reset counter, validates the FMC certificate public-key binding, and verifies an ECC PCR quote with the dedicated key | **test_pcr_quote_ecc** | N/A
+Increments the PCR reset counter, validates the FMC certificate public-key binding, and verifies an MLDSA PCR quote with the dedicated key | **test_pcr_quote_mldsa** | N/A
+Checks PCR key write/use locks after cold and protected warm boot | **test_pcr_signing_keys_are_write_and_use_locked** | N/A
+Checks that ECC and MLDSA PCR public keys survive protected warm reset | **test_pcr_signing_keys_persist_across_warm_reset** | N/A
+Checks that debug-unlocked update retains FMC CDI/PCR keys, restores write/use locks, and preserves both certificate bindings | **test_pcr_key_locks_after_debug_unlocked_update_reset** | N/A
+Checks erasure at ROM/FMC and FMC/RT handoff, repeated warm recovery, retained CDI/PCR keys, and an RT-changing update | **test_fmc_key_erasure_and_recovery_across_resets** | N/A
+Erases the retained FMC CDI and checks that FMC blocks RT handoff | **test_erased_fmc_cdi_blocks_handoff** | FMC_REGENERATE_FMC_ECC_KEY_PAIR_FAILED
+Corrupts each certified FMC public key and checks that regeneration blocks RT handoff | **test_fmc_public_key_mismatch_blocks_handoff** | FMC_REGENERATE_FMC_ECC_PUB_KEY_MISMATCH / FMC_REGENERATE_FMC_MLDSA_PUB_KEY_MISMATCH
+Use-locks either FMC Alias slot before ROM or FMC erasure and checks that RT handoff is blocked | **test_fmc_alias_erase_failure_blocks_handoff** | DRIVER_KV_ERASE_USE_LOCK_SET_FAILURE
 Calls the extend_pcr mailbox command on various PCRs and checks that the PCR values are updated correctly | **test_extend_pcr_cmd_multiple_extensions** | N/A
 Checks that extending an invalid PCR index throws an error | **test_extend_pcr_cmd_invalid_pcr_index** | RUNTIME_PCR_INVALID_INDEX
 Checks that extending a reserved PCR throws an error | **test_extend_pcr_cmd_reserved_range** | RUNTIME_PCR_RESERVED

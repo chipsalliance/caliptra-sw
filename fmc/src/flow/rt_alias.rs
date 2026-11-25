@@ -26,7 +26,8 @@ use caliptra_common::cfi_check;
 use caliptra_common::cprintln;
 use caliptra_common::crypto::{Crypto, Ecc384KeyPair, MlDsaKeyPair, PubKey};
 use caliptra_common::keyids::{
-    KEY_ID_RT_CDI, KEY_ID_RT_ECDSA_PRIV_KEY, KEY_ID_RT_MLDSA_KEYPAIR_SEED, KEY_ID_TMP,
+    KEY_ID_PCR_ECDSA_PRIV_KEY, KEY_ID_PCR_MLDSA_KEYPAIR_SEED, KEY_ID_RT_CDI,
+    KEY_ID_RT_ECDSA_PRIV_KEY, KEY_ID_RT_MLDSA_KEYPAIR_SEED, KEY_ID_TMP,
 };
 use caliptra_common::HexBytes;
 use caliptra_drivers::{
@@ -46,16 +47,6 @@ impl RtAliasLayer {
     /// Perform derivations for the DICE layer
     #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     fn derive(env: &mut FmcEnv, input: &DiceInput) -> CaliptraResult<DiceOutput> {
-        if Self::kv_slot_collides(input.cdi) {
-            return Err(CaliptraError::FMC_CDI_KV_COLLISION);
-        }
-
-        if Self::kv_slot_collides(input.ecc_auth_key_pair.priv_key)
-            || Self::kv_slot_collides(input.mldsa_auth_key_pair.key_pair_seed)
-        {
-            return Err(CaliptraError::FMC_ALIAS_KV_COLLISION);
-        }
-
         cprintln!("[alias rt] Derive CDI");
         cprintln!("[alias rt] Store it in slot 0x{:x}", KEY_ID_RT_CDI as u8);
 
@@ -111,6 +102,11 @@ impl RtAliasLayer {
 
         // Generate Rt Alias Certificate
         Self::generate_cert_sig(env, input, &output, &nb.value, &nf.value)?;
+        // Erase both signing-authority secrets after certificate verification.
+        // Propagate erase failures so Runtime handoff cannot proceed with retained FMC keys.
+        env.key_vault.erase_key(input.ecc_auth_key_pair.priv_key)?;
+        env.key_vault
+            .erase_key(input.mldsa_auth_key_pair.key_pair_seed)?;
         Ok(output)
     }
 
@@ -119,11 +115,21 @@ impl RtAliasLayer {
             || slot == KEY_ID_RT_ECDSA_PRIV_KEY
             || slot == KEY_ID_RT_MLDSA_KEYPAIR_SEED
             || slot == KEY_ID_TMP
+            || slot == KEY_ID_PCR_ECDSA_PRIV_KEY
+            || slot == KEY_ID_PCR_MLDSA_KEYPAIR_SEED
     }
 
     #[cfg_attr(feature = "cfi", cfi_impl_fn)]
     #[inline(never)]
     pub fn run(env: &mut FmcEnv) -> CaliptraResult<()> {
+        // ROM erased its FMC Alias keys; regenerate the certified authority on every boot.
+        let input = Self::dice_input_from_hand_off(env)?;
+        if env.soc_ifc.reset_reason() == ResetReason::ColdReset {
+            cfi_assert_eq(env.soc_ifc.reset_reason(), ResetReason::ColdReset);
+            // CSR signing must wait until the FMC Alias keys have been regenerated and checked.
+            super::fmc_alias_csr::generate_csr(env)?;
+        }
+
         cprintln!("[alias rt] Extend RT PCRs");
         Self::extend_pcrs(env)?;
         cprintln!("[alias rt] Extend RT PCRs Done");
@@ -137,15 +143,9 @@ impl RtAliasLayer {
 
         report_boot_status(crate::FmcBootStatus::RtMeasurementComplete as u32);
 
-        // Retrieve Dice Input Layer from Hand Off and Derive Key
-        match Self::dice_input_from_hand_off(env) {
-            Ok(input) => {
-                let out = Self::derive(env, &input)?;
-                report_boot_status(crate::FmcBootStatus::RtAliasDerivationComplete as u32);
-                HandOff::update(env, out)
-            }
-            _ => Err(CaliptraError::FMC_RT_ALIAS_DERIVE_FAILURE),
-        }
+        let out = Self::derive(env, &input)?;
+        report_boot_status(crate::FmcBootStatus::RtAliasDerivationComplete as u32);
+        HandOff::update(env, out)
     }
 
     /// Retrieve DICE Input from HandsOff
@@ -158,29 +158,26 @@ impl RtAliasLayer {
     ///
     /// * `DiceInput` - DICE Layer Input
     fn dice_input_from_hand_off(env: &mut FmcEnv) -> CaliptraResult<DiceInput> {
-        // In debug mode, the key vault is wiped on warm reset but IDEV, LDEV,
-        // and FMC alias are not re-derived by the ROM. Regenerate dummy FMC
-        // key pairs from the (now-zeroed) CDI slot so that the RT alias
-        // derivation can still proceed.
+        let (ecc_auth_key_pair, mldsa_auth_key_pair) = Self::regenerate_fmc_key_pairs(env)?;
         let reset_reason = env.soc_ifc.reset_reason();
         let debug_not_locked = !env.soc_ifc.debug_locked();
-        let (ecc_auth_key_pair, mldsa_auth_key_pair) =
-            if reset_reason == ResetReason::WarmReset && debug_not_locked {
-                cfi_assert_eq(reset_reason, ResetReason::WarmReset);
-                cfi_assert_bool(debug_not_locked);
-                Self::regenerate_fmc_key_pairs(env)?
-            } else {
-                (
-                    Ecc384KeyPair {
-                        priv_key: HandOff::fmc_ecc_priv_key(env),
-                        pub_key: HandOff::fmc_ecc_pub_key(env),
-                    },
-                    MlDsaKeyPair {
-                        key_pair_seed: HandOff::fmc_mldsa_keypair_seed_key(env),
-                        pub_key: HandOff::fmc_mldsa_pub_key(env),
-                    },
-                )
-            };
+        if reset_reason == ResetReason::WarmReset && debug_not_locked {
+            // Wiped FMC CDI produces dummy FMC Alias keys, so only this debug path skips comparison.
+            cfi_assert_eq(reset_reason, ResetReason::WarmReset);
+            cfi_assert_bool(debug_not_locked);
+        } else {
+            // Fail closed unless the retained CDI reproduces both ROM-certified identities.
+            let expected_ecc_pub_key = HandOff::fmc_ecc_pub_key(env);
+            if cfi_launder(ecc_auth_key_pair.pub_key != expected_ecc_pub_key) {
+                return Err(CaliptraError::FMC_REGENERATE_FMC_ECC_PUB_KEY_MISMATCH);
+            }
+            cfi_assert_bool(ecc_auth_key_pair.pub_key == expected_ecc_pub_key);
+            let expected_mldsa_pub_key = HandOff::fmc_mldsa_pub_key(env);
+            if cfi_launder(mldsa_auth_key_pair.pub_key != expected_mldsa_pub_key) {
+                return Err(CaliptraError::FMC_REGENERATE_FMC_MLDSA_PUB_KEY_MISMATCH);
+            }
+            cfi_assert_bool(mldsa_auth_key_pair.pub_key == expected_mldsa_pub_key);
+        }
 
         let ecc_auth_sn = x509::subj_sn(&mut env.sha256, &PubKey::Ecc(&ecc_auth_key_pair.pub_key))?;
         let ecc_auth_key_id =
@@ -413,13 +410,7 @@ impl RtAliasLayer {
         // Generate the `To Be Signed` portion of the CSR
         let tbs = RtAliasCertTbsEcc384::new(&params);
 
-        // Sign the `To Be Signed` portion
-        cprintln!(
-            "[alias rt] Signing ECC Cert with AUTHORITY.KEYID = {}",
-            auth_priv_key as u8
-        );
-
-        // Sign the AliasRt To Be Signed DER Blob with AliasFMC Private Key in Key Vault Slot 7
+        // Sign the AliasRt TBS with the FHT-selected AliasFMC ECC private key.
         let sig = Crypto::ecdsa384_sign(
             &mut env.sha2_512_384,
             &mut env.ecc384,
@@ -429,14 +420,7 @@ impl RtAliasLayer {
             tbs.tbs(),
         );
         let sig = okref(&sig)?;
-        // Lock the authority private key and FMC CDI
-        cprintln!(
-            "[alias rt] Locking ECC AUTHORITY.KEYID = {} & FMC CDI = {}",
-            auth_priv_key as u8,
-            input.cdi as u8
-        );
-        // FMC ensures that CDIFMC and PrivateKeyFMC are locked to block further usage until the next boot.
-        env.key_vault.set_key_use_lock(auth_priv_key);
+        // Retain the CDI for the next boot, but erase the authority key after both certificates.
         env.key_vault.set_key_use_lock(input.cdi);
 
         let _pub_x: [u8; 48] = (&pub_key.x).into();
@@ -508,13 +492,7 @@ impl RtAliasLayer {
         // Generate the `To Be Signed` portion of the CSR
         let tbs = RtAliasCertTbsMlDsa87::new(&params);
 
-        // Sign the `To Be Signed` portion
-        cprintln!(
-            "[alias rt] Signing MLDSA Cert with AUTHORITY.KEYID = {}",
-            key_pair_seed as u8
-        );
-
-        // Sign the AliasRt To Be Signed DER Blob with AliasFMC Private Key in Key Vault Slot 7
+        // Sign the AliasRt TBS with the FHT-selected AliasFMC MLDSA keypair seed.
         let sig = env.abr.with_mldsa87(|mut mldsa87| {
             Crypto::mldsa87_sign(
                 &mut mldsa87,
@@ -525,16 +503,6 @@ impl RtAliasLayer {
             )
         });
         let sig = okref(&sig)?;
-        // Lock the authority private key and FMC CDI
-        cprintln!(
-            "[alias rt] Locking MLDSA AUTHORITY.KEYID = {} & FMC CDI = {}",
-            key_pair_seed as u8,
-            input.cdi as u8
-        );
-        // FMC ensures that CDIFMC and PrivateKeyFMC are locked to block further usage until the next boot.
-        env.key_vault.set_key_use_lock(key_pair_seed);
-        env.key_vault.set_key_use_lock(input.cdi);
-
         // Verify the signature of the `To Be Signed` portion
         let verify_result = env.abr.with_mldsa87(|mut mldsa87| {
             Crypto::mldsa87_verify(&mut mldsa87, auth_pub_key, tbs.tbs(), sig)
@@ -587,14 +555,11 @@ impl RtAliasLayer {
         Ok(pcr)
     }
 
-    /// Regenerate dummy FMC alias key pairs from the FMC CDI key vault slot.
+    /// Regenerate FMC alias key pairs from the retained FMC CDI.
     ///
-    /// In debug mode, the key vault is wiped on a warm reset, but the ROM
-    /// does not re-derive IDEV, LDEV, or FMC alias keys. This function
-    /// generates new FMC ECC and MLDSA key pairs from the (now-zeroed) CDI
-    /// slot so that the RT alias derivation flow can still execute. The
-    /// resulting keys will not match the keys certified in the FMC alias
-    /// certificate.
+    /// Normal boots recover the certified keys, which the caller verifies before signing.
+    /// Debug-unlocked warm reset instead produces dummy keys from wiped CDI state;
+    /// only that debug path skips comparison with the certified public keys.
     ///
     /// # Arguments
     ///
@@ -609,6 +574,20 @@ impl RtAliasLayer {
         let fmc_ecc_priv_key = HandOff::fmc_ecc_priv_key(env);
         let fmc_mldsa_keypair_seed = HandOff::fmc_mldsa_keypair_seed_key(env);
 
+        // Check all destinations before key generation can overwrite retained or RT state.
+        if Self::kv_slot_collides(fmc_cdi) {
+            return Err(CaliptraError::FMC_CDI_KV_COLLISION);
+        }
+        if Self::kv_slot_collides(fmc_ecc_priv_key)
+            || Self::kv_slot_collides(fmc_mldsa_keypair_seed)
+            || fmc_ecc_priv_key == fmc_cdi
+            || fmc_mldsa_keypair_seed == fmc_cdi
+            || fmc_ecc_priv_key == fmc_mldsa_keypair_seed
+        {
+            return Err(CaliptraError::FMC_ALIAS_KV_COLLISION);
+        }
+
+        // Match ROM's derivation labels so the regenerated keys retain their certificate identity.
         let ecc_key_pair = Crypto::ecc384_key_gen(
             &mut env.ecc384,
             &mut env.hmac,

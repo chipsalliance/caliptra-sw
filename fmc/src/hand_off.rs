@@ -77,7 +77,8 @@ impl HandOff {
         env.persistent_data.get().rom.data_vault.fmc_mldsa_pub_key()
     }
 
-    /// Retrieve FMC Alias ECC Private Key
+    /// Retrieve the destination slot for the regenerated FMC Alias ECC private key.
+    /// The handle remains valid even though ROM erased the key before handoff.
     pub fn fmc_ecc_priv_key(env: &FmcEnv) -> KeyId {
         let ds: DataStore = Self::fht(env)
             .fmc_ecc_priv_key_kv_hdl
@@ -88,10 +89,7 @@ impl HandOff {
             });
 
         match ds {
-            KeyVaultSlot(key_id) => {
-                cprintln!("[fht] FMC Alias ECC Private Key: {:?}", u32::from(key_id));
-                key_id
-            }
+            KeyVaultSlot(key_id) => key_id,
             _ => {
                 cprintln!("[fht] Invalid KeySlot DV Entry");
                 handle_fatal_error(CaliptraError::FMC_HANDOFF_INVALID_PARAM.into())
@@ -99,7 +97,8 @@ impl HandOff {
         }
     }
 
-    /// Retrieve FMC Alias MLDSA KeyPair Seed KV Slot
+    /// Retrieve the destination slot for the regenerated FMC Alias MLDSA keypair seed.
+    /// The handle remains valid even though ROM erased the seed before handoff.
     pub fn fmc_mldsa_keypair_seed_key(env: &FmcEnv) -> KeyId {
         let ds: DataStore = Self::fht(env)
             .fmc_mldsa_keypair_seed_kv_hdl
@@ -110,13 +109,7 @@ impl HandOff {
             });
 
         match ds {
-            KeyVaultSlot(key_id) => {
-                cprintln!(
-                    "[fht] FMC Alias MLDSA Key Pair Seed KV Slot: {:?}",
-                    u32::from(key_id)
-                );
-                key_id
-            }
+            KeyVaultSlot(key_id) => key_id,
             _ => {
                 cprintln!("[fht] Invalid KeySlot DV Entry");
                 handle_fatal_error(CaliptraError::FMC_HANDOFF_INVALID_PARAM.into())
