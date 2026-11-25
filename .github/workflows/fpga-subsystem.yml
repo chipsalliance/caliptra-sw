@@ -243,9 +243,6 @@ jobs:
           else
             FEATURES=fpga_subsystem,itrng,ocp-lock,flash-boot
           fi
-          if [[ "${{ inputs.workflow_call }}" && "${{ inputs.hw-version }}" != "latest" ]]; then
-            FEATURES=$FEATURES,hw-${{ inputs.hw-version }}
-          fi
           cargo nextest archive \
             --features=${FEATURES} \
             --release \
@@ -280,11 +277,7 @@ jobs:
           rustup target add riscv32imc-unknown-none-elf
           mkdir /tmp/caliptra-test-firmware
 
-          FEATURES=""
-          if [[ "${{ inputs.workflow_call }}" && "${{ inputs.hw-version }}" != "latest" ]]; then
-            FEATURES=hw-${{ inputs.hw-version }}
-          fi
-          cargo run --release -p caliptra-builder --features=${FEATURES} -- --all_elfs /tmp/caliptra-test-firmware
+          cargo run --release -p caliptra-builder -- --all_elfs /tmp/caliptra-test-firmware
           cp mcu-rom-fpga.bin /tmp/caliptra-test-firmware/mcu-rom-fpga.bin
 
       - name: 'Upload test firmware artifact'
