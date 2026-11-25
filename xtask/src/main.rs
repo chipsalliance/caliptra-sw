@@ -30,7 +30,7 @@ struct Xtask {
     verbose: bool,
     /// Specify the hardware revision to build against
     ///
-    /// Valid forms are "x.y" or "latest".
+    /// Supported values are "2.1" and "latest".
     #[arg(short, long, global = true)]
     rev: Option<String>,
     #[command(subcommand)]
@@ -120,6 +120,15 @@ pub enum BuildCommands {
     Runtime,
     TestFw,
     All,
+    /// Print the resolved firmware feature list for a Makefile or direct Cargo build
+    Features {
+        /// Firmware Cargo package
+        #[arg(long)]
+        package: String,
+        /// Requested Cargo features
+        #[arg(long, value_delimiter = ',')]
+        features: Vec<String>,
+    },
     /// Build OCP recovery images (Caliptra bundle, SoC manifest, MCU firmware)
     RecoveryImages {
         /// Directory to output the recovery binary artifacts
@@ -149,12 +158,20 @@ pub static PROJECT_ROOT: LazyLock<PathBuf> = LazyLock::new(|| {
 
 fn main() {
     let cli = Xtask::parse();
+    let feature_query = matches!(
+        &cli.xtask,
+        Commands::Build {
+            command: BuildCommands::Features { .. }
+        }
+    );
     let level = if cli.verbose {
         LevelFilter::Debug
     } else {
         LevelFilter::Info
     };
-    let _ = SimpleLogger::new().with_level(level).init();
+    if !feature_query {
+        let _ = SimpleLogger::new().with_level(level).init();
+    }
 
     if let Some(rev) = cli.rev {
         log::debug!("Setting CALIPTRA_HW_REV to `{}`", rev);
@@ -191,6 +208,9 @@ fn main() {
             BuildCommands::Runtime => build::build_runtime(),
             BuildCommands::TestFw => build::build_driver_test_fw(),
             BuildCommands::All => build::build_all(),
+            BuildCommands::Features { package, features } => {
+                build::print_firmware_features(package, features)
+            }
             BuildCommands::RecoveryImages {
                 out_dir,
                 pqc_key_type,
@@ -210,7 +230,42 @@ fn main() {
         },
     };
     result.unwrap_or_else(|e| {
-        log::error!("Error: {}", e);
+        if feature_query {
+            eprintln!("Error: {e}");
+        } else {
+            log::error!("Error: {}", e);
+        }
         std::process::exit(1);
     });
+}
+
+#[cfg(test)]
+mod firmware_features_tests {
+    use super::*;
+
+    #[test]
+    fn test_firmware_features_query_cli() {
+        let cli = Xtask::try_parse_from([
+            "xtask",
+            "--rev",
+            "2.1",
+            "build",
+            "features",
+            "--package",
+            "caliptra-rom",
+            "--features",
+            "cfi,emu",
+        ])
+        .unwrap();
+        assert_eq!(cli.rev.as_deref(), Some("2.1"));
+        match cli.xtask {
+            Commands::Build {
+                command: BuildCommands::Features { package, features },
+            } => {
+                assert_eq!(package, "caliptra-rom");
+                assert_eq!(features, ["cfi", "emu"]);
+            }
+            _ => panic!("Expected firmware feature query"),
+        }
+    }
 }
