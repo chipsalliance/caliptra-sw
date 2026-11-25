@@ -786,6 +786,60 @@ fn assert_target_svn_too_large(model: &mut DefaultHwModel, target_svn: u32) {
 const MAX_SVN: u32 = 128;
 
 #[test]
+#[cfg_attr(any(feature = "fpga_realtime", feature = "fpga_subsystem"), ignore)]
+fn test_key_ladder_write_protected_without_boot_monitor() {
+    if get_ci_rom_version() != CiRomVersion::Latest {
+        println!("Skipping firmware ladder write-lock test for frozen ROM");
+        return;
+    }
+
+    let mut model = run_rt_test(RuntimeTestArgs {
+        test_fwid: Some(mbox_test_image()),
+        test_image_options: Some(get_image_opts(MAX_SVN)),
+        security_state: Some(
+            *SecurityState::default()
+                .set_debug_locked(false)
+                .set_device_lifecycle(DeviceLifecycle::Production),
+        ),
+        subsystem_mode: false,
+        ..Default::default()
+    });
+
+    let assert_overwrite_blocked = |model: &mut DefaultHwModel| {
+        let result = model.mailbox_execute(0x1000_1001, &[]);
+        assert!(
+            matches!(
+                result,
+                Err(ModelError::MailboxCmdFailed(code))
+                    if code == u32::from(CaliptraError::DRIVER_HMAC_WRITE_TAG_KV_WRITE)
+                        || code == u32::from(CaliptraError::DRIVER_HMAC_WRITE_TAG_KV_UNKNOWN)
+            ),
+            "Expected a rejected key-vault write, got {result:?}"
+        );
+    };
+
+    let ladder = get_ladder_digest(&mut model, MAX_SVN);
+    let older_ladder = get_ladder_digest(&mut model, MAX_SVN - 1);
+    assert_ne!(ladder, older_ladder);
+    assert_overwrite_blocked(&mut model);
+    assert_eq!(get_ladder_digest(&mut model, MAX_SVN), ladder);
+
+    model.warm_reset_flow().unwrap();
+    model.step_until_ready_for_runtime();
+    assert_overwrite_blocked(&mut model);
+    assert_eq!(get_ladder_digest(&mut model, MAX_SVN), ladder);
+
+    runtime_update_to_svn(&mut model, MAX_SVN);
+    assert_overwrite_blocked(&mut model);
+    assert_eq!(get_ladder_digest(&mut model, MAX_SVN), ladder);
+
+    runtime_update_to_svn(&mut model, MAX_SVN - 1);
+    assert_overwrite_blocked(&mut model);
+    assert_eq!(get_ladder_digest(&mut model, MAX_SVN - 1), older_ladder);
+    assert_target_svn_too_large(&mut model, MAX_SVN);
+}
+
+#[test]
 #[cfg(feature = "slow_tests")]
 fn test_key_ladder_cold_boot() {
     let mut model = run_rt_test(RuntimeTestArgs {

@@ -1019,6 +1019,8 @@ When the key ladder is initialized at cold-boot, it is bound to the lifecycle st
 
 Across update-resets, ROM tracks the minimum SVN that has run since cold-boot. It ensures that the ladder's length always corresponds to that minimum SVN. The key ladder can only be shortened (and thereby give access to newer SVNs' keys) by cold-booting into firmware with a newer SVN and re-initializing the ladder.
 
+ROM write-locks the firmware key ladder in Key Vault Slot 2 before every FMC handoff, independently of the boot flow monitor. FMC and Runtime can derive secrets from the ladder but cannot overwrite or clear it. Warm and update resets clear the write lock while retaining the key, allowing ROM to ratchet the ladder during an update reset and re-lock it before handoff.
+
 #### Cold-boot
 
 ROM initializes a key ladder for the firmware. LDevID CDI in Key Vault Slot6 is used as an HMAC Key, and the data is a fixed string. The resultant MAC is stored in Slot 2.
