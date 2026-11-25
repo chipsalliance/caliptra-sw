@@ -59,6 +59,35 @@ Following are the main FUSE & Architectural Registers used by the Caliptra ROM f
 | FUSE_ANTI_ROLLBACK_DISABLE      | 1            | Disable SVN checking for FMC & Runtime when bit is set  |
 | FUSE_IDEVID_CERT_ATTR           | 768          | FUSE containing information for generating IDEVID CSR  <br> **Word 0**: X509 Key Id Algorithm (2 bits) 1: SHA1, 2: SHA256, 2: SHA384, 3: Fuse <br> **Word 1,2,3,4,5**: Subject Key Id <br> **Word 6**: UEID type as defined in [IETF RATS specification](https://www.ietf.org/archive/id/draft-ietf-rats-eat-21.html#section-4.2.1.1) <br> **Words 7,8,9,10**: Manufacturer Serial Number |
 | CPTRA_DBG_MANUF_SERVICE_REG     | 16           | Manufacturing Services: <br> **Bit 0**: IDEVID CSR upload  <br> **Bit 1**: Random Number Generator Unavailable <br> **Bit 15:8**: FIPS test hook code  <br> **Bit 30**: Fake ROM enable in production lifecycle mode <br> **Bit 31**: Fake ROM image verify enable           |
+| CPTRA_iTRNG_ENTROPY_CONFIG_1    | 32           | **Bit 16**: `RNG_BIT_ENABLE` — set to enable the entropy_src single-bit RO filter. <br> **Bits 18:17**: `RNG_BIT_SEL` — 2-bit channel select for the RO filter, direct mapped to `CONF.RNG_BIT_SEL`. Only applied when iTRNG is active. |
+| CPTRA_GENERIC_INPUT_WIRES[0]    | 32           | **Bit 1**: `EXTERNAL_DIRECT` (mask `0x00000002`), selecting the external TRNG even if `CPTRA_HW_CONFIG.iTRNG_en` is set. <br> Bit 0 is the zeroization status input and is not used by ROM. |
+
+## TRNG source selection
+
+ROM, FMC and runtime each select their random number source when they start. The
+internal TRNG (iTRNG) is used when `CPTRA_HW_CONFIG.iTRNG_en` is set and
+`EXTERNAL_DIRECT` is clear. Otherwise the external TRNG (eTRNG) is used, with the
+normal `CPTRA_TRNG_STATUS` request/done handshake. Setting `EXTERNAL_DIRECT` on an
+iTRNG-enabled device is therefore equivalent to an eTRNG-only configuration, and the
+SoC must service eTRNG requests. When the RTL is built with the internal TRNG, the
+`etrng_req` output is the entropy source enable rather than the eTRNG request, so the
+SoC must poll `CPTRA_TRNG_STATUS.DATA_REQ`.
+
+`EXTERNAL_DIRECT` takes precedence over the manufacturing `RNG_SUPPORT_UNAVAILABLE` flag
+(`CPTRA_DBG_MANUF_SERVICE_REG` bit 1): the flag is ignored while `EXTERNAL_DIRECT` is set,
+so the fake RNG is not selected.
+
+`EXTERNAL_DIRECT` should generally be held constant permanently (for example set once by
+the SoC and never changed), because Caliptra FMC and runtime re-sample it when they
+initialize their TRNG.
+
+## iTRNG single-bit RO filter
+
+When iTRNG is active, `CPTRA_iTRNG_ENTROPY_CONFIG_1` bit 16 (`RNG_BIT_ENABLE`) can
+be set to route entropy through the entropy_src single-bit RO filter instead of the
+full ring-oscillator array. Bits 18:17 (`RNG_BIT_SEL`) select which of the four
+RO channels (0–3) to use. These bits are applied to `entropy_src.CONF.rng_bit_enable`
+and `entropy_src.CONF.rng_bit_sel` during initialization.
 
 ## Firmware image bundle
 

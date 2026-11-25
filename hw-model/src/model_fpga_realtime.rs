@@ -18,7 +18,7 @@ use uio::{UioDevice, UioError};
 
 use crate::EtrngResponse;
 use crate::Output;
-use crate::{HwModel, SecurityState, SocManager, TrngMode};
+use crate::{HwModel, SecurityState, SocManager, TrngMode, GENERIC_INPUT_EXTERNAL_DIRECT};
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum OpenOcdError {
@@ -44,7 +44,7 @@ fn fmt_uio_error(err: UioError) -> String {
 const FPGA_ITRNG_FIFO_SIZE: usize = 1024;
 
 // FPGA wrapper register offsets
-const _FPGA_WRAPPER_GENERIC_INPUT_OFFSET: isize = 0x0000 / 4;
+const FPGA_WRAPPER_GENERIC_INPUT_OFFSET: isize = 0x0000 / 4;
 const _FPGA_WRAPPER_GENERIC_OUTPUT_OFFSET: isize = 0x0008 / 4;
 const FPGA_WRAPPER_DEOBF_KEY_OFFSET: isize = 0x0010 / 4;
 const FPGA_WRAPPER_CONTROL_OFFSET: isize = 0x0030 / 4;
@@ -371,29 +371,30 @@ impl HwModel for ModelFpgaRealtime {
         let realtime_thread_exit_flag2 = realtime_thread_exit_flag.clone();
 
         let desired_trng_mode = TrngMode::resolve(params.trng_mode);
-        let realtime_thread = match desired_trng_mode {
-            TrngMode::Internal => {
-                let realtime_thread_wrapper = SendPtr(wrapper);
-                Some(thread::spawn(move || {
-                    let wrapper = realtime_thread_wrapper;
-                    Self::realtime_thread_itrng_fn(
-                        wrapper.0,
-                        realtime_thread_exit_flag2,
-                        params.itrng_nibbles,
-                    )
-                }))
-            }
-            TrngMode::External => {
-                let realtime_thread_mmio = SendPtr(mmio);
-                Some(thread::spawn(move || {
-                    let mmio = realtime_thread_mmio;
-                    Self::realtime_thread_etrng_fn(
-                        mmio.0,
-                        realtime_thread_exit_flag2,
-                        params.etrng_responses,
-                    )
-                }))
-            }
+        // Caliptra uses the external TRNG if the strap selects it or if the SoC
+        // sets EXTERNAL_DIRECT.
+        let external_trng = desired_trng_mode == TrngMode::External
+            || params.generic_input_wires[0] & GENERIC_INPUT_EXTERNAL_DIRECT != 0;
+        let realtime_thread = if external_trng {
+            let realtime_thread_mmio = SendPtr(mmio);
+            Some(thread::spawn(move || {
+                let mmio = realtime_thread_mmio;
+                Self::realtime_thread_etrng_fn(
+                    mmio.0,
+                    realtime_thread_exit_flag2,
+                    params.etrng_responses,
+                )
+            }))
+        } else {
+            let realtime_thread_wrapper = SendPtr(wrapper);
+            Some(thread::spawn(move || {
+                let wrapper = realtime_thread_wrapper;
+                Self::realtime_thread_itrng_fn(
+                    wrapper.0,
+                    realtime_thread_exit_flag2,
+                    params.itrng_nibbles,
+                )
+            }))
         };
 
         let mut m = Self {
@@ -424,6 +425,16 @@ impl HwModel for ModelFpgaRealtime {
 
         // Set divisor for ITRNG throttling
         m.set_itrng_divider(ITRNG_DIVISOR);
+
+        // Drive the generic input wires. The wrapper connects its registers to
+        // Caliptra as {reg[0], reg[1]}, so reg[1] is CPTRA_GENERIC_INPUT_WIRES[0].
+        for (i, wires) in params.generic_input_wires.into_iter().enumerate() {
+            unsafe {
+                m.wrapper
+                    .offset(FPGA_WRAPPER_GENERIC_INPUT_OFFSET + 1 - i as isize)
+                    .write_volatile(wires)
+            };
+        }
 
         // Set deobfuscation key
         for i in 0..8 {

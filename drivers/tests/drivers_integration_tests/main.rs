@@ -9,7 +9,7 @@ use caliptra_drivers::{Array4x12, Array4xN, Ecc384PubKey};
 use caliptra_drivers_test_bin::DoeTestResults;
 use caliptra_hw_model::{
     BootParams, DefaultHwModel, DeviceLifecycle, HwModel, InitParams, ModelError, SecurityState,
-    TrngMode,
+    TrngMode, GENERIC_INPUT_EXTERNAL_DIRECT,
 };
 use caliptra_hw_model_types::EtrngResponse;
 use caliptra_registers::mbox::enums::MboxStatusE;
@@ -1054,15 +1054,7 @@ fn test_trng_in_itrng_mode() {
     );
 }
 
-#[test]
-#[cfg_attr(
-    all(
-        any(feature = "verilator", feature = "fpga_realtime"),
-        feature = "itrng"
-    ),
-    ignore
-)]
-fn test_trng_in_etrng_mode() {
+fn run_etrng_test(trng_mode: TrngMode, external_direct: bool) {
     let block0: [u32; 12] = [
         0x65b11c74, 0xd4bd4965, 0x5031ec6a, 0x2deaad1e, 0xc0c5508f, 0xe7258dc9, 0xa0af9e7f,
         0x43e173f0, 0xc614d147, 0x3a31be1b, 0x91227cd7, 0xfe61ed6c,
@@ -1092,7 +1084,15 @@ fn test_trng_in_etrng_mode() {
                 ]
                 .into_iter(),
             ),
-            trng_mode: Some(TrngMode::External),
+            trng_mode: Some(trng_mode),
+            generic_input_wires: [
+                if external_direct {
+                    GENERIC_INPUT_EXTERNAL_DIRECT
+                } else {
+                    0
+                },
+                0,
+            ],
             ..default_init_params()
         },
         BootParams::default(),
@@ -1104,6 +1104,30 @@ fn test_trng_in_etrng_mode() {
 
     let trng_block = model.mailbox_execute(0, &[]).unwrap();
     assert_eq!(trng_block, Some(block1.as_bytes().to_vec()));
+}
+
+#[test]
+#[cfg_attr(
+    all(
+        any(feature = "verilator", feature = "fpga_realtime"),
+        feature = "itrng"
+    ),
+    ignore
+)]
+fn test_trng_in_etrng_mode() {
+    run_etrng_test(TrngMode::External, false);
+}
+
+#[test]
+#[cfg_attr(
+    all(
+        any(feature = "verilator", feature = "fpga_realtime"),
+        not(feature = "itrng")
+    ),
+    ignore
+)]
+fn test_trng_in_etrng_mode_external_direct() {
+    run_etrng_test(TrngMode::Internal, true);
 }
 
 #[test]

@@ -3,11 +3,12 @@
 use crate::bus_logger::{BusLogger, LogFile, NullBus};
 use crate::trace_path_or_env;
 use crate::EtrngResponse;
-use crate::{HwModel, SocManager, TrngMode};
+use crate::{HwModel, SocManager, TrngMode, GENERIC_INPUT_EXTERNAL_DIRECT};
 use caliptra_emu_bus::Bus;
 use caliptra_emu_bus::BusMmio;
 use caliptra_emu_types::{RvAddr, RvData, RvSize};
 use caliptra_hw_model_types::ErrorInjectionMode;
+use caliptra_registers::soc_ifc_trng::regs::CptraTrngStatusReadVal;
 use caliptra_verilated::{AhbTxnType, CaliptraVerilated};
 use std::cell::{Cell, RefCell};
 use std::ffi::OsStr;
@@ -21,6 +22,8 @@ const DEFAULT_APB_PAUSER: u32 = 0x1;
 
 // How many clock cycles before emitting a TRNG nibble
 const TRNG_DELAY: u32 = 4;
+// Cycles between CPTRA_TRNG_STATUS polls when EXTERNAL_DIRECT is set
+const ETRNG_POLL_INTERVAL: u64 = 256;
 
 pub struct VerilatedApbBus<'a> {
     model: &'a mut ModelVerilated,
@@ -78,12 +81,16 @@ pub struct ModelVerilated {
 
     trng_mode: TrngMode,
 
+    // True if the SoC drives EXTERNAL_DIRECT
+    external_direct: bool,
+
     itrng_nibbles: Box<dyn Iterator<Item = u8>>,
     itrng_delay_remaining: u32,
 
     etrng_responses: Box<dyn Iterator<Item = EtrngResponse>>,
     etrng_response: Option<AbsoluteEtrngResponse>,
     etrng_waiting_for_req_to_clear: bool,
+    etrng_next_poll_cycle: u64,
 
     log: Rc<RefCell<BusLogger<NullBus>>>,
 
@@ -247,6 +254,7 @@ impl HwModel for ModelVerilated {
             trace_path: trace_path_or_env(params.trace_path),
 
             trng_mode: desired_trng_mode,
+            external_direct: params.generic_input_wires[0] & GENERIC_INPUT_EXTERNAL_DIRECT != 0,
 
             itrng_nibbles: params.itrng_nibbles,
             itrng_delay_remaining: TRNG_DELAY,
@@ -254,6 +262,7 @@ impl HwModel for ModelVerilated {
             etrng_responses: params.etrng_responses,
             etrng_response: None,
             etrng_waiting_for_req_to_clear: false,
+            etrng_next_poll_cycle: 0,
 
             log,
 
@@ -265,6 +274,9 @@ impl HwModel for ModelVerilated {
         if params.random_sram_puf {
             m.v.init_random_puf_state(&mut rand::thread_rng());
         }
+
+        m.v.input.generic_input_wires = (u64::from(params.generic_input_wires[1]) << 32)
+            | u64::from(params.generic_input_wires[0]);
 
         m.v.input.cptra_pwrgood = true;
         m.v.next_cycle_high(1);
@@ -383,9 +395,32 @@ impl ModelVerilated {
     }
     fn process_trng_start(&mut self) -> bool {
         match self.trng_mode {
+            TrngMode::Internal if self.external_direct => self.process_polled_etrng_start(),
             TrngMode::Internal => self.process_itrng_start(),
             TrngMode::External => self.process_etrng_start(),
         }
+    }
+
+    // iTRNG builds have no eTRNG request pin, so poll CPTRA_TRNG_STATUS.
+    // The status is read directly because going through the bus
+    // would re-enter process_trng.
+    // Returns true if process_trng_end must be called after a clock cycle
+    fn process_polled_etrng_start(&mut self) -> bool {
+        if self.v.total_cycles() < self.etrng_next_poll_cycle {
+            return false;
+        }
+        let addr = self.soc_ifc_trng().cptra_trng_status().ptr as usize as u32;
+        let status = CptraTrngStatusReadVal::from(self.v.apb_read_u32(self.soc_apb_pauser, addr));
+        self.etrng_next_poll_cycle = self.v.total_cycles() + ETRNG_POLL_INTERVAL;
+        if status.data_req() && !status.data_wr_done() {
+            if let Some(response) = self.etrng_responses.next() {
+                self.soc_ifc_trng().cptra_trng_data().write(&response.data);
+                self.soc_ifc_trng()
+                    .cptra_trng_status()
+                    .write(|w| w.data_wr_done(true));
+            }
+        }
+        false
     }
 
     fn process_trng_end(&mut self) {

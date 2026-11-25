@@ -58,6 +58,22 @@ pub fn is_hw_gen_1_0() -> bool {
     soc_ifc.regs().cptra_hw_rev_id().read().cptra_generation() == 0x1
 }
 
+/// Returns true if the internal TRNG is in use: it is enabled by the hardware
+/// config and the SoC has not set EXTERNAL_DIRECT (generic input wires word 0,
+/// bit 1), which selects the external TRNG regardless of the hardware config.
+#[inline(always)]
+pub(crate) fn internal_trng(soc_ifc: &SocIfcReg) -> bool {
+    soc_ifc.regs().cptra_hw_config().read().i_trng_en() & !external_direct(soc_ifc)
+}
+
+/// Returns true if the SoC has set EXTERNAL_DIRECT (generic input wires word 0,
+/// bit 1).
+#[inline(always)]
+pub(crate) fn external_direct(soc_ifc: &SocIfcReg) -> bool {
+    const EXTERNAL_DIRECT: u32 = 1 << 1;
+    soc_ifc.regs().cptra_generic_input_wires().at(0).read() & EXTERNAL_DIRECT != 0
+}
+
 /// Device State
 pub struct SocIfc {
     soc_ifc: SocIfcReg,
@@ -212,8 +228,13 @@ impl SocIfc {
     }
 
     #[inline(always)]
+    pub fn external_direct(&self) -> bool {
+        external_direct(&self.soc_ifc)
+    }
+
+    #[inline(always)]
     pub fn hw_config_internal_trng(&mut self) -> bool {
-        self.soc_ifc.regs().cptra_hw_config().read().i_trng_en()
+        internal_trng(&self.soc_ifc)
     }
 
     #[inline(always)]

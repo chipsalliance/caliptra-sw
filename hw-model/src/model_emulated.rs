@@ -46,6 +46,7 @@ use inferno::flamegraph;
 use rustc_demangle::demangle;
 
 use caliptra_api::soc_mgr::SocManager;
+use ureg::MmioMut;
 pub struct EmulatedApbBus<'a> {
     model: &'a mut ModelEmulated,
 }
@@ -371,6 +372,11 @@ impl HwModel for ModelEmulated {
         };
         // Turn tracing on if the trace path was set
         m.tracing_hint(true);
+
+        for (i, wires) in params.generic_input_wires.into_iter().enumerate() {
+            let ptr = m.soc_ifc().cptra_generic_input_wires().at(i).ptr;
+            unsafe { m.mmio_mut().write_volatile(ptr, wires) };
+        }
 
         Ok(m)
     }

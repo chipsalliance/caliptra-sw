@@ -418,11 +418,15 @@ fn validate_trng_config(env: &mut RomEnv) {
     );
     cfi_assert_eq(
         !env.soc_ifc.hw_config_internal_trng()
-            & (!env.soc_ifc.mfg_flag_rng_unavailable() | env.soc_ifc.debug_locked()),
+            & (!env.soc_ifc.mfg_flag_rng_unavailable()
+                | env.soc_ifc.debug_locked()
+                | env.soc_ifc.external_direct()),
         matches!(env.trng, Trng::External(_)),
     );
     cfi_assert_eq(
-        env.soc_ifc.mfg_flag_rng_unavailable() & !env.soc_ifc.debug_locked(),
+        env.soc_ifc.mfg_flag_rng_unavailable()
+            & !env.soc_ifc.debug_locked()
+            & !env.soc_ifc.external_direct(),
         matches!(env.trng, Trng::MfgMode()),
     );
     cfi_assert_eq(
@@ -432,11 +436,15 @@ fn validate_trng_config(env: &mut RomEnv) {
     );
     cfi_assert_eq(
         !env.soc_ifc.hw_config_internal_trng()
-            & (!env.soc_ifc.mfg_flag_rng_unavailable() | env.soc_ifc.debug_locked()),
+            & (!env.soc_ifc.mfg_flag_rng_unavailable()
+                | env.soc_ifc.debug_locked()
+                | env.soc_ifc.external_direct()),
         matches!(env.trng, Trng::External(_)),
     );
     cfi_assert_eq(
-        env.soc_ifc.mfg_flag_rng_unavailable() & !env.soc_ifc.debug_locked(),
+        env.soc_ifc.mfg_flag_rng_unavailable()
+            & !env.soc_ifc.debug_locked()
+            & !env.soc_ifc.external_direct(),
         matches!(env.trng, Trng::MfgMode()),
     );
 }
