@@ -224,15 +224,18 @@ jobs:
           name: release-info-2-2
           path: /tmp/release-info-2-2
 
-  publish-website:
-    name: Publish https://caliptra-sw.github.io/
-    needs:
-      create-release-2-2
-    uses: ./.github/workflows/publish-website.yml
-    with:
-       workflow_file: "nightly-release-2.2.yml"
-       branch: ${{ github.ref_name }}
-    permissions:
-      contents: read
-      pages: write
-      id-token: write
+  # TODO: Re-enable website publishing for caliptra-2.2-dev once publish-website.yml
+  # supports publishing multiple branches without overwriting main on GitHub Pages
+  # (and the github-pages environment policy permits deployment).
+  # publish-website:
+  #   name: Publish https://caliptra-sw.github.io/
+  #   needs:
+  #     create-release-2-2
+  #   uses: ./.github/workflows/publish-website.yml
+  #   with:
+  #      workflow_file: "nightly-release-2.2.yml"
+  #      branch: ${{ github.ref_name }}
+  #   permissions:
+  #     contents: read
+  #     pages: write
+  #     id-token: write
