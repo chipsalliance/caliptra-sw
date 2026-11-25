@@ -224,6 +224,10 @@ jobs:
         run: |
           (cd hw-model/c-binding/examples && make run)
 
+      - name: Caliptra C API C99 Check
+        run: |
+          make -C libcaliptra check-c99 RTL_SOC_IFC_INCLUDE_PATH=../hw/latest/caliptra-ss/third_party/caliptra-rtl/src/soc_ifc/rtl/caliptra_top_reg
+
       - name: Caliptra C API Hwmodel Integration Test
         run: |
           (cd libcaliptra/examples/hwmodel && make && ./hwmodel)

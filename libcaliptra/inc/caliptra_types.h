@@ -602,7 +602,7 @@ struct dpe_sign_ecc384_response
     {
         uint8_t signature_r[DPE_ECC_SIZE];
         uint8_t hmac[DPE_ECC_SIZE];
-    };
+    } signature;
     uint8_t signature_s[DPE_ECC_SIZE];
 };
 
@@ -670,8 +670,7 @@ struct caliptra_invoke_dpe_req
         struct dpe_rotate_context_handle_cmd rotate_context_handle_cmd;
         struct dpe_destroy_context_cmd destroy_context_cmd;
         struct dpe_get_certificate_chain_cmd get_certificate_chain_cmd;
-        uint8_t data[0];
-    };
+    } payload;
 };
 
 struct caliptra_invoke_dpe_mldsa87_req
@@ -693,8 +692,7 @@ struct caliptra_invoke_dpe_mldsa87_req
         struct dpe_rotate_context_handle_cmd rotate_context_handle_cmd;
         struct dpe_destroy_context_cmd destroy_context_cmd;
         struct dpe_get_certificate_chain_cmd get_certificate_chain_cmd;
-        uint8_t data[0];
-    };
+    } payload;
 };
 
 struct caliptra_invoke_dpe_resp
@@ -715,8 +713,7 @@ struct caliptra_invoke_dpe_resp
         struct dpe_rotate_context_handle_response rotate_context_handle_resp;
         struct dpe_destroy_context_response destroy_context_resp;
         struct dpe_get_certificate_chain_response get_certificate_chain_resp;
-        uint8_t data[0];
-    };
+    } payload;
 };
 
 #define OCP_LOCK_MAX_HPKE_HANDLES 3

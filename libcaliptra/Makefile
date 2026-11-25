@@ -24,6 +24,12 @@ $(LIBCALIPTRA): $(OBJS)
 	@echo [AR] $@
 	$(Q)$(AR) -cq $@ $(OBJS)
 
+.PHONY: check-c99
+
+check-c99:
+	@echo [CHECK] ISO C99
+	$(Q)$(CC) $(CFLAGS) $(DEFINES) $(INCLUDES) -std=c99 -pedantic-errors -Wall -Wextra -fsyntax-only $(SOURCE)
+
 %.o: %.c
 	@echo [CC] $< \-\> $@
 	$(Q)$(CC) $(CFLAGS) $(DEFINES) $(INCLUDES) -g -c $< -o $@

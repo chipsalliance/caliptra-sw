@@ -73,8 +73,9 @@ enum fips_status {
 enum toc_entry_id {
     FMC     = 0x00000001,
     Runtime = 0x00000002,
-    MAX     = 0xFFFFFFFF,
 };
+
+#define TOC_ENTRY_ID_MAX UINT32_MAX
 
 // Enums used in Caliptra mailbox command requests and responses
 /**
@@ -83,8 +84,10 @@ enum toc_entry_id {
  * CERTIFY_KEY_EXTENDED flags options.
  */
 enum certify_key_extended_flags {
-    DMTF_OTHER_NAME = ( 1UL << 31),
+    CERTIFY_KEY_EXTENDED_FLAGS_NONE = 0,
 };
+
+#define DMTF_OTHER_NAME 0x80000000U
 
 /**
  * set_auth_manifest_manifest_flags
@@ -119,10 +122,11 @@ enum authorize_and_stash_source {
  * AUTHORIZE_AND_STASH auth_req_result values.
  */
 enum authorize_and_stash_auth_req_result {
-    AUTHORIZE_IMAGE      = 0xDEADC0DE,
     IMAGE_NOT_AUTHORIZED = 0x21523F21,
-    IMAGE_HASH_MISMATCH  = 0x8BFB95CB,
 };
+
+#define AUTHORIZE_IMAGE 0xDEADC0DEU
+#define IMAGE_HASH_MISMATCH 0x8BFB95CBU
 
 // The below enums are placeholders to set up the baseline
 // required for communication of DPE commands to Caliptra
@@ -176,8 +180,10 @@ enum dpe_profile {
  * OCP_LOCK_REPORT_HEK_METADATA response flags.
  */
 enum ocp_lock_report_hek_metadata_resp_flags {
-    HEK_AVAILABLE = (1UL << 31),
+    OCP_LOCK_REPORT_HEK_METADATA_RESP_FLAGS_NONE = 0,
 };
+
+#define HEK_AVAILABLE 0x80000000U
 
 /**
  * hpke_algorithms

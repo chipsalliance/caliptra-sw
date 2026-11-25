@@ -34,13 +34,13 @@ void testbench_reinit(void)
 void hwmod_init(struct caliptra_buffer rom, const test_info* info) {
     assert(info != NULL);
 
-  // slice::from_raw_parts can panic when the pointer is NULL
-    uint8_t empty[0];
+    // slice::from_raw_parts can panic when the pointer is NULL
+    static uint8_t empty;
     struct caliptra_model_init_params params = {
         .hw_version = HW_VERSION,
         .rom = rom,
-        .dccm = {.data = empty, .len = 0},
-        .iccm = {.data = empty, .len = 0},
+        .dccm = {.data = &empty, .len = 0},
+        .iccm = {.data = &empty, .len = 0},
         .security_state = CALIPTRA_SEC_STATE_DBG_LOCKED_MANUFACTURING,
         .soc_user = info->apb_pauser,
     };
@@ -96,7 +96,7 @@ int caliptra_write_u32(uint32_t address, uint32_t data)
  */
 int caliptra_read_u32(uint32_t address, uint32_t *data)
 {
-    return caliptra_model_apb_read_u32(hwmod_get_or_init(), address, (uint*)data);
+    return caliptra_model_apb_read_u32(hwmod_get_or_init(), address, data);
 }
 
 /**
