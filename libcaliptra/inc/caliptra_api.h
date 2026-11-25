@@ -200,9 +200,7 @@ int caliptra_get_fmc_alias_mldsa87_cert(struct caliptra_get_fmc_alias_mldsa87_ce
 // Get MLDSA87 RT Alias cert
 int caliptra_get_rt_alias_mldsa87_cert(struct caliptra_get_rt_alias_mldsa87_cert_resp *resp, bool async);
 
-struct caliptra_mldsa_verify_req;
-
-// ECDSA384 Verify
+// MLDSA87 Verify
 int caliptra_mldsa87_verify(struct caliptra_mldsa_verify_req *req, bool async);
 
 // LMS Verify
@@ -310,6 +308,12 @@ int caliptra_ocp_lock_get_status(struct caliptra_ocp_lock_get_status_resp *resp,
 int caliptra_ocp_lock_clear_key_cache(struct caliptra_ocp_lock_clear_key_cache_req *req, struct caliptra_ocp_lock_clear_key_cache_resp *resp, bool async);
 int caliptra_ocp_lock_unload_mek(struct caliptra_ocp_lock_unload_mek_req *req, struct caliptra_ocp_lock_unload_mek_resp *resp, bool async);
 int caliptra_ocp_lock_load_mek(struct caliptra_ocp_lock_load_mek_req *req, struct caliptra_ocp_lock_load_mek_resp *resp, bool async);
+
+
+// CM_SHA_INIT, CM_SHA_UPDATE, CM_SHA_FINAL
+int caliptra_cm_sha_init(struct caliptra_cm_sha_init_req *req, struct caliptra_cm_sha_init_resp *resp, bool async);
+int caliptra_cm_sha_update(struct caliptra_cm_sha_update_req *req, struct caliptra_cm_sha_update_resp *resp, bool async);
+int caliptra_cm_sha_final(struct caliptra_cm_sha_final_req *req, struct caliptra_cm_sha_final_resp *resp, bool async);
 
 
 // Query if IDevID CSR is ready.

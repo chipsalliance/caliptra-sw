@@ -16,8 +16,9 @@ Abstract:
 #![no_main]
 
 use caliptra_drivers::{
-    Array4x12, Array4x4, DeobfuscationEngine, Ecc384, Ecc384PubKey, Hmac, HmacData, HmacKey,
-    HmacMode, KeyId, KeyReadArgs, KeyUsage, KeyWriteArgs, Mailbox, PersistentDataAccessor, Trng,
+    Array4x12, Array4x4, CaliptraError, DeobfuscationEngine, Ecc384, Ecc384PubKey, Hmac, HmacData,
+    HmacKey, HmacMode, KeyId, KeyReadArgs, KeyUsage, KeyWriteArgs, Mailbox, PersistentDataAccessor,
+    Trng,
 };
 use caliptra_drivers_test_bin::{DoeTestResults, DOE_TEST_HMAC_KEY, DOE_TEST_IV};
 
@@ -101,18 +102,19 @@ fn test_decrypt() {
     doe.decrypt_field_entropy(&Array4x4::from(DOE_TEST_IV), KeyId::KeyId1)
         .unwrap();
 
-    // Make sure the FE can be used as a HMAC key
-    hmac384
-        .hmac(
+    // 256-bit field entropy is valid as HMAC data, not as a 384-bit vault key.
+    assert_eq!(
+        hmac384.hmac(
             HmacKey::Key(KeyReadArgs { id: KeyId::KeyId1 }),
             HmacData::Slice("Hello world!".as_bytes()),
             &mut trng,
             key_out.into(),
             HmacMode::Hmac384,
-        )
-        .unwrap();
-    test_results.hmac_field_entropy_as_key_out_pub =
-        export_result_from_kv(&mut ecc, &mut trng, key_out_id);
+        ),
+        Err(CaliptraError::DRIVER_HMAC_INVALID_STATE),
+    );
+    // A rejected vault key leaves a sticky HMAC error until zeroization.
+    unsafe { Hmac::zeroize() };
 
     // Make sure the FE can be used as HMAC data
     hmac384

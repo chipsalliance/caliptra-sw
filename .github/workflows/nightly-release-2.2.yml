@@ -1,0 +1,241 @@
+name: Nightly Release 2.2
+
+on:
+  workflow_dispatch:
+  schedule:
+  # 10:00 PM PST monday-friday
+  - cron: '0 6 * * 2-6'
+
+
+jobs:
+  find-latest-release-2-2:
+    name: Find Latest Release 2.2
+    runs-on: ubuntu-24.04
+    outputs:
+      create_release: ${{ steps.find.outputs.create_release }}
+      new_release_tag: ${{ steps.find.outputs.new_release_tag }}
+      release_ref: ${{ steps.find.outputs.release_ref }}
+
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #v5
+        with:
+          ref: caliptra-2.2-dev
+          fetch-depth: 0
+          submodules: 'true'
+
+      - name: Find latest release
+        id: find
+        run: |
+          DATE="$(date +'%Y%m%d')"
+          TAG_PREFIX="release_v"
+          TAG_BASE="${TAG_PREFIX}${DATE}_"
+          INDEX=0
+          while git tag | grep "${TAG_BASE}${INDEX}-2.2"; do
+              ((INDEX+=1))
+          done
+          git submodule update --remote hw/latest/caliptra-ss
+          CHECK_RELEASE_SYNC=$(git status --porcelain | head -1)
+          MOST_RECENT_RELEASE=None
+          if git tag | grep "^${TAG_PREFIX}.*-2[.]2$" > /dev/null; then
+              MOST_RECENT_RELEASE=$(git tag | grep "^${TAG_PREFIX}.*-2[.]2$" | sort -Vr | head -1)
+          fi
+          if [ "$MOST_RECENT_RELEASE" == "None" ] && [ !"$CHECK_RELEASE_SYNC" ]; then
+              echo "create_release=true" >> $GITHUB_OUTPUT
+          else
+              COMMITS_AFTER_LAST_RELEASE=$(git rev-list --count $MOST_RECENT_RELEASE..HEAD)
+              if [[ $COMMITS_AFTER_LAST_RELEASE -gt 0 ]]; then
+                  echo "create_release=true" >> $GITHUB_OUTPUT
+              else
+                  echo "create_release=false" >> $GITHUB_OUTPUT
+              fi
+          fi
+          echo "new_release_tag=${TAG_BASE}${INDEX}-2.2" >> $GITHUB_OUTPUT
+          echo "release_ref=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+          echo "Current ref $(git rev-parse HEAD) will receive tag ${TAG_BASE}${INDEX}-2.2 after tests"
+
+  sw-emulator:
+    name: sw-emulator Suite (${{ matrix.config.name }}, ${{ matrix.rng.name }}, ${{ matrix.log.name }}, HW ${{ matrix.hw-rev }})
+    needs: find-latest-release-2-2
+    if: needs.find-latest-release-2-2.outputs.create_release == 'true'
+    permissions:
+      contents: read
+    uses: ./.github/workflows/fw-test-emu.yml
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          - { name: "latest", rom: "latest", suffix: "hw-latest", base_features: "slow_tests" }
+        rng:
+          - { name: "etrng", extra: "" }
+          - { name: "itrng", extra: ",itrng" }
+        log:
+          - { name: "log", rom_logging: true }
+          - { name: "nolog", rom_logging: false }
+        hw-rev: ["2.2"]
+    with:
+      artifact-suffix: -sw-emulator-${{ matrix.config.suffix }}-${{ matrix.rng.name }}-${{ matrix.log.name }}-hw_${{ matrix.hw-rev }}-${{ needs.find-latest-release-2-2.outputs.release_ref }}
+      extra-features: ${{ matrix.config.base_features }}${{ matrix.rng.extra }}
+      rom-logging: ${{ matrix.log.rom_logging }}
+      rom-version: ${{ matrix.config.rom }}
+      hw-revision: ${{ matrix.hw-rev }}
+      branch: ${{ needs.find-latest-release-2-2.outputs.release_ref }}
+
+  fpga:
+    name: FPGA Suite (${{ matrix.hw_config.name }}, ${{ matrix.rng.name }}, ${{ matrix.log.name }}, ${{ matrix.ocp_lock.name }})
+    needs: find-latest-release-2-2
+    if: needs.find-latest-release-2-2.outputs.create_release == 'true'
+    permissions:
+      contents: read
+    uses: ./.github/workflows/fpga.yml
+    strategy:
+      fail-fast: false
+      matrix:
+        hw_config:
+          - { name: "hw-latest", hw: "2.2", rom: "latest", suffix_prefix: "latest" }
+        rng:
+          - { name: "itrng", fpga_itrng: true, extra: "slow_tests,itrng" }
+        log:
+          - { name: "log", rom_logging: true }
+          - { name: "nolog", rom_logging: false }
+        ocp_lock:
+          - { name: "", ocp_lock: false }
+          - { name: "ocp-lock", ocp_lock: true }
+    with:
+      artifact-suffix: -fpga-realtime-${{ matrix.hw_config.suffix_prefix }}-${{ matrix.rng.name }}-${{ matrix.log.name }}-${{ matrix.ocp_lock.name }}-hw_2.2-${{ needs.find-latest-release-2-2.outputs.release_ref }}
+      extra-features: ${{ matrix.rng.extra }}
+      hw-version: ${{ matrix.hw_config.hw }}
+      rom-logging: ${{ matrix.log.rom_logging }}
+      fpga-itrng: ${{ matrix.rng.fpga_itrng }}
+      ocp-lock: ${{ matrix.ocp_lock.ocp_lock }}
+      rom-version: ${{ matrix.hw_config.rom }}
+      branch: ${{ needs.find-latest-release-2-2.outputs.release_ref }}
+
+  fpga-subsystem:
+    name: FPGA Subsystem Suite (${{ matrix.hw_config.name }}, ${{ matrix.rng.name }}, ${{ matrix.log.name }}, ${{ matrix.ocp_lock.name }}), ${{ matrix.flash_boot.name }})
+    needs: find-latest-release-2-2
+    if: needs.find-latest-release-2-2.outputs.create_release == 'true'
+    permissions:
+      contents: read
+    uses: ./.github/workflows/fpga-subsystem.yml
+    strategy:
+      fail-fast: false
+      matrix:
+        hw_config:
+          - { name: "hw-latest", hw: "2.2", rom: "latest", suffix_prefix: "latest" }
+        rng:
+          - { name: "itrng", fpga_itrng: true, extra: "slow_tests,itrng" }
+        log:
+          - { name: "nolog", rom_logging: false }
+        ocp_lock:
+          - { name: "", ocp_lock: false }
+          - { name: "ocp-lock", ocp_lock: true }
+        flash_boot:
+          - { name: "", flash_boot: false }
+          - { name: "flash-boot", flash_boot: true }
+    with:
+      artifact-suffix: -fpga-subsystem-realtime-${{ matrix.hw_config.suffix_prefix }}-${{ matrix.rng.name }}-${{ matrix.log.name }}-${{ matrix.ocp_lock.name }}-${{ matrix.flash_boot.name }}-hw_2.2-${{ needs.find-latest-release-2-2.outputs.release_ref }}
+      extra-features: ${{ matrix.rng.extra }}
+      hw-version: ${{ matrix.hw_config.hw }}
+      rom-logging: ${{ matrix.log.rom_logging }}
+      fpga-itrng: ${{ matrix.rng.fpga_itrng }}
+      ocp-lock: ${{ matrix.ocp_lock.ocp_lock }}
+      rom-version: ${{ matrix.hw_config.rom }}
+      flash-boot: ${{ matrix.flash_boot.flash_boot }}
+      branch: ${{ needs.find-latest-release-2-2.outputs.release_ref }}
+      repository: ${{ github.repository }}
+
+
+  create-release-2-2:
+    name: Create New Release 2.2
+    needs:
+      - find-latest-release-2-2
+      - sw-emulator
+      - fpga
+      - fpga-subsystem
+
+    runs-on: ubuntu-24.04
+
+    permissions:
+      contents: write
+      pull-requests: write
+
+    env:
+      CALIPTRA_HW_REV: "2.2"
+
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #v5
+        with:
+          ref: ${{ needs.find-latest-release-2-2.outputs.release_ref }}
+          submodules: 'recursive'
+
+      - name: Generate release zip
+        run: |
+          ./ci-tools/release/build_release.sh ${{ needs.find-latest-release-2-2.outputs.new_release_tag }}
+          mv ./release/release.zip ./release/caliptra_${{ needs.find-latest-release-2-2.outputs.new_release_tag }}.zip
+
+      - name: 'Download all artifacts'
+        uses: actions/download-artifact@v8
+        with:
+          path: /tmp/artifacts
+
+      - name: Package test artifacts per artifact directory
+        run: |
+          TAG="${{ needs.find-latest-release-2-2.outputs.new_release_tag }}"
+          cd /tmp/artifacts
+          ls -lh
+          du -sh .
+          for dir in */; do
+            dirname="${dir%/}"
+            echo "Zipping ${dirname}"
+            zip -qr "$GITHUB_WORKSPACE/release/test_artifacts_${TAG}_${dirname}.zip" "$dirname"
+          done
+
+      - name: Tag repo with new release number
+        run: |
+          git config --global user.name "GitHub CI"
+          git config --global user.email "username@users.noreply.github.com"
+          git tag ${{ needs.find-latest-release-2-2.outputs.new_release_tag }}
+          git push origin ${{ needs.find-latest-release-2-2.outputs.new_release_tag }}
+
+      - name: Upload release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            ./release/caliptra_${{ needs.find-latest-release-2-2.outputs.new_release_tag }}.zip
+            ./release/test_artifacts_*.zip
+          tag_name: ${{ needs.find-latest-release-2-2.outputs.new_release_tag }}
+          prerelease: true
+          # Release as draft. Since immutable releases are enabled we must first create a release as draft so we can upload artifacts and then tag it.
+          draft: true
+
+      - name: Write artifact to workflow with release info
+        run: |
+          mkdir /tmp/release-info-2-2
+          echo "${{ needs.find-latest-release-2-2.outputs.new_release_tag }}" > /tmp/release-info-2-2/tag-name
+          echo "caliptra_${{ needs.find-latest-release-2-2.outputs.new_release_tag }}.zip" > /tmp/release-info-2-2/zip-file-name
+
+      - name: Write artifact with release info
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-info-2-2
+          path: /tmp/release-info-2-2
+
+  # TODO: Re-enable website publishing for caliptra-2.2-dev once publish-website.yml
+  # supports publishing multiple branches without overwriting main on GitHub Pages
+  # (and the github-pages environment policy permits deployment).
+  # publish-website:
+  #   name: Publish https://caliptra-sw.github.io/
+  #   needs:
+  #     create-release-2-2
+  #   uses: ./.github/workflows/publish-website.yml
+  #   with:
+  #      workflow_file: "nightly-release-2.2.yml"
+  #      branch: ${{ github.ref_name }}
+  #   permissions:
+  #     contents: read
+  #     pages: write
+  #     id-token: write

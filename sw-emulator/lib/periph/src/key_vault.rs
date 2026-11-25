@@ -145,6 +145,21 @@ pub struct KeyVault {
     regs: Rc<RefCell<KeyVaultRegs>>,
 }
 
+/// Snapshot of the entire KeyVault contents — keys, PCRs, and their
+/// associated control registers. Returned by `KeyVault::snapshot` for
+/// inspection by tools that display emulator state (e.g. caliptra-wasm).
+#[derive(Debug, Clone)]
+pub struct KeyVaultSnapshot {
+    /// Raw key data: 24 keys × 64 bytes = 1536 bytes.
+    pub keys: Vec<u8>,
+    /// Per-key control register values (24 entries).
+    pub key_control: Vec<u32>,
+    /// PCR values: 32 PCRs × 48 bytes each.
+    pub pcrs: Vec<Vec<u8>>,
+    /// Per-PCR control register values (32 entries).
+    pub pcr_control: Vec<u32>,
+}
+
 impl KeyVault {
     pub const PCR_SIZE: usize = 48;
     pub const KEY_COUNT: u32 = 24;
@@ -211,7 +226,10 @@ impl KeyVault {
             if transition == BootTransition::Runtime && [6, 7, 8].contains(&id) {
                 regs.key_control[id].modify(KV_CONTROL::USE_LOCK::SET);
             }
-            if !(rom_key || optional_key || (transition == BootTransition::Runtime && rt_key)) {
+            // Like the RTL, clear unused slots only on cold boot.
+            if state.cold_boot
+                && !(rom_key || optional_key || (transition == BootTransition::Runtime && rt_key))
+            {
                 let start = id * KeyVault::KEY_SIZE;
                 regs.keys.data_mut()[start..start + KeyVault::KEY_SIZE].fill(0);
                 regs.key_control[id]
@@ -254,6 +272,14 @@ impl KeyVault {
     /// Internal emulator interface to read pcr from key vault
     pub fn read_pcr(&self, pcr_id: u32) -> [u8; constants::PCR_SIZE_BYTES] {
         self.regs.borrow().read_pcr(pcr_id)
+    }
+
+    /// Snapshot of all key vault state for inspection / debugging.
+    /// Returns the raw key bytes (24 keys × 64 bytes = 1536 bytes), the 24
+    /// key-control register values, the 32 PCRs (each 48 bytes), and the
+    /// 32 PCR-control register values.
+    pub fn snapshot(&self) -> KeyVaultSnapshot {
+        self.regs.borrow().snapshot()
     }
 
     /// Internal emulator interface to write pcr to key vault
@@ -322,9 +348,6 @@ bitfield! {
 
     /// Flag indicating if the key can be used as ML-KEM seed
     pub mlkem_seed, set_mlkem_seed: 6;
-
-    /// Flag indicating if the key can be used as ML-KEM message
-    pub mlkem_msg, set_mlkem_msg: 7;
 
     /// Flag indicating if the key can be used as DMA data
     pub dma_data, set_dma_data: 8;
@@ -479,6 +502,33 @@ impl KeyVaultRegs {
                 STICKY_LOCKABLE_SCRATCH_CTRL_REG_RESET_VAL,
             ),
             sticky_lockable_scratch: ReadWriteRegisterArray::new(0),
+        }
+    }
+
+    /// Snapshot of all key vault state. See `KeyVault::snapshot` for details.
+    pub fn snapshot(&self) -> KeyVaultSnapshot {
+        let key_bytes = (KeyVault::KEY_COUNT as usize) * KeyVault::KEY_SIZE;
+        let mut keys = vec![0u8; key_bytes];
+        // self.keys.data() is KEY_REG_SIZE bytes (padded for register layout),
+        // which may exceed KEY_COUNT*KEY_SIZE. Only copy the valid portion.
+        keys.copy_from_slice(&self.keys.data()[..key_bytes]);
+        let mut key_control = Vec::with_capacity(KeyVault::KEY_COUNT as usize);
+        for i in 0..(KeyVault::KEY_COUNT as usize) {
+            key_control.push(self.key_control[i].get());
+        }
+        let mut pcrs = Vec::with_capacity(constants::PCR_COUNT as usize);
+        for i in 0..(constants::PCR_COUNT as usize) {
+            pcrs.push(self.read_pcr(i as u32).to_vec());
+        }
+        let mut pcr_control = Vec::with_capacity(constants::PCR_COUNT as usize);
+        for i in 0..(constants::PCR_COUNT as usize) {
+            pcr_control.push(self.pcr_control[i].get());
+        }
+        KeyVaultSnapshot {
+            keys,
+            key_control,
+            pcrs,
+            pcr_control,
         }
     }
 
@@ -896,6 +946,35 @@ mod tests {
                     assert_boot_slot_cleared(&vault, id);
                 }
             }
+        }
+    }
+
+    #[test]
+    fn test_boot_transitions_preserve_unused_keys_after_reset() {
+        for update in [false, true] {
+            let (mut vault, state) = boot_vault(false, false);
+            populate_boot_keys(&mut vault, [4, 2, 2]);
+            for (id, usage) in [(4, 0x15), (5, 8), (9, 4)] {
+                vault.write_key(id, &[id as u8 + 1; 48], usage).unwrap();
+            }
+            if update {
+                vault.update_reset();
+            } else {
+                vault.warm_reset();
+            }
+            state.borrow_mut().reset(update);
+            vault.write_key(23, &[0x5a; 48], 1).unwrap();
+
+            vault.boot_transition(BootTransition::Fmc);
+            vault.boot_transition(BootTransition::Runtime);
+            assert_eq!(state.borrow().fatal_error, 0);
+            for id in [4, 5, 9] {
+                assert_eq!(
+                    vault.regs.borrow().key_control[id].read(KV_CONTROL::WRITE_LOCK),
+                    1
+                );
+            }
+            assert_eq!(vault.read_key(23, KeyUsage(1)).unwrap()[..48], [0x5a; 48]);
         }
     }
 

@@ -146,6 +146,10 @@ The contexts contain the internal structures necessary to resume operations to s
 
 These contexts are intended to be opaque to the user, and SHALL be encrypted and authenticated if they contain sensitive internal data.
 
+Runtime decrypts AES, AES-GCM, ECDH, and SHAKE256 contexts into temporary plaintext buffers guarded by `Zeroizing`. These guards wipe the buffers when the decryption helper returns, including on authentication failure. The SHAKE256 plaintext is an operation token rather than key material.
+
+This cleanup does not change mailbox formats or command results. It covers only the temporary decryption buffers, not returned working contexts or other copies, and requires normal scope exit; it does not guarantee cleanup on an abort or reset.
+
 ### Keys
 
 Cryptographic Mailbox Key (CMKs) are used to store keys. Certain commands generate and return a new CMK. Most commands that use CMKs will also return a new CMK, as it is necessary to track CMKs so that they are not used beyond any relevant limits for their key type.
@@ -1202,6 +1206,21 @@ Command Code: `0x494E_464F` ("INFO")
 | owner_auth_manifest_current_svn | u32   | SVN of the owner authorization manifest accepted by `SET_OWNER_AUTH_MANIFEST`, or zero if none has been accepted.                                  |
 | owner_auth_manifest_min_svn | u32      | Numeric minimum owner authorization manifest SVN in `FUSE_SOC_MANIFEST_SVN[2]`, enforced by `SET_OWNER_AUTH_MANIFEST` when anti-rollback checks are enabled. |
 | debug_policy                | u32      | Active vendor-authorized debug policy. Bit 0 (`DEBUG_FIRMWARE_ACTIVE`) indicates that the active firmware bundle is marked as debug. Bit 1 (`DEBUG_AUTH_MANIFEST_ACTIVE`) indicates that the installed SoC authorization manifest is marked as debug. Bits 31:2 are zero. |
+| fe_status                   | u32      | Live OTP provisioning/zeroization status of all four FE partitions in subsystem mode. Partition `i` occupies bits `[2*i+1:2*i]`: `0` = unprovisioned, `1` = provisioned, `2` = zeroized, `3` = error/indeterminate. Outside subsystem mode, all partitions report error/indeterminate. Bits 31:8 are zero. |
+
+The response is 400 bytes in both subsystem and standalone modes. The `fe_status`
+field is always present; standalone mode returns `0x000000ff` because FE status is
+unavailable. Callers must use the updated response layout and validate the checksum
+over the full response.
+
+FE status is read for each request, not cached at boot. A zeroization marker with
+at least 58 set bits reports zeroized, regardless of the digest. A nonzero marker
+with fewer than 58 set bits reports error. With a zero marker, a zero digest reports
+unprovisioned and a nonzero digest reports provisioned. Locked DAI access, DMA/DAI
+errors, hidden digests (on hardware with secret-digest readback masking), and
+timeouts report error for the affected partition while leaving the
+other firmware information available. This metadata does not establish whether
+FE contributed to an existing certificate.
 
 ### VERSION
 
@@ -1224,6 +1243,69 @@ Table: `VERSION` output arguments
 | mode         | u32       | Mode identifier
 | fips_rev     | u32[3]    | [31:0] HW rev ID, [47:32] ROM version, [63:48] FMC version, [95:64] FW version
 | name         | u8[12]    | 12 character module name "Caliptra RTM"
+
+### Autonomous command-count self-tests
+
+RT can automatically run the existing FIPS self-test sequence after a configured
+number of completed RT mailbox commands. This is workload-based, not time-based:
+no additional commands means no additional tests.
+
+The proposed late-binding allocation uses core `generic_input_wires[63:32]`,
+exposed as `CPTRA_GENERIC_INPUT_WIRES[1]` (not the MCU's generic input wires or
+`SS_STRAP_GENERIC`). Bit positions below are relative to that 32-bit word:
+
+| Bits | Meaning |
+| ---- | ------- |
+| 0 | Enable autonomous self-tests. Zero preserves existing, manual-only behavior. |
+| 16:1 | Nonzero base command count, from 1 to 65535. |
+| 18:17 | Multiplier encoding: 0 = x1, 1 = x16, 2 = x256, 3 = x4096. |
+| 31:19 | Reserved; tie to zero. |
+
+The threshold is `base count * multiplier` (1 to 268431360 commands).
+For example, `0x000207d1` selects `1000 * 16 = 16000` commands.
+The input-wire binding requires corresponding integration-spec allocation.
+
+RT snapshots the configuration once during each RT startup, including cold,
+warm, and firmware-update resets. Subsequent input changes are ignored until the
+next RT startup. There is no runtime disable or reconfiguration command.
+An enabled configuration with a zero count, nonzero reserved bits, or a build
+without `fips_self_test` support fails startup with
+`RUNTIME_INVALID_SELF_TEST_CONFIG`; disabled configurations ignore the other fields.
+
+Each completed RT mailbox command counts once, including rejected or failed
+commands and manual self-test commands. ROM commands and internal self-test
+execution do not count. RT finishes the active command and posts its response
+before checking whether a self-test is due. This includes command-scoped long
+SHA/DMA operations; a self-test never preempts their command handler.
+
+The test remains due while the mailbox has a pending command or an unread
+response. RT services pending commands first and starts the test only after
+acquiring mailbox ownership, preventing new requests from racing with execution.
+Autonomous tests also wait while a `CM_SHAKE256` streaming session retains live
+SHA3 hardware state between commands. The due counter is preserved through
+INIT/UPDATE and idle gaps; RT can sleep normally without holding the mailbox.
+After FINAL ends the session and its response is released, RT can run the
+pending suite without another trigger command.
+
+Continued mailbox activity or an abandoned streaming session can postpone the
+test indefinitely. A session remains active until finalized, invalidated by
+another SHA3 operation, or reset. There is no timeout or forced session abort:
+the configured count is a trigger threshold, not an upper bound on commands
+between tests.
+
+The suite uses the existing SHA accelerator locking behavior, runs with watchdog
+protection, and resets the command counter only after a successful test.
+A self-test failure follows the existing fatal-error path. Shutdown and reset
+retain their normal behavior.
+
+Manual `SELF_TEST_START` / `SELF_TEST_GET_RESULTS` remain supported. A successful
+manual test also resets the autonomous counter. Autonomous execution neither
+creates nor consumes a manual result, so unread manual results cannot block
+future autonomous tests. No external start command or result polling is needed.
+
+Explicit manual self-tests do not defer for a live `CM_SHAKE256` session: as
+before, they use the SHA3 engine and invalidate the session. Callers must restart
+such a session if UPDATE or FINAL reports `RUNTIME_CM_SHAKE256_CONTEXT_MISMATCH`.
 
 ### SELF\_TEST\_START
 
@@ -1831,6 +1913,9 @@ Command Code: `0x434D_5346` ("CMSF")
 This starts the computation of a SHAKE256 extendable-output hash, which may be larger than a single mailbox command allows.
 
 **Note:** Unlike the CM\_SHA commands, SHAKE256 cannot save and restore hardware state between calls. Instead, the SHA3 hardware state is kept live, and the context returned to the caller is an encrypted random session token. If any other SHA3 operation occurs between INIT and FINAL, the session is invalidated and UPDATE/FINAL will return an error.
+
+Autonomous command-count self-tests defer until the streaming session ends.
+Explicit manual self-tests and other SHA3 operations can still invalidate it.
 
 The sequence to use these are:
 * 1 `CM_SHAKE256_INIT` command
@@ -2903,6 +2988,30 @@ Command Code: `0x434D_494D` ("CMIM")
 | chksum      | u32      |                             |
 | fips_status | u32      | FIPS approved or an error   |
 | CMK         | CMK      | CMK containing imported key |
+
+### CM_KEY_GEN
+
+Generates a key using internal TRNG and returns an encrypted CMK for it.
+
+Usage and size information are required so that the key can be verified and used appropriately.
+
+Command Code: `0x434D_4B47` ("CMKG")
+
+*Table: `CM_KEY_GEN` input arguments*
+
+| **Name**   | **Type** | **Description**                         |
+| ---------- | -------- | --------------------------------------- |
+| chksum     | u32      |                                         |
+| key usage  | u32      | Tag to specify how the data can be used |
+| key size   | u32      | Size in bytes (must agree with usage)   |
+
+*Table: `CM_KEY_GEN` output arguments*
+
+| **Name**    | **Type** | **Description**              |
+| ----------- | -------- | ---------------------------- |
+| chksum      | u32      |                              |
+| fips_status | u32      | FIPS approved or an error    |
+| CMK         | CMK      | CMK containing generated key |
 
 ### CM_DELETE
 

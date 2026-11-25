@@ -175,7 +175,10 @@ jobs:
       - name: Download bitstream
         run: |
           cargo xtask ci bitstream-downloader hw/fpga/bitstream_manifests/core.toml
-          mv core.pdi /tmp/caliptra-bitstream.pdi
+          # The downloader names the PDI after the manifest's caliptra_variant.
+          VARIANT=$(sed -nE 's/^caliptra_variant[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/p' hw/fpga/bitstream_manifests/core.toml)
+          test -n "${VARIANT}" && test -f "${VARIANT}.pdi"
+          mv "${VARIANT}.pdi" /tmp/caliptra-bitstream.pdi
 
       - name: 'Upload bitstream'
         uses: actions/upload-artifact@v4

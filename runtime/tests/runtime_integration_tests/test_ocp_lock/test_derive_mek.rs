@@ -17,6 +17,7 @@ use caliptra_hw_model::{DefaultHwModel, HwModel, ModelError, SecurityState};
 use caliptra_image_types::FwVerificationPqcKeyType;
 use caliptra_test::derive::{DoeInput, DoeOutput, Mek, OcpLockKeyLadderBuilder};
 
+use crate::common::warm_reset_when_idle;
 use crate::test_ocp_lock::InitializeMekSecretParams;
 
 use super::{
@@ -419,7 +420,7 @@ fn test_derive_mek_warm_reset() {
         assert_eq!(actual_mek.mek, EXPECTED_MEK.mek);
     });
 
-    model.warm_reset_flow().unwrap();
+    warm_reset_when_idle(&mut model);
 
     clear_key_cache(&mut model);
 
@@ -467,7 +468,7 @@ fn test_derive_mek_warm_reset_wipes_intermediate_secret() {
         ..Default::default()
     });
 
-    model.warm_reset_flow().unwrap();
+    warm_reset_when_idle(&mut model);
 
     let mut cmd = MailboxReq::OcpLockDeriveMek(OcpLockDeriveMekReq {
         hdr: MailboxReqHeader { chksum: 0 },

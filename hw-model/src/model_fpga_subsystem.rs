@@ -13,9 +13,11 @@ use crate::mcu_boot_status::McuBootMilestones;
 use crate::openocd::openocd_jtag_tap::{JtagParams, JtagTap, OpenOcdJtagTap};
 use crate::otp_provision::{
     lc_generate_memory, otp_generate_lifecycle_tokens_mem, otp_generate_linear_majority_vote,
-    otp_generate_manuf_debug_unlock_token_mem, otp_generate_sw_manuf_partition_mem,
-    LifecycleControllerState, OtpSwManufPartition,
+    otp_generate_manuf_debug_unlock_token_mem, otp_generate_secret_partition_mem,
+    otp_generate_sw_manuf_partition_mem, LifecycleControllerState, OtpSwManufPartition,
+    SECRET_MANUF_KEY_IDX, SECRET_PROD_KEY_IDX,
 };
+use crate::recovery::{DeviceStatus, ProtCap2};
 use crate::xi3c::XI3cError;
 use crate::{
     xi3c, BootParams, Error, HwModel, InitParams, ModelCallback, ModelError, Output, TrngMode,
@@ -49,9 +51,6 @@ const MCU_ROM_MAPPING: (usize, usize) = (1, 1);
 const I3C_TARGET_MAPPING: (usize, usize) = (1, 2);
 const MCI_MAPPING: (usize, usize) = (1, 3);
 const OTP_MAPPING: (usize, usize) = (1, 4);
-
-// Default flash size: 16MB each, initialized to 0xFF
-const DEFAULT_FLASH_SIZE: usize = 16 * 1024 * 1024;
 
 #[allow(dead_code)]
 mod otp_ctrl_mmap {
@@ -440,6 +439,8 @@ pub struct ModelFpgaSubsystem {
     pub recovery_ctrl_len: usize,
     pub recovery_ctrl_written: bool,
     pub bmc_step_counter: usize,
+    pub bmc_ready: bool,
+    pub bmc_last_poll: Option<Instant>,
     pub blocks_sent: usize,
     pub enable_mcu_uart_log: bool,
     pub bootfsm_break: bool,
@@ -669,19 +670,14 @@ impl ModelFpgaSubsystem {
         if !self.mmio.enabled() {
             return;
         }
-        let (start, page_num, op) = {
+        let (page_num, op) = {
             let regs = self.flash_ctrl_regs(is_primary);
-            (
-                regs.fl_control.read(FlashControl::START),
-                regs.page_num.get() as usize,
-                regs.fl_control.read(FlashControl::OP),
-            )
+            let ctrl = regs.fl_control.extract();
+            if !ctrl.is_set(FlashControl::START) {
+                return;
+            }
+            (regs.page_num.get() as usize, ctrl.read(FlashControl::OP))
         };
-
-        // Check if START bit is set
-        if start == 0 {
-            return;
-        }
 
         let flash = if is_primary {
             &mut self.primary_flash
@@ -706,9 +702,9 @@ impl ModelFpgaSubsystem {
             match op {
                 1 => {
                     // Read page: copy from flash buffer to memory at page_addr
-                    let page_data = flash[flash_offset..flash_offset + FLASH_PAGE_SIZE].to_vec();
+                    let mut page_data = [0u8; FLASH_PAGE_SIZE];
+                    page_data.copy_from_slice(&flash[flash_offset..flash_offset + FLASH_PAGE_SIZE]);
                     let word_count = FLASH_PAGE_SIZE / 4;
-                    // re-borrow to avoid borrow checker
                     let flash_ctrl = self.flash_ctrl_regs(is_primary);
                     for i in 0..word_count {
                         let byte_offset = i * 4;
@@ -789,7 +785,7 @@ impl ModelFpgaSubsystem {
 
     fn handle_log(&mut self) {
         // limit steps so that we don't starve the flash controller and BMC
-        const MAX_STEPS: i32 = 1000;
+        const MAX_STEPS: i32 = 16;
         for _ in 0..MAX_STEPS {
             // Check if the FIFO is full (which probably means there was an overrun)
             if self
@@ -951,7 +947,7 @@ impl ModelFpgaSubsystem {
                     .read()
                     .dev_status();
 
-                if status != 3 {
+                if status != DeviceStatus::Status::RecoveryMode.value {
                     if self.bmc_step_counter % 65536 == 0 {
                         println!("Waiting for device status to be 3, currently: {}", status);
                     }
@@ -1023,18 +1019,50 @@ impl ModelFpgaSubsystem {
             return;
         }
 
-        // don't run the BMC every time as it can spam requests
-        if self.bmc_step_counter < 100_000 || self.bmc_step_counter % 10_000 != 0 {
+        // The BMC has nothing to do while an image is still being streamed.
+        if !self.recovery_fifo_blocks.is_empty() {
+            return;
+        }
+
+        // Before the first BMC poll, wait for the device to publish its recovery
+        // capabilities and enter recovery mode. Fall back to a fixed number of
+        // steps if that never happens.
+        if !self.bmc_ready {
+            const BMC_START_FALLBACK_STEPS: usize = 100_000;
+            let i3c_core = self.i3c_core().unwrap();
+            let caps = u32::from(i3c_core.sec_fw_recovery_if().prot_cap_2().read());
+            let status = i3c_core
+                .sec_fw_recovery_if()
+                .device_status_0()
+                .read()
+                .dev_status();
+            let ready = ProtCap2::AgentCapabilities::DeviceStatus.any_matching_bits_set(caps)
+                && status == DeviceStatus::Status::RecoveryMode.value;
+            if !ready && self.bmc_step_counter < BMC_START_FALLBACK_STEPS {
+                return;
+            }
+            self.bmc_ready = true;
+        }
+
+        // Don't run the BMC on every step, as each poll is a blocking I3C
+        // transfer. Wait 1ms wall clock time.
+        const BMC_POLL_INTERVAL: Duration = Duration::from_millis(1);
+        if self
+            .bmc_last_poll
+            .is_some_and(|t| t.elapsed() < BMC_POLL_INTERVAL)
+        {
             return;
         }
         self.bmc.step();
 
         // we need to translate from the BMC events to the I3C controller block reads and writes
         let Ok(event) = self.from_bmc.try_recv() else {
+            self.bmc_last_poll = Some(Instant::now());
             return;
         };
         // ignore messages that aren't meant for Caliptra core.
         if !matches!(event.dest, Device::CaliptraCore) {
+            self.bmc_last_poll = Some(Instant::now());
             return;
         }
         match event.event {
@@ -1101,6 +1129,7 @@ impl ModelFpgaSubsystem {
             }
             _ => todo!(),
         }
+        self.bmc_last_poll = Some(Instant::now());
     }
 
     fn command_code_to_u8(command: RecoveryCommandCode) -> u8 {
@@ -1605,8 +1634,8 @@ impl ModelFpgaSubsystem {
             otp_data[offset..offset + mem.len()].copy_from_slice(&mem);
 
             // Provision UDS seed in FPGA test vendor non-secret fuse slots.
-            // The MCU ROM `core_test` path reads UDS from these slots because the
-            // real SECRET_MANUF partition is hardware-scrambled and not DAI-accessible.
+            // The MCU ROM `core_test` path copies these slots into Caliptra's fuse
+            // registers.
             println!("Provisioning UDS seed in FPGA test fuse slots.");
             let uds_seed_bytes: Vec<u8> = self
                 .fuses
@@ -1638,6 +1667,35 @@ impl ModelFpgaSubsystem {
             otp_data[otp::FPGA_TEST_FIELD_ENTROPY_OFFSET
                 ..otp::FPGA_TEST_FIELD_ENTROPY_OFFSET + field_entropy_bytes.len()]
                 .copy_from_slice(&field_entropy_bytes);
+
+            // On 2.2, Caliptra takes UDS and field entropy from the fuse controller's
+            // secret partitions and ignores fuse register writes from the MCU ROM, so
+            // also provision the secret partitions through the OTP backdoor.
+            println!("Provisioning SECRET_MANUF partition.");
+            let mem = otp_generate_secret_partition_mem(&uds_seed_bytes, SECRET_MANUF_KEY_IDX)?;
+            assert_eq!(mem.len(), otp::SECRET_MANUF_PARTITION_SIZE);
+            let offset = otp::SECRET_MANUF_PARTITION_OFFSET;
+            otp_data[offset..offset + mem.len()].copy_from_slice(&mem);
+
+            // An all-zero field entropy chunk leaves its partition unwritten (blank on
+            // a fresh OTP image; otp_init contents are kept), so tests can program it
+            // at runtime with FE_PROG.
+            println!("Provisioning SECRET_PROD partitions.");
+            for (i, (chunk, offset)) in field_entropy_bytes
+                .chunks_exact(8)
+                .zip([
+                    otp::SECRET_PROD_PARTITION_0_OFFSET,
+                    otp::SECRET_PROD_PARTITION_1_OFFSET,
+                    otp::SECRET_PROD_PARTITION_2_OFFSET,
+                    otp::SECRET_PROD_PARTITION_3_OFFSET,
+                ])
+                .enumerate()
+                .filter(|(_, (chunk, _))| chunk.iter().any(|&b| b != 0))
+            {
+                let mem = otp_generate_secret_partition_mem(chunk, SECRET_PROD_KEY_IDX + i)?;
+                assert_eq!(mem.len(), otp::SECRET_PROD_PARTITION_0_SIZE);
+                otp_data[offset..offset + mem.len()].copy_from_slice(&mem);
+            }
 
             let vendor_pk_hash = self.fuses.vendor_pk_hash.as_bytes();
             println!(
@@ -1985,6 +2043,8 @@ impl HwModel for ModelFpgaSubsystem {
             to_bmc,
             recovery_fifo_blocks: vec![],
             bmc_step_counter: 0,
+            bmc_ready: false,
+            bmc_last_poll: None,
             blocks_sent: 0,
             recovery_ctrl_written: false,
             recovery_ctrl_len: 0,
@@ -1996,14 +2056,13 @@ impl HwModel for ModelFpgaSubsystem {
                 .primary_flash_initial_contents
                 .map(|c| {
                     let mut flash = c.to_vec();
-                    // Ensure flash is at least DEFAULT_FLASH_SIZE, pad with 0xFF
-                    if flash.len() < DEFAULT_FLASH_SIZE {
-                        flash.resize(DEFAULT_FLASH_SIZE, 0xFF);
+                    if flash.len() < FLASH_PAGE_SIZE {
+                        flash.resize(FLASH_PAGE_SIZE, 0xFF);
                     }
                     flash
                 })
-                .unwrap_or_else(|| vec![0xFF; DEFAULT_FLASH_SIZE]),
-            secondary_flash: vec![0xFF; DEFAULT_FLASH_SIZE],
+                .unwrap_or_else(|| vec![0xFF; FLASH_PAGE_SIZE]),
+            secondary_flash: vec![0xFF; FLASH_PAGE_SIZE],
             flash_boot: params
                 .ss_init_params
                 .primary_flash_initial_contents
@@ -2489,17 +2548,39 @@ impl HwModel for ModelFpgaSubsystem {
         self.recovery_ctrl_len = 0;
         self.recovery_ctrl_written = false;
         self.bmc_step_counter = 0;
+        self.bmc_ready = false;
+        self.bmc_last_poll = None;
         self.blocks_sent = 0;
+
+        // If Caliptra has already enabled MCU SRAM execution (FW_EXEC_CTRL[2]),
+        // wait for the MCU to finish its boot flow and halt in DEFAULT_MCU_FW
+        // before pausing the realtime thread or asserting warm reset.
+        // Calling mci().reset_request().write(|w| w.mcu_req(true)) while
+        // FW_EXEC_CTRL[2] is set only holds mcu_rst_b low for 16 clock cycles
+        // before mci_boot_seqr immediately reboots the MCU, which can leave the
+        // MCU mid-fetch when cptra_ss_rst_b is asserted.
+        if (self.soc_ifc().ss_generic_fw_exec_ctrl().at(0).read() & (1 << 2)) != 0 {
+            while !self
+                .wrapper
+                .regs()
+                .status
+                .is_set(crate::fpga_regs::Status::CptraSsMcuHaltStatusO)
+                && self.mci().fw_error_fatal().read() == 0
+                && self.soc_ifc().cptra_fw_error_fatal().read() == 0
+            {
+                self.step();
+            }
+        }
 
         {
             // Pause the TRNG thread so it doesn't access the AXI bus during reset
             let wrapper = self.wrapper.clone();
             let _pause = wrapper.pause_realtime();
 
-            // If the MCU is not already halted, trigger an MCU reset request via
-            // MCI first so mci_boot_seqr cleanly halts VeeR EL2 and drains any
-            // in-flight 64-to-32-bit split AXI bursts in axi_interconnect_0
-            // before asserting cptra_ss_rst_b.
+            // If the MCU is not already halted (e.g. warm reset during early boot
+            // before FW_EXEC_CTRL[2] is set), trigger an MCU reset request via
+            // MCI first so mci_boot_seqr cleanly halts VeeR EL2 and holds it in
+            // BOOT_RST_MCU (mcu_rst_b = 0) before asserting cptra_ss_rst_b.
             if !wrapper
                 .regs()
                 .status
@@ -2669,6 +2750,8 @@ impl HwModel for ModelFpgaSubsystem {
         self.recovery_ctrl_len = 0;
         self.recovery_ctrl_written = false;
         self.bmc_step_counter = 0;
+        self.bmc_ready = false;
+        self.bmc_last_poll = None;
         self.blocks_sent = 0;
 
         // wait some cycles for MCU to finish setting the fatal error

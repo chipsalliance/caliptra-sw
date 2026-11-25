@@ -403,21 +403,6 @@ impl CaliptraError {
             "Driver Error: ML-KEM hardware error"
         ),
         (
-            DRIVER_MLKEM_READ_MSG_KV_READ,
-            0x00059004,
-            "Driver Error: ML-KEM read message KV read"
-        ),
-        (
-            DRIVER_MLKEM_READ_MSG_KV_WRITE,
-            0x00059005,
-            "Driver Error: ML-KEM read message KV write"
-        ),
-        (
-            DRIVER_MLKEM_READ_MSG_KV_UNKNOWN,
-            0x00059006,
-            "Driver Error: ML-KEM read message KV unknown"
-        ),
-        (
             DRIVER_MLKEM_KEYGEN_PAIRWISE_CONSISTENCY_FAILURE,
             0x00059007,
             "Driver Error: ML-KEM key generation pairwise consistency failure"
@@ -1838,6 +1823,11 @@ impl CaliptraError {
             "OCP LOCK Error: MEK is invalid XTS key"
         ),
         (
+            RUNTIME_OCP_LOCK_HPKE_KEYS_ROTATED_DUE_TO_ERROR,
+            0x000E00B7,
+            "OCP LOCK Error: HPKE keys were rotated due to a decapsulation or open error"
+        ),
+        (
             RUNTIME_INVALID_ROM_PERSISTENT_DATA_MARKER,
             0x000E007A,
             "Runtime Error: Invalid ROM persistent data marker"
@@ -2062,6 +2052,11 @@ impl CaliptraError {
             RUNTIME_ZEROIZE_UDS_FE_NOT_SUBSYSTEM_MODE,
             0x000E00B5,
             "Runtime Error: UDS/FE zeroization requires subsystem mode"
+        ),
+        (
+            RUNTIME_INVALID_SELF_TEST_CONFIG,
+            0x000E00B6,
+            "Runtime Error: Invalid or unsupported autonomous self-test configuration"
         ),
         // FMC Errors
         (FMC_GLOBAL_NMI, 0x000F0001, "FMC Error: Global NMI"),

@@ -33,15 +33,15 @@ use caliptra_common::{
         CmEcdhGenerateResp, CmEcdsaPublicKeyReq, CmEcdsaPublicKeyResp, CmEcdsaSignReq,
         CmEcdsaSignResp, CmEcdsaVerifyReq, CmHashAlgorithm, CmHkdfExpandReq, CmHkdfExpandResp,
         CmHkdfExtractReq, CmHkdfExtractResp, CmHmacKdfCounterReq, CmHmacKdfCounterResp,
-        CmImportReq, CmImportResp, CmKeyUsage, CmMldsaPublicKeyReq, CmMldsaPublicKeyResp,
-        CmMldsaSignReq, CmMldsaSignResp, CmMldsaVerifyReq, CmMlkemDecapsulateReq,
-        CmMlkemDecapsulateResp, CmMlkemEncapsulateReq, CmMlkemEncapsulateResp, CmMlkemKeyGenReq,
-        CmMlkemKeyGenResp, CmRandomGenerateReq, CmRandomGenerateResp, CmRandomStirReq,
-        CmShaFinalResp, CmShaInitReq, CmShaInitResp, CmShaUpdateReq, CmShake256FinalReq,
-        CmShake256FinalResp, CmShake256InitReq, CmShake256InitResp, CmShake256UpdateReq,
-        CmStableKeyType, CmStatusResp, Cmk as MailboxCmk, MailboxRespHeader,
-        MailboxRespHeaderVarSize, ResponseVarSize, CMB_AES_GCM_ENCRYPTED_CONTEXT_SIZE,
-        CMB_ECDH_CONTEXT_SIZE, CMB_ECDH_ENCRYPTED_CONTEXT_SIZE,
+        CmImportReq, CmImportResp, CmKeyGenReq, CmKeyGenResp, CmKeyUsage, CmMldsaPublicKeyReq,
+        CmMldsaPublicKeyResp, CmMldsaSignReq, CmMldsaSignResp, CmMldsaVerifyReq,
+        CmMlkemDecapsulateReq, CmMlkemDecapsulateResp, CmMlkemEncapsulateReq,
+        CmMlkemEncapsulateResp, CmMlkemKeyGenReq, CmMlkemKeyGenResp, CmRandomGenerateReq,
+        CmRandomGenerateResp, CmRandomStirReq, CmShaFinalResp, CmShaInitReq, CmShaInitResp,
+        CmShaUpdateReq, CmShake256FinalReq, CmShake256FinalResp, CmShake256InitReq,
+        CmShake256InitResp, CmShake256UpdateReq, CmStableKeyType, CmStatusResp, Cmk as MailboxCmk,
+        MailboxRespHeader, MailboxRespHeaderVarSize, ResponseVarSize,
+        CMB_AES_GCM_ENCRYPTED_CONTEXT_SIZE, CMB_ECDH_CONTEXT_SIZE, CMB_ECDH_ENCRYPTED_CONTEXT_SIZE,
         CMB_SHAKE256_CONTEXT_PLAINTEXT_SIZE, CMB_SHAKE256_CONTEXT_SIZE, CMB_SHA_CONTEXT_SIZE,
         CMK_MAX_KEY_SIZE_BITS, CMK_SIZE_BYTES, CM_STABLE_KEY_INFO_SIZE_BYTES, MAX_CMB_DATA_SIZE,
         MLKEM1024_SHARED_KEY_SIZE,
@@ -53,10 +53,10 @@ use caliptra_drivers::{
     Aes, AesContext, AesDmaMode, AesGcmContext, AesGcmIv, AesKey, AesOperation, Array4x12,
     Array4x16, AxiAddr, CaliptraResult, DmaRecovery, Ecc384PrivKeyIn, Ecc384PrivKeyOut,
     Ecc384PubKey, Ecc384Result, Ecc384Seed, Ecc384Signature, HmacMode, KeyReadArgs, LEArray4x1157,
-    LEArray4x3, LEArray4x392, LEArray4x4, LEArray4x8, MlKem1024, MlKem1024Message,
-    MlKem1024MessageSource, MlKem1024Seed, MlKem1024Seeds, MlKem1024SharedKey,
-    MlKem1024SharedKeyOut, Mldsa87Result, Mldsa87Seed, PersistentDataAccessor, Sha2_512_384, Trng,
-    AES_BLOCK_SIZE_BYTES, AES_CONTEXT_SIZE_BYTES, AES_GCM_CONTEXT_SIZE_BYTES, MAX_SEED_WORDS,
+    LEArray4x3, LEArray4x392, LEArray4x4, LEArray4x8, MlKem1024, MlKem1024Message, MlKem1024Seed,
+    MlKem1024Seeds, MlKem1024SharedKey, MlKem1024SharedKeyOut, Mldsa87Result, Mldsa87Seed,
+    PersistentDataAccessor, Sha2_512_384, Trng, AES_BLOCK_SIZE_BYTES, AES_CONTEXT_SIZE_BYTES,
+    AES_GCM_CONTEXT_SIZE_BYTES, MAX_SEED_WORDS,
 };
 use caliptra_error::CaliptraError;
 use caliptra_image_types::{
@@ -243,17 +243,17 @@ impl CmStorage {
         encrypted_context: &EncryptedAesContext,
     ) -> CaliptraResult<AesContext> {
         let ciphertext = &encrypted_context.ciphertext;
-        let mut plaintext = [0u8; AES_CONTEXT_SIZE_BYTES];
+        let mut plaintext = Zeroizing::new([0u8; AES_CONTEXT_SIZE_BYTES]);
         aes.aes_256_gcm_decrypt(
             trng,
             &encrypted_context.iv,
             AesKey::Split(&self.context_key.0, &self.context_key.1),
             &[],
             ciphertext,
-            &mut plaintext,
+            &mut plaintext[..],
             &encrypted_context.tag,
         )?;
-        Ok(transmute!(plaintext))
+        Ok(transmute!(*plaintext))
     }
 
     fn encrypt_aes_gcm_context(
@@ -292,17 +292,17 @@ impl CmStorage {
         encrypted_context: &EncryptedAesGcmContext,
     ) -> CaliptraResult<AesGcmContext> {
         let ciphertext = &encrypted_context.ciphertext;
-        let mut plaintext = [0u8; AES_GCM_CONTEXT_SIZE_BYTES];
+        let mut plaintext = Zeroizing::new([0u8; AES_GCM_CONTEXT_SIZE_BYTES]);
         aes.aes_256_gcm_decrypt(
             trng,
             &encrypted_context.iv,
             AesKey::Split(&self.context_key.0, &self.context_key.1),
             &[],
             ciphertext,
-            &mut plaintext,
+            &mut plaintext[..],
             &encrypted_context.tag,
         )?;
-        Ok(transmute!(plaintext))
+        Ok(transmute!(*plaintext))
     }
 
     fn encrypt_ecdh_context(
@@ -341,17 +341,17 @@ impl CmStorage {
         encrypted_context: &EncryptedEcdhContext,
     ) -> CaliptraResult<[u8; CMB_ECDH_CONTEXT_SIZE]> {
         let ciphertext = &encrypted_context.ciphertext;
-        let mut plaintext = [0u8; CMB_ECDH_CONTEXT_SIZE];
+        let mut plaintext = Zeroizing::new([0u8; CMB_ECDH_CONTEXT_SIZE]);
         aes.aes_256_gcm_decrypt(
             trng,
             &encrypted_context.iv,
             AesKey::Split(&self.context_key.0, &self.context_key.1),
             &[],
             ciphertext,
-            &mut plaintext,
+            &mut plaintext[..],
             &encrypted_context.tag,
         )?;
-        Ok(plaintext)
+        Ok(*plaintext)
     }
 
     fn encrypt_shake256_context(
@@ -388,17 +388,17 @@ impl CmStorage {
         trng: &mut Trng,
         encrypted_context: &EncryptedShake256Context,
     ) -> CaliptraResult<u128> {
-        let mut plaintext = [0u8; CMB_SHAKE256_CONTEXT_PLAINTEXT_SIZE];
+        let mut plaintext = Zeroizing::new([0u8; CMB_SHAKE256_CONTEXT_PLAINTEXT_SIZE]);
         aes.aes_256_gcm_decrypt(
             trng,
             &encrypted_context.iv,
             AesKey::Split(&self.context_key.0, &self.context_key.1),
             &[],
             &encrypted_context.ciphertext,
-            &mut plaintext,
+            &mut plaintext[..],
             &encrypted_context.tag,
         )?;
-        Ok(u128::from_le_bytes(plaintext))
+        Ok(u128::from_le_bytes(*plaintext))
     }
 }
 
@@ -548,6 +548,63 @@ impl Commands {
         resp.hdr = MailboxRespHeader::default();
         resp.cmk = transmute!(encrypted_cmk);
         Ok(core::mem::size_of::<CmImportResp>())
+    }
+
+    #[cfg_attr(feature = "cfi", cfi_impl_fn)]
+    #[inline(never)]
+    pub(crate) fn key_gen(
+        drivers: &mut Drivers,
+        cmd_bytes: &[u8],
+        resp: &mut [u8],
+    ) -> CaliptraResult<usize> {
+        if !drivers.cryptographic_mailbox.initialized {
+            Err(CaliptraError::RUNTIME_CMB_NOT_INITIALIZED)?;
+        }
+        if cmd_bytes.len() != core::mem::size_of::<CmKeyGenReq>() {
+            Err(CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+        }
+        let cmd = CmKeyGenReq::ref_from_bytes(cmd_bytes)
+            .map_err(|_| CaliptraError::RUNTIME_MAILBOX_INVALID_PARAMS)?;
+
+        let key_usage = CmKeyUsage::from(cmd.key_usage);
+
+        match (key_usage, cmd.key_size) {
+            (CmKeyUsage::Aes | CmKeyUsage::Mldsa, 32) => (),
+            (CmKeyUsage::Ecdsa, 48) => (),
+            (CmKeyUsage::Hmac, 48 | 64) => (),
+            (CmKeyUsage::Mlkem, 64) => (),
+            _ => Err(CaliptraError::RUNTIME_CMB_INVALID_KEY_USAGE_AND_SIZE)?,
+        }
+
+        let key_size = cmd.key_size as usize;
+        let mut unencrypted_cmk = UnencryptedCmk {
+            version: 1,
+            length: cmd.key_size as u16,
+            key_usage: key_usage as u32 as u8,
+            id: if matches!(key_usage, CmKeyUsage::Aes) {
+                drivers.cryptographic_mailbox.add_counter()?
+            } else {
+                [0u8; 3]
+            },
+            usage_counter: 0,
+            key_material: [0u8; CMK_MAX_KEY_SIZE_BITS / 8],
+        };
+
+        for chunk in unencrypted_cmk.key_material[..key_size].chunks_mut(48) {
+            let rand: [u8; 48] = drivers.trng.generate()?.into();
+            chunk.copy_from_slice(&rand[..chunk.len()]);
+        }
+
+        let encrypted_cmk = drivers.cryptographic_mailbox.encrypt_cmk(
+            &mut drivers.aes,
+            &mut drivers.trng,
+            &unencrypted_cmk,
+        )?;
+
+        let resp = mutrefbytes::<CmKeyGenResp>(resp)?;
+        resp.hdr = MailboxRespHeader::default();
+        resp.cmk = transmute!(encrypted_cmk);
+        Ok(core::mem::size_of::<CmKeyGenResp>())
     }
 
     #[cfg_attr(feature = "cfi", cfi_impl_fn)]
@@ -2527,7 +2584,7 @@ impl Commands {
         let mut ml_kem = MlKem1024::new(drivers.abr.abr_reg());
         let result = ml_kem.encapsulate(
             &encaps_key,
-            MlKem1024MessageSource::Array(&message),
+            &message,
             MlKem1024SharedKeyOut::Array(&mut shared_key),
         );
         message.zeroize();

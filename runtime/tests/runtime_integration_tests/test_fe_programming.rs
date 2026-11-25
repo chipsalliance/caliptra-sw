@@ -9,7 +9,7 @@ use caliptra_builder::ImageOptions;
 use caliptra_common::mailbox_api::CommandId;
 use caliptra_error::CaliptraError;
 use caliptra_hw_model::{
-    DeviceLifecycle, HwModel, InitParams, ModelError, SecurityState, SubsystemInitParams,
+    DeviceLifecycle, Fuses, HwModel, InitParams, ModelError, SecurityState, SubsystemInitParams,
 };
 use caliptra_runtime::RtBootStatus;
 
@@ -20,6 +20,12 @@ fn test_fe_programming_cmd() {
     let init_params = InitParams {
         rom: &rom,
         security_state: *SecurityState::default().set_device_lifecycle(DeviceLifecycle::Production),
+        // Zero field entropy leaves the SECRET_PROD partitions blank on the
+        // subsystem FPGA, so FE_PROG starts from unprogrammed partitions.
+        fuses: Fuses {
+            field_entropy: [0; 8],
+            ..Default::default()
+        },
         ss_init_params: SubsystemInitParams {
             enable_mcu_uart_log: true,
             ..Default::default()
@@ -95,7 +101,19 @@ fn test_fe_programming_cannot_be_called_from_pl1() {
     let rom = crate::common::rom_for_fw_integration_tests().unwrap();
     let init_params = InitParams {
         rom: &rom,
-        security_state: *SecurityState::default().set_device_lifecycle(DeviceLifecycle::Production),
+        security_state: *SecurityState::default()
+            .set_device_lifecycle(DeviceLifecycle::Production)
+            .set_debug_locked(true),
+        // Zero field entropy leaves the SECRET_PROD partitions blank on the
+        // subsystem FPGA, so FE_PROG starts from unprogrammed partitions.
+        fuses: Fuses {
+            field_entropy: [0; 8],
+            ..Default::default()
+        },
+        ss_init_params: SubsystemInitParams {
+            enable_mcu_uart_log: true,
+            ..Default::default()
+        },
         ..Default::default()
     };
 
@@ -103,15 +121,20 @@ fn test_fe_programming_cannot_be_called_from_pl1() {
     let mut image_opts = ImageOptions::default();
     image_opts.vendor_config.pl0_pauser = None;
 
+    println!("Starting production boot with no PL0 pauser");
     let mut model = run_rt_test(RuntimeTestArgs {
         init_params: Some(init_params),
         test_image_options: Some(image_opts),
         ..Default::default()
     });
 
-    model.step_until(|m| {
-        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
-    });
+    println!("Runtime boot complete; checking runtime readiness");
+    // Normal boot-status updates are suppressed while debug is locked.
+    assert!(model
+        .soc_ifc()
+        .cptra_flow_status()
+        .read()
+        .ready_for_runtime());
 
     // A partition that would otherwise be valid, on a Production part: the only
     // reason for the rejection is the caller's privilege level.

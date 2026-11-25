@@ -22,6 +22,10 @@ pub struct Cli {
     #[arg(short = 'w', long = "workflow", default_value = "nightly-release.yml")]
     pub gh_workflow: String,
 
+    /// Branch to query workflow runs for.
+    #[arg(long, default_value = "main")]
+    pub branch: String,
+
     /// Path to output directory to store the emitted HTML files into, e.g. "/tmp/www"
     #[arg(short = 'o', long = "out", default_value = "/tmp/www")]
     pub www_out: String,

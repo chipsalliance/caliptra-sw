@@ -47,15 +47,17 @@ does not complete within 30 download attempts, the job fails without replacing
 the existing manifest or opening a PR. The GitHub Actions configuration must
 allow the workflow token to create pull requests.
 
-Subsystem bitstreams are built in `chipsalliance/caliptra-mcu-sw` by
-`.github/workflows/bitstream-build_2.2.yml` on `caliptra-mcu-dev-2.2`. Use its
-generated segmented manifest for a subsequent subsystem manifest-update PR;
-there is no second subsystem builder in this repository.
+Subsystem bitstreams are built in `chipsalliance/caliptra-infra` by
+`.github/workflows/bitstream-build.yml` (`subsystem-2.2-segmented` variant).
+Use the published manifest also selected by `caliptra-mcu-sw` `main-2.1` in
+`hw/latest/fpga/bitstream_manifests/subsystem.toml`; there is no subsystem
+builder in this repository.
 
 ### Consuming the 2.2 bitstreams
 
 The committed core and subsystem manifests select segmented 2.2 PDIs. Published
-objects use `v1/<source-commit>/<core|subsystem>/`; the embedded manifest in a
+objects use `v1/<source-commit>/<variant>/`, where `<variant>` is the manifest's
+`caliptra_variant` (for example `core` or `subsystem-2.2-segmented`); the embedded manifest in a
 GitHub bundle has hashes and provenance but no download URLs. Use the published
 manifest, and verify the PDI and XSA SHA-256 hashes before updating a pin.
 
@@ -64,12 +66,16 @@ The FPGA test workflows accept `hw-version: "2.2"` or `"latest"`, both selecting
 Other hardware versions are rejected before test artifacts are built. The
 `cargo xtask ci check-bitstream <manifest> <core|subsystem>` check rejects the
 wrong hardware version, variant, source repository/branch, non-segmented builds,
-and missing PDI URLs or hashes. The downloader verifies the PDI hash.
+PDI URLs outside the published bucket path for the manifest's commit, and missing
+PDI hashes. The downloader verifies the PDI hash.
 
-Subsystem testing pins `CALIPTRA_MCU_COMMIT` to the MCU source used to build the
-selected subsystem bitstream. Overrides must belong to `caliptra-mcu-dev-2.2`
-and require compatibility testing. Both ROM and fuse definitions come from that
-pin; the fuse file is `hw/latest/fuses.hjson`.
+Subsystem testing pins `CALIPTRA_MCU_COMMIT` to a `caliptra-mcu-sw` `main-2.1`
+commit whose `hw/latest/fpga/bitstream_manifests/subsystem.toml` selects the same
+bitstream as this repository. The bitstream itself is built from
+`caliptra-infra`, so the MCU pin and the manifest's source commit are independent
+and must be updated together. Overrides must belong to `main-2.1` and require
+compatibility testing. Both ROM and fuse definitions come from the MCU pin; the
+fuse file is `hw/latest/fuses.hjson`.
 The MCU ROM build passes that checkout-local file through
 `CALIPTRA_MCU_FUSES_HJSON`, so its pinned nested `caliptra-sw` does not attempt
 to download the obsolete `hw/fuses.hjson` path.
@@ -78,7 +84,8 @@ This MCU revision uses
 `latest-caliptra-mcu-rom-fpga-core_test,ocp-lock.bin`. The workflow copies it to
 the stable test-artifact name `mcu-rom-fpga.bin`.
 
-The two pinned manifests currently reference the same subsystem RTL commit.
+The core and subsystem manifests may reference different Caliptra-SS commits;
+check `caliptra_ss_commit` in each before comparing results.
 Their source commits and the MCU firmware pin are intentionally immutable;
 updating a source branch does not update a running board's hardware.
 

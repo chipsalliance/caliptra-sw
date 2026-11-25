@@ -343,14 +343,6 @@ pub struct Abr {
     #[register(offset = 0x0000_C004)]
     kv_mlkem_seed_rd_status: ReadOnlyRegister<u32, KvStatus::Register>,
 
-    /// Key Vault MLKEM Message Read Control
-    #[register(offset = 0x0000_C008, write_fn = on_write_mlkem_kv_rd_msg_ctrl)]
-    kv_mlkem_msg_rd_ctrl: ReadWriteRegister<u32, KvRdCtrl::Register>,
-
-    /// Key Vault MLKEM Message Read Status
-    #[register(offset = 0x0000_C00C)]
-    kv_mlkem_msg_rd_status: ReadOnlyRegister<u32, KvStatus::Register>,
-
     /// Key Vault MLKEM Shared Key Write Control
     #[register(offset = 0x0000_C010, write_fn = on_write_mlkem_kv_wr_sharedkey_ctrl)]
     kv_mlkem_sharedkey_wr_ctrl: ReadWriteRegister<u32, KeyWrCtrl::Register>,
@@ -401,9 +393,6 @@ pub struct Abr {
 
     /// ML-KEM seed read complete action
     mlkem_seed_read_complete_action: Option<ActionHandle>,
-
-    /// ML-KEM message read complete action
-    mlkem_msg_read_complete_action: Option<ActionHandle>,
 
     /// ML-KEM shared key write complete action
     mlkem_sharedkey_write_complete_action: Option<ActionHandle>,
@@ -465,8 +454,6 @@ impl Abr {
             mlkem_ciphertext: [0; ML_KEM_1024_CIPHERTEXT_SIZE / 4],
             kv_mlkem_seed_rd_ctrl: ReadWriteRegister::new(0),
             kv_mlkem_seed_rd_status: ReadOnlyRegister::new(0),
-            kv_mlkem_msg_rd_ctrl: ReadWriteRegister::new(0),
-            kv_mlkem_msg_rd_status: ReadOnlyRegister::new(0),
             kv_mlkem_sharedkey_wr_ctrl: ReadWriteRegister::new(0),
             kv_mlkem_sharedkey_wr_status: ReadOnlyRegister::new(0),
             error_global_intr: ReadOnlyRegister::new(0),
@@ -483,7 +470,6 @@ impl Abr {
             mlkem_op_complete_action: None,
             mlkem_op_zeroize_complete_action: None,
             mlkem_seed_read_complete_action: None,
-            mlkem_msg_read_complete_action: None,
             mlkem_sharedkey_write_complete_action: None,
             mlkem_shared_key_internal: [0; ML_KEM_1024_SHARED_KEY_SIZE],
         }
@@ -1067,29 +1053,6 @@ impl Abr {
         Ok(())
     }
 
-    /// On Write callback for `mlkem_kv_rd_msg_ctrl` register
-    pub fn on_write_mlkem_kv_rd_msg_ctrl(
-        &mut self,
-        size: RvSize,
-        val: RvData,
-    ) -> Result<(), BusError> {
-        if size != RvSize::Word {
-            Err(BusError::StoreAccessFault)?
-        }
-
-        self.kv_mlkem_msg_rd_ctrl.reg.set(val);
-
-        if self.kv_mlkem_msg_rd_ctrl.reg.is_set(KvRdCtrl::READ_EN) {
-            self.kv_mlkem_msg_rd_status
-                .reg
-                .modify(KvStatus::READY::CLEAR + KvStatus::VALID::CLEAR + KvStatus::ERROR::CLEAR);
-
-            self.mlkem_msg_read_complete_action = Some(self.timer.schedule_poll_in(KEY_RW_TICKS));
-        }
-
-        Ok(())
-    }
-
     /// On Write callback for `mlkem_kv_wr_sharedkey_ctrl` register
     pub fn on_write_mlkem_kv_wr_sharedkey_ctrl(
         &mut self,
@@ -1147,38 +1110,6 @@ impl Abr {
         seed_read_result
     }
 
-    fn mlkem_read_msg_from_keyvault(&mut self, key_id: u32, locked: bool) -> u32 {
-        let mut key_usage = KeyUsage::default();
-        key_usage.set_mlkem_msg(true);
-
-        let result = if locked {
-            self.key_vault.read_key_locked(key_id, key_usage)
-        } else {
-            self.key_vault.read_key(key_id, key_usage)
-        };
-        let (msg_read_result, msg) = match result.err() {
-            Some(BusError::LoadAccessFault)
-            | Some(BusError::LoadAddrMisaligned)
-            | Some(BusError::InstrAccessFault) => (KvStatus::ERROR::KV_READ_FAIL.value, None),
-            Some(BusError::StoreAccessFault) | Some(BusError::StoreAddrMisaligned) => {
-                (KvStatus::ERROR::KV_WRITE_FAIL.value, None)
-            }
-            None => (KvStatus::ERROR::SUCCESS.value, Some(result.unwrap())),
-        };
-
-        if let Some(msg) = msg {
-            let mut temp = words_from_bytes_le(
-                &<[u8; ML_KEM_1024_MESSAGE_SIZE]>::try_from(&msg[..ML_KEM_1024_MESSAGE_SIZE])
-                    .unwrap(),
-            );
-            // KV DWORD 0 maps to message register 7.
-            temp.reverse();
-            self.mlkem_msg = temp;
-        }
-
-        msg_read_result
-    }
-
     fn mlkem_write_sharedkey_to_keyvault(&mut self, key_id: u32, key_usage: u32) -> u32 {
         let result = self
             .key_vault
@@ -1201,15 +1132,6 @@ impl Abr {
 
         self.kv_mlkem_seed_rd_status.reg.modify(
             KvStatus::READY::SET + KvStatus::VALID::SET + KvStatus::ERROR.val(seed_read_result),
-        );
-    }
-
-    fn mlkem_msg_read_complete(&mut self) {
-        let key_id = self.kv_mlkem_msg_rd_ctrl.reg.read(KvRdCtrl::READ_ENTRY);
-        let msg_read_result = self.mlkem_read_msg_from_keyvault(key_id, false);
-
-        self.kv_mlkem_msg_rd_status.reg.modify(
-            KvStatus::READY::SET + KvStatus::VALID::SET + KvStatus::ERROR.val(msg_read_result),
         );
     }
 
@@ -1276,7 +1198,6 @@ impl Abr {
 
                 // Only store in register if not reading from key vault and not writing to key vault
                 if !self.kv_mlkem_seed_rd_ctrl.reg.is_set(KvRdCtrl::READ_EN)
-                    && !self.kv_mlkem_msg_rd_ctrl.reg.is_set(KvRdCtrl::READ_EN)
                     && !self
                         .kv_mlkem_sharedkey_wr_ctrl
                         .reg
@@ -1320,7 +1241,6 @@ impl Abr {
 
                 // Only store in register if not reading from key vault and not writing to key vault
                 if !self.kv_mlkem_seed_rd_ctrl.reg.is_set(KvRdCtrl::READ_EN)
-                    && !self.kv_mlkem_msg_rd_ctrl.reg.is_set(KvRdCtrl::READ_EN)
                     && !self
                         .kv_mlkem_sharedkey_wr_ctrl
                         .reg
@@ -1409,8 +1329,6 @@ impl Abr {
         self.mlkem_ciphertext = [0; ML_KEM_1024_CIPHERTEXT_SIZE / 4];
         self.kv_mlkem_seed_rd_status.reg.write(KvStatus::READY::SET);
         self.kv_mlkem_seed_rd_ctrl.reg.set(0);
-        self.kv_mlkem_msg_rd_status.reg.write(KvStatus::READY::SET);
-        self.kv_mlkem_msg_rd_ctrl.reg.set(0);
         self.kv_mlkem_sharedkey_wr_ctrl.reg.set(0);
         self.kv_mlkem_sharedkey_wr_status
             .reg
@@ -1421,7 +1339,6 @@ impl Abr {
         self.mlkem_op_complete_action = None;
         self.mlkem_op_zeroize_complete_action = None;
         self.mlkem_seed_read_complete_action = None;
-        self.mlkem_msg_read_complete_action = None;
         self.mlkem_sharedkey_write_complete_action = None;
 
         self.mlkem_status.reg.modify(
@@ -1454,9 +1371,6 @@ impl Abr {
         }
         if self.timer.fired(&mut self.mlkem_seed_read_complete_action) {
             self.mlkem_seed_read_complete();
-        }
-        if self.timer.fired(&mut self.mlkem_msg_read_complete_action) {
-            self.mlkem_msg_read_complete();
         }
         if self
             .timer
@@ -2625,66 +2539,23 @@ mod tests {
     }
 
     #[test]
-    fn test_mlkem_encaps_from_kv_message() {
-        let mut rng = SeedOnlyRng::new_with_seeds(vec![[0x31; 32], [0x72; 32]]);
-        let (_, encaps_key) = MlKem1024::generate(&mut rng);
-        let message: [u8; 32] = std::array::from_fn(|i| u8::try_from(i).unwrap());
-        let mut encaps_rng = SeedOnlyRng::new(message);
-        let (expected_ciphertext, _) = encaps_key.encapsulate(&mut encaps_rng).unwrap();
-        let mut kv_message = words_from_bytes_le(&message);
-        kv_message.reverse();
-
+    fn test_mlkem_kv_msg_registers_removed() {
         let clock = Clock::new();
-        let mut key_vault = KeyVault::new();
-        let mut usage = KeyUsage::default();
-        usage.set_mlkem_msg(true);
-        key_vault
-            .write_key(3, kv_message.as_bytes(), u32::from(usage))
-            .unwrap();
+        let key_vault = KeyVault::new();
         let sha512 = HashSha512::new(&clock, key_vault.clone());
         let mut abr = Abr::new(&clock, key_vault, sha512);
-        for (i, chunk) in encaps_key.as_bytes().chunks_exact(4).enumerate() {
-            abr.write(
-                RvSize::Word,
-                OFFSET_MLKEM_ENCAPS_KEY + (i * 4) as RvAddr,
-                u32::from_le_bytes(chunk.try_into().unwrap()),
-            )
-            .unwrap();
-        }
-        let ctrl = InMemoryRegister::<u32, KvRdCtrl::Register>::new(0);
-        ctrl.modify(KvRdCtrl::READ_ENTRY.val(3) + KvRdCtrl::READ_EN::SET);
-        abr.write(RvSize::Word, OFFSET_MLKEM_KV_RD_MSG_CONTROL, ctrl.get())
-            .unwrap();
-        loop {
-            let status = InMemoryRegister::<u32, KvStatus::Register>::new(
-                abr.read(RvSize::Word, OFFSET_MLKEM_KV_RD_MSG_STATUS)
-                    .unwrap(),
-            );
-            if status.is_set(KvStatus::VALID) {
-                assert_eq!(status.read(KvStatus::ERROR), KvStatus::ERROR::SUCCESS.value);
-                break;
-            }
-            clock.increment_and_process_timer_actions(1, &mut abr);
-        }
-        write_abr_entropy(&mut abr);
-        abr.write(
-            RvSize::Word,
-            OFFSET_MLKEM_CONTROL,
-            MlKemControl::CTRL::ENCAPS.into(),
-        )
-        .unwrap();
-        loop {
-            let status = InMemoryRegister::<u32, MlKemStatus::Register>::new(
-                abr.read(RvSize::Word, OFFSET_MLKEM_STATUS).unwrap(),
-            );
-            if status.is_set(MlKemStatus::VALID) && status.is_set(MlKemStatus::READY) {
-                break;
-            }
-            clock.increment_and_process_timer_actions(1, &mut abr);
-        }
+
         assert_eq!(
-            bytes_from_words_le(&abr.mlkem_ciphertext).as_slice(),
-            expected_ciphertext.as_slice()
+            abr.write(RvSize::Word, OFFSET_MLKEM_KV_RD_MSG_CONTROL, 1),
+            Err(BusError::StoreAccessFault)
+        );
+        assert_eq!(
+            abr.read(RvSize::Word, OFFSET_MLKEM_KV_RD_MSG_CONTROL),
+            Err(BusError::LoadAccessFault)
+        );
+        assert_eq!(
+            abr.read(RvSize::Word, OFFSET_MLKEM_KV_RD_MSG_STATUS),
+            Err(BusError::LoadAccessFault)
         );
     }
 

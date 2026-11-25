@@ -55,10 +55,6 @@ pub struct DoeTestResults {
     /// HMAC result of HMAC_KEY as key, and UDS as data.
     pub hmac_uds_as_data_out_pub: Ecc384PubKey,
 
-    // HMAC result of of the field entropy (including padding) as key, and
-    // b"Hello world" as data.
-    pub hmac_field_entropy_as_key_out_pub: Ecc384PubKey,
-
     /// HMAC result of HMAC_KEY as key, and field entropy (excluding padding) as
     /// data.
     pub hmac_field_entropy_as_data_out_pub: Ecc384PubKey,
@@ -68,10 +64,6 @@ impl Debug for DoeTestResults {
         f.debug_struct("DoeTestResults")
             .field("hmac_uds_as_key_out_pub", &self.hmac_uds_as_key_out_pub)
             .field("hmac_uds_as_data_out_pub", &self.hmac_uds_as_data_out_pub)
-            .field(
-                "hmac_field_entropy_as_key_out_pub",
-                &self.hmac_field_entropy_as_key_out_pub,
-            )
             .field(
                 "hmac_field_entropy_as_data_out_pub",
                 &self.hmac_field_entropy_as_data_out_pub,

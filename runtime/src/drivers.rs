@@ -19,6 +19,7 @@ use crate::debug_unlock::ProductionDebugUnlock;
 use crate::dpe_crypto::DpeCrypto;
 #[cfg(feature = "fips_self_test")]
 pub use crate::fips::fips_self_test_cmd::SelfTestStatus;
+use crate::fips::SelfTestSchedule;
 use crate::invoke_dpe::invoke_dpe_cmd;
 use crate::ocp_lock::OcpLockContext;
 use crate::recovery_flow::RecoveryFlow;
@@ -36,7 +37,6 @@ use caliptra_cfi_lib::{
     cfi_assert, cfi_assert_bool, cfi_assert_eq, cfi_assert_eq_12_words, cfi_launder,
 };
 use caliptra_common::cfi_check;
-use caliptra_common::crypto::Crypto;
 use caliptra_common::dice::{copy_ldevid_ecc384_cert, copy_ldevid_mldsa87_cert};
 use caliptra_common::mailbox_api::AddSubjectAltNameReq;
 use caliptra_dpe::commands::{Command, DeriveContextCmd};
@@ -63,7 +63,7 @@ use caliptra_drivers::{
     Hmac, KeyId, KeyVault, Lms, PcrBank, PersistentDataAccessor, Pic, ResetReason, Sha256,
     Sha256Alg, Sha2_512_384, Sha2_512_384Acc, Sha3, SocIfc, Trng,
 };
-use caliptra_drivers::{okref, Dma, DmaMmio, Mldsa87PubKey};
+use caliptra_drivers::{okref, Dma, DmaMmio, KeyReadArgs, Mldsa87PubKey, Mldsa87Seed};
 use caliptra_image_types::ImageManifest;
 use caliptra_registers::aes::AesReg;
 use caliptra_registers::aes_clp::AesClpReg;
@@ -199,6 +199,9 @@ pub struct Drivers {
     #[cfg(feature = "fips_self_test")]
     pub self_test_status: SelfTestStatus,
 
+    #[cfg(feature = "fips_self_test")]
+    pub(crate) self_test_schedule: SelfTestSchedule,
+
     pub is_shutdown: bool,
 
     pub dmtf_device_info: Option<ArrayVec<u8, { AddSubjectAltNameReq::MAX_DEVICE_INFO_LEN }>>,
@@ -227,6 +230,14 @@ impl Drivers {
     /// any concurrent access to these register blocks does not conflict with
     /// these drivers.
     pub unsafe fn new_from_registers() -> CaliptraResult<Self> {
+        let self_test_schedule = SelfTestSchedule::new(
+            SocIfcReg::new()
+                .regs()
+                .cptra_generic_input_wires()
+                .at(1)
+                .read(),
+        )?;
+
         let mut trng = Trng::new(
             CsrngReg::new(),
             EntropySrcReg::new(),
@@ -268,6 +279,8 @@ impl Drivers {
             pic: Pic::new(El2PicCtrl::new()),
             #[cfg(feature = "fips_self_test")]
             self_test_status: SelfTestStatus::Idle,
+            #[cfg(feature = "fips_self_test")]
+            self_test_schedule,
             ecc_cert_chain: ArrayVec::new(),
             mldsa_cert_chain: ArrayVec::new(),
             is_shutdown: false,
@@ -430,6 +443,7 @@ impl Drivers {
         let (cciv_idx, somv_idx, somo_idx, mcu_rt_idx) = {
             let persistent_data = self.persistent_data.get();
             let dpe = &persistent_data.fw.dpe.state;
+            let pl0_pauser = Some(persistent_data.rom.manifest1.header.pl0_pauser);
             let root_idx = Self::get_dpe_root_context_idx(dpe)? as u8;
             let cciv_idx = Self::get_dpe_context_idx_by_tci_type(
                 dpe,
@@ -438,16 +452,14 @@ impl Drivers {
                 Some(root_idx),
             )?;
             let somv_idx =
-                Self::get_dpe_context_idx_by_tci_type(dpe, Self::SOMV_TCI_TYPE, None, None).ok();
+                Self::get_dpe_context_idx_by_tci_type(dpe, Self::SOMV_TCI_TYPE, pl0_pauser, None)
+                    .ok();
             let somo_idx =
-                Self::get_dpe_context_idx_by_tci_type(dpe, Self::SOMO_TCI_TYPE, None, None).ok();
-            let mcu_rt_idx = Self::get_dpe_context_idx_by_tci_type(
-                dpe,
-                Self::MCU_RT_TCI_TYPE,
-                Some(persistent_data.rom.manifest1.header.pl0_pauser),
-                None,
-            )
-            .ok();
+                Self::get_dpe_context_idx_by_tci_type(dpe, Self::SOMO_TCI_TYPE, pl0_pauser, None)
+                    .ok();
+            let mcu_rt_idx =
+                Self::get_dpe_context_idx_by_tci_type(dpe, Self::MCU_RT_TCI_TYPE, pl0_pauser, None)
+                    .ok();
             (cciv_idx, somv_idx, somo_idx, mcu_rt_idx)
         };
 
@@ -849,7 +861,6 @@ impl Drivers {
         let manifest = drivers.persistent_data.get().rom.manifest1;
         let pl0_pauser_locality = manifest.header.pl0_pauser;
         let hashed_rt_pub_key = drivers.compute_ecc_rt_alias_sn()?;
-        let privilege_level = drivers.caller_privilege_level();
 
         // Set context limits in persistent data as we init DPE
         drivers.persistent_data.get_mut().fw.dpe.pl0_context_limit =
@@ -959,7 +970,7 @@ impl Drivers {
             // Use the helper method here because the DPE instance holds a mutable reference to driver
             Self::is_dpe_context_threshold_exceeded_helper(
                 pl0_pauser_locality,
-                privilege_level,
+                PauserPrivileges::PL0,
                 env.state,
                 pl0_context_limit as usize,
                 pl1_context_limit as usize,
@@ -1294,19 +1305,16 @@ impl Drivers {
     ///
     /// * `Mldsa87PubKey` - RT Alias pub key
     pub fn get_key_id_rt_mldsa_pub_key(drivers: &mut Drivers) -> CaliptraResult<Mldsa87PubKey> {
-        let rt_cdi = Self::get_key_id_rt_cdi(drivers)?;
         let rt_mldsa_key = Self::get_key_id_rt_mldsa_keypair_seed(drivers)?;
-        let mldsa_key_pair = drivers.abr.with_mldsa87(|mut mldsa87| {
-            Crypto::mldsa87_key_gen(
-                &mut mldsa87,
-                &mut drivers.hmac,
+        // FMC already wrote the certified seed. The 2.2 key vault can
+        // write-lock that slot when runtime takes control.
+        drivers.abr.with_mldsa87(|mut mldsa87| {
+            mldsa87.key_pair(
+                Mldsa87Seed::Key(KeyReadArgs::new(rt_mldsa_key)),
                 &mut drivers.trng,
-                rt_cdi,
-                b"alias_rt_mldsa_key",
-                rt_mldsa_key,
+                None,
             )
-        })?;
-        Ok(mldsa_key_pair.pub_key)
+        })
     }
 
     /// Process the certificate validity info

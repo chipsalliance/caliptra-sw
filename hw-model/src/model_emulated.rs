@@ -163,6 +163,18 @@ impl ModelEmulated {
 }
 
 impl ModelEmulated {
+    /// Drive the core's generic input pins without writing the read-only SoC registers.
+    pub fn set_generic_input_wires(&mut self, value: &[u32; 2]) {
+        self.cpu
+            .bus
+            .inner_mut()
+            .bus
+            .soc_reg
+            .set_generic_input_wires(value);
+    }
+}
+
+impl ModelEmulated {
     /// Returns true when the emulated CPU is halted via the VeeR MPMC
     /// low-power CSR (not the RISC-V `wfi` instruction, which this emulator
     /// treats as a no-op).
@@ -172,6 +184,12 @@ impl ModelEmulated {
     /// their event queue while it is idle.
     pub fn cpu_halted(&self) -> bool {
         self.cpu.read_halted()
+    }
+
+    /// Snapshot of the Caliptra Key Vault (keys, PCRs, and control registers).
+    /// For tools that display emulator state, such as caliptra-wasm.
+    pub fn key_vault_snapshot(&self) -> caliptra_emu_periph::KeyVaultSnapshot {
+        self.cpu.bus.inner().bus.key_vault.snapshot()
     }
 }
 
@@ -196,6 +214,34 @@ impl ModelEmulated {
     /// Read the emulated UDS/FE fuse bank, including digests and zeroization markers.
     pub fn otp_fuse_bank(&self) -> &[u32] {
         self.cpu.bus.inner().bus.dma.axi.otp_fc.fuse_bank()
+    }
+
+    pub fn otp_fuse_bank_mut(&mut self) -> &mut [u32] {
+        self.cpu.bus.inner_mut().bus.dma.axi.otp_fc.fuse_bank_mut()
+    }
+
+    pub fn lock_otp_dai(&mut self) {
+        self.cpu
+            .bus
+            .inner_mut()
+            .bus
+            .dma
+            .axi
+            .otp_fc
+            .write_regwen(caliptra_emu_types::RvSize::Word, 0)
+            .unwrap();
+    }
+
+    pub fn lock_otp_secret_digests(&mut self) {
+        self.cpu
+            .bus
+            .inner_mut()
+            .bus
+            .dma
+            .axi
+            .otp_fc
+            .write_secret_digest_lock(caliptra_emu_types::RvSize::Word, 1)
+            .unwrap();
     }
 }
 

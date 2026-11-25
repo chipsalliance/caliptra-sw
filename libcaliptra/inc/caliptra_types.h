@@ -168,6 +168,15 @@ struct caliptra_get_rt_alias_mldsa87_cert_resp
     uint8_t data[9216];
 };
 
+struct caliptra_mldsa_verify_req
+{
+    struct caliptra_req_header hdr;
+    uint8_t pub_key[2592];
+    uint8_t signature[4628];
+    uint32_t message_size;
+    uint8_t message[4096];
+};
+
 struct caliptra_lms_verify_v2_req
 {
     struct caliptra_req_header hdr;
@@ -225,10 +234,18 @@ struct caliptra_fw_info_resp
     uint32_t owner_auth_manifest_current_svn;
     uint32_t owner_auth_manifest_min_svn;
     uint32_t debug_policy;
+    // Partition i occupies bits [2*i+1:2*i]; bits 31:8 are zero.
+    // All partitions report error outside subsystem mode.
+    uint32_t fe_status;
 };
 
 #define CALIPTRA_FW_INFO_DEBUG_FIRMWARE_ACTIVE (1U << 0)
 #define CALIPTRA_FW_INFO_DEBUG_AUTH_MANIFEST_ACTIVE (1U << 1)
+#define CALIPTRA_FW_INFO_FE_UNPROVISIONED 0U
+#define CALIPTRA_FW_INFO_FE_PROVISIONED 1U
+#define CALIPTRA_FW_INFO_FE_ZEROIZED 2U
+#define CALIPTRA_FW_INFO_FE_ERROR 3U
+#define CALIPTRA_FW_INFO_FE_STATUS_ERROR_ALL 0xFFU
 
 struct caliptra_dpe_tag_tci_req
 {
@@ -969,4 +986,54 @@ struct caliptra_ocp_lock_load_mek_resp
 {
     struct caliptra_resp_header hdr;
     uint32_t reserved;
+};
+
+
+
+// Structs and constants can be found in caliptra-sw/api/src/mailbox.rs
+#define MAX_CMB_DATA_SIZE       4096
+#define CMB_SHA_CONTEXT_SIZE    200
+#define SHA512_DIGEST_BYTE_SIZE 64
+
+struct caliptra_cm_sha_init_req
+{
+    struct caliptra_req_header hdr;
+    uint32_t hash_algorithm;
+    uint32_t data_size;
+    uint8_t data[MAX_CMB_DATA_SIZE];
+};
+
+struct caliptra_cm_sha_init_resp
+{
+    struct caliptra_resp_header hdr;
+    uint8_t context[CMB_SHA_CONTEXT_SIZE];
+};
+
+struct caliptra_cm_sha_update_req
+{
+    struct caliptra_req_header hdr;
+    uint8_t context[CMB_SHA_CONTEXT_SIZE];
+    uint32_t data_size;
+    uint8_t data[MAX_CMB_DATA_SIZE];
+};
+
+struct caliptra_cm_sha_update_resp
+{
+    struct caliptra_resp_header hdr;
+    uint8_t context[CMB_SHA_CONTEXT_SIZE];
+};
+
+struct caliptra_cm_sha_final_req
+{
+    struct caliptra_req_header hdr;
+    uint8_t context[CMB_SHA_CONTEXT_SIZE];
+    uint32_t data_size;
+    uint8_t data[MAX_CMB_DATA_SIZE];
+};
+
+struct caliptra_cm_sha_final_resp
+{
+    struct caliptra_resp_header hdr;
+    uint32_t hash_size;
+    uint8_t hash[SHA512_DIGEST_BYTE_SIZE];
 };

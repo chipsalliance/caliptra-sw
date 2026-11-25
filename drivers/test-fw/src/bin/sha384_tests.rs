@@ -383,6 +383,30 @@ fn test_pcr_hash_extend_limit() {
     assert!(result.is_err());
 }
 
+fn test_operation_zeroization() {
+    let mut sha = unsafe { Sha2_512_384::new(Sha512Reg::new()) };
+    let regs = unsafe { Sha512Reg::new() };
+    let expected = sha.sha384_digest(b"abc").unwrap();
+
+    {
+        let mut abandoned = sha.sha384_digest_init().unwrap();
+        abandoned.update(&[0xa5; 128]).unwrap();
+    }
+    let mut digest = Array4x12::default();
+    let mut op = sha.sha384_digest_init().unwrap();
+    assert_eq!(regs.regs().digest().read(), [0; 16]);
+    op.update(b"abc").unwrap();
+    op.finalize(&mut digest).unwrap();
+    assert_eq!(digest, expected);
+    assert_eq!(regs.regs().digest().read(), [0; 16]);
+
+    {
+        let mut abandoned = sha.sha384_digest_init().unwrap();
+        abandoned.update(&[0xa5; 128]).unwrap();
+    }
+    assert_eq!(sha.sha384_digest(b"abc").unwrap(), expected);
+}
+
 fn test_kat() {
     // Init CFI
     CfiCounter::reset(&mut || Ok((0xdeadbeef, 0xdeadbeef, 0xdeadbeef, 0xdeadbeef)));
@@ -407,6 +431,7 @@ test_suite! {
     test_op6,
     test_op7,
     test_op8,
+    test_operation_zeroization,
     test_pcr_hash_extend_single_block,
     test_pcr_hash_extend_single_block_2,
     test_pcr_hash_extend_single_block_3,

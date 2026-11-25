@@ -19,8 +19,8 @@ use caliptra_builder::{
 use caliptra_common::{
     mailbox_api::{
         CertifyKeyChunksFlags, CertifyKeyChunksReq, CertifyKeyChunksResp, CommandId,
-        GetFmcAliasEcc384CertResp, GetLdevCertResp, GetRtAliasCertResp, InvokeDpeReq,
-        InvokeDpeResp, MailboxReq, MailboxReqHeader,
+        GetFmcAliasEcc384CertResp, GetLdevCertResp, GetRtAliasCertResp, GetTaggedTciReq,
+        GetTaggedTciResp, InvokeDpeReq, InvokeDpeResp, MailboxReq, MailboxReqHeader, TagTciReq,
     },
     memory_layout::{ROM_ORG, ROM_SIZE, ROM_STACK_ORG, ROM_STACK_SIZE, STACK_ORG, STACK_SIZE},
     FMC_ORG, FMC_SIZE, RUNTIME_ORG, RUNTIME_SIZE,
@@ -66,7 +66,7 @@ use openssl::{
 use sha2::{Digest as Sha2DigestTrait, Sha384 as Sha384Hasher};
 use std::borrow::Cow;
 use std::io;
-use zerocopy::{FromZeros, IntoBytes, TryFromBytes};
+use zerocopy::{FromBytes, FromZeros, IntoBytes, TryFromBytes};
 
 pub const TEST_LABEL: [u8; 48] = [
     48, 47, 46, 45, 44, 43, 42, 41, 40, 39, 38, 37, 36, 35, 34, 33, 32, 31, 30, 29, 28, 27, 26, 25,
@@ -118,12 +118,14 @@ fn default_soc_manifest(pqc_key_type: FwVerificationPqcKeyType, svn: u32) -> Aut
 pub fn soc_manifest_measurements(manifest: &AuthorizationManifest) -> ([u8; 48], [u8; 48]) {
     let preamble = manifest.preamble.as_bytes();
     let vendor_range = AuthManifestPreamble::vendor_signed_data_range();
-    let owner_range = AuthManifestPreamble::owner_pub_keys_range();
+    let mut owner_hasher = Sha384Hasher::new();
+    for range in AuthManifestPreamble::owner_signed_data_ranges() {
+        owner_hasher.update(&preamble[range.start as usize..range.end as usize]);
+    }
     (
         Sha384Hasher::digest(&preamble[vendor_range.start as usize..vendor_range.end as usize])
             .into(),
-        Sha384Hasher::digest(&preamble[owner_range.start as usize..owner_range.end as usize])
-            .into(),
+        owner_hasher.finalize().into(),
     )
 }
 
@@ -391,6 +393,7 @@ pub fn start_rt_test_pqc_model(
         fw_svn: svn_to_bitmap(production_state.fw_svn),
         hek_seed: args.hek_seed.unwrap_or([0xABDEu32; 8]),
         idevid_cert_attr,
+        field_entropy: init_params.fuses.field_entropy,
         ..Default::default()
     };
 
@@ -455,6 +458,70 @@ pub fn run_rt_test(args: RuntimeTestArgs) -> DefaultHwModel {
 pub fn run_rt_test_return_fw(args: RuntimeTestArgs) -> (DefaultHwModel, ImageBundle) {
     let key_type = args.key_type.unwrap_or(DEFAULT_PQC_KEY_TYPE);
     run_rt_test_pqc_return_fw(args, key_type)
+}
+
+pub struct BootDpeContextInfo {
+    pub pl0_context_count: usize,
+    pub tci_type: u32,
+    pub fe_state_measurement: Option<[u8; 48]>,
+}
+
+/// Call once, before replacing or rotating the startup default context.
+pub fn get_boot_dpe_context_info(model: &mut DefaultHwModel) -> BootDpeContextInfo {
+    if !model.subsystem_mode() {
+        return BootDpeContextInfo {
+            pl0_context_count: 2,
+            tci_type: u32::from_le_bytes(*b"CCIV"),
+            fe_state_measurement: None,
+        };
+    }
+
+    // Tagging reads the boot measurement without allocating or extending a context.
+    // Legacy MCU ROMs leave FE state last; FE-retired ROMs leave MCU firmware last.
+    const BOOT_CONTEXT_TAG: u32 = u32::from_le_bytes(*b"BOOT");
+    let mut tag = MailboxReq::TagTci(TagTciReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        handle: [0; 16],
+        tag: BOOT_CONTEXT_TAG,
+    });
+    tag.populate_chksum().unwrap();
+    model
+        .mailbox_execute(u32::from(CommandId::DPE_TAG_TCI), tag.as_bytes().unwrap())
+        .unwrap()
+        .expect("Expected a tag response");
+
+    let mut get = MailboxReq::GetTaggedTci(GetTaggedTciReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        tag: BOOT_CONTEXT_TAG,
+    });
+    get.populate_chksum().unwrap();
+    let resp = model
+        .mailbox_execute(
+            u32::from(CommandId::DPE_GET_TAGGED_TCI),
+            get.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .expect("Expected a tagged TCI response");
+    let resp = GetTaggedTciResp::read_from_bytes(&resp).unwrap();
+    let fe_measurement: [u8; 48] = Sha384Hasher::digest(0u32.to_le_bytes()).into();
+    let has_fe_measurement = resp.tci_current == fe_measurement;
+    if !has_fe_measurement {
+        assert_eq!(
+            resp.tci_current,
+            <[u8; 48]>::from(Sha384Hasher::digest(DEFAULT_MCU_FW)),
+            "Unexpected MCU boot DPE measurement"
+        );
+    }
+
+    BootDpeContextInfo {
+        pl0_context_count: 5 + usize::from(has_fe_measurement),
+        tci_type: if has_fe_measurement {
+            0
+        } else {
+            u32::from_le_bytes(*b"MCFW")
+        },
+        fe_state_measurement: has_fe_measurement.then_some(fe_measurement),
+    }
 }
 
 pub fn generate_test_x509_cert(private_key: &PKey<Private>) -> X509 {
@@ -532,6 +599,19 @@ pub fn mailbox_execute_with_lock_retry(
         }
     }
     Err(ModelError::UnableToLockMailbox)
+}
+
+/// Warm reset after runtime has finished the previous mailbox command.
+///
+/// The host sees the response before runtime returns to its command loop.
+/// A warm reset in that window counts as a reset during a command, which makes
+/// runtime disable attestation.
+pub fn warm_reset_when_idle(model: &mut impl HwModel) {
+    model.step_until(|m| m.soc_ifc().cptra_flow_status().read().mailbox_flow_done());
+    for _ in 0..1000 {
+        model.step();
+    }
+    model.warm_reset_flow().unwrap();
 }
 
 pub fn check_header_checksum(resp: &[u8]) -> anyhow::Result<()> {

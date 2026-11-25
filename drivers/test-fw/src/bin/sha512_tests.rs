@@ -135,6 +135,30 @@ fn test_op3() {
     assert_eq!(digest, expected);
 }
 
+fn test_operation_zeroization() {
+    let mut sha = unsafe { Sha2_512_384::new(Sha512Reg::new()) };
+    let regs = unsafe { Sha512Reg::new() };
+    let expected = sha.sha512_digest(b"abc").unwrap();
+
+    {
+        let mut abandoned = sha.sha512_digest_init().unwrap();
+        abandoned.update(&[0xa5; 128]).unwrap();
+    }
+    let mut digest = Array4x16::default();
+    let mut op = sha.sha512_digest_init().unwrap();
+    assert_eq!(regs.regs().digest().read(), [0; 16]);
+    op.update(b"abc").unwrap();
+    op.finalize(&mut digest).unwrap();
+    assert_eq!(digest, expected);
+    assert_eq!(regs.regs().digest().read(), [0; 16]);
+
+    {
+        let mut abandoned = sha.sha512_digest_init().unwrap();
+        abandoned.update(&[0xa5; 128]).unwrap();
+    }
+    assert_eq!(sha.sha512_digest(b"abc").unwrap(), expected);
+}
+
 fn test_kat() {
     // Init CFI
     CfiCounter::reset(&mut || Ok((0xdeadbeef, 0xdeadbeef, 0xdeadbeef, 0xdeadbeef)));
@@ -154,4 +178,5 @@ test_suite! {
     test_op1,
     test_op2,
     test_op3,
+    test_operation_zeroization,
 }

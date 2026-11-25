@@ -79,7 +79,7 @@ fn test_warm_reset_success() {
     .unwrap();
 
     // Wait for boot
-    while !hw.soc_ifc().cptra_flow_status().read().ready_for_runtime() {
+    while !hw.boot_complete() {
         hw.step();
     }
 
@@ -87,7 +87,7 @@ fn test_warm_reset_success() {
     hw.warm_reset_flow().unwrap();
 
     // Wait for boot
-    while !hw.soc_ifc().cptra_flow_status().read().ready_for_runtime() {
+    while !hw.boot_complete() {
         hw.step();
     }
 }
@@ -364,7 +364,7 @@ fn test_warm_reset_version() {
     .unwrap();
 
     // Wait for boot
-    while !hw.soc_ifc().cptra_flow_status().read().ready_for_runtime() {
+    while !hw.boot_complete() {
         hw.step();
     }
 
@@ -380,7 +380,7 @@ fn test_warm_reset_version() {
     hw.warm_reset_flow().unwrap();
 
     // Wait for boot
-    while !hw.soc_ifc().cptra_flow_status().read().ready_for_runtime() {
+    while !hw.boot_complete() {
         hw.step();
     }
 
