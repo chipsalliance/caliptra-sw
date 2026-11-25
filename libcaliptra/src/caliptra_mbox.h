@@ -55,6 +55,7 @@ enum mailbox_command {
     OP_INCREMENT_PCR_RESET_COUNTER   = 0x50435252, // "PCRR"
     OP_QUOTE_PCRS_ECC384             = 0x50435251, // "PCRQ"
     OP_QUOTE_PCRS_MLDSA87            = 0x5043524D, // "PCRM"
+    OP_GET_PCR_LOG                   = 0x504C4F47, // "PLOG"
     OP_EXTEND_PCR                    = 0x50435245, // "PCRE"
     OP_ADD_SUBJECT_ALT_NAME          = 0x414C544E, // "ALTN"
     OP_CERTIFY_KEY_EXTENDED_ECC384   = 0x434B4558, // "CKEX"
