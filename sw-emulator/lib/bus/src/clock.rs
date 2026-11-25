@@ -189,6 +189,7 @@ impl Clock {
                 | TimerAction::SetExtIntEn { .. }
                 | TimerAction::InternalTimerLocalInterrupt { .. }
                 | TimerAction::MachineTimerInterrupt
+                | TimerAction::MachineTimerInterruptClear
                 | TimerAction::Halt => {}
             }
         }
@@ -276,6 +277,8 @@ pub enum TimerAction {
     Halt,
     /// Assert the machine timer interrupt (mip.MTIP = 1).
     MachineTimerInterrupt, //
+    /// Deassert the machine timer interrupt (mip.MTIP = 0), e.g. after mtimecmp moved past mtime.
+    MachineTimerInterruptClear,
 }
 
 impl TimerAction {
@@ -293,7 +296,8 @@ impl TimerAction {
             TimerAction::Nmi { .. } => 8,
             TimerAction::ExtInt { .. } => 9,
             TimerAction::InternalTimerLocalInterrupt { .. } => 10,
-            TimerAction::MachineTimerInterrupt => 11,
+            TimerAction::MachineTimerInterruptClear => 11,
+            TimerAction::MachineTimerInterrupt => 12,
         }
     }
 }

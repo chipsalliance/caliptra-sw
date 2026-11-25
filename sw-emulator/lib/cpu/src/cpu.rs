@@ -914,6 +914,7 @@ impl<TBus: Bus> Cpu<TBus> {
                         save = true;
                     }
                 }
+                TimerAction::MachineTimerInterruptClear => self.csrs.set_mtip(false),
                 TimerAction::Halt => self.halted = true,
                 _ => {}
             }
@@ -2169,5 +2170,48 @@ mod tests {
         assert_eq!(cpu.external_int_counter, 1);
         // the timer value should now be 0
         assert_eq!(cpu.csrs.internal_timers.read_mitcnt0(), 0);
+    }
+
+    #[test]
+    fn test_machine_timer_interrupt_clear() {
+        const RV32_NO_OP: u32 = 0x00000013;
+        const MTIP: u32 = 1 << 7;
+
+        let clock = Rc::new(Clock::new());
+        let timer = Timer::new(&clock);
+        let mut bus = DynamicBus::new();
+        let rom = Rom::new(
+            std::iter::repeat_n(RV32_NO_OP, 256)
+                .flat_map(u32::to_le_bytes)
+                .collect(),
+        );
+        bus.attach_dev("ROM", 0..=0x3ff, Box::new(rom)).unwrap();
+
+        let pic = Rc::new(Pic::new());
+        let mut cpu = Cpu::new(
+            bus,
+            clock.clone(),
+            pic,
+            CpuArgs::default(),
+            Rc::new(Cell::new(0)),
+        );
+        // mip reads are masked by mie, so enable MTIE to observe MTIP.
+        cpu.csrs.write(RvPrivMode::M, Csr::MIE, MTIP).unwrap();
+        cpu.global_int_en = true;
+
+        timer.schedule_action_in(1, TimerAction::MachineTimerInterrupt);
+        assert_eq!(cpu.step(None), StepAction::Continue);
+        assert_eq!(cpu.csrs.read(RvPrivMode::M, Csr::MIP).unwrap() & MTIP, MTIP);
+
+        timer.schedule_action_in(1, TimerAction::MachineTimerInterruptClear);
+        assert_eq!(cpu.step(None), StepAction::Continue);
+        assert_eq!(cpu.csrs.read(RvPrivMode::M, Csr::MIP).unwrap() & MTIP, 0);
+
+        // A clear and an assert in the same cycle leave MTIP asserted.
+        timer.schedule_action_in(1, TimerAction::MachineTimerInterrupt);
+        timer.schedule_action_in(1, TimerAction::MachineTimerInterruptClear);
+        cpu.global_int_en = true;
+        assert_eq!(cpu.step(None), StepAction::Continue);
+        assert_eq!(cpu.csrs.read(RvPrivMode::M, Csr::MIP).unwrap() & MTIP, MTIP);
     }
 }
