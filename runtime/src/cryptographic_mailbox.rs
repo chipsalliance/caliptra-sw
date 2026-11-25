@@ -53,10 +53,10 @@ use caliptra_drivers::{
     Aes, AesContext, AesDmaMode, AesGcmContext, AesGcmIv, AesKey, AesOperation, Array4x12,
     Array4x16, AxiAddr, CaliptraResult, DmaRecovery, Ecc384PrivKeyIn, Ecc384PrivKeyOut,
     Ecc384PubKey, Ecc384Result, Ecc384Seed, Ecc384Signature, HmacMode, KeyReadArgs, LEArray4x1157,
-    LEArray4x3, LEArray4x392, LEArray4x4, LEArray4x8, MlKem1024, MlKem1024Message,
-    MlKem1024MessageSource, MlKem1024Seed, MlKem1024Seeds, MlKem1024SharedKey,
-    MlKem1024SharedKeyOut, Mldsa87Result, Mldsa87Seed, PersistentDataAccessor, Sha2_512_384, Trng,
-    AES_BLOCK_SIZE_BYTES, AES_CONTEXT_SIZE_BYTES, AES_GCM_CONTEXT_SIZE_BYTES, MAX_SEED_WORDS,
+    LEArray4x3, LEArray4x392, LEArray4x4, LEArray4x8, MlKem1024, MlKem1024Message, MlKem1024Seed,
+    MlKem1024Seeds, MlKem1024SharedKey, MlKem1024SharedKeyOut, Mldsa87Result, Mldsa87Seed,
+    PersistentDataAccessor, Sha2_512_384, Trng, AES_BLOCK_SIZE_BYTES, AES_CONTEXT_SIZE_BYTES,
+    AES_GCM_CONTEXT_SIZE_BYTES, MAX_SEED_WORDS,
 };
 use caliptra_error::CaliptraError;
 use caliptra_image_types::{
@@ -2584,7 +2584,7 @@ impl Commands {
         let mut ml_kem = MlKem1024::new(drivers.abr.abr_reg());
         let result = ml_kem.encapsulate(
             &encaps_key,
-            MlKem1024MessageSource::Array(&message),
+            &message,
             MlKem1024SharedKeyOut::Array(&mut shared_key),
         );
         message.zeroize();

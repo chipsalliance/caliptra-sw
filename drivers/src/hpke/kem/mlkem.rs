@@ -9,8 +9,8 @@ use crate::{
         suites::{CipherSuite, KemId},
     },
     Array4x16, LEArray4x392, MlKem1024, MlKem1024Ciphertext, MlKem1024DecapsKey,
-    MlKem1024EncapsKey, MlKem1024Message, MlKem1024MessageSource, MlKem1024Seed, MlKem1024Seeds,
-    MlKem1024SharedKey, MlKem1024SharedKeyOut, Sha3, Trng,
+    MlKem1024EncapsKey, MlKem1024Message, MlKem1024Seed, MlKem1024Seeds, MlKem1024SharedKey,
+    MlKem1024SharedKeyOut, Sha3, Trng,
 };
 
 use super::{DecapsulationKey, EncapsulatedSecret, EncapsulationKey, Kem, SharedSecret};
@@ -195,7 +195,7 @@ impl Kem<{ MlKem::NSK }, { MlKem::NENC }, { MlKem::NPK }, { MlKem::NSECRET }> fo
         let mut shared_key = Zeroizing::new(MlKem1024SharedKey::default());
         let shared_secret = ctx.ml_kem.encapsulate(
             encaps_key,
-            MlKem1024MessageSource::Array(&message),
+            &message,
             MlKem1024SharedKeyOut::Array(&mut shared_key),
         )?;
         Ok((shared_secret.into(), (&*shared_key).into()))

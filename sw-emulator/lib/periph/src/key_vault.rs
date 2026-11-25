@@ -349,9 +349,6 @@ bitfield! {
     /// Flag indicating if the key can be used as ML-KEM seed
     pub mlkem_seed, set_mlkem_seed: 6;
 
-    /// Flag indicating if the key can be used as ML-KEM message
-    pub mlkem_msg, set_mlkem_msg: 7;
-
     /// Flag indicating if the key can be used as DMA data
     pub dma_data, set_dma_data: 8;
 }

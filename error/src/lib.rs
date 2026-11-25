@@ -403,21 +403,6 @@ impl CaliptraError {
             "Driver Error: ML-KEM hardware error"
         ),
         (
-            DRIVER_MLKEM_READ_MSG_KV_READ,
-            0x00059004,
-            "Driver Error: ML-KEM read message KV read"
-        ),
-        (
-            DRIVER_MLKEM_READ_MSG_KV_WRITE,
-            0x00059005,
-            "Driver Error: ML-KEM read message KV write"
-        ),
-        (
-            DRIVER_MLKEM_READ_MSG_KV_UNKNOWN,
-            0x00059006,
-            "Driver Error: ML-KEM read message KV unknown"
-        ),
-        (
             DRIVER_MLKEM_KEYGEN_PAIRWISE_CONSISTENCY_FAILURE,
             0x00059007,
             "Driver Error: ML-KEM key generation pairwise consistency failure"
