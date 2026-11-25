@@ -18,7 +18,8 @@ use crate::*;
 #[cfg(all(not(test), feature = "cfi"))]
 use caliptra_cfi_derive::cfi_impl_fn;
 use caliptra_cfi_lib::{
-    cfi_assert, cfi_assert_bool, cfi_assert_eq, cfi_assert_ge, cfi_assert_ne, cfi_launder,
+    cfi_assert, cfi_assert_bool, cfi_assert_eq, cfi_assert_ge, cfi_assert_le, cfi_assert_lt,
+    cfi_assert_ne, cfi_launder,
 };
 use caliptra_drivers::*;
 use caliptra_image_types::*;
@@ -981,7 +982,9 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             })?;
 
         if cfi_launder(result) != Mldsa87Result::Success {
-            Err(signature_invalid)?;
+            return Err(signature_invalid);
+        } else {
+            caliptra_cfi_lib::cfi_assert_eq(result, Mldsa87Result::Success);
         }
 
         Ok(())
@@ -1031,8 +1034,10 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         }
 
         // Verify the FMC immediately follows the manifest with no gap
-        if manifest.fmc.offset != IMAGE_MANIFEST_BYTE_SIZE as u32 {
+        if cfi_launder(manifest.fmc.offset) != IMAGE_MANIFEST_BYTE_SIZE as u32 {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_FMC_OFFSET_INVALID)?;
+        } else {
+            cfi_assert_eq(manifest.fmc.offset, IMAGE_MANIFEST_BYTE_SIZE as u32);
         }
 
         // Image length does not exceed the Image Bundle size
@@ -1056,12 +1061,19 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_FMC_RUNTIME_INCORRECT_ORDER)?;
         }
 
-        if fmc_range.end > img_bundle_sz || runtime_range.end > img_bundle_sz {
+        if cfi_launder(fmc_range.end) > img_bundle_sz
+            || cfi_launder(runtime_range.end) > img_bundle_sz
+        {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_IMAGE_LEN_MORE_THAN_BUNDLE_SIZE)?;
+        } else {
+            cfi_assert_le(fmc_range.end, img_bundle_sz);
+            cfi_assert_le(runtime_range.end, img_bundle_sz);
         }
 
-        if runtime_range.start != fmc_range.end {
+        if cfi_launder(runtime_range.start) != fmc_range.end {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_OFFSET_INVALID)?;
+        } else {
+            cfi_assert_eq(runtime_range.start, fmc_range.end);
         }
 
         // Check if fmc and runtime images don't overlap on loading in the ICCM.
@@ -1142,17 +1154,19 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
 
         // Size and load-address overflow are checked in verify_toc.
         let load_addr_end = verify_info.load_addr + verify_info.size - 1;
-        if !self.env.iccm_range().contains(&verify_info.load_addr)
-            || !self.env.iccm_range().contains(&load_addr_end)
-        {
+        let iccm_range = self.env.iccm_range();
+        if !iccm_range.contains(&verify_info.load_addr) || !iccm_range.contains(&load_addr_end) {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_FMC_LOAD_ADDR_INVALID)?;
+        } else {
+            cfi_assert_ge(verify_info.load_addr, iccm_range.start);
+            cfi_assert_lt(load_addr_end, iccm_range.end);
         }
         if !verify_info.load_addr.is_multiple_of(4) {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_FMC_LOAD_ADDR_UNALIGNED)?;
         }
 
         // Verify execution starts within the authenticated FMC image.
-        if !self.env.iccm_range().contains(&verify_info.entry_point)
+        if !iccm_range.contains(&verify_info.entry_point)
             || verify_info.entry_point < verify_info.load_addr
             || verify_info.entry_point > load_addr_end
         {
@@ -1161,8 +1175,10 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         if !verify_info.entry_point.is_multiple_of(4) {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_FMC_ENTRY_POINT_UNALIGNED)?;
         }
-        if verify_info.entry_point != verify_info.load_addr {
+        if cfi_launder(verify_info.entry_point) != verify_info.load_addr {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_FMC_ENTRY_POINT_NOT_AT_LOAD_ADDR)?;
+        } else {
+            cfi_assert_eq(verify_info.entry_point, verify_info.load_addr);
         }
 
         if cfi_launder(reason) == ResetReason::UpdateReset {
@@ -1173,10 +1189,15 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
             }
 
             // Ensure FMC load address and size are unchanged from cold boot
-            if cfi_launder(verify_info.load_addr) != self.env.get_cold_reset_fmc_load_addr()
-                || cfi_launder(verify_info.size) != self.env.get_cold_reset_fmc_size()
+            let cold_fmc_load_addr = self.env.get_cold_reset_fmc_load_addr();
+            let cold_fmc_size = self.env.get_cold_reset_fmc_size();
+            if cfi_launder(verify_info.load_addr) != cold_fmc_load_addr
+                || cfi_launder(verify_info.size) != cold_fmc_size
             {
                 Err(CaliptraError::IMAGE_VERIFIER_ERR_UPDATE_RESET_FMC_LOAD_ADDR_MISMATCH)?;
+            } else {
+                cfi_assert_eq(verify_info.load_addr, cold_fmc_load_addr);
+                cfi_assert_eq(verify_info.size, cold_fmc_size);
             }
         } else {
             cfi_assert_ne(reason, ResetReason::UpdateReset);
@@ -1222,17 +1243,19 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
 
         // Size and load-address overflow are checked in verify_toc.
         let load_addr_end = verify_info.load_addr + verify_info.size - 1;
-        if !self.env.iccm_range().contains(&verify_info.load_addr)
-            || !self.env.iccm_range().contains(&load_addr_end)
-        {
+        let iccm_range = self.env.iccm_range();
+        if !iccm_range.contains(&verify_info.load_addr) || !iccm_range.contains(&load_addr_end) {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_LOAD_ADDR_INVALID)?;
+        } else {
+            cfi_assert_ge(verify_info.load_addr, iccm_range.start);
+            cfi_assert_lt(load_addr_end, iccm_range.end);
         }
         if !verify_info.load_addr.is_multiple_of(4) {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_LOAD_ADDR_UNALIGNED)?;
         }
 
         // Verify execution starts within the authenticated Runtime image.
-        if !self.env.iccm_range().contains(&verify_info.entry_point)
+        if !iccm_range.contains(&verify_info.entry_point)
             || verify_info.entry_point < verify_info.load_addr
             || verify_info.entry_point > load_addr_end
         {
@@ -1241,8 +1264,10 @@ impl<Env: ImageVerificationEnv> ImageVerifier<Env> {
         if !verify_info.entry_point.is_multiple_of(4) {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_ENTRY_POINT_UNALIGNED)?;
         }
-        if verify_info.entry_point != verify_info.load_addr {
+        if cfi_launder(verify_info.entry_point) != verify_info.load_addr {
             Err(CaliptraError::IMAGE_VERIFIER_ERR_RUNTIME_ENTRY_POINT_NOT_AT_LOAD_ADDR)?;
+        } else {
+            cfi_assert_eq(verify_info.entry_point, verify_info.load_addr);
         }
 
         let info = ImageVerificationExeInfo {
