@@ -241,14 +241,12 @@ impl InvokeDpeCmd {
         }
         let result = invoke_dpe_cmd(profile, drivers, command, None, ueid, None, data);
 
-        if let Command::DestroyCtx(_) = command {
-            // clear tags for destroyed contexts
-            let pdata = drivers.persistent_data.get_mut();
-            let state = &mut pdata.fw.dpe.state;
-            let context_has_tag = &mut pdata.fw.dpe.context_has_tag;
-            let context_tags = &mut pdata.fw.dpe.context_tags;
-            Self::clear_tags_for_inactive_contexts(state, context_has_tag, context_tags);
-        }
+        // Keep context tags aligned with the DPE state after each command.
+        let pdata = drivers.persistent_data.get_mut();
+        let state = &mut pdata.fw.dpe.state;
+        let context_has_tag = &mut pdata.fw.dpe.context_has_tag;
+        let context_tags = &mut pdata.fw.dpe.context_tags;
+        Self::clear_tags_for_inactive_contexts(state, context_has_tag, context_tags);
 
         // If DPE command failed, populate header with error code, but
         // don't fail the mailbox command.
