@@ -2725,6 +2725,122 @@ fn rustcrypto_hkdf(
 }
 
 #[test]
+fn test_hkdf_extract_rejects_sha384_64_byte_salt() {
+    for subsystem_mode in HW_MODEL_MODES_SUBSYSTEM {
+        let mut model = run_rt_test(RuntimeTestArgs {
+            subsystem_mode,
+            ..RuntimeTestArgs::test_productions_args()
+        });
+        let ikm = import_key(&mut model, &[0x42; 48], CmKeyUsage::Hmac);
+
+        for tail in [0xa5, 0] {
+            let mut salt = [0x24; 64];
+            salt[48..].fill(tail);
+            let salt_cmk = import_key(&mut model, &salt, CmKeyUsage::Hmac);
+            let mut req = MailboxReq::CmHkdfExtract(CmHkdfExtractReq {
+                hash_algorithm: CmHashAlgorithm::Sha384.into(),
+                ikm: ikm.clone(),
+                salt: salt_cmk,
+                ..Default::default()
+            });
+            req.populate_chksum().unwrap();
+
+            let err = model
+                .mailbox_execute(req.cmd_code().into(), req.as_bytes().unwrap())
+                .unwrap_err();
+            assert_error(
+                &mut model,
+                caliptra_drivers::CaliptraError::DRIVER_HKDF_SALT_TOO_LONG,
+                err,
+            );
+        }
+    }
+}
+
+#[test]
+fn test_hkdf_extract_supported_salt_lengths() {
+    for subsystem_mode in HW_MODEL_MODES_SUBSYSTEM {
+        let mut model = run_rt_test(RuntimeTestArgs {
+            subsystem_mode,
+            ..RuntimeTestArgs::test_productions_args()
+        });
+        let ikm = [0x42; 64];
+        let ikm_cmk = import_key(&mut model, &ikm, CmKeyUsage::Hmac);
+        let info = b"HKDF salt length regression";
+
+        for (hash_algorithm, salt_size) in [
+            (CmHashAlgorithm::Sha384, 48),
+            (CmHashAlgorithm::Sha512, 48),
+            (CmHashAlgorithm::Sha512, 64),
+        ] {
+            for salt_len in [0, 32, salt_size] {
+                let mut salt = [0u8; 64];
+                salt[..salt_len].fill(0xa5);
+                let salt_cmk = import_key(&mut model, &salt[..salt_size], CmKeyUsage::Hmac);
+                let mut req = MailboxReq::CmHkdfExtract(CmHkdfExtractReq {
+                    hash_algorithm: hash_algorithm.into(),
+                    ikm: ikm_cmk.clone(),
+                    salt: salt_cmk,
+                    ..Default::default()
+                });
+                req.populate_chksum().unwrap();
+                let response = model
+                    .mailbox_execute(req.cmd_code().into(), req.as_bytes().unwrap())
+                    .unwrap()
+                    .unwrap();
+                let response = CmHkdfExtractResp::ref_from_bytes(&response).unwrap();
+                assert_eq!(
+                    response.hdr.fips_status,
+                    MailboxRespHeader::FIPS_STATUS_APPROVED
+                );
+
+                let mut req = CmHkdfExpandReq {
+                    hash_algorithm: hash_algorithm.into(),
+                    prk: response.prk.clone(),
+                    key_usage: CmKeyUsage::Aes.into(),
+                    key_size: 32,
+                    info_size: info.len() as u32,
+                    ..Default::default()
+                };
+                req.info[..info.len()].copy_from_slice(info);
+                let mut req = MailboxReq::CmHkdfExpand(req);
+                req.populate_chksum().unwrap();
+                let response = model
+                    .mailbox_execute(req.cmd_code().into(), req.as_bytes().unwrap())
+                    .unwrap()
+                    .unwrap();
+                let response = CmHkdfExpandResp::ref_from_bytes(&response).unwrap();
+                assert_eq!(
+                    response.hdr.fips_status,
+                    MailboxRespHeader::FIPS_STATUS_APPROVED
+                );
+
+                let expected_key = rustcrypto_hkdf(hash_algorithm, &ikm, &salt[..salt_len], info);
+                let plaintext = [0x5a; 16];
+                let (iv, tag, ciphertext) = mailbox_gcm_encrypt(
+                    &mut model,
+                    &response.okm,
+                    &[],
+                    &plaintext,
+                    MAX_CMB_DATA_SIZE,
+                    MailboxRespHeader::FIPS_STATUS_APPROVED,
+                );
+                let (expected_tag, expected_ciphertext) =
+                    rustcrypto_gcm_encrypt(&expected_key[..32], &iv, &[], &plaintext);
+                assert_eq!(
+                    ciphertext, expected_ciphertext,
+                    "{hash_algorithm:?}, salt size {salt_size}, salt length {salt_len}, subsystem {subsystem_mode}"
+                );
+                assert_eq!(
+                    tag, expected_tag,
+                    "{hash_algorithm:?}, salt size {salt_size}, salt length {salt_len}, subsystem {subsystem_mode}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
 fn test_hkdf_random() {
     let seed_bytes = [1u8; 32];
     let mut seeded_rng = StdRng::from_seed(seed_bytes);
@@ -4395,7 +4511,7 @@ fn test_stable_key_hkdf_fips_status() {
             let cmk = derive_stable_key(&mut model, CmKeyUsage::Hmac, Some(size));
             let expected_fips_status = MailboxRespHeader::FIPS_STATUS_APPROVED;
 
-            let salt_cmk = import_key(&mut model, &[0; 64], CmKeyUsage::Hmac);
+            let salt_cmk = import_key(&mut model, &[0; 64][..size as usize], CmKeyUsage::Hmac);
 
             let mut cm_hkdf_extract = MailboxReq::CmHkdfExtract(CmHkdfExtractReq {
                 ikm: cmk.clone(),
