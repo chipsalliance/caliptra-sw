@@ -1,6 +1,6 @@
 // Licensed under the Apache-2.0 license
 
-use caliptra_api::mailbox::WrappedKey;
+use caliptra_api::mailbox::{AlgorithmType, WrappedKey};
 /// Caliptra key derivation logic implemented independently from the hardware /
 /// firmware, for use in end-to-end test-cases.
 ///
@@ -946,6 +946,38 @@ impl FmcAliasKey {
 
     pub fn derive_mldsa_public_key(&self) -> PKey<Public> {
         derive_mldsa_key(&self.mldsa_seed)
+    }
+
+    /// Independently derive the PCR key and its version-1 certificate binding from FMC CDI.
+    pub fn derive_pcr_signing_key_digest(&self, algorithm: AlgorithmType) -> [u8; 48] {
+        let (domain, public_key): (&[u8], Vec<u8>) = match algorithm {
+            AlgorithmType::Ecc384 => {
+                let priv_key = derive_key!(ecc, &self.cdi, b"pcr_signing_key_pair");
+                let key =
+                    derive_ecdsa_key(swap_word_bytes(&priv_key).as_bytes().try_into().unwrap());
+                // The binding hashes X || Y, without the uncompressed SEC1 point tag.
+                (
+                    b"CALIPTRA_PCR_SIGNING_PUBLIC_KEY_ECC384",
+                    crypto::pubkey_ecdsa_der(&key)[1..].to_vec(),
+                )
+            }
+            AlgorithmType::Mldsa87 => {
+                let seed = derive_key!(mldsa, &self.cdi, b"pcr_signing_mldsa_keypair");
+                (
+                    b"CALIPTRA_PCR_SIGNING_PUBLIC_KEY_MLDSA87",
+                    crypto::pubkey_mldsa_der(&derive_mldsa_key(&seed)),
+                )
+            }
+        };
+        sha384(
+            &[
+                domain,
+                &1_u32.to_be_bytes(),
+                &0_u32.to_be_bytes(),
+                public_key.as_slice(),
+            ]
+            .concat(),
+        )
     }
 }
 

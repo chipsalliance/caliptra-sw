@@ -98,6 +98,19 @@ pub fn redact_cert(der: &[u8], opts: RedactOpts) -> Vec<u8> {
         redact(&mut result, tcb_info);
     }
 
+    // Smoke tests validate these measurement-dependent bindings before comparing golden data.
+    // Redact only the digest, preserving its DER OCTET STRING wrapper and extension OID.
+    for oid in [
+        asn1::oid!(1, 3, 6, 1, 4, 1, 42623, 2, 1),
+        asn1::oid!(1, 3, 6, 1, 4, 1, 42623, 2, 2),
+    ] {
+        if let Some(extension) = crate::x509::get_cert_extension(der, &oid).unwrap() {
+            let digest = asn1::parse_single::<&[u8]>(extension).unwrap();
+            assert_eq!(digest.len(), 48);
+            redact(&mut result, digest);
+        }
+    }
+
     result
 }
 
@@ -142,4 +155,46 @@ fn test_redact() {
         value,
         vec![1_u8, 2, 0x44, 0x44, 0x44, 6, 7, 1, 2, 0x44, 0x44, 0x44, 6, 7]
     )
+}
+
+#[test]
+fn test_redact_pcr_signing_key_digest() {
+    let cert = include_bytes!(
+        "../tests/caliptra_integration_tests/smoke_testdata/rom-latest/fmc_alias_cert_redacted.der"
+    );
+    let ecc_oid = asn1::oid!(1, 3, 6, 1, 4, 1, 42623, 2, 1);
+    // Exercise both binding OIDs using the ECC fixture, without requiring a firmware boot.
+    for oid in [ecc_oid.clone(), asn1::oid!(1, 3, 6, 1, 4, 1, 42623, 2, 2)] {
+        let mut der = cert.to_vec();
+        replace(
+            &mut der,
+            &asn1::write_single(&ecc_oid).unwrap(),
+            &asn1::write_single(&oid).unwrap(),
+        );
+        let expected = redact_cert(
+            &der,
+            RedactOpts {
+                keep_authority: true,
+            },
+        );
+        let extension = crate::x509::get_cert_extension(&der, &oid)
+            .unwrap()
+            .unwrap();
+        let digest = asn1::parse_single::<&[u8]>(extension).unwrap();
+        let digest_offset = digest.as_ptr() as usize - der.as_ptr() as usize;
+        der[digest_offset..digest_offset + 48].copy_from_slice(&[0xA5; 48]);
+
+        let redacted = redact_cert(
+            &der,
+            RedactOpts {
+                keep_authority: true,
+            },
+        );
+        assert_eq!(redacted, expected);
+        let extension = crate::x509::get_cert_extension(&redacted, &oid)
+            .unwrap()
+            .unwrap();
+        assert_eq!(asn1::parse_single::<&[u8]>(extension).unwrap(), &[0x44; 48]);
+        openssl::x509::X509::from_der(&redacted).unwrap();
+    }
 }

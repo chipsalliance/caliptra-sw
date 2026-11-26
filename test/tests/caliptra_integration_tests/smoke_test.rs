@@ -23,7 +23,7 @@ use caliptra_test::{
     bytes_to_be_words_48, default_soc_manifest_bytes,
     derive::{DoeInput, DoeOutput, FmcAliasKey, IDevId, LDevId, Pcr0, Pcr0Input},
     swap_word_bytes, test_upload_firmware,
-    x509::{DiceFwid, DiceTcbInfo},
+    x509::{get_cert_extension, DiceFwid, DiceTcbInfo},
 };
 use caliptra_test::{derive, redact_cert, redact_csr, run_test, RedactOpts, UnwrapSingle};
 use openssl::nid::Nid;
@@ -580,6 +580,21 @@ fn smoke_test() {
             assert!(
                 fmc_alias_cert.verify(&ldev_pubkey).unwrap(),
                 "fmc_alias cert failed to validate with ldev pubkey"
+            );
+
+            // Validate the signed, measurement-dependent PCR binding before golden-data redaction.
+            let pcr_signing_key_oid = match algorithm_type {
+                AlgorithmType::Ecc384 => asn1::oid!(1, 3, 6, 1, 4, 1, 42623, 2, 1),
+                AlgorithmType::Mldsa87 => asn1::oid!(1, 3, 6, 1, 4, 1, 42623, 2, 2),
+            };
+            let pcr_signing_key_ext = get_cert_extension(fmc_alias_cert_der, &pcr_signing_key_oid)
+                .unwrap()
+                .expect("FMC Alias certificate must bind its PCR signing public key");
+            let pcr_signing_key_digest = asn1::parse_single::<&[u8]>(pcr_signing_key_ext).unwrap();
+            assert_eq!(
+                pcr_signing_key_digest,
+                expected_fmc_alias_key.derive_pcr_signing_key_digest(*algorithm_type),
+                "PCR signing key binding differs from the independently derived key"
             );
 
             let fmc_alias_pubkey = fmc_alias_cert.public_key().unwrap();
