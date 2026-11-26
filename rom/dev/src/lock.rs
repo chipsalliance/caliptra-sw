@@ -16,6 +16,7 @@ use crate::{cprintln, rom_env::RomEnv};
 #[cfg(feature = "cfi")]
 use caliptra_cfi_derive::cfi_mod_fn;
 use caliptra_common::{
+    keyids::KEY_ID_FW_KEY_LADDER,
     lock_datavault_region,
     pcr::{PCR_ID_FMC_CURRENT, PCR_ID_FMC_JOURNEY, PCR_ID_STASH_MEASUREMENT},
 };
@@ -42,6 +43,9 @@ pub fn lock_registers(env: &mut RomEnv, reset_reason: ResetReason) -> CaliptraRe
     env.pcr_bank.set_pcr_lock(PCR_ID_FMC_CURRENT);
     env.pcr_bank.set_pcr_lock(PCR_ID_FMC_JOURNEY);
     env.pcr_bank.set_pcr_lock(PCR_ID_STASH_MEASUREMENT);
+
+    // Reset clears the write lock so ROM can ratchet the ladder before handoff.
+    env.key_vault.set_key_write_lock(KEY_ID_FW_KEY_LADDER);
 
     env.soc_ifc.set_iccm_lock(true);
     let manifest = &env.persistent_data.get().rom.manifest1;

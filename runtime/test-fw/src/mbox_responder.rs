@@ -14,12 +14,13 @@ use caliptra_drivers::{
     cprintln,
     pcr_log::{PCR_ID_STASH_MEASUREMENT, RT_FW_CURRENT_PCR, RT_FW_JOURNEY_PCR},
     sha2_512_384::Sha2DigestOpTrait,
-    Array4x12, CaliptraError, CaliptraResult, ResetReason,
+    Array4x12, Array4x16, CaliptraError, CaliptraResult, HmacMode, KeyUsage, KeyWriteArgs,
+    ResetReason,
 };
 use caliptra_registers::{mbox::enums::MboxStatusE, soc_ifc::SocIfcReg};
 use caliptra_runtime::{
-    key_ladder::KeyLadder, mailbox::Mailbox, ContextState, Drivers, Hmac, RtBootStatus,
-    TciMeasurement, U8Bool, MAX_HANDLES,
+    handoff::RtHandoff, key_ladder::KeyLadder, mailbox::Mailbox, ContextState, Drivers, Hmac,
+    RtBootStatus, TciMeasurement, U8Bool, MAX_HANDLES,
 };
 use caliptra_test_harness::{runtime_handlers, test_suite};
 use zerocopy::{FromBytes, IntoBytes, TryFromBytes};
@@ -51,6 +52,7 @@ const OPCODE_HOLD_COMMAND_BUSY: u32 = 0xE000_0000;
 const OPCODE_READ_KEY_LADDER_MAX_SVN: u32 = 0xF000_0000;
 const OPCODE_OCP_LOCK_HEK_STATE: u32 = 0xF100_0000;
 const OPCODE_READ_KEY_LADDER_DIGEST: u32 = 0x1000_1000;
+const OPCODE_OVERWRITE_KEY_LADDER: u32 = 0x1000_1001;
 const OPCODE_FW_LOAD: u32 = CommandId::FIRMWARE_LOAD.0;
 
 fn read_request(mbox: &Mailbox) -> &[u8] {
@@ -441,6 +443,22 @@ pub fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
                 drivers.key_vault.erase_key(KEY_ID_TMP).unwrap();
 
                 write_response(&mut drivers.mbox, digest.as_bytes());
+            }
+            CommandId(OPCODE_OVERWRITE_KEY_LADDER) => {
+                let key_ladder = RtHandoff {
+                    data_vault: &drivers.persistent_data.get().rom.data_vault,
+                    fht: &drivers.persistent_data.get().rom.fht,
+                }
+                .fw_key_ladder()?;
+                drivers.key_vault.clear_key_write_lock(key_ladder);
+                drivers.hmac.hmac(
+                    (&Array4x16::default()).into(),
+                    b"known ladder root".into(),
+                    &mut drivers.trng,
+                    KeyWriteArgs::new(key_ladder, KeyUsage::default().set_hmac_key_en()).into(),
+                    HmacMode::Hmac512,
+                )?;
+                write_response(&mut drivers.mbox, &[]);
             }
             CommandId(OPCODE_FW_LOAD) => {
                 unsafe { SocIfcReg::new() }
