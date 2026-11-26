@@ -61,8 +61,12 @@ pub fn pcr_signing_mldsa87_pub_key_digest(
     sha2_512_384: &mut Sha2_512_384,
     pub_key: &Mldsa87PubKey,
 ) -> CaliptraResult<[u8; 48]> {
-    let pub_key: [u8; 2592] = (*pub_key).into();
-    pcr_signing_key_digest(sha2_512_384, PCR_SIGNING_MLDSA87_DOMAIN, &[&pub_key])
+    // Caliptra is little-endian, so borrowing the words preserves the MLDSA byte encoding.
+    pcr_signing_key_digest(
+        sha2_512_384,
+        PCR_SIGNING_MLDSA87_DOMAIN,
+        &[pub_key.as_bytes()],
+    )
 }
 
 /// Get device serial number
