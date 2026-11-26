@@ -13,7 +13,7 @@ Abstract:
 --*/
 
 use crate::helpers::bytes_from_words_le;
-use crate::{KeyUsage, KeyVault};
+use crate::{CsrHmacKeyLock, KeyUsage, KeyVault};
 use caliptra_emu_bus::{ActionHandle, BusError, Clock, ReadOnlyRegister, ReadWriteRegister, Timer};
 use caliptra_emu_crypto::EndianessTransform;
 use caliptra_emu_crypto::{Hmac512, Hmac512Interface, Hmac512Mode};
@@ -223,6 +223,9 @@ pub struct HmacSha {
 
     /// CSR Key
     csr_key: [u32; HMAC_KEY_SIZE_DWORD_512],
+
+    /// INTERNAL_CSR_HMAC_KEY_LOCK; when set, CSR mode uses an all-zero key
+    csr_key_lock: CsrHmacKeyLock,
 }
 
 impl HmacSha {
@@ -244,11 +247,12 @@ impl HmacSha {
     ///
     /// * `clock` - Clock
     /// * `key_vault` - Key Vault
+    /// * `csr_key_lock` - CSR HMAC key lock state (owned by the SoC interface)
     ///
     /// # Returns
     ///
     /// * `Self` - Instance of HMAC-SHA-384 Engine
-    pub fn new(clock: &Clock, key_vault: KeyVault) -> Self {
+    pub fn new(clock: &Clock, key_vault: KeyVault, csr_key_lock: CsrHmacKeyLock) -> Self {
         Self {
             hmac: Box::new(Hmac512::<HMAC_KEY_SIZE_BYTES_512>::new(Hmac512Mode::Sha512)),
             name0: ReadOnlyRegister::new(Self::NAME0_VAL),
@@ -277,6 +281,7 @@ impl HmacSha {
             op_block_read_complete_action: None,
             op_tag_write_complete_action: None,
             csr_key: DEFAULT_CSR_HMAC_KEY,
+            csr_key_lock,
         }
     }
 
@@ -352,10 +357,15 @@ impl HmacSha {
 
             let mode512 = self.control.reg.is_set(Control::MODE);
 
-            // If CSR mode is set, use the pre-defined key.
+            // If CSR mode is set, use the pre-defined key, or an all-zero key
+            // once ROM has set INTERNAL_CSR_HMAC_KEY_LOCK.
             // Also reset the key_from_kv flag since the key is not read from the key-vault.
             if self.control.reg.is_set(Control::CSR_MODE) {
-                self.key = self.csr_key;
+                self.key = if self.csr_key_lock.is_locked() {
+                    [0; HMAC_KEY_SIZE_DWORD_512]
+                } else {
+                    self.csr_key
+                };
                 self.key_from_kv = false;
             }
 
@@ -741,7 +751,7 @@ mod tests {
 
     #[test]
     fn test_name() {
-        let mut hmac = HmacSha::new(&Clock::new(), KeyVault::new());
+        let mut hmac = HmacSha::new(&Clock::new(), KeyVault::new(), CsrHmacKeyLock::default());
 
         let name0 = hmac.read(RvSize::Word, OFFSET_NAME0).unwrap();
         let name0 = String::from_utf8_lossy(&name0.to_le_bytes()).to_string();
@@ -754,7 +764,7 @@ mod tests {
 
     #[test]
     fn test_version() {
-        let mut hmac = HmacSha::new(&Clock::new(), KeyVault::new());
+        let mut hmac = HmacSha::new(&Clock::new(), KeyVault::new(), CsrHmacKeyLock::default());
 
         let version0 = hmac.read(RvSize::Word, OFFSET_VERSION0).unwrap();
         let version0 = String::from_utf8_lossy(&version0.to_le_bytes()).to_string();
@@ -767,19 +777,19 @@ mod tests {
 
     #[test]
     fn test_control() {
-        let mut hmac = HmacSha::new(&Clock::new(), KeyVault::new());
+        let mut hmac = HmacSha::new(&Clock::new(), KeyVault::new(), CsrHmacKeyLock::default());
         assert_eq!(hmac.read(RvSize::Word, OFFSET_CONTROL).unwrap(), 0);
     }
 
     #[test]
     fn test_status() {
-        let mut hmac = HmacSha::new(&Clock::new(), KeyVault::new());
+        let mut hmac = HmacSha::new(&Clock::new(), KeyVault::new(), CsrHmacKeyLock::default());
         assert_eq!(hmac.read(RvSize::Word, OFFSET_STATUS).unwrap(), 1);
     }
 
     #[test]
     fn test_key() {
-        let mut hmac = HmacSha::new(&Clock::new(), KeyVault::new());
+        let mut hmac = HmacSha::new(&Clock::new(), KeyVault::new(), CsrHmacKeyLock::default());
         for addr in (OFFSET_KEY..(OFFSET_KEY + HMAC_KEY_SIZE_384 as u32)).step_by(4) {
             assert_eq!(hmac.write(RvSize::Word, addr, 0xFF).ok(), Some(()));
             assert_eq!(
@@ -791,7 +801,7 @@ mod tests {
 
     #[test]
     fn test_block() {
-        let mut hmac = HmacSha::new(&Clock::new(), KeyVault::new());
+        let mut hmac = HmacSha::new(&Clock::new(), KeyVault::new(), CsrHmacKeyLock::default());
         for addr in (OFFSET_BLOCK..(OFFSET_BLOCK + HMAC_BLOCK_SIZE as u32)).step_by(4) {
             assert_eq!(hmac.write(RvSize::Word, addr, u32::MAX).ok(), Some(()));
             assert_eq!(
@@ -803,7 +813,7 @@ mod tests {
 
     #[test]
     fn test_tag() {
-        let mut hmac = HmacSha::new(&Clock::new(), KeyVault::new());
+        let mut hmac = HmacSha::new(&Clock::new(), KeyVault::new(), CsrHmacKeyLock::default());
         for addr in (OFFSET_TAG..(OFFSET_TAG + HMAC_TAG_SIZE_384 as u32)).step_by(4) {
             assert_eq!(hmac.read(RvSize::Word, addr).ok(), Some(0));
             assert_eq!(
@@ -811,6 +821,75 @@ mod tests {
                 Some(BusError::StoreAccessFault)
             );
         }
+    }
+
+    /// Run HMAC512 over a single fixed block and return the tag. If `key` is
+    /// `None`, CSR mode is used; otherwise `key` is written to the key registers.
+    fn single_block_hmac512(
+        hmac: &mut HmacSha,
+        clock: &Clock,
+        key: Option<&[u32; HMAC_KEY_SIZE_DWORD_512]>,
+    ) -> [u32; HMAC_KEY_SIZE_DWORD_512] {
+        if let Some(key) = key {
+            for (i, word) in key.iter().enumerate() {
+                hmac.write(RvSize::Word, OFFSET_KEY + (i * 4) as RvAddr, *word)
+                    .unwrap();
+            }
+        }
+        for i in (0..HMAC_BLOCK_SIZE).step_by(4) {
+            hmac.write(
+                RvSize::Word,
+                OFFSET_BLOCK + i as RvAddr,
+                0x5a5a_0000 | i as u32,
+            )
+            .unwrap();
+        }
+        let mut control = Control::INIT::SET + Control::MODE::HMAC512;
+        if key.is_none() {
+            control += Control::CSR_MODE::SET;
+        }
+        hmac.write(RvSize::Word, OFFSET_CONTROL, control.into())
+            .unwrap();
+        loop {
+            let status = InMemoryRegister::<u32, Status::Register>::new(
+                hmac.read(RvSize::Word, OFFSET_STATUS).unwrap(),
+            );
+            if status.is_set(Status::VALID) && status.is_set(Status::READY) {
+                break;
+            }
+            clock.increment_and_process_timer_actions(1, hmac);
+        }
+        let mut tag = [0u32; HMAC_KEY_SIZE_DWORD_512];
+        for (i, word) in tag.iter_mut().enumerate() {
+            *word = hmac
+                .read(RvSize::Word, OFFSET_TAG + (i * 4) as RvAddr)
+                .unwrap();
+        }
+        tag
+    }
+
+    #[test]
+    fn test_csr_mode_key_lock() {
+        let clock = Clock::new();
+        let lock = CsrHmacKeyLock::default();
+        let mut hmac = HmacSha::new(&clock, KeyVault::new(), lock.clone());
+
+        let zero_key_tag = single_block_hmac512(&mut hmac, &clock, Some(&[0; 16]));
+        let csr_key_tag = single_block_hmac512(&mut hmac, &clock, Some(&DEFAULT_CSR_HMAC_KEY));
+        assert_ne!(zero_key_tag, csr_key_tag);
+
+        // Unlocked: CSR mode uses the CSR HMAC key.
+        assert_eq!(single_block_hmac512(&mut hmac, &clock, None), csr_key_tag);
+
+        // Locked: CSR mode uses an all-zero key.
+        lock.set(true);
+        assert_eq!(single_block_hmac512(&mut hmac, &clock, None), zero_key_tag);
+
+        // Non-CSR mode is unaffected by the lock.
+        assert_eq!(
+            single_block_hmac512(&mut hmac, &clock, Some(&DEFAULT_CSR_HMAC_KEY)),
+            csr_key_tag
+        );
     }
 
     enum KeyVaultAction {
@@ -994,7 +1073,7 @@ mod tests {
             );
         }
 
-        let mut hmac = HmacSha::new(&clock, key_vault);
+        let mut hmac = HmacSha::new(&clock, key_vault, CsrHmacKeyLock::default());
 
         if tag_to_kv {
             // Instruct tag to be read from key-vault.
@@ -1679,7 +1758,7 @@ mod tests {
 
         key_vault.write_key(key_id, key, 0x3F).unwrap();
 
-        let mut hmac = HmacSha::new(&clock, key_vault);
+        let mut hmac = HmacSha::new(&clock, key_vault, CsrHmacKeyLock::default());
 
         // Instruct key to be read from key-vault.
         let key_ctrl = InMemoryRegister::<u32, KeyReadControl::Register>::new(0);

@@ -238,7 +238,7 @@ pub extern "C" fn rom_entry() -> ! {
         }
     }
 
-    // Lock the datavault registers.
+    // Lock the datavault and CSR HMAC registers.
     lock_registers(&mut env, reset_reason);
 
     // Reset the CFI counter.
