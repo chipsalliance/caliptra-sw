@@ -22,7 +22,7 @@ use crate::{
     ml_dsa87::Mldsa87,
     soc_reg::{DebugManufService, SocRegistersExternal},
     Aes, AsymEcc384, Csrng, CsrngLatest, Doe, EmuCtrl, HashSha256, HashSha3, HashSha512, HmacSha,
-    KeyVault, MailboxExternal, MailboxInternal, MailboxRam, Sha512Accelerator,
+    HmacShaLatest, KeyVault, MailboxExternal, MailboxInternal, MailboxRam, Sha512Accelerator,
     SocRegistersInternal, Uart,
 };
 use crate::{AesClp, MailboxRequester};
@@ -356,6 +356,47 @@ impl Bus for CsrngSlot {
     }
 }
 
+pub struct HmacShaSlot(Box<dyn Bus>);
+
+impl HmacShaSlot {
+    pub fn new<T: Bus + 'static>(hmac: T) -> Self {
+        Self(Box::new(hmac))
+    }
+}
+
+impl Bus for HmacShaSlot {
+    fn read(
+        &mut self,
+        size: caliptra_emu_types::RvSize,
+        addr: caliptra_emu_types::RvAddr,
+    ) -> Result<caliptra_emu_types::RvData, caliptra_emu_bus::BusError> {
+        self.0.read(size, addr)
+    }
+    fn write(
+        &mut self,
+        size: caliptra_emu_types::RvSize,
+        addr: caliptra_emu_types::RvAddr,
+        val: caliptra_emu_types::RvData,
+    ) -> Result<(), caliptra_emu_bus::BusError> {
+        self.0.write(size, addr, val)
+    }
+    fn poll(&mut self) {
+        self.0.poll();
+    }
+    fn warm_reset(&mut self) {
+        self.0.warm_reset();
+    }
+    fn update_reset(&mut self) {
+        self.0.update_reset();
+    }
+    fn incoming_event(&mut self, event: Rc<Event>) {
+        self.0.incoming_event(event);
+    }
+    fn register_outgoing_events(&mut self, sender: mpsc::Sender<Event>) {
+        self.0.register_outgoing_events(sender);
+    }
+}
+
 /// Caliptra Root Bus Arguments
 pub struct CaliptraRootBusArgs<'a> {
     pub hw_version: CaliptraHwVersion,
@@ -434,7 +475,7 @@ pub struct CaliptraRootBus {
     pub ecc384: AsymEcc384,
 
     #[peripheral(offset = 0x1001_0000, len = 0xa14)]
-    pub hmac: HmacSha,
+    pub hmac: HmacShaSlot,
 
     #[peripheral(offset = 0x1001_1000, len = 0x8c)]
     pub aes: Aes,
@@ -552,6 +593,12 @@ impl CaliptraRootBus {
             }
             _ => CsrngSlot::new(Csrng::new(itrng_nibbles.unwrap())),
         };
+        let hmac = match hw_version {
+            CaliptraHwVersion::V2_2 | CaliptraHwVersion::Latest => {
+                HmacShaSlot::new(HmacShaLatest::new(clock, key_vault.clone()))
+            }
+            _ => HmacShaSlot::new(HmacSha::new(clock, key_vault.clone())),
+        };
 
         Self {
             rom,
@@ -559,7 +606,7 @@ impl CaliptraRootBus {
             aes_clp: AesClp::new(clock, key_vault.clone(), aes_key, aes_destination),
             doe: Doe::new(clock, key_vault.clone(), soc_reg.clone()),
             ecc384: AsymEcc384::new(clock, key_vault.clone(), sha512.clone()),
-            hmac: HmacSha::new(clock, key_vault.clone()),
+            hmac,
             key_vault: key_vault.clone(),
             sha512,
             sha256: HashSha256::new(clock),
