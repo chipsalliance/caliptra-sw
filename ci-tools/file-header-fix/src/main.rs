@@ -3,8 +3,10 @@
 use std::{
     fs::File,
     io::{BufRead, BufReader, Error},
-    path::{Path, PathBuf},
+    path::{absolute, Path, PathBuf},
 };
+
+use git2::Repository;
 
 const REQUIRED_TEXT: &str = "Licensed under the Apache-2.0 license";
 const EXTENSIONS: &[&str] = &["rs", "h", "c", "cpp", "cc", "toml", "sh", "py", "ld", "go"];
@@ -69,12 +71,13 @@ fn fix_file(path: &Path) -> Result<(), Error> {
     Ok(())
 }
 
-fn find_files(dir: &Path, result: &mut Vec<PathBuf>) -> Result<(), Error> {
+fn find_files(dir: &Path, result: &mut Vec<PathBuf>, repo: &Repository) -> Result<(), Error> {
     let wrap_err = add_path(dir);
     for file in std::fs::read_dir(dir).map_err(wrap_err)? {
         let file = file.map_err(wrap_err)?;
         let file_path = &file.path();
         let wrap_err = add_path(file_path);
+        let abs_file_path = absolute(file_path).map_err(wrap_err)?;
         let file_type = file.file_type().map_err(wrap_err)?;
         if let Some(file_path) = file_path.to_str() {
             if IGNORED_PATHS.contains(&file_path) {
@@ -86,11 +89,25 @@ fn find_files(dir: &Path, result: &mut Vec<PathBuf>) -> Result<(), Error> {
                 if IGNORED_DIRS.contains(&file_name) {
                     continue;
                 }
+                if repo.is_path_ignored(&abs_file_path).unwrap() {
+                    println!(
+                        "ignoring {} because its listed in either .gitignore or .git/info/exclude",
+                        file_path.to_string_lossy()
+                    );
+                    continue;
+                }
             }
-            find_files(file_path, result)?;
+            find_files(file_path, result, repo)?;
         }
         if let Some(Some(extension)) = file.path().extension().map(|s| s.to_str()) {
             if file_type.is_file() && EXTENSIONS.contains(&extension) {
+                if repo.is_path_ignored(&abs_file_path).unwrap() {
+                    println!(
+                        "ignoring {} because its listed in either .gitignore or .git/info/exclude",
+                        file_path.to_string_lossy()
+                    );
+                    continue;
+                }
                 result.push(file_path.into());
             }
         }
@@ -102,6 +119,14 @@ fn main() {
     let args: Vec<_> = std::env::args().skip(1).collect();
     let pwd = Path::new(".");
 
+    let repo = match Repository::discover(pwd) {
+        Ok(r) => r,
+        Err(e) => {
+            println!("Failed to discover git repository: {e}");
+            std::process::exit(1);
+        }
+    };
+
     let check_only = if args == ["--check"] {
         true
     } else if args.is_empty() {
@@ -112,7 +137,7 @@ fn main() {
     };
 
     let mut files = Vec::new();
-    find_files(pwd, &mut files).unwrap();
+    find_files(pwd, &mut files, &repo).unwrap();
     files.sort();
     let mut failed = false;
     for file in files.iter() {
