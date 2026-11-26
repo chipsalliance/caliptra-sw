@@ -238,7 +238,7 @@ pub extern "C" fn rom_entry() -> ! {
         }
     }
 
-    // Lock the datavault registers.
+    // Lock the datavault and CSR HMAC registers.
     if let Err(err) = lock_registers(&mut env, reset_reason) {
         handle_fatal_error(err.into());
     }

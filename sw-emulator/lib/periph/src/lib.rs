@@ -63,6 +63,6 @@ pub use root_bus::{
     SocToCaliptraBus, TbServicesCb, UploadUpdateFwCb,
 };
 pub use sha512_acc::Sha512Accelerator;
-pub use soc_reg::SocRegistersInternal;
+pub use soc_reg::{CsrHmacKeyLock, SocRegistersInternal};
 pub use stash_measurement_bank::StashMeasurementBank;
 pub use uart::Uart;

@@ -620,6 +620,8 @@ Initial Device ID Layer is used to generate Manufacturer CDI & Private Keys. Thi
 
     `IDevIdCsrMac = hmac512_mac(HmacKey::CsrMode(), Marker || Size || EccCsrSize || EccCsr || MldsaCsrSize || MldsaCsr, HmacMode::Hmac512)`
 
+    **Note**: Only ROM can use the CSR HMAC key. ROM sets `INTERNAL_CSR_HMAC_KEY_LOCK` before handing off to FMC (see [Locking of memory regions and registers](#locking-of-memory-regions-and-registers)), after which `HMAC512_CTRL.CSR_MODE` uses an all-zero key. This prevents FMC and Runtime firmware from computing CSR envelope MACs.
+
 11. Upload the CSR(s) to mailbox and wait for JTAG to read the CSR out of the mailbox. Format of the CSR payload is documented below:
 
 #### IDevID CSR Format
@@ -1296,6 +1298,9 @@ Alias FMC Layer includes the measurement of the FMC and other security states. T
 
  - **ICCM**
 
+ - **CSR HMAC key** (Caliptra 2.2+)
+ ROM sets `INTERNAL_CSR_HMAC_KEY_LOCK`, which removes the CSR HMAC key from the HMAC engine (`HMAC512_CTRL.CSR_MODE` then uses an all-zero key). Firmware cannot clear the lock. It is cleared on a Warm or Cold Reset and persists across an Update Reset.
+
 ### Launch FMC
 The ROM initializes and populates the Firmware Handoff Table (FHT) to relay essential parameters to the FMC. The format of the FHT is documented [here](https://github.com/chipsalliance/caliptra-sw/blob/main/fmc/README.md#firmware-handoff-table). Upon successful population, the ROM transfers execution control to the FMC.
 
@@ -1324,10 +1329,15 @@ ROM locks the following entities to prevent any updates:
 
  - **ICCM**
 
+ - **CSR HMAC key** (Caliptra 2.2+)
+ A Warm Reset clears `INTERNAL_CSR_HMAC_KEY_LOCK`, so ROM sets it again before handing off to FMC.
+
 ## Update reset flow
 
 ![UPDATE RESET](doc/svg/update-reset.svg)
 <br> *(Note: Please note that Image validation for the update reset flow has some differences as compared to the cold boot flow. Please refer to the Image Validation Section for further details.)
+
+`INTERNAL_CSR_HMAC_KEY_LOCK` (Caliptra 2.2+) is not cleared by an Update Reset, so the CSR HMAC key stays unavailable throughout. ROM still sets the lock again before handing off to FMC, which has no effect.
 
 ## Unknown/spurious reset flow
 
