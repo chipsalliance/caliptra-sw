@@ -101,4 +101,3 @@ jobs:
           path: |
             /tmp/junit.xml
             /tmp/nextest-list.json
-
