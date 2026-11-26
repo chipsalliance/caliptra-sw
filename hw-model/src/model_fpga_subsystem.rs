@@ -2280,6 +2280,10 @@ impl HwModel for ModelFpgaSubsystem {
             return Ok(());
         }
 
+        if !boot_params.skip_assert_end_of_stash {
+            self.assert_end_of_stash();
+        }
+
         // This is the binary for:
         // L0: j L0
         // i.e., loop {}
