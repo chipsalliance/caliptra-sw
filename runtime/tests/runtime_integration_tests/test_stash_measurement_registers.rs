@@ -45,6 +45,22 @@ fn run_model(
     })
 }
 
+// PCR31 value before any measurement from the SoC is drained.
+// In passive mode nothing touches PCR31 before the drain, so it is all zeros.
+// In subsystem mode the runtime stashes the MCU firmware measurement itself
+// before it drains the stash bank, which extends PCR31 with the digest of
+// the MCU image.
+fn initial_pcr31(model: &mut DefaultHwModel) -> [u8; 48] {
+    let mut pcr31 = [0u8; 48];
+    if model.subsystem_mode() {
+        let mut hasher = Sha384::new();
+        hasher.update(pcr31);
+        hasher.update(Sha384::digest(crate::common::DEFAULT_MCU_FW));
+        pcr31.copy_from_slice(&hasher.finalize());
+    }
+    pcr31
+}
+
 fn test_drain_slots(mut model: DefaultHwModel, num_slots: usize) {
     // SoC writes measurements.
     for (i, measurement) in MEASUREMENTS.get(..num_slots).unwrap().iter().enumerate() {
@@ -81,7 +97,7 @@ fn test_drain_slots(mut model: DefaultHwModel, num_slots: usize) {
         .expect("We should have received a response");
     let resp = QuotePcrsEcc384Resp::read_from_bytes(resp.as_slice()).unwrap();
 
-    let mut expected_pcr31 = [0u8; 48];
+    let mut expected_pcr31 = initial_pcr31(&mut model);
     for measurement in MEASUREMENTS.get(..num_slots).unwrap().iter() {
         let mut hasher = Sha384::new();
         hasher.update(expected_pcr31);
@@ -206,7 +222,7 @@ fn test_soc_populates_no_measurement() {
         .expect("We should have received a response");
     let resp = QuotePcrsEcc384Resp::read_from_bytes(resp.as_slice()).unwrap();
 
-    let expected_pcr31 = [0u8; 48];
+    let expected_pcr31 = initial_pcr31(&mut model);
     assert_eq!(resp.pcrs[31], expected_pcr31);
 }
 

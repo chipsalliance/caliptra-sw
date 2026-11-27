@@ -286,7 +286,6 @@ fn test_measurement_in_measurement_log_added_to_dpe() {
         let mut hasher = Sha384::new();
         hasher.update(rt_current_pcr);
         hasher.update(cptra_config_init_vals_hash);
-        hasher.update(measurement);
         if model.subsystem_mode() {
             let (somv_measurement, somo_measurement) =
                 default_soc_manifest_measurements(*pqc_key_type, 1);
@@ -296,6 +295,10 @@ fn test_measurement_in_measurement_log_added_to_dpe() {
             hasher.update(somo_measurement);
             hasher.update(mcu_hasher.finalize());
         }
+        // In subsystem mode the runtime creates the SoC manifest and MCU
+        // contexts during recovery, before it drains the stash bank, so the
+        // stashed measurement gets the context slot after them.
+        hasher.update(measurement);
         let expected_measurement_hash = hasher.finalize();
 
         let dpe_measurement_hash = model.mailbox_execute(0x3000_0000, &[]).unwrap().unwrap();
