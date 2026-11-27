@@ -1,23 +1,15 @@
 // Licensed under the Apache-2.0 license
 
-use crate::common::{rom_for_fw_integration_tests, run_rt_test, RuntimeTestArgs};
+use crate::common::{run_rt_test, RuntimeTestArgs};
 use caliptra_api::SocManager;
 use caliptra_api_types::SecurityState;
-use caliptra_builder::firmware::APP_WITH_UART;
-use caliptra_common::{
-    mailbox_api::{
-        CommandId, GetTaggedTciReq, GetTaggedTciResp, MailboxReq, MailboxReqHeader,
-        QuotePcrsEcc384Req, QuotePcrsEcc384Resp, TagTciReq,
-    },
-    memory_layout::{ROM_ORG, ROM_SIZE, ROM_STACK_ORG, ROM_STACK_SIZE, STACK_ORG, STACK_SIZE},
-    FMC_ORG, FMC_SIZE, RUNTIME_ORG, RUNTIME_SIZE,
+use caliptra_common::mailbox_api::{
+    CommandId, GetTaggedTciReq, GetTaggedTciResp, MailboxReq, MailboxReqHeader, QuotePcrsEcc384Req,
+    QuotePcrsEcc384Resp, TagTciReq,
 };
 use caliptra_drivers::soc_ifc::stash_measurement::{StashMeasurementData, DWORDS_PER_SLOT};
 use caliptra_error::CaliptraError;
-use caliptra_hw_model::{
-    CaliptraHwVersion, CodeRange, DefaultHwModel, HwModel, ImageInfo, InitParams, StackInfo,
-    StackRange,
-};
+use caliptra_hw_model::{DefaultHwModel, HwModel};
 use caliptra_runtime::RtBootStatus;
 use sha2::{Digest, Sha384};
 use zerocopy::{little_endian::U32, FromBytes, IntoBytes};
@@ -40,53 +32,22 @@ const MEASUREMENTS: [StashMeasurementData; 2] = [
 ];
 
 fn run_model(
-    hw_version: CaliptraHwVersion,
     subsystem_mode: bool,
     debug_locked: bool,
     skip_assert_end_of_stash: bool,
 ) -> DefaultHwModel {
-    let rom = rom_for_fw_integration_tests().unwrap();
-    let image_info = vec![
-        ImageInfo::with_name(
-            StackRange::new(ROM_STACK_ORG + ROM_STACK_SIZE, ROM_STACK_ORG),
-            CodeRange::new(ROM_ORG, ROM_ORG + ROM_SIZE),
-            "caliptra-rom".to_owned(),
-        ),
-        ImageInfo::with_name(
-            StackRange::new(STACK_ORG + STACK_SIZE, STACK_ORG),
-            CodeRange::new(FMC_ORG, FMC_ORG + FMC_SIZE),
-            "caliptra-fmc".to_owned(),
-        ),
-        ImageInfo::with_name(
-            StackRange::new(STACK_ORG + STACK_SIZE, STACK_ORG),
-            CodeRange::new(RUNTIME_ORG, RUNTIME_ORG + RUNTIME_SIZE),
-            "caliptra-runtime".to_owned(),
-        ),
-    ];
-    let runtime_test_args = RuntimeTestArgs {
-        test_fwid: Some(&APP_WITH_UART),
+    run_rt_test(RuntimeTestArgs {
         successful_reach_rt: false,
         skip_assert_end_of_stash,
-        init_params: Some(InitParams {
-            hw_version,
-            rom: &rom,
-            stack_info: Some(StackInfo::new(image_info)),
-            subsystem_mode,
-            security_state: *SecurityState::default().set_debug_locked(debug_locked),
-            ..Default::default()
-        }),
+        security_state: Some(*SecurityState::default().set_debug_locked(debug_locked)),
+        subsystem_mode: subsystem_mode || cfg!(feature = "fpga_subsystem"),
         ..Default::default()
-    };
-
-    run_rt_test(runtime_test_args)
+    })
 }
 
-#[test]
-fn test_drain_stash_measurements() {
-    let mut model = run_model(CaliptraHwVersion::V2_2, false, false, true);
-
+fn test_drain_slots(mut model: DefaultHwModel, num_slots: usize) {
     // SoC writes measurements.
-    for (i, measurement) in MEASUREMENTS.iter().enumerate() {
+    for (i, measurement) in MEASUREMENTS.get(..num_slots).unwrap().iter().enumerate() {
         model
             .write_stash_measurement_bank(i, measurement.as_bytes())
             .unwrap();
@@ -121,7 +82,7 @@ fn test_drain_stash_measurements() {
     let resp = QuotePcrsEcc384Resp::read_from_bytes(resp.as_slice()).unwrap();
 
     let mut expected_pcr31 = [0u8; 48];
-    for measurement in MEASUREMENTS.iter() {
+    for measurement in MEASUREMENTS.get(..num_slots).unwrap().iter() {
         let mut hasher = Sha384::new();
         hasher.update(expected_pcr31);
         hasher.update(measurement.measurement);
@@ -159,14 +120,32 @@ fn test_drain_stash_measurements() {
         .expect("We should have received a response");
     let resp = GetTaggedTciResp::read_from_bytes(resp.as_slice()).unwrap();
 
-    assert_eq!(resp.tci_current, MEASUREMENTS[1].measurement);
+    assert_eq!(
+        resp.tci_current,
+        MEASUREMENTS.get(num_slots - 1).unwrap().measurement
+    );
     assert_ne!(resp.tci_cumulative, resp.tci_current);
     assert_ne!(resp.tci_cumulative, [0u8; 48]);
 }
 
 #[test]
+#[cfg_attr(feature = "fpga_realtime", ignore = "requires subsystem mode")]
+fn test_drain_one_stash_measurement_subsystem_mode() {
+    let model = run_model(true, false, true);
+    test_drain_slots(model, 1);
+}
+
+#[cfg_attr(feature = "fpga_subsystem", ignore = "requires passive mode")]
+#[test]
+fn test_drain_multiple_stash_measurements() {
+    let model = run_model(false, false, true);
+    test_drain_slots(model, MEASUREMENTS.len());
+}
+
+#[cfg_attr(feature = "fpga_subsystem", ignore = "requires passive mode")]
+#[test]
 fn test_soc_populates_measurements_with_gaps() {
-    let mut model = run_model(CaliptraHwVersion::V2_2, false, false, true);
+    let mut model = run_model(false, false, true);
 
     // SoC writes measurements.
     for (i, measurement) in MEASUREMENTS.iter().enumerate() {
@@ -201,7 +180,7 @@ fn test_soc_populates_measurements_with_gaps() {
 
 #[test]
 fn test_soc_populates_no_measurement() {
-    let mut model = run_model(CaliptraHwVersion::V2_2, false, false, false);
+    let mut model = run_model(false, false, false);
 
     // Fast-forward to the mailbox command loop.
     model.step_until(|m| {
@@ -234,7 +213,7 @@ fn test_soc_populates_no_measurement() {
 #[test]
 fn test_soc_never_asserted_end_of_stash() {
     // Set debug locked to allow watchdog timer to fire.
-    let mut model = run_model(CaliptraHwVersion::V2_2, false, true, true);
+    let mut model = run_model(false, true, true);
 
     // Fast-forward until the watchdog timer fires.
     model.step_until_fatal_error(
