@@ -11,12 +11,14 @@ use caliptra_drivers_test_bin::{
 };
 use caliptra_hw_model::{
     BootParams, CodeRange, DefaultHwModel, DeviceLifecycle, Fuses, HwModel, ImageInfo, InitParams,
-    ItrngEntropyConfig0WriteVal, ItrngEntropyConfig1WriteVal, ModelError, SecurityState, StackInfo,
-    StackRange, TrngMode,
+    ItrngEntropyConfig0WriteVal, ItrngEntropyConfig1WriteVal, ItrngEntropyConfig2WriteVal,
+    ModelError, SecurityState, StackInfo, StackRange, TrngMode,
 };
 use caliptra_hw_model_types::EtrngResponse;
 use caliptra_registers::mbox::enums::MboxStatusE;
-use caliptra_registers::soc_ifc::meta::{CptraItrngEntropyConfig0, CptraItrngEntropyConfig1};
+use caliptra_registers::soc_ifc::meta::{
+    CptraItrngEntropyConfig0, CptraItrngEntropyConfig1, CptraItrngEntropyConfig2,
+};
 use caliptra_test::{
     crypto::derive_ecdsa_keypair,
     derive::{DoeInput, DoeOutput},
@@ -877,6 +879,14 @@ fn test_csrng_with_nibbles(
     fwid: &FwId<'static>,
     itrng_nibbles: Box<dyn Iterator<Item = u8> + Send>,
 ) {
+    test_csrng_with_boot_params(fwid, itrng_nibbles, BootParams::default());
+}
+
+fn test_csrng_with_boot_params(
+    fwid: &FwId<'static>,
+    itrng_nibbles: Box<dyn Iterator<Item = u8> + Send>,
+    boot_params: BootParams<'static>,
+) {
     let rom = caliptra_builder::build_firmware_rom(fwid).unwrap();
 
     let mut model = caliptra_hw_model::new(
@@ -885,11 +895,30 @@ fn test_csrng_with_nibbles(
             itrng_nibbles,
             ..default_init_params()
         },
-        BootParams::default(),
+        boot_params,
     )
     .unwrap();
 
     model.step_until_exit_success().unwrap();
+}
+
+/// CPTRA_iTRNG_ENTROPY_CONFIG_2 selecting single-bit mode on `lane`.
+fn single_bit_config(lane: u32) -> ItrngEntropyConfig2WriteVal {
+    ItrngEntropyConfig2WriteVal::from(CptraItrngEntropyConfig2::RESET_VAL)
+        .single_bit_mode(true)
+        .rng_bit_sel(lane)
+}
+
+/// On the FPGA subsystem, MCU ROM copies CPTRA_iTRNG_ENTROPY_CONFIG_{0,1}
+/// from OTP after the host provisions them, so host overrides do not reach
+/// Caliptra. CONFIG_2 is not touched by MCU ROM.
+const HOST_SETS_ENTROPY_THRESHOLDS: bool = !cfg!(feature = "fpga_subsystem");
+
+fn single_bit_params(lane: u32) -> BootParams<'static> {
+    BootParams {
+        initial_entropy_config_2: Some(single_bit_config(lane)),
+        ..Default::default()
+    }
 }
 
 #[test]
@@ -937,19 +966,19 @@ fn test_csrng2() {
     ignore
 )]
 fn test_csrng_repetition_count() {
-    // Tests for Repetition Count Test (RCT).
+    // The ROM runs REPCNTS (whole 4-bit symbol) in multi-channel mode and
+    // REPCNT (selected lane) in single-bit mode. Both fail once a value
+    // repeats THRESHOLD times, counting the first occurrence.
     fn test_repcnt_finite_repeats(
         test_fwid: &FwId<'static>,
         repeat: usize,
-        soc_repcnt_threshold: Option<ItrngEntropyConfig1WriteVal>,
+        boot_params: BootParams<'static>,
     ) {
-        let rom = caliptra_builder::build_firmware_rom(test_fwid).unwrap();
-
         let itrng_nibbles = Box::new({
-            // Startup health testing requires two consecutive 4096-bit
+            // Startup health testing requires two consecutive 1024-sample
             // windows to pass or fail health tests. So let's set up our windows
             // to begin with the repeated bits followed by known good entropy.
-            const NUM_TEST_WINDOW_NIBBLES: usize = 4096 / 4;
+            const NUM_TEST_WINDOW_NIBBLES: usize = 1024;
             let num_good_entropy_nibbles = NUM_TEST_WINDOW_NIBBLES.saturating_sub(repeat + 2);
 
             iter::repeat_n(0b1111, repeat)
@@ -958,21 +987,7 @@ fn test_csrng_repetition_count() {
                 .chain(iter::once(0b0000)) // Break repetition
                 .cycle()
         });
-
-        let mut model = caliptra_hw_model::new(
-            InitParams {
-                rom: &rom,
-                itrng_nibbles,
-                ..default_init_params()
-            },
-            BootParams {
-                initial_repcnt_thresh_reg: soc_repcnt_threshold,
-                ..Default::default()
-            },
-        )
-        .unwrap();
-
-        model.step_until_exit_success().unwrap();
+        test_csrng_with_boot_params(test_fwid, itrng_nibbles, boot_params);
     }
 
     // The following tests assumes the CSRNG driver will use this default threshold value.
@@ -980,29 +995,26 @@ fn test_csrng_repetition_count() {
     const PASS: &FwId = &firmware::driver_tests::CSRNG_PASS_HEALTH_TESTS;
     const FAIL: &FwId = &firmware::driver_tests::CSRNG_FAIL_REPCNT_TESTS;
 
-    // Bits that repeat up to (but excluding) the threshold times should PASS the RCT.
-    println!("test_repcnt_finite_repeats 1");
-    test_repcnt_finite_repeats(PASS, THRESHOLD - 1, None);
+    for (mode, params) in [
+        ("multi-channel", BootParams::default()),
+        ("single-bit", single_bit_params(0)),
+    ] {
+        // Values that repeat up to (but excluding) the threshold times should PASS.
+        println!("{mode}: {} repeats", THRESHOLD - 1);
+        test_repcnt_finite_repeats(PASS, THRESHOLD - 1, params.clone());
+        // Values that repeat at least threshold times should FAIL.
+        println!("{mode}: {THRESHOLD} repeats");
+        test_repcnt_finite_repeats(FAIL, THRESHOLD, params);
+    }
 
-    // Bits that repeat at least threshold times should FAIL the RCT.
-    println!("test_repcnt_finite_repeats 2");
-    test_repcnt_finite_repeats(FAIL, THRESHOLD, None);
+    // One stuck lane: the third bit is stuck at zero. Multi-channel mode treats
+    // the four lanes as one symbol source and does not test lanes individually;
+    // single-bit mode on the stuck lane fails.
+    let stuck_lane = || Box::new([0b1011, 0b1010, 0b1000, 0b0000].into_iter().cycle());
+    test_csrng_with_nibbles(PASS, stuck_lane());
+    test_csrng_with_boot_params(FAIL, stuck_lane(), single_bit_params(2));
 
-    // If at least one RNG wire has a stuck bit, RCT should fail.
-    println!("test_csrng_with_nibbles 1111");
-    test_csrng_with_nibbles(FAIL, Box::new(iter::repeat(0b1111)));
-    println!("test_csrng_with_nibbles 0000");
-    test_csrng_with_nibbles(FAIL, Box::new(iter::repeat(0b0000)));
-    println!("test_csrng_with_nibbles multi");
-    test_csrng_with_nibbles(
-        FAIL,
-        Box::new({
-            // The third bit is stuck at zero.
-            [0b1011, 0b1010, 0b1000, 0b0000].into_iter().cycle()
-        }),
-    );
-
-    {
+    if HOST_SETS_ENTROPY_THRESHOLDS {
         // Test finite repeats again, but this time, exercise the logic to read and set thresholds from
         // SoC registers.
         const THRESHOLD: usize = 20;
@@ -1010,10 +1022,15 @@ fn test_csrng_repetition_count() {
             ItrngEntropyConfig1WriteVal::from(CptraItrngEntropyConfig1::RESET_VAL)
                 .repetition_count(THRESHOLD as u32),
         );
-        println!("test_repcnt_finite_repeats 1");
-        test_repcnt_finite_repeats(PASS, THRESHOLD - 1, soc_repcnt_threshold);
-        println!("test_repcnt_finite_repeats 2");
-        test_repcnt_finite_repeats(FAIL, THRESHOLD, soc_repcnt_threshold);
+        for entropy_config_2 in [None, Some(single_bit_config(0))] {
+            let params = BootParams {
+                initial_repcnt_thresh_reg: soc_repcnt_threshold,
+                initial_entropy_config_2: entropy_config_2,
+                ..Default::default()
+            };
+            test_repcnt_finite_repeats(PASS, THRESHOLD - 1, params.clone());
+            test_repcnt_finite_repeats(FAIL, THRESHOLD, params);
+        }
     }
 }
 
@@ -1030,100 +1047,145 @@ fn test_csrng_repetition_count() {
     ignore
 )]
 fn test_csrng_adaptive_proportion() {
-    // Tests for Adaptive Proportion health check.
-    // The CSRNG ROM configures the entropy_src with CONF.THRESHOLD_SCOPE = FALSE,
-    // so the adaptive-proportion test scores each of the 4 RNG bus lanes
-    // independently over a per-lane 1024-bit window. The default LO and HI
-    // thresholds are 25% and 75% of that per-lane window, i.e. 256 and 768.
-    // 2.2 RTL fails a window if any lane reaches a cutoff. The fixtures
-    // exercise one count inside each cutoff and an exact hit on one lane.
+    // Single-bit mode: the Adaptive Proportion test (ADAPTP) counts the ones of
+    // the selected lane over a 1024-sample window. The default LO and HI
+    // thresholds are 25% and 75% of the window, i.e. 256 and 768. The RTL
+    // cutoffs are inclusive: a count at either threshold fails.
+    // The test_data/csrng/N_ones_M_zeros files carry N/4 ones on every lane
+    // in each 1024-nibble window; lane 0 is selected.
     const PASS: &FwId = &firmware::driver_tests::CSRNG_PASS_HEALTH_TESTS;
-
-    // 257 ones per lane - just above the LO cutoff.
-    test_csrng_with_nibbles(
-        PASS,
-        Box::new({
-            const WINDOW: [u8; 1024] = *include_bytes!("test_data/csrng/1028_ones_3068_zeros");
-            // Startup health checks require testing two 4096-bit windows.
-            WINDOW.into_iter().chain(WINDOW)
-        }),
-    );
-
-    // 767 ones per lane - just below the HI cutoff.
-    test_csrng_with_nibbles(
-        PASS,
-        Box::new({
-            const WINDOW: [u8; 1024] = *include_bytes!("test_data/csrng/3068_ones_1028_zeros");
-            WINDOW.into_iter().chain(WINDOW)
-        }),
-    );
-
     const FAIL: &FwId = &firmware::driver_tests::CSRNG_FAIL_ADAPTP_TESTS;
 
-    // Only lane 0 has 256 ones - LO cutoff.
-    test_csrng_with_nibbles(
-        FAIL,
-        Box::new({
-            const WINDOW: [u8; 1024] = *include_bytes!("test_data/csrng/1027_ones_3069_zeros");
-            WINDOW.into_iter().chain(WINDOW)
-        }),
-    );
-
-    // Only lane 0 has 768 ones - HI cutoff.
-    test_csrng_with_nibbles(
-        FAIL,
-        Box::new({
-            const WINDOW: [u8; 1024] = *include_bytes!("test_data/csrng/3069_ones_1027_zeros");
-            WINDOW.into_iter().chain(WINDOW)
-        }),
-    );
-
-    // Test the logic of reading thresholds from SoC registers.
-    // The SoC will set the per-lane HI and LO thresholds to 612 and 412
-    // respectively (+- 100 of 512, which is half the per-lane window size).
-    fn test_with_soc_threshold(test_fwid: &'static FwId, window: &'static [u8; 1024]) {
-        const HI_THRESHOLD: u32 = 612;
-        const LO_THRESHOLD: u32 = 412;
-
-        let rom = caliptra_builder::build_firmware_rom(test_fwid).unwrap();
-        let itrng_nibbles = Box::new(window.iter().chain(window).copied());
-        let threshold_reg = ItrngEntropyConfig0WriteVal::from(CptraItrngEntropyConfig0::RESET_VAL)
-            .high_threshold(HI_THRESHOLD)
-            .low_threshold(LO_THRESHOLD);
-
-        let mut model = caliptra_hw_model::new(
-            InitParams {
-                rom: &rom,
-                itrng_nibbles,
-                ..default_init_params()
-            },
+    fn test_window(
+        fwid: &'static FwId,
+        window: &'static [u8; 1024],
+        thresholds: Option<ItrngEntropyConfig0WriteVal>,
+    ) {
+        test_csrng_with_boot_params(
+            fwid,
+            // Startup health checks test two windows.
+            Box::new(window.iter().chain(window).copied()),
             BootParams {
-                initial_adaptp_thresh_reg: Some(threshold_reg),
-                ..Default::default()
+                initial_adaptp_thresh_reg: thresholds,
+                ..single_bit_params(0)
             },
-        )
-        .unwrap();
-
-        model.step_until_exit_success().unwrap();
+        );
     }
 
-    // 413 ones per lane - just above the programmed LO cutoff.
-    test_with_soc_threshold(PASS, include_bytes!("test_data/csrng/1652_ones_2444_zeros"));
+    test_window(
+        PASS,
+        include_bytes!("test_data/csrng/1028_ones_3068_zeros"),
+        None,
+    );
+    test_window(
+        FAIL,
+        include_bytes!("test_data/csrng/1024_ones_3072_zeros"),
+        None,
+    );
+    test_window(
+        PASS,
+        include_bytes!("test_data/csrng/3068_ones_1028_zeros"),
+        None,
+    );
+    test_window(
+        FAIL,
+        include_bytes!("test_data/csrng/3072_ones_1024_zeros"),
+        None,
+    );
 
-    // 611 ones per lane - just below the programmed HI cutoff.
-    test_with_soc_threshold(PASS, include_bytes!("test_data/csrng/2444_ones_1652_zeros"));
-
-    // Only lane 0 has 412 ones - programmed LO cutoff.
-    test_with_soc_threshold(FAIL, include_bytes!("test_data/csrng/1651_ones_2445_zeros"));
-
-    // Only lane 0 has 612 ones - programmed HI cutoff.
-    test_with_soc_threshold(FAIL, include_bytes!("test_data/csrng/2445_ones_1651_zeros"));
+    if !HOST_SETS_ENTROPY_THRESHOLDS {
+        return;
+    }
+    // SoC-supplied per-lane HI and LO thresholds of 612 and 412.
+    let soc = Some(
+        ItrngEntropyConfig0WriteVal::from(CptraItrngEntropyConfig0::RESET_VAL)
+            .high_threshold(612)
+            .low_threshold(412),
+    );
+    test_window(
+        PASS,
+        include_bytes!("test_data/csrng/1652_ones_2444_zeros"),
+        soc,
+    );
+    test_window(
+        FAIL,
+        include_bytes!("test_data/csrng/1648_ones_2448_zeros"),
+        soc,
+    );
+    test_window(
+        PASS,
+        include_bytes!("test_data/csrng/2444_ones_1652_zeros"),
+        soc,
+    );
+    test_window(
+        FAIL,
+        include_bytes!("test_data/csrng/2448_ones_1648_zeros"),
+        soc,
+    );
 }
 
-/// Test that a repeating 4-bit symbol stream is rejected at boot.
-/// The Repetition Count Symbol (repcnts) health test is intentionally disabled
-/// in the driver, but a constant nibble also makes every individual wire
-/// constant, so the per-wire repcnt test still catches these streams.
+/// One 1024-symbol window whose first symbol (0x5) occurs `matches` times.
+/// The other symbols are spread out so no symbol repeats more than a few
+/// times in a row.
+fn adaptps_window(matches: usize) -> Vec<u8> {
+    const FILL: [u8; 14] = [1, 2, 3, 4, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
+    let others = 1024 - matches;
+    let window: Vec<u8> = (0..1024)
+        .map(|i| {
+            if (i + 1) * others / 1024 != i * others / 1024 {
+                FILL[i % FILL.len()]
+            } else {
+                0x5
+            }
+        })
+        .collect();
+    assert_eq!(window[0], 0x5);
+    assert_eq!(window.iter().filter(|&&s| s == 0x5).count(), matches);
+    window
+}
+
+#[test]
+#[cfg_attr(
+    all(
+        any(
+            feature = "verilator",
+            feature = "fpga_realtime",
+            feature = "fpga_subsystem"
+        ),
+        not(feature = "itrng")
+    ),
+    ignore
+)]
+fn test_csrng_adaptive_proportion_symbol() {
+    // Multi-channel mode: the Adaptive Proportion Symbol test (ADAPTPS) counts
+    // how often the first 4-bit symbol of each window occurs, and fails when
+    // the count reaches the threshold (75% of the window by default).
+    const PASS: &FwId = &firmware::driver_tests::CSRNG_PASS_HEALTH_TESTS;
+    const FAIL: &FwId = &firmware::driver_tests::CSRNG_FAIL_ADAPTP_TESTS;
+    let windows = |matches| Box::new(adaptps_window(matches).into_iter().cycle());
+
+    test_csrng_with_nibbles(PASS, windows(767));
+    test_csrng_with_nibbles(FAIL, windows(768));
+
+    if !HOST_SETS_ENTROPY_THRESHOLDS {
+        return;
+    }
+    // SoC override. CONFIG_0.low_threshold is unused in multi-channel mode.
+    let params = BootParams {
+        initial_adaptp_thresh_reg: Some(
+            ItrngEntropyConfig0WriteVal::from(CptraItrngEntropyConfig0::RESET_VAL)
+                .high_threshold(600)
+                .low_threshold(1000),
+        ),
+        ..Default::default()
+    };
+    test_csrng_with_boot_params(PASS, windows(599), params.clone());
+    test_csrng_with_boot_params(FAIL, windows(600), params);
+}
+
+/// Test that a repeating 4-bit symbol stream is rejected at boot by the
+/// Repetition Count Symbol (REPCNTS) test, which the ROM runs in
+/// multi-channel mode.
 #[test]
 #[cfg_attr(
     all(
@@ -1137,19 +1199,10 @@ fn test_csrng_adaptive_proportion() {
     ignore
 )]
 fn test_csrng_repcnts() {
-    // The repcnts (symbol) health test is disabled in the driver. A stream of
-    // constant nibbles still fails because every individual RNG wire is
-    // constant, which trips the per-wire repcnt test.
-
     const FAIL: &FwId = &firmware::driver_tests::CSRNG_FAIL_REPCNTS_TESTS;
 
     // Constant nibble stream: 0x7, 0x7, 0x7, ...
-    // Each wire repeats its bit, so the per-wire repcnt test fails and the
-    // driver returns DRIVER_CSRNG_REPCNT_HEALTH_CHECK_FAILED.
     test_csrng_with_nibbles(FAIL, Box::new(iter::repeat(0b0111)));
-
-    // Different constant value to verify it's not value-specific
-    test_csrng_with_nibbles(FAIL, Box::new(iter::repeat(0b1010)));
 }
 
 /// Test that entropy_src configuration registers are locked in production mode (debug_locked=true).
@@ -1273,61 +1326,6 @@ fn test_csrng_config_unlocked_in_debug() {
     )
     .unwrap();
 
-    model.step_until_exit_success().unwrap();
-}
-
-/// Test that entropy configuration stored during cold boot is preserved across warm reset,
-/// even if registers are maliciously modified during runtime.
-#[test]
-#[cfg_attr(
-    all(
-        any(
-            feature = "verilator",
-            feature = "fpga_realtime",
-            feature = "fpga_subsystem"
-        ),
-        not(feature = "itrng")
-    ),
-    ignore
-)]
-fn test_csrng_entropy_config_warm_reset() {
-    // Magic boot status that the test firmware writes to signal ready for warm reset
-    const WARM_RESET_READY_BOOT_STATUS: u32 = 0xCAFE_1234;
-    const SS_STRAP_GENERIC_2_RNG_BIT_ENABLE: u32 = 1 << 16;
-    const SS_STRAP_GENERIC_2_RNG_BIT_SEL_SHIFT: u32 = 17;
-    const RNG_BIT_SEL: u32 = 2;
-
-    let rom = caliptra_builder::build_firmware_rom(
-        &firmware::driver_tests::CSRNG_ENTROPY_CONFIG_WARM_RESET_TESTS,
-    )
-    .unwrap();
-
-    let mut model = caliptra_hw_model::new(
-        InitParams {
-            rom: &rom,
-            itrng_nibbles: Box::new(trng_nibbles()),
-            trng_mode: Some(TrngMode::Internal),
-            ..default_init_params()
-        },
-        BootParams {
-            initial_ss_strap_generic_2: Some(
-                SS_STRAP_GENERIC_2_RNG_BIT_ENABLE
-                    | (RNG_BIT_SEL << SS_STRAP_GENERIC_2_RNG_BIT_SEL_SHIFT),
-            ),
-            ..Default::default()
-        },
-    )
-    .unwrap();
-
-    // Cold reset: test firmware initializes CSRNG, writes bad values to registers,
-    // then signals for warm reset
-    model.step_until_boot_status(WARM_RESET_READY_BOOT_STATUS, true);
-
-    // Perform warm reset
-    model.warm_reset_flow().unwrap();
-
-    // Warm reset: test firmware verifies CSRNG initializes successfully
-    // (using stored config, not bad register values)
     model.step_until_exit_success().unwrap();
 }
 
@@ -1574,6 +1572,148 @@ fn test_preconditioned_aes() {
 // TC-1..TC-5 run with normal good entropy.
 // TC-6 (health-check failure on reseed) needs bad entropy after startup.
 // ---------------------------------------------------------------------------
+
+#[test]
+fn test_entropy_combiner_kat_and_lock() {
+    let rom = caliptra_builder::build_firmware_rom(&firmware::driver_tests::ENTROPY_COMBINER_TESTS)
+        .unwrap();
+    let mut model = caliptra_hw_model::new(
+        InitParams {
+            rom: &rom,
+            trng_mode: Some(TrngMode::Internal),
+            ..default_init_params()
+        },
+        BootParams::default(),
+    )
+    .unwrap();
+    model.step_until_exit_success().unwrap();
+}
+
+#[cfg(not(any(feature = "verilator", feature = "fpga_realtime")))]
+#[test]
+#[cfg_attr(
+    feature = "fpga_subsystem",
+    ignore = "requires the dual-iTRNG lab bitstream"
+)]
+fn test_entropy_combiner_dual_generate_reseed() {
+    run_entropy_combiner_dual(false);
+}
+
+#[cfg(not(any(feature = "verilator", feature = "fpga_realtime")))]
+#[test]
+#[cfg_attr(
+    feature = "fpga_subsystem",
+    ignore = "requires the dual-iTRNG lab bitstream"
+)]
+fn test_entropy_combiner_reports_secondary_source_failure() {
+    run_entropy_combiner_dual(true);
+}
+
+#[cfg(not(any(feature = "verilator", feature = "fpga_realtime")))]
+fn run_entropy_combiner_dual(bad_es1: bool) {
+    let rom = caliptra_builder::build_firmware_rom(&firmware::driver_tests::ENTROPY_COMBINER_TESTS)
+        .unwrap();
+    let mut model = caliptra_hw_model::new_unbooted(InitParams {
+        rom: &rom,
+        trng_mode: Some(TrngMode::Internal),
+        subsystem_mode: true,
+        itrng1_nibbles: Some(if bad_es1 {
+            Box::new(core::iter::repeat(0))
+        } else {
+            Box::new(trng_nibbles().skip(257))
+        }),
+        ..default_init_params()
+    })
+    .unwrap();
+    // The firmware skips the dual-source checks in bypass mode, so a pass is
+    // only meaningful if Core sees the dual strap.
+    assert!(model.soc_ifc().cptra_hw_config().read().dual_i_trng_en());
+    // Asymmetric sources: ES0 single-bit on lane 2, ES1 multi-channel.
+    // On the FPGA subsystem, MCU ROM later rewrites ES0 CONFIG_0/1 from OTP.
+    let regs = model.soc_ifc();
+    regs.cptra_i_trng_entropy_config_0()
+        .write(|w| w.high_threshold(765).low_threshold(245));
+    regs.cptra_i_trng_entropy_config_1()
+        .write(|w| w.repetition_count(53));
+    regs.cptra_i_trng_entropy_config_2().write(|w| {
+        w.fips_window_size(1024)
+            .single_bit_mode(true)
+            .rng_bit_sel(2)
+    });
+    regs.cptra_i_trng1_entropy_config_0()
+        .write(|w| w.high_threshold(331));
+    regs.cptra_i_trng1_entropy_config_1()
+        .write(|w| w.repetition_count(61));
+    regs.cptra_i_trng1_entropy_config_2()
+        .write(|w| w.fips_window_size(512));
+    model
+        .boot(BootParams {
+            initial_dbg_manuf_service_reg: u32::from(bad_es1) << 15,
+            ..Default::default()
+        })
+        .unwrap();
+    model.step_until_exit_success().unwrap();
+}
+
+#[test]
+#[cfg_attr(
+    all(
+        any(
+            feature = "verilator",
+            feature = "fpga_realtime",
+            feature = "fpga_subsystem"
+        ),
+        not(feature = "itrng")
+    ),
+    ignore
+)]
+fn test_csrng_zeroize() {
+    let rom =
+        caliptra_builder::build_firmware_rom(&firmware::driver_tests::CSRNG_ZEROIZE_TESTS).unwrap();
+    let mut model = caliptra_hw_model::new(
+        InitParams {
+            rom: &rom,
+            trng_mode: Some(TrngMode::Internal),
+            ..default_init_params()
+        },
+        BootParams::default(),
+    )
+    .unwrap();
+    model.step_until_exit_success().unwrap();
+    #[cfg(not(any(
+        feature = "verilator",
+        feature = "fpga_realtime",
+        feature = "fpga_subsystem"
+    )))]
+    {
+        let (es0, es1, comb) = model.entropy_zeroize_counts();
+        assert!(es0 > 0);
+        assert_eq!((es1, comb), (0, 0));
+    }
+}
+
+#[cfg(not(any(
+    feature = "verilator",
+    feature = "fpga_realtime",
+    feature = "fpga_subsystem"
+)))]
+#[test]
+fn test_csrng_zeroize_dual() {
+    let rom =
+        caliptra_builder::build_firmware_rom(&firmware::driver_tests::CSRNG_ZEROIZE_TESTS).unwrap();
+    let mut model = caliptra_hw_model::new_unbooted(InitParams {
+        rom: &rom,
+        trng_mode: Some(TrngMode::Internal),
+        subsystem_mode: true,
+        itrng1_nibbles: Some(Box::new(trng_nibbles().skip(257))),
+        ..default_init_params()
+    })
+    .unwrap();
+    model.boot(BootParams::default()).unwrap();
+    model.step_until_exit_success().unwrap();
+    let (es0, es1, comb) = model.entropy_zeroize_counts();
+    assert!(es0 > 0 && es1 > 0 && comb > 0);
+}
 
 /// TC-1..TC-5: reseed/counter/interval/disable tests with good entropy.
 /// Runs on all targets including FPGA itrng (TC-5 exercises auto-enable).

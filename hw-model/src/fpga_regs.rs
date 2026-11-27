@@ -45,6 +45,10 @@ register_bitfields! {
         MailboxDataAvail OFFSET(5) NUMBITS(1) [],
         MailboxFlowDone OFFSET(6) NUMBITS(1) [],
         CptraSsMcuHaltStatusO OFFSET(7) NUMBITS(1) [],
+        DualItrngCapable OFFSET(8) NUMBITS(1) [],
+    ],
+    pub EntropyCtrl [
+        Itrng1En OFFSET(0) NUMBITS(1) [],
     ],
     pub FifoStatus [
         Empty OFFSET(0) NUMBITS(1) [],
@@ -88,7 +92,11 @@ register_structs! {
         (0x10 => pub dbg_fifo_data_pop: ReadOnly<u32, FifoData::Register>),
         (0x14 => pub dbg_fifo_data_push: WriteOnly<u32, FifoData::Register>),
         (0x18 => pub dbg_fifo_status: ReadOnly<u32, FifoStatus::Register>),
-        (0x1c => @END),
+        (0x1c => _msg_fifo_regs),
+        // Only present on dual-iTRNG lab bitstreams; do not touch otherwise.
+        (0x28 => pub itrng1_fifo_data: ReadWrite<u32>),
+        (0x2c => pub itrng1_fifo_status: ReadWrite<u32, ItrngFifoStatus::Register>),
+        (0x30 => @END),
     },
     pub FlashCtrlRegs {
         (0x00 => pub fl_interrupt_state: ReadWrite<u32>),
@@ -112,7 +120,8 @@ register_structs! {
         (0x10 => pub arm_user: ReadWrite<u32>),
         (0x14 => pub itrng_divisor: ReadWrite<u32>),
         (0x18 => pub cycle_count: ReadOnly<u32>),
-        (0x1c => _reserved0),
+        (0x1c => pub entropy_ctrl: ReadWrite<u32, EntropyCtrl::Register>),
+        (0x20 => _reserved0),
         (0x30 => pub generic_input_wires: [ReadWrite<u32>; 2]),
         (0x38 => pub generic_output_wires: [ReadOnly<u32>; 2]),
         (0x40 => pub cptra_obf_key: [ReadWrite<u32>; 8]),

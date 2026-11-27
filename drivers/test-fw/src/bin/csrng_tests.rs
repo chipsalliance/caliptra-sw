@@ -14,15 +14,15 @@ Abstract:
 #![no_std]
 #![no_main]
 
-use caliptra_drivers::{Csrng, CsrngSeed, PersistentDataAccessor};
-use caliptra_registers::{csrng::CsrngReg, entropy_src::EntropySrcReg, soc_ifc::SocIfcReg};
+use caliptra_drivers::{Csrng, CsrngSeed, EntropyRegs, PersistentDataAccessor};
+use caliptra_registers::{csrng::CsrngReg, soc_ifc::SocIfcReg};
 use caliptra_test_harness::test_suite;
 
 // From:
 // https://github.com/lowRISC/opentitan/blob/ff70cfe194f5a2bb08c1a87a949b5c45746a5d99/sw/device/tests/csrng_smoketest.c#L27
 fn test_ctr_drbg_ctr0_smoke() {
     let csrng_reg = unsafe { CsrngReg::new() };
-    let entropy_src_reg = unsafe { EntropySrcReg::new() };
+    let entropy_regs = unsafe { EntropyRegs::new() };
     let soc_ifc_reg = unsafe { SocIfcReg::new() };
     let persistent_data = unsafe { PersistentDataAccessor::new() };
 
@@ -36,14 +36,8 @@ fn test_ctr_drbg_ctr0_smoke() {
         0x2708cbef, 0x89eb63a9, 0x70cdc6bc, 0x710daba1, 0xed39808c,
     ];
 
-    let mut csrng = Csrng::with_seed(
-        csrng_reg,
-        entropy_src_reg,
-        &soc_ifc_reg,
-        SEED,
-        persistent_data,
-    )
-    .expect("construct CSRNG");
+    let mut csrng = Csrng::with_seed(csrng_reg, entropy_regs, &soc_ifc_reg, SEED, persistent_data)
+        .expect("construct CSRNG");
 
     // The original OpenTitan test tosses the first call to generate.
     let _ = csrng
@@ -61,12 +55,12 @@ fn test_ctr_drbg_ctr0_smoke() {
 // Note: this test is sensitive to the TRNG bits that are fed into the emulation model.
 fn test_entropy_src_seed() {
     let csrng_reg = unsafe { CsrngReg::new() };
-    let entropy_src_reg = unsafe { EntropySrcReg::new() };
+    let entropy_regs = unsafe { EntropyRegs::new() };
     let soc_ifc_reg = unsafe { SocIfcReg::new() };
     let persistent_data = unsafe { PersistentDataAccessor::new() };
 
     const EXPECTED_OUTPUT: [u32; 4] = [0x2e22e235, 0x4141d7aa, 0x78b55c15, 0x5f255da1];
-    let mut csrng = Csrng::new(csrng_reg, entropy_src_reg, &soc_ifc_reg, persistent_data)
+    let mut csrng = Csrng::new(csrng_reg, entropy_regs, &soc_ifc_reg, persistent_data)
         .expect("construct CSRSNG");
 
     assert_eq!(
@@ -79,11 +73,11 @@ fn test_entropy_src_seed() {
 
 fn test_zero_health_fails() {
     let csrng_reg = unsafe { CsrngReg::new() };
-    let entropy_src_reg = unsafe { EntropySrcReg::new() };
+    let entropy_regs = unsafe { EntropyRegs::new() };
     let soc_ifc_reg = unsafe { SocIfcReg::new() };
     let persistent_data = unsafe { PersistentDataAccessor::new() };
 
-    let csrng = Csrng::new(csrng_reg, entropy_src_reg, &soc_ifc_reg, persistent_data)
+    let csrng = Csrng::new(csrng_reg, entropy_regs, &soc_ifc_reg, persistent_data)
         .expect("construct CSRNG");
     let counts = csrng.health_fail_counts();
     assert_eq!(counts.total, 0, "Expected zero total health check fails");

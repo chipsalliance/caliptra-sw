@@ -21,19 +21,19 @@ Abstract:
 #![no_std]
 #![no_main]
 
-use caliptra_drivers::{Csrng, CsrngSeed, PersistentDataAccessor};
+use caliptra_drivers::{Csrng, CsrngSeed, EntropyRegs, PersistentDataAccessor};
 use caliptra_error::CaliptraError;
-use caliptra_registers::{csrng::CsrngReg, entropy_src::EntropySrcReg, soc_ifc::SocIfcReg};
+use caliptra_registers::{csrng::CsrngReg, soc_ifc::SocIfcReg};
 use caliptra_test_harness::test_suite;
 
 fn test_runtime_health_check_failure() {
     let csrng_reg = unsafe { CsrngReg::new() };
-    let entropy_src_reg = unsafe { EntropySrcReg::new() };
+    let entropy_regs = unsafe { EntropyRegs::new() };
     let soc_ifc_reg = unsafe { SocIfcReg::new() };
     let persistent_data = unsafe { PersistentDataAccessor::new() };
 
     // CSRNG initialization should succeed with good startup entropy.
-    let mut csrng = Csrng::new(csrng_reg, entropy_src_reg, &soc_ifc_reg, persistent_data)
+    let mut csrng = Csrng::new(csrng_reg, entropy_regs, &soc_ifc_reg, persistent_data)
         .expect("CSRNG should pass startup health testing");
 
     // Reseed from entropy_src — this enables entropy_src, consumes from it,

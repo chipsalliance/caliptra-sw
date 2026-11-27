@@ -16,9 +16,9 @@ Abstract:
 #![no_main]
 
 use caliptra_drivers::{
-    Array4x12, Array4x4, CaliptraError, DeobfuscationEngine, Ecc384, Ecc384PubKey, Hmac, HmacData,
-    HmacKey, HmacMode, KeyId, KeyReadArgs, KeyUsage, KeyWriteArgs, Mailbox, PersistentDataAccessor,
-    Trng,
+    Array4x12, Array4x4, CaliptraError, DeobfuscationEngine, Ecc384, Ecc384PubKey, EntropyRegs,
+    Hmac, HmacData, HmacKey, HmacMode, KeyId, KeyReadArgs, KeyUsage, KeyWriteArgs, Mailbox,
+    PersistentDataAccessor, Trng,
 };
 use caliptra_drivers_test_bin::{DoeTestResults, DOE_TEST_HMAC_KEY, DOE_TEST_IV};
 
@@ -26,9 +26,7 @@ use caliptra_cfi_lib::CfiCounter;
 use caliptra_registers::ecc::EccReg;
 use caliptra_registers::soc_ifc::SocIfcReg;
 use caliptra_registers::soc_ifc_trng::SocIfcTrngReg;
-use caliptra_registers::{
-    csrng::CsrngReg, doe::DoeReg, entropy_src::EntropySrcReg, hmac::HmacReg, mbox::MboxCsr,
-};
+use caliptra_registers::{csrng::CsrngReg, doe::DoeReg, hmac::HmacReg, mbox::MboxCsr};
 use caliptra_test_harness::test_suite;
 use zerocopy::IntoBytes;
 
@@ -51,7 +49,7 @@ fn test_decrypt() {
     let mut trng = unsafe {
         Trng::new(
             CsrngReg::new(),
-            EntropySrcReg::new(),
+            EntropyRegs::new(),
             SocIfcTrngReg::new(),
             &SocIfcReg::new(),
             PersistentDataAccessor::new(),

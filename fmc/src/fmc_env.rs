@@ -16,13 +16,13 @@ Abstract:
 --*/
 
 use caliptra_drivers::{
-    Abr, CaliptraResult, Ecc384, Hmac, KeyVault, Mailbox, PcrBank, PersistentDataAccessor, Sha1,
-    Sha256, Sha2_512_384, Sha2_512_384Acc, SocIfc, Trng,
+    Abr, CaliptraResult, Ecc384, EntropyRegs, Hmac, KeyVault, Mailbox, PcrBank,
+    PersistentDataAccessor, Sha1, Sha256, Sha2_512_384, Sha2_512_384Acc, SocIfc, Trng,
 };
 use caliptra_registers::{
-    abr::AbrReg, csrng::CsrngReg, ecc::EccReg, entropy_src::EntropySrcReg, hmac::HmacReg,
-    kv::KvReg, mbox::MboxCsr, pv::PvReg, sha256::Sha256Reg, sha512::Sha512Reg,
-    sha512_acc::Sha512AccCsr, soc_ifc::SocIfcReg, soc_ifc_trng::SocIfcTrngReg,
+    abr::AbrReg, csrng::CsrngReg, ecc::EccReg, hmac::HmacReg, kv::KvReg, mbox::MboxCsr, pv::PvReg,
+    sha256::Sha256Reg, sha512::Sha512Reg, sha512_acc::Sha512AccCsr, soc_ifc::SocIfcReg,
+    soc_ifc_trng::SocIfcTrngReg,
 };
 
 /// Hardware Context
@@ -74,12 +74,11 @@ impl FmcEnv {
     ///
     ///
     pub unsafe fn new_from_registers() -> CaliptraResult<Self> {
-        let trng = Trng::new(
+        let trng = Trng::new_configured(
             CsrngReg::new(),
-            EntropySrcReg::new(),
+            EntropyRegs::new(),
             SocIfcTrngReg::new(),
             &SocIfcReg::new(),
-            PersistentDataAccessor::new(),
         )?;
 
         Ok(Self {

@@ -200,6 +200,25 @@ fn hash_slice(slice: &[u8]) -> u64 {
 }
 
 impl ModelEmulated {
+    /// Number of combiner KATs accepted since model creation, across resets.
+    pub fn entropy_combiner_kat_starts(&self) -> u64 {
+        self.cpu.bus.inner().bus.entropy_combiner_kat_starts()
+    }
+
+    /// Number of zeroize pulses issued to `(ES0, ES1, combiner)` since model creation.
+    pub fn entropy_zeroize_counts(&self) -> (u64, u64, u64) {
+        self.cpu.bus.inner().bus.entropy_zeroize_counts()
+    }
+
+    /// Set the modeled combiner's sticky error status through its test register.
+    pub fn inject_entropy_combiner_error(&mut self, mask: u32) {
+        self.cpu
+            .bus
+            .inner_mut()
+            .bus
+            .inject_entropy_combiner_error(mask);
+    }
+
     pub fn set_otp_error_injection(&mut self, enable: bool) {
         self.cpu
             .bus
@@ -317,6 +336,18 @@ impl HwModel for ModelEmulated {
         let mut root_bus = CaliptraRootBus::new(bus_args);
 
         let trng_mode = TrngMode::resolve(params.trng_mode);
+        let dual = if let Some(es1) = params.itrng1_nibbles {
+            if !params.subsystem_mode
+                || trng_mode != TrngMode::Internal
+                || params.hw_version < crate::CaliptraHwVersion::V2_2
+            {
+                return Err("ES1 requires the 2.2 subsystem internal TRNG".into());
+            }
+            root_bus.enable_secondary_itrng(es1);
+            true
+        } else {
+            false
+        };
         let hw_config = {
             let mut hw_config = 0;
             if matches!(trng_mode, TrngMode::Internal) {
@@ -327,6 +358,9 @@ impl HwModel for ModelEmulated {
             }
             if params.ocp_lock_en {
                 hw_config |= 1 << 6
+            }
+            if dual {
+                hw_config |= 1 << 7;
             }
             // 0: 64-bits, 1: 32-bits
             if params.uds_fuse_row_granularity_64 {

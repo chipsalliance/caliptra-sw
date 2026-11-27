@@ -919,7 +919,6 @@ pub mod ecc;
 pub mod el2_pic_ctrl;
 pub mod entropy_combiner;
 pub mod entropy_src;
-pub mod entropy_src1;
 pub mod hmac;
 pub mod i3ccsr;
 pub mod kmac;

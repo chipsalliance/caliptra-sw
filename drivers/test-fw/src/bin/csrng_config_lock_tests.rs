@@ -21,7 +21,7 @@ Abstract:
 #![no_std]
 #![no_main]
 
-use caliptra_drivers::{Csrng, PersistentDataAccessor};
+use caliptra_drivers::{Csrng, EntropyRegs, PersistentDataAccessor};
 use caliptra_registers::{csrng::CsrngReg, entropy_src::EntropySrcReg, soc_ifc::SocIfcReg};
 use caliptra_test_harness::test_suite;
 
@@ -29,7 +29,7 @@ use caliptra_test_harness::test_suite;
 /// This test expects to run with debug_locked=true (production mode).
 fn test_config_locked_in_production_mode() {
     let csrng_reg = unsafe { CsrngReg::new() };
-    let entropy_src_reg = unsafe { EntropySrcReg::new() };
+    let entropy_regs = unsafe { EntropyRegs::new() };
     let soc_ifc_reg = unsafe { SocIfcReg::new() };
     let persistent_data = unsafe { PersistentDataAccessor::new() };
 
@@ -45,7 +45,7 @@ fn test_config_locked_in_production_mode() {
     );
 
     // Initialize CSRNG - this should configure and lock entropy_src
-    let _csrng = Csrng::new(csrng_reg, entropy_src_reg, &soc_ifc_reg, persistent_data)
+    let _csrng = Csrng::new(csrng_reg, entropy_regs, &soc_ifc_reg, persistent_data)
         .expect("CSRNG initialization failed");
 
     // After initialization in production mode, SW_REGUPD and ME_REGWEN should be cleared (locked)

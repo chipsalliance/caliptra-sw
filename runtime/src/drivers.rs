@@ -60,18 +60,17 @@ use caliptra_drivers::{
     pcr_log::{PCR_ID_STASH_MEASUREMENT, RT_FW_CURRENT_PCR, RT_FW_JOURNEY_PCR},
     sha2_512_384::Sha2DigestOpTrait,
     Abr, Aes, Array4x12, CaliptraError, CaliptraManagedDpeContextIndices, CaliptraResult, Ecc384,
-    Hmac, KeyId, KeyVault, Lms, PcrBank, PersistentDataAccessor, Pic, ResetReason, Sha256,
-    Sha256Alg, Sha2_512_384, Sha2_512_384Acc, Sha3, SocIfc, Trng,
+    EntropyRegs, Hmac, KeyId, KeyVault, Lms, PcrBank, PersistentDataAccessor, Pic, ResetReason,
+    Sha256, Sha256Alg, Sha2_512_384, Sha2_512_384Acc, Sha3, SocIfc, Trng,
 };
 use caliptra_drivers::{okref, Dma, DmaMmio, KeyReadArgs, Mldsa87PubKey, Mldsa87Seed};
 use caliptra_image_types::ImageManifest;
 use caliptra_registers::aes::AesReg;
 use caliptra_registers::aes_clp::AesClpReg;
 use caliptra_registers::{
-    abr::AbrReg, csrng::CsrngReg, ecc::EccReg, el2_pic_ctrl::El2PicCtrl,
-    entropy_src::EntropySrcReg, hmac::HmacReg, kmac::Kmac as KmacReg, kv::KvReg, mbox::MboxCsr,
-    pv::PvReg, sha256::Sha256Reg, sha512::Sha512Reg, sha512_acc::Sha512AccCsr, soc_ifc::SocIfcReg,
-    soc_ifc_trng::SocIfcTrngReg,
+    abr::AbrReg, csrng::CsrngReg, ecc::EccReg, el2_pic_ctrl::El2PicCtrl, hmac::HmacReg,
+    kmac::Kmac as KmacReg, kv::KvReg, mbox::MboxCsr, pv::PvReg, sha256::Sha256Reg,
+    sha512::Sha512Reg, sha512_acc::Sha512AccCsr, soc_ifc::SocIfcReg, soc_ifc_trng::SocIfcTrngReg,
 };
 use caliptra_ureg::MmioMut;
 use caliptra_x509::{NotAfter, NotBefore};
@@ -238,12 +237,11 @@ impl Drivers {
                 .read(),
         )?;
 
-        let mut trng = Trng::new(
+        let mut trng = Trng::new_configured(
             CsrngReg::new(),
-            EntropySrcReg::new(),
+            EntropyRegs::new(),
             SocIfcTrngReg::new(),
             &SocIfcReg::new(),
-            PersistentDataAccessor::new(),
         )?;
 
         let aes = Aes::new(AesReg::new(), AesClpReg::new())?;

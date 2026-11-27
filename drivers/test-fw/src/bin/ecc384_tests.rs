@@ -18,14 +18,13 @@ Abstract:
 use caliptra_cfi_lib::CfiCounter;
 use caliptra_drivers::{
     Array4x12, Ecc384, Ecc384PrivKeyIn, Ecc384PrivKeyOut, Ecc384PubKey, Ecc384Result, Ecc384Scalar,
-    Ecc384Seed, KeyId, KeyReadArgs, KeyUsage, KeyVault, KeyWriteArgs, PersistentDataAccessor,
-    Sha2_512_384, Trng,
+    Ecc384Seed, EntropyRegs, KeyId, KeyReadArgs, KeyUsage, KeyVault, KeyWriteArgs,
+    PersistentDataAccessor, Sha2_512_384, Trng,
 };
 use caliptra_error::CaliptraError;
 use caliptra_kat::{Ecc384Kat, EcdhKat};
 use caliptra_registers::csrng::CsrngReg;
 use caliptra_registers::ecc::EccReg;
-use caliptra_registers::entropy_src::EntropySrcReg;
 use caliptra_registers::kv::KvReg;
 use caliptra_registers::sha512::Sha512Reg;
 use caliptra_registers::soc_ifc::SocIfcReg;
@@ -67,7 +66,7 @@ fn test_gen_key_pair() {
     let mut trng = unsafe {
         Trng::new(
             CsrngReg::new(),
-            EntropySrcReg::new(),
+            EntropyRegs::new(),
             SocIfcTrngReg::new(),
             &SocIfcReg::new(),
             PersistentDataAccessor::new(),
@@ -100,7 +99,7 @@ fn test_gen_key_pair_with_iv() {
     let mut trng = unsafe {
         Trng::new(
             CsrngReg::new(),
-            EntropySrcReg::new(),
+            EntropyRegs::new(),
             SocIfcTrngReg::new(),
             &SocIfcReg::new(),
             PersistentDataAccessor::new(),
@@ -159,7 +158,7 @@ fn test_sign() {
     let mut trng = unsafe {
         Trng::new(
             CsrngReg::new(),
-            EntropySrcReg::new(),
+            EntropyRegs::new(),
             SocIfcTrngReg::new(),
             &SocIfcReg::new(),
             PersistentDataAccessor::new(),
@@ -187,7 +186,7 @@ fn test_verify() {
     let mut trng = unsafe {
         Trng::new(
             CsrngReg::new(),
-            EntropySrcReg::new(),
+            EntropyRegs::new(),
             SocIfcTrngReg::new(),
             &SocIfcReg::new(),
             PersistentDataAccessor::new(),
@@ -220,7 +219,7 @@ fn test_verify_r() {
     let mut trng = unsafe {
         Trng::new(
             CsrngReg::new(),
-            EntropySrcReg::new(),
+            EntropyRegs::new(),
             SocIfcTrngReg::new(),
             &SocIfcReg::new(),
             PersistentDataAccessor::new(),
@@ -253,7 +252,7 @@ fn test_verify_failure() {
     let mut trng = unsafe {
         Trng::new(
             CsrngReg::new(),
-            EntropySrcReg::new(),
+            EntropyRegs::new(),
             SocIfcTrngReg::new(),
             &SocIfcReg::new(),
             PersistentDataAccessor::new(),
@@ -297,7 +296,7 @@ fn test_kv_seed_from_input_msg_from_input() {
     let mut trng = unsafe {
         Trng::new(
             CsrngReg::new(),
-            EntropySrcReg::new(),
+            EntropyRegs::new(),
             SocIfcTrngReg::new(),
             &SocIfcReg::new(),
             PersistentDataAccessor::new(),
@@ -352,7 +351,7 @@ fn test_kv_seed_from_kv_msg_from_input() {
     let mut trng = unsafe {
         Trng::new(
             CsrngReg::new(),
-            EntropySrcReg::new(),
+            EntropyRegs::new(),
             SocIfcTrngReg::new(),
             &SocIfcReg::new(),
             PersistentDataAccessor::new(),
@@ -479,7 +478,7 @@ fn test_no_private_key_usage() {
     let mut trng = unsafe {
         Trng::new(
             CsrngReg::new(),
-            EntropySrcReg::new(),
+            EntropyRegs::new(),
             SocIfcTrngReg::new(),
             &SocIfcReg::new(),
             PersistentDataAccessor::new(),
@@ -507,7 +506,7 @@ fn test_kat() {
     let mut trng = unsafe {
         Trng::new(
             CsrngReg::new(),
-            EntropySrcReg::new(),
+            EntropyRegs::new(),
             SocIfcTrngReg::new(),
             &SocIfcReg::new(),
             PersistentDataAccessor::new(),
@@ -545,7 +544,7 @@ fn test_ecdh() {
     let mut trng = unsafe {
         Trng::new(
             CsrngReg::new(),
-            EntropySrcReg::new(),
+            EntropyRegs::new(),
             SocIfcTrngReg::new(),
             &SocIfcReg::new(),
             PersistentDataAccessor::new(),
@@ -582,7 +581,7 @@ fn test_ecdh_with_key_vault() {
     let mut trng = unsafe {
         Trng::new(
             CsrngReg::new(),
-            EntropySrcReg::new(),
+            EntropyRegs::new(),
             SocIfcTrngReg::new(),
             &SocIfcReg::new(),
             PersistentDataAccessor::new(),
@@ -636,7 +635,7 @@ fn test_kv_write_failure_recovers() {
     let mut trng = unsafe {
         Trng::new(
             CsrngReg::new(),
-            EntropySrcReg::new(),
+            EntropyRegs::new(),
             SocIfcTrngReg::new(),
             &SocIfcReg::new(),
             PersistentDataAccessor::new(),

@@ -435,8 +435,8 @@ pub struct EntropyConfiguration {
 }
 
 bitfield::bitfield! {
-    /// Packed entropy-source single-bit-mode configuration cached from
-    /// SS_STRAP_GENERIC[2] so that it can be reapplied across warm resets.
+    /// Packed entropy-source mode configuration cached from
+    /// CPTRA_iTRNG{,1}_ENTROPY_CONFIG_2 so that it can be reapplied across warm resets.
     #[derive(Clone, Copy, Default, FromZeros, IntoBytes, KnownLayout, Zeroize)]
     #[repr(C)]
     pub struct EntropyConfigurationExtension(u32);
@@ -445,6 +445,8 @@ bitfield::bitfield! {
     pub rng_bit_enable, set_rng_bit_enable: 0;
     /// Which of the 4 RNG bus lanes to sample when single-bit mode is enabled.
     pub u32, rng_bit_sel, set_rng_bit_sel: 2, 1;
+    /// True when the SoC requested conditioning bypass (`es_type`) for characterization.
+    pub bypass, set_bypass: 3;
 }
 
 #[derive(FromZeros, IntoBytes, KnownLayout, Zeroize)]
@@ -505,7 +507,11 @@ pub struct RomPersistentData {
     pub cmb_aes_key_share1: LEArray4x8,
 
     // Preserve the ROM/FMC/runtime persistent-data layout.
-    reserved7: [u8; ROM_RESERVED7_SIZE as usize],
+    reserved7: [u8; ROM_RESERVED7_SIZE as usize
+        - size_of::<EntropyConfiguration>()
+        - size_of::<EntropyConfigurationExtension>()],
+    pub es1_entropy_cfg: EntropyConfiguration,
+    pub es1_entropy_cfg_extension: EntropyConfigurationExtension,
 
     pub cleared_non_fatal_fw_error: u32,
 
@@ -529,11 +535,6 @@ impl RomPersistentData {
     pub const MAGIC: u32 = u32::from_be_bytes(*b"ROMP");
     pub const MAJOR_VERSION: u16 = 1;
     pub const MINOR_VERSION: u16 = 1;
-    pub const MINOR_VERSION_ENTROPY_CFG_EXTENSION: u16 = 1;
-
-    pub fn supports_entropy_cfg_extension(&self) -> bool {
-        self.minor_version >= Self::MINOR_VERSION_ENTROPY_CFG_EXTENSION
-    }
 
     pub fn supports_current_minor_version(&self) -> bool {
         self.minor_version <= Self::MINOR_VERSION

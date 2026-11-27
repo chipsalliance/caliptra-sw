@@ -119,6 +119,7 @@ impl CtrDrbg {
         self.v = [0; BLOCK_LEN_BYTES];
         self.key = [0; KEY_LEN_BYTES];
         self.generated_bytes.clear();
+        self.reseed_counter = 0;
     }
 
     pub fn pop_block(&mut self) -> Option<Block> {

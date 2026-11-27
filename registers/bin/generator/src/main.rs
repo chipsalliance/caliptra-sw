@@ -146,6 +146,31 @@ fn run_cmd_stdout(cmd: &mut Command, input: Option<&[u8]>) -> Result<String, Box
     }
 }
 
+fn merge_block_instances(
+    blocks: &mut Vec<RegisterBlock>,
+    primary: &str,
+    secondary: &str,
+) -> Result<(), Box<dyn Error>> {
+    let Some(sec_idx) = blocks.iter().position(|b| b.name == secondary) else {
+        return Ok(());
+    };
+    let sec = blocks.remove(sec_idx);
+    let Some(pri) = blocks.iter_mut().find(|b| b.name == primary) else {
+        return Err(format!("Cannot merge {secondary} into missing block {primary}").into());
+    };
+    if pri.registers != sec.registers
+        || pri.sub_blocks != sec.sub_blocks
+        || pri.declared_register_types != sec.declared_register_types
+    {
+        return Err(format!(
+            "Register layout of {secondary} does not match {primary}; cannot share RegisterBlock"
+        )
+        .into());
+    }
+    pri.instances.extend(sec.instances);
+    Ok(())
+}
+
 fn remove_reg_prefixes(registers: &mut [Rc<Register>], prefix: &str) {
     for reg in registers.iter_mut() {
         if reg.name.to_ascii_lowercase().starts_with(prefix) {
@@ -329,6 +354,9 @@ fn real_main() -> Result<(), Box<dyn Error>> {
             caliptra_ureg_systemrdl::translate_addrmap(scope.lookup_typedef(top).unwrap())?;
         blocks.append(&mut block);
     }
+    // ES0 and ES1 instantiate the same RDL addrmap; expose both handles from
+    // `entropy_src` so they share a single `RegisterBlock` type.
+    merge_block_instances(&mut blocks, "entropy_src_reg", "entropy_src1_reg")?;
 
     let mut validated_blocks = vec![];
     for mut block in blocks {
@@ -522,5 +550,64 @@ mod tests {
         let error = sources.header().unwrap_err().to_string();
         assert!(error.contains("Hardware source caliptra-ss is not populated"));
         assert!(error.contains("git submodule update --init --recursive"));
+    }
+
+    #[test]
+    fn merge_block_instances_combines_matching_layouts() {
+        let mut blocks = vec![
+            RegisterBlock {
+                name: "entropy_src_reg".into(),
+                instances: vec![RegisterBlockInstance {
+                    name: "entropy_src_reg".into(),
+                    address: 0x2000_3000,
+                }],
+                ..Default::default()
+            },
+            RegisterBlock {
+                name: "entropy_src1_reg".into(),
+                instances: vec![RegisterBlockInstance {
+                    name: "entropy_src1_reg".into(),
+                    address: 0x2000_4000,
+                }],
+                ..Default::default()
+            },
+        ];
+        merge_block_instances(&mut blocks, "entropy_src_reg", "entropy_src1_reg").unwrap();
+        assert_eq!(blocks.len(), 1);
+        assert_eq!(blocks[0].instances.len(), 2);
+        assert_eq!(blocks[0].instances[0].name, "entropy_src_reg");
+        assert_eq!(blocks[0].instances[0].address, 0x2000_3000);
+        assert_eq!(blocks[0].instances[1].name, "entropy_src1_reg");
+        assert_eq!(blocks[0].instances[1].address, 0x2000_4000);
+    }
+
+    #[test]
+    fn merge_block_instances_rejects_mismatched_layouts() {
+        let mut blocks = vec![
+            RegisterBlock {
+                name: "entropy_src_reg".into(),
+                instances: vec![RegisterBlockInstance {
+                    name: "entropy_src_reg".into(),
+                    address: 0x2000_3000,
+                }],
+                ..Default::default()
+            },
+            RegisterBlock {
+                name: "entropy_src1_reg".into(),
+                registers: vec![Rc::new(Register {
+                    name: "EXTRA".into(),
+                    ..Default::default()
+                })],
+                instances: vec![RegisterBlockInstance {
+                    name: "entropy_src1_reg".into(),
+                    address: 0x2000_4000,
+                }],
+                ..Default::default()
+            },
+        ];
+        let err = merge_block_instances(&mut blocks, "entropy_src_reg", "entropy_src1_reg")
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("does not match"));
     }
 }
