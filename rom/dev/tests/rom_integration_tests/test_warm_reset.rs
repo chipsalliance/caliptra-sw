@@ -26,23 +26,23 @@ fn test_warm_reset_success() {
     check_warm_reset_success(false);
 }
 
-#[cfg(not(any(
-    feature = "verilator",
-    feature = "fpga_realtime",
-    feature = "fpga_subsystem"
-)))]
+#[cfg(not(any(feature = "verilator", feature = "fpga_realtime")))]
 #[test]
+#[cfg_attr(
+    feature = "fpga_subsystem",
+    ignore = "requires the dual-iTRNG lab bitstream"
+)]
 fn test_dual_itrng_cold_and_warm_reset() {
     check_warm_reset_success(true);
 }
 
 /// ROM must fail closed, not fall back to ES0, when ES1 never delivers.
-#[cfg(not(any(
-    feature = "verilator",
-    feature = "fpga_realtime",
-    feature = "fpga_subsystem"
-)))]
+#[cfg(not(any(feature = "verilator", feature = "fpga_realtime")))]
 #[test]
+#[cfg_attr(
+    feature = "fpga_subsystem",
+    ignore = "requires the dual-iTRNG lab bitstream"
+)]
 fn test_dual_itrng_missing_es1_is_fatal_in_rom() {
     let rom = caliptra_builder::build_firmware_rom(firmware::rom_from_env_fpga(cfg!(
         feature = "fpga_subsystem"
@@ -165,6 +165,7 @@ fn check_warm_reset_success(dual_itrng: bool) {
     })
     .unwrap();
     if dual_itrng {
+        // On the FPGA subsystem, MCU ROM later rewrites ES0 CONFIG_0/1 from OTP.
         let regs = hw.soc_ifc();
         regs.cptra_i_trng_entropy_config_0()
             .write(|w| w.low_threshold(251).high_threshold(771));
@@ -182,8 +183,10 @@ fn check_warm_reset_success(dual_itrng: bool) {
         regs.cptra_i_trng1_entropy_config_2()
             .write(|w| w.fips_window_size(512));
     }
-    if dual_itrng {
-        assert!(hw.soc_ifc().cptra_hw_config().read().dual_i_trng_en());
+    if dual_itrng || cfg!(feature = "fpga_subsystem") {
+        let actual = hw.soc_ifc().cptra_hw_config().read().dual_i_trng_en();
+        eprintln!("CPTRA_HW_CONFIG.dual_iTRNG_en = {}", u8::from(actual));
+        assert_eq!(actual, dual_itrng);
     }
     hw.boot(boot_params).unwrap();
 
@@ -204,6 +207,14 @@ fn check_warm_reset_success(dual_itrng: bool) {
     }
     hw.warm_reset_flow().unwrap();
     wait_for_runtime(&mut hw);
+    // The strap only changes on cold reset; runtime entry alone does not show
+    // whether the combiner ran in dual or bypass mode.
+    if dual_itrng || cfg!(feature = "fpga_subsystem") {
+        assert_eq!(
+            hw.soc_ifc().cptra_hw_config().read().dual_i_trng_en(),
+            dual_itrng
+        );
+    }
     #[cfg(not(any(
         feature = "verilator",
         feature = "fpga_realtime",

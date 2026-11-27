@@ -1589,31 +1589,27 @@ fn test_entropy_combiner_kat_and_lock() {
     model.step_until_exit_success().unwrap();
 }
 
-#[cfg(not(any(
-    feature = "verilator",
-    feature = "fpga_realtime",
-    feature = "fpga_subsystem"
-)))]
+#[cfg(not(any(feature = "verilator", feature = "fpga_realtime")))]
 #[test]
+#[cfg_attr(
+    feature = "fpga_subsystem",
+    ignore = "requires the dual-iTRNG lab bitstream"
+)]
 fn test_entropy_combiner_dual_generate_reseed() {
     run_entropy_combiner_dual(false);
 }
 
-#[cfg(not(any(
-    feature = "verilator",
-    feature = "fpga_realtime",
-    feature = "fpga_subsystem"
-)))]
+#[cfg(not(any(feature = "verilator", feature = "fpga_realtime")))]
 #[test]
+#[cfg_attr(
+    feature = "fpga_subsystem",
+    ignore = "requires the dual-iTRNG lab bitstream"
+)]
 fn test_entropy_combiner_reports_secondary_source_failure() {
     run_entropy_combiner_dual(true);
 }
 
-#[cfg(not(any(
-    feature = "verilator",
-    feature = "fpga_realtime",
-    feature = "fpga_subsystem"
-)))]
+#[cfg(not(any(feature = "verilator", feature = "fpga_realtime")))]
 fn run_entropy_combiner_dual(bad_es1: bool) {
     let rom = caliptra_builder::build_firmware_rom(&firmware::driver_tests::ENTROPY_COMBINER_TESTS)
         .unwrap();
@@ -1629,7 +1625,11 @@ fn run_entropy_combiner_dual(bad_es1: bool) {
         ..default_init_params()
     })
     .unwrap();
+    // The firmware skips the dual-source checks in bypass mode, so a pass is
+    // only meaningful if Core sees the dual strap.
+    assert!(model.soc_ifc().cptra_hw_config().read().dual_i_trng_en());
     // Asymmetric sources: ES0 single-bit on lane 2, ES1 multi-channel.
+    // On the FPGA subsystem, MCU ROM later rewrites ES0 CONFIG_0/1 from OTP.
     let regs = model.soc_ifc();
     regs.cptra_i_trng_entropy_config_0()
         .write(|w| w.high_threshold(765).low_threshold(245));
