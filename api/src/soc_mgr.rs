@@ -3,8 +3,8 @@
 use crate::{
     calc_checksum,
     mailbox::{
-        mbox_read_response, mbox_write_fifo_with_limit, MailboxReqHeader, MailboxRespHeader,
-        Request, Response, StashMeasurementReq, MAILBOX_SIZE,
+        mbox_read_response, MailboxReqHeader, MailboxRespHeader, Request, Response,
+        StashMeasurementReq, MAILBOX_SIZE,
     },
     CaliptraApiError,
 };
@@ -24,21 +24,19 @@ pub const NUM_PAUSERS: usize = 5;
 /// use caliptra_ureg::RealMmioMut;
 /// struct RealSocManager;
 /// const CPTRA_SOC_IFC_ADDR: u32 = 0x3003_0000;
-/// const CPTRA_SOC_IFC_TRNG_ADDR: u32 = 0x3003_0000;
 /// const CPTRA_SOC_MBOX_ADDR: u32 = 0x3002_0000;
 /// const fn caliptra_address_remap(addr : u32) -> u32 {
 ///     addr
 /// }
-/// impl SocManager for RealSocManager {
+/// impl RealSocManager {
 ///     /// Address of the mailbox, remapped for the SoC.
 ///     const SOC_MBOX_ADDR: u32 = caliptra_address_remap(CPTRA_SOC_MBOX_ADDR);
 ///
 ///     /// Address of the SoC interface, remapped for the SoC.
 ///     const SOC_IFC_ADDR: u32 = caliptra_address_remap(CPTRA_SOC_IFC_ADDR);
+/// }
 ///
-///     /// Address of the SoC TRNG interface, remapped for the SoC.
-///     const SOC_IFC_TRNG_ADDR: u32 = caliptra_address_remap(CPTRA_SOC_IFC_TRNG_ADDR);
-///
+/// impl SocManager for RealSocManager {
 ///     /// Maximum number of wait cycles.
 ///     const MAX_WAIT_CYCLES: u32 = 400000;
 ///
@@ -54,15 +52,22 @@ pub const NUM_PAUSERS: usize = 5;
 ///     fn delay(&mut self) {
 ///         //real_soc_delay_fn(1);
 ///     }
+///
+///     /// Base address of the soc_ifc register block, as seen by the SoC.
+///     fn soc_ifc_addr(&self) -> u32 {
+///         Self::SOC_IFC_ADDR
+///     }
+///
+///     /// Base address of the mbox register block, as seen by the SoC.
+///     fn soc_mbox_addr(&self) -> u32 {
+///         Self::SOC_MBOX_ADDR
+///     }
 /// }
 /// ```
 pub trait SocManager {
-    const SOC_IFC_ADDR: u32;
-    const SOC_MBOX_ADDR: u32;
-    const SOC_IFC_TRNG_ADDR: u32;
-
     const MAX_WAIT_CYCLES: u32;
 
+    /// Default for [`Self::mailbox_size_limit`].
     const MAILBOX_SIZE_LIMIT: usize = MAILBOX_SIZE;
 
     type TMmio<'a>: MmioMut
@@ -73,6 +78,85 @@ pub trait SocManager {
 
     // Provide a time base for mailbox status polling loop.
     fn delay(&mut self);
+
+    /// Receives progress messages from the mailbox helpers [`Self::start_mailbox_exec`] and [`Self::finish_mailbox_exec`].
+    /// The default implementation discards them, hosted models must override it to write to their log.
+    fn log_mailbox(&mut self, _args: core::fmt::Arguments<'_>) {}
+
+    /// Largest request, in bytes, that [`Self::start_mailbox_exec`] accepts.
+    ///
+    /// Defaults to [`Self::MAILBOX_SIZE_LIMIT`]. Override it if the limit is only
+    /// known at run time, e.g. because the mailbox is 16 KiB in subsystem mode but
+    /// 256 KiB in passive mode.
+    fn mailbox_size_limit(&mut self) -> usize {
+        Self::MAILBOX_SIZE_LIMIT
+    }
+
+    /// Lock the mailbox and verify that it can be read.
+    fn lock_mailbox(&mut self) -> Result<(), CaliptraApiError> {
+        if self.soc_mbox().lock().read().lock() {
+            return Err(CaliptraApiError::UnableToLockMailbox);
+        }
+
+        if !self.soc_mbox().lock().read().lock() {
+            return Err(CaliptraApiError::UnableToReadMailbox);
+        }
+
+        Ok(())
+    }
+
+    /// Abort the mailbox request and transfer the RTL FSM back to IDLE, implicitly releasing the mailbox lock.
+    fn unlock_mailbox(&mut self) {
+        self.soc_mbox().execute().write(|w| w.execute(false));
+    }
+
+    /// Verify whether the mailbox status is busy or not.
+    fn is_mailbox_busy(&mut self) -> bool {
+        self.soc_mbox().status().read().status().cmd_busy()
+    }
+
+    /// Start a mailbox request: take the lock, then write the command and the
+    /// payload length.
+    ///
+    /// The payload (`len_bytes`, rounded up to whole words) is then written
+    /// with [`Self::write_mailbox_word`] or [`Self::write_mailbox_words`] and
+    /// the request is submitted with [`Self::execute_mailbox`]. Payloads larger
+    /// than [`Self::mailbox_size_limit`] are rejected before the lock is taken.
+    fn begin_mailbox_req(&mut self, cmd: u32, len_bytes: usize) -> Result<(), CaliptraApiError> {
+        // Reject before taking the lock: once locked, the SoC can only release
+        // it through a completed execute.
+        if len_bytes > self.mailbox_size_limit() {
+            return Err(CaliptraApiError::BufferTooLargeForMailbox);
+        }
+        let dlen =
+            u32::try_from(len_bytes).map_err(|_| CaliptraApiError::BufferTooLargeForMailbox)?;
+
+        self.lock_mailbox()?;
+
+        self.soc_mbox().cmd().write(|_| cmd);
+        self.soc_mbox().dlen().write(|_| dlen);
+
+        Ok(())
+    }
+
+    /// Write one word of request payload to the mailbox, after
+    /// [`Self::begin_mailbox_req`].
+    fn write_mailbox_word(&mut self, word: u32) {
+        self.soc_mbox().datain().write(|_| word);
+    }
+
+    /// Write request payload to the mailbox, after [`Self::begin_mailbox_req`].
+    fn write_mailbox_words(&mut self, words: impl IntoIterator<Item = u32>) {
+        let mbox = self.soc_mbox();
+        for word in words {
+            mbox.datain().write(|_| word);
+        }
+    }
+
+    /// Ask Caliptra to execute the request written so far.
+    fn execute_mailbox(&mut self) {
+        self.soc_mbox().execute().write(|w| w.execute(true));
+    }
 
     /// Set up valid PAUSERs for mailbox access.
     fn setup_mailbox_users(&mut self, apb_pausers: &[u32]) -> Result<(), CaliptraApiError> {
@@ -172,23 +256,25 @@ pub trait SocManager {
         Ok(())
     }
 
+    /// Base address of the soc_ifc register block, as seen by the SoC.
+    ///
+    /// The address is specific to the integration, so there is no default.
+    /// It is a method rather than a constant because an implementation may
+    /// only learn it at link or run time.
+    fn soc_ifc_addr(&self) -> u32;
+
+    /// Base address of the mbox register block, as seen by the SoC.
+    ///
+    /// The address is specific to the integration, so there is no default.
+    /// See [`Self::soc_ifc_addr`].
+    fn soc_mbox_addr(&self) -> u32;
+
     /// A register block that can be used to manipulate the soc_ifc peripheral
     /// over the simulated SoC->Caliptra APB bus.
     fn soc_ifc(&mut self) -> caliptra_registers::soc_ifc::RegisterBlock<Self::TMmio<'_>> {
         unsafe {
             caliptra_registers::soc_ifc::RegisterBlock::new_with_mmio(
-                Self::SOC_IFC_ADDR as *mut u32,
-                self.mmio_mut(),
-            )
-        }
-    }
-
-    /// A register block that can be used to manipulate the soc_ifc peripheral TRNG registers
-    /// over the simulated SoC->Caliptra APB bus.
-    fn soc_ifc_trng(&mut self) -> caliptra_registers::soc_ifc_trng::RegisterBlock<Self::TMmio<'_>> {
-        unsafe {
-            caliptra_registers::soc_ifc_trng::RegisterBlock::new_with_mmio(
-                Self::SOC_IFC_TRNG_ADDR as *mut u32,
+                self.soc_ifc_addr() as *mut u32,
                 self.mmio_mut(),
             )
         }
@@ -199,7 +285,7 @@ pub trait SocManager {
     fn soc_mbox(&mut self) -> caliptra_registers::mbox::RegisterBlock<Self::TMmio<'_>> {
         unsafe {
             caliptra_registers::mbox::RegisterBlock::new_with_mmio(
-                Self::SOC_MBOX_ADDR as *mut u32,
+                self.soc_mbox_addr() as *mut u32,
                 self.mmio_mut(),
             )
         }
@@ -220,34 +306,37 @@ pub trait SocManager {
         self.finish_mailbox_exec(resp_data)
     }
 
-    /// Send a command to the mailbox but don't wait for the response
+    /// Send a command to the mailbox but don't wait for the response.
+    ///
+    /// Requests larger than [`Self::mailbox_size_limit`] are rejected.
     fn start_mailbox_exec(
         &mut self,
         cmd: u32,
         buf: &[u8],
     ) -> core::result::Result<(), CaliptraApiError> {
-        // Reject before taking the lock: once locked, the SoC can only release
-        // it through a completed execute.
-        if buf.len() > Self::MAILBOX_SIZE_LIMIT {
-            return Err(CaliptraApiError::BufferTooLargeForMailbox);
-        }
+        self.start_mailbox_exec_words(cmd, buf.len(), le_words(buf))
+    }
 
-        // Read a 0 to get the lock
-        if self.soc_mbox().lock().read().lock() {
-            return Err(CaliptraApiError::UnableToLockMailbox);
-        }
+    /// Like [`Self::start_mailbox_exec`], but the payload is produced word by
+    /// word, so a large request does not have to be assembled in memory first.
+    ///
+    /// `words` must yield `len_bytes` of payload, rounded up to whole words.
+    fn start_mailbox_exec_words(
+        &mut self,
+        cmd: u32,
+        len_bytes: usize,
+        words: impl IntoIterator<Item = u32>,
+    ) -> core::result::Result<(), CaliptraApiError> {
+        // Logging for caliptra-sw hw model
+        self.log_mailbox(format_args!(
+            "<<< Executing Caliptra mbox cmd 0x{cmd:08x} ({len_bytes} bytes) from SoC"
+        ));
 
-        // Mailbox lock value should read 1 now
-        // If not, the reads are likely being blocked by the PAUSER check or some other issue
-        if !(self.soc_mbox().lock().read().lock()) {
-            return Err(CaliptraApiError::UnableToReadMailbox);
-        }
-
-        self.soc_mbox().cmd().write(|_| cmd);
-        mbox_write_fifo_with_limit(&self.soc_mbox(), buf, Self::MAILBOX_SIZE_LIMIT)?;
+        self.begin_mailbox_req(cmd, len_bytes)?;
+        self.write_mailbox_words(words);
 
         // Ask the microcontroller to execute this command
-        self.soc_mbox().execute().write(|w| w.execute(true));
+        self.execute_mailbox();
 
         Ok(())
     }
@@ -260,7 +349,7 @@ pub trait SocManager {
     ) -> core::result::Result<Option<&'r [u8]>, CaliptraApiError> {
         // Wait for the microcontroller to finish executing
         let mut timeout_cycles = Self::MAX_WAIT_CYCLES; // 100ms @400MHz
-        while self.soc_mbox().status().read().status().cmd_busy() {
+        while self.is_mailbox_busy() {
             self.delay();
             timeout_cycles -= 1;
             if timeout_cycles == 0 {
@@ -273,6 +362,8 @@ pub trait SocManager {
 
         let status = self.soc_mbox().status().read().status();
         let res = if status.cmd_failure() {
+            self.log_mailbox(format_args!(">>> Caliptra mbox cmd response: failed"));
+
             let soc_ifc = self.soc_ifc();
             Err(CaliptraApiError::MailboxCmdFailed(
                 if soc_ifc.cptra_fw_error_fatal().read() != 0 {
@@ -282,16 +373,19 @@ pub trait SocManager {
                 },
             ))
         } else if status.cmd_complete() {
+            self.log_mailbox(format_args!(">>> Caliptra mbox cmd response: success"));
             Ok(None)
         } else if !status.data_ready() {
             Err(CaliptraApiError::UnknownCommandStatus(status as u32))
         } else {
+            let dlen = self.soc_mbox().dlen().read();
+            self.log_mailbox(format_args!(">>> mbox cmd response data ({dlen} bytes)"));
             mbox_read_response(self.soc_mbox(), resp_data).map(Some)
         };
 
         // The uC has responded, so clearing execute is now legal and releases
         // the lock. Do it on every path out, including errors.
-        self.soc_mbox().execute().write(|w| w.execute(false));
+        self.unlock_mailbox();
         res
     }
 
@@ -367,4 +461,17 @@ pub trait SocManager {
         }
         Err(CaliptraApiError::StashMeasurementFailed)
     }
+}
+
+/// The little-endian words of `buf`; a partial trailing word is zero-padded.
+fn le_words(buf: &[u8]) -> impl Iterator<Item = u32> + '_ {
+    buf.chunks(4).map(|chunk| {
+        let mut word = [0u8; 4];
+        // A chunk has at most 4 bytes. Zipping avoids indexing, so there is no
+        // bounds check that could panic.
+        for (dst, src) in word.iter_mut().zip(chunk) {
+            *dst = *src;
+        }
+        u32::from_le_bytes(word)
+    })
 }

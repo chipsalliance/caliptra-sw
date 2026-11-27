@@ -108,9 +108,14 @@ impl ModelVerilated {
     pub fn corrupt_mailbox_ecc_double_bit(&mut self) {
         self.v.corrupt_mailbox_ecc_double_bit();
     }
+
+    const SOC_IFC_ADDR: u32 = 0x3003_0000;
+    const SOC_MBOX_ADDR: u32 = 0x3002_0000;
 }
 
 impl SocManager for ModelVerilated {
+    const MAX_WAIT_CYCLES: u32 = 20_000_000;
+
     type TMmio<'a> = BusMmio<VerilatedAxiBus<'a>>;
 
     fn mmio_mut(&mut self) -> Self::TMmio<'_> {
@@ -121,11 +126,17 @@ impl SocManager for ModelVerilated {
         self.step();
     }
 
-    const SOC_IFC_ADDR: u32 = 0x3003_0000;
-    const SOC_IFC_TRNG_ADDR: u32 = 0x3003_0000;
-    const SOC_MBOX_ADDR: u32 = 0x3002_0000;
+    fn log_mailbox(&mut self, args: core::fmt::Arguments<'_>) {
+        writeln!(self.output().logger(), "{args}").unwrap()
+    }
 
-    const MAX_WAIT_CYCLES: u32 = 20_000_000;
+    fn soc_ifc_addr(&self) -> u32 {
+        Self::SOC_IFC_ADDR
+    }
+
+    fn soc_mbox_addr(&self) -> u32 {
+        Self::SOC_MBOX_ADDR
+    }
 }
 
 impl HwModel for ModelVerilated {
@@ -363,6 +374,18 @@ impl HwModel for ModelVerilated {
     }
 }
 impl ModelVerilated {
+    /// The TRNG registers, which are part of the soc_ifc register block.
+    fn soc_ifc_trng(
+        &mut self,
+    ) -> caliptra_registers::soc_ifc_trng::RegisterBlock<BusMmio<VerilatedAxiBus<'_>>> {
+        unsafe {
+            caliptra_registers::soc_ifc_trng::RegisterBlock::new_with_mmio(
+                Self::SOC_IFC_ADDR as *mut u32,
+                self.mmio_mut(),
+            )
+        }
+    }
+
     fn process_trng(&mut self) {
         if self.process_trng_start() {
             self.v.next_cycle_high(1);
