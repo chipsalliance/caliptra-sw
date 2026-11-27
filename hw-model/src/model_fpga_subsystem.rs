@@ -898,8 +898,10 @@ impl ModelFpgaSubsystem {
                 thread::sleep(Duration::from_millis(1));
                 continue;
             }
-            // 1 second * (20 MHz / (2^13 throttling counter)) / 8 nibbles per DW: 305 DW of data consumed in 1 second.
-            let end_time = Instant::now() + Duration::from_millis(1000);
+            // At ITRNG_DIVISOR = 400 and ~20 MHz, 8 nibbles/DW drains at ~6250 DW/s,
+            // emptying the 1024-DW FIFO in ~164 ms. Refill every 50 ms so entropy_src
+            // never stalls waiting for the host thread across handoffs or resets.
+            let end_time = Instant::now() + Duration::from_millis(50);
             while running.load(Ordering::Acquire) && Instant::now() < end_time {
                 thread::sleep(Duration::from_millis(1));
             }
