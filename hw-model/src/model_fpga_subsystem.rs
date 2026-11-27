@@ -2243,6 +2243,12 @@ impl HwModel for ModelFpgaSubsystem {
         // and set bit 31 to let MCU ROM proceed.
         if self.flash_boot {
             println!("Flash boot: skipping BMC/I3C recovery, MCU ROM will load from flash");
+
+            // Assert end-of-stash before we boot from flash.
+            if !boot_params.skip_assert_end_of_stash {
+                self.assert_end_of_stash();
+            }
+
             if let Some(cb) = self.rom_callback.take() {
                 cb(self);
             }
@@ -2280,6 +2286,7 @@ impl HwModel for ModelFpgaSubsystem {
             return Ok(());
         }
 
+        // Assert end-of-stash before we upload the FW image.
         if !boot_params.skip_assert_end_of_stash {
             self.assert_end_of_stash();
         }
