@@ -285,8 +285,8 @@ path = "src/bin/csrng_runtime_health_fail_tests.rs"
 required-features = ["riscv"]
 
 [[bin]]
-name = "csrng_entropy_config_warm_reset_tests"
-path = "src/bin/csrng_entropy_config_warm_reset_tests.rs"
+name = "entropy_combiner_tests"
+path = "src/bin/entropy_combiner_tests.rs"
 required-features = ["riscv"]
 
 [[bin]]

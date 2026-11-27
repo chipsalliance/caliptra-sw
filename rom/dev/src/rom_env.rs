@@ -16,15 +16,15 @@ Abstract:
 --*/
 
 use caliptra_drivers::{
-    Abr, AesGcm, DeobfuscationEngine, Dma, Ecc384, Hmac, KeyVault, Lms, Mailbox, PcrBank,
-    PersistentDataAccessor, Sha1, Sha256, Sha2_512_384, Sha2_512_384Acc, Sha3, SocIfc, Trng,
+    Abr, AesGcm, DeobfuscationEngine, Dma, Ecc384, EntropyCombiner, EntropyRegs, Hmac, KeyVault,
+    Lms, Mailbox, PcrBank, PersistentDataAccessor, Sha1, Sha256, Sha2_512_384, Sha2_512_384Acc,
+    Sha3, SocIfc, Trng,
 };
 use caliptra_error::CaliptraResult;
 use caliptra_registers::{
     abr::AbrReg, aes::AesReg, aes_clp::AesClpReg, csrng::CsrngReg, doe::DoeReg, ecc::EccReg,
-    entropy_src::EntropySrcReg, hmac::HmacReg, kmac::Kmac as KmacReg, kv::KvReg, mbox::MboxCsr,
-    pv::PvReg, sha256::Sha256Reg, sha512::Sha512Reg, sha512_acc::Sha512AccCsr, soc_ifc::SocIfcReg,
-    soc_ifc_trng::SocIfcTrngReg,
+    hmac::HmacReg, kmac::Kmac as KmacReg, kv::KvReg, mbox::MboxCsr, pv::PvReg, sha256::Sha256Reg,
+    sha512::Sha512Reg, sha512_acc::Sha512AccCsr, soc_ifc::SocIfcReg, soc_ifc_trng::SocIfcTrngReg,
 };
 
 /// Non-Crypto ROM Context
@@ -86,11 +86,16 @@ impl RomEnv {
     /// Create TRNG early for CFI initialization.
     /// This must be called before `new_from_registers` so CFI can be initialized first.
     pub unsafe fn create_trng() -> CaliptraResult<Trng> {
+        let soc_ifc = SocIfcReg::new();
+        let mut entropy = EntropyRegs::new();
+        if soc_ifc.regs().cptra_hw_config().read().dual_i_trng_en() {
+            EntropyCombiner::new(entropy.combiner_mut()).kat_and_lock_if_needed()?;
+        }
         Trng::new(
             CsrngReg::new(),
-            EntropySrcReg::new(),
+            entropy,
             SocIfcTrngReg::new(),
-            &SocIfcReg::new(),
+            &soc_ifc,
             PersistentDataAccessor::new(),
         )
     }

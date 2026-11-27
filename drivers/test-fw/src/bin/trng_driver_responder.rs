@@ -9,10 +9,9 @@
 #[allow(unused)]
 use caliptra_test_harness::{self, println};
 
-use caliptra_drivers::{self, PersistentDataAccessor, Trng};
+use caliptra_drivers::{self, EntropyRegs, PersistentDataAccessor, Trng};
 use caliptra_registers::{
-    csrng::CsrngReg, entropy_src::EntropySrcReg, mbox::MboxCsr, soc_ifc::SocIfcReg,
-    soc_ifc_trng::SocIfcTrngReg,
+    csrng::CsrngReg, mbox::MboxCsr, soc_ifc::SocIfcReg, soc_ifc_trng::SocIfcTrngReg,
 };
 use zerocopy::IntoBytes;
 
@@ -30,7 +29,7 @@ extern "C" fn cfi_panic_handler(code: u32) -> ! {
 #[no_mangle]
 extern "C" fn main() {
     let csrng_reg = unsafe { CsrngReg::new() };
-    let entropy_src_reg = unsafe { EntropySrcReg::new() };
+    let entropy_regs = unsafe { EntropyRegs::new() };
     let soc_ifc_trng = unsafe { SocIfcTrngReg::new() };
     let mut soc_ifc = unsafe { SocIfcReg::new() };
     let persistent_data = unsafe { PersistentDataAccessor::new() };
@@ -38,7 +37,7 @@ extern "C" fn main() {
     let mut mbox = unsafe { MboxCsr::new() };
     let mut trng = Trng::new(
         csrng_reg,
-        entropy_src_reg,
+        entropy_regs,
         soc_ifc_trng,
         &soc_ifc,
         persistent_data,

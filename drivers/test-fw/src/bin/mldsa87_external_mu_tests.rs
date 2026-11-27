@@ -17,12 +17,11 @@ Abstract:
 
 use caliptra_cfi_lib::CfiCounter;
 use caliptra_drivers::{
-    Mldsa87, Mldsa87PrivKey, Mldsa87PubKey, Mldsa87Result, Mldsa87Seed, Mldsa87SignRnd,
-    Mldsa87Signature, PersistentDataAccessor, Trng,
+    EntropyRegs, Mldsa87, Mldsa87PrivKey, Mldsa87PubKey, Mldsa87Result, Mldsa87Seed,
+    Mldsa87SignRnd, Mldsa87Signature, PersistentDataAccessor, Trng,
 };
 use caliptra_registers::abr::AbrReg;
 use caliptra_registers::csrng::CsrngReg;
-use caliptra_registers::entropy_src::EntropySrcReg;
 use caliptra_registers::soc_ifc::SocIfcReg;
 use caliptra_registers::soc_ifc_trng::SocIfcTrngReg;
 use caliptra_test_harness::test_suite;
@@ -494,7 +493,7 @@ pub fn test_sign_external_mu() {
     let mut trng = unsafe {
         Trng::new(
             CsrngReg::new(),
-            EntropySrcReg::new(),
+            EntropyRegs::new(),
             SocIfcTrngReg::new(),
             &SocIfcReg::new(),
             PersistentDataAccessor::new(),

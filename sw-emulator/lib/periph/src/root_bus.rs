@@ -16,6 +16,8 @@ use crate::{
     abr::Abr,
     aes_clp::AesKeyReleaseOp,
     dma::Dma,
+    entropy_combiner::EntropyCombiner,
+    entropy_src::{EntropySrc, OptionalEntropySrc, SharedEntropySrc},
     helpers::words_from_bytes_be,
     iccm::Iccm,
     mci::Mci,
@@ -421,8 +423,18 @@ pub struct CaliptraRootBus {
     #[peripheral(offset = 0x2000_1000, len = 0x34)]
     pub uart: Uart,
 
-    #[peripheral(offset = 0x2000_2000, len = 0x10e4)]
+    #[peripheral(offset = 0x2000_2000, len = 0x1000)]
     pub csrng: Csrng,
+
+    #[peripheral(offset = 0x2000_3000, len = 0x1000)]
+    entropy_src0: Rc<RefCell<EntropySrc>>,
+
+    #[peripheral(offset = 0x2000_4000, len = 0x1000)]
+    entropy_src1: OptionalEntropySrc,
+
+    #[peripheral(offset = 0x2000_5000, len = 0x1000)]
+    entropy_combiner: EntropyCombiner,
+    entropy_clock: Rc<Clock>,
 
     #[peripheral(offset = 0x2000_f000, len = 0x4)]
     pub ctrl: EmuCtrl,
@@ -475,6 +487,7 @@ impl CaliptraRootBus {
         let mut iccm = Iccm::new(clock);
         iccm.attach_boot_integrity(integrity.clone(), key_vault.clone());
         let itrng_nibbles = args.itrng_nibbles.take();
+        let entropy_src0 = Rc::new(RefCell::new(EntropySrc::new(itrng_nibbles.unwrap())));
         let test_sram = std::mem::take(&mut args.test_sram);
         let use_mcu_recovery_interface = args.use_mcu_recovery_interface;
         let mci = Mci::new(prod_dbg_unlock_keypairs);
@@ -486,7 +499,10 @@ impl CaliptraRootBus {
             key_vault.clear_keys_with_debug_values(false);
         }
         let mut sha512_acc = Sha512Accelerator::new(clock, mailbox_ram.clone());
-        sha512_acc.attach_boot_integrity(integrity);
+        sha512_acc.attach_boot_integrity(integrity.clone());
+        let mut entropy_combiner =
+            EntropyCombiner::new(clock.clone(), hw_version >= CaliptraHwVersion::V2_2);
+        entropy_combiner.attach_boot_integrity(integrity);
 
         let aes_key = Rc::new(RefCell::new(None));
         let aes_destination = Rc::new(RefCell::new(AesKeyReleaseOp::default()));
@@ -536,10 +552,34 @@ impl CaliptraRootBus {
             mailbox,
             sha512_acc,
             dma,
-            csrng: Csrng::new(itrng_nibbles.unwrap()),
+            csrng: Csrng::new(entropy_src0.clone()),
+            entropy_src0,
+            entropy_src1: OptionalEntropySrc::default(),
+            entropy_combiner,
+            entropy_clock: clock.clone(),
             pic_regs: pic.mmio_regs(clock.clone()),
             mci,
         }
+    }
+
+    pub fn entropy_combiner_kat_starts(&self) -> u64 {
+        self.entropy_combiner.kat_starts()
+    }
+
+    pub fn inject_entropy_combiner_error(&mut self, mask: u32) {
+        self.entropy_combiner.inject_error(mask);
+    }
+
+    pub fn enable_secondary_itrng(&mut self, nibbles: Box<dyn Iterator<Item = u8>>) {
+        self.entropy_src0
+            .borrow_mut()
+            .use_clocked_sampling(self.entropy_clock.clone());
+        let mut es1 = EntropySrc::new(nibbles);
+        es1.use_clocked_sampling(self.entropy_clock.clone());
+        let es1: SharedEntropySrc = Rc::new(RefCell::new(es1));
+        self.entropy_src1 = OptionalEntropySrc(Some(es1.clone()));
+        self.csrng.enable_dual(es1, self.entropy_combiner.link());
+        self.entropy_combiner.set_dual();
     }
 
     pub fn soc_to_caliptra_bus(&self, soc_user: MailboxRequester) -> SocToCaliptraBus {
@@ -617,8 +657,54 @@ pub struct SocToCaliptraBus {
 #[cfg(test)]
 mod tests {
     use crate::KeyUsage;
+    use caliptra_emu_bus::BusError;
+    use caliptra_emu_types::RvSize;
 
     use super::*;
+
+    #[test]
+    fn test_entropy_source_mmio_and_reset_domains() {
+        const CSRNG_RESEED_INTERVAL: u32 = 0x2000_201c;
+        const ES0_SW_REGUPD: u32 = 0x2000_3014;
+        const ES1_SW_REGUPD: u32 = 0x2000_4014;
+        const ES0_CONF: u32 = 0x2000_3024;
+        const ES1_CONF: u32 = 0x2000_4024;
+        const ES1_MAIN_SM_STATE: u32 = 0x2000_40d0;
+        let mut bus = CaliptraRootBus::new(CaliptraRootBusArgs::default());
+        let word = RvSize::Word;
+
+        assert_eq!(bus.read(word, ES1_CONF), Err(BusError::LoadAccessFault));
+        assert_eq!(
+            bus.write(word, ES1_CONF, 0),
+            Err(BusError::StoreAccessFault)
+        );
+        bus.enable_secondary_itrng(Box::new(std::iter::empty()));
+        assert_eq!(bus.read(word, ES1_MAIN_SM_STATE), Ok(0x2c));
+        assert_eq!(bus.read(word, ES1_CONF + 1), Err(BusError::LoadAccessFault));
+        assert_eq!(
+            bus.write(word, ES1_MAIN_SM_STATE, 0),
+            Err(BusError::StoreAccessFault)
+        );
+
+        bus.write(word, ES0_CONF, 0x999996).unwrap();
+        assert_eq!(bus.read(word, ES1_CONF), Ok(0x999999));
+        bus.write(word, ES1_SW_REGUPD, 0).unwrap();
+        bus.write(word, CSRNG_RESEED_INTERVAL, 17).unwrap();
+        bus.write(word, ES0_SW_REGUPD, 0).unwrap();
+        bus.write(word, CSRNG_RESEED_INTERVAL, 31).unwrap();
+        assert_eq!(bus.read(word, CSRNG_RESEED_INTERVAL), Ok(17));
+
+        bus.update_reset();
+        assert_eq!(bus.read(word, ES0_CONF), Ok(0x999996));
+        assert_eq!(bus.read(word, ES1_SW_REGUPD), Ok(0));
+        assert_eq!(bus.read(word, CSRNG_RESEED_INTERVAL), Ok(17));
+
+        bus.warm_reset();
+        assert_eq!(bus.read(word, ES0_CONF), Ok(0x999999));
+        assert_eq!(bus.read(word, ES1_SW_REGUPD), Ok(1));
+        assert_eq!(bus.read(word, ES1_MAIN_SM_STATE), Ok(0x2c));
+        assert_eq!(bus.read(word, CSRNG_RESEED_INTERVAL), Ok(u32::MAX));
+    }
 
     #[test]
     fn test_keyvault_init_val_in_debug_unlocked_mode() {

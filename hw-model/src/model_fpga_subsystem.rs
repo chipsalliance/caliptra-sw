@@ -5,8 +5,8 @@
 use crate::api_types::{DeviceLifecycle, Fuses};
 use crate::bmc::Bmc;
 use crate::fpga_regs::{
-    Control, FifoData, FifoRegs, FifoStatus, FlashControl, FlashCtrlRegs, FlashOpStatus,
-    ItrngFifoStatus, SpareI3cControlSts, WrapperRegs,
+    Control, EntropyCtrl, FifoData, FifoRegs, FifoStatus, FlashControl, FlashCtrlRegs,
+    FlashOpStatus, ItrngFifoStatus, SpareI3cControlSts, Status, WrapperRegs,
 };
 use crate::keys::{DEFAULT_LIFECYCLE_RAW_TOKENS, DEFAULT_MANUF_DEBUG_UNLOCK_RAW_TOKEN};
 use crate::mcu_boot_status::McuBootMilestones;
@@ -37,6 +37,7 @@ use std::sync::{mpsc, Arc, Mutex, RwLock, RwLockReadGuard, RwLockWriteGuard};
 use std::thread;
 use std::time::{Duration, Instant};
 use tock_registers::interfaces::{ReadWriteable, Readable, Writeable};
+use tock_registers::registers::ReadWrite;
 use uio::{UioDevice, UioError};
 use zerocopy::{FromBytes, IntoBytes};
 
@@ -467,6 +468,8 @@ pub struct ModelFpgaSubsystem {
     saved_security_state: SecurityState,
     saved_lc_state: Option<LifecycleControllerState>,
     saved_use_strap_secrets: bool,
+    // None on images without the selectable ES1 strap.
+    saved_itrng1_en: Option<bool>,
 }
 
 impl ModelFpgaSubsystem {
@@ -584,6 +587,14 @@ impl ModelFpgaSubsystem {
         println!("Putting subsystem into reset");
         self.set_subsystem_reset(true);
 
+        if let Some(enable) = self.saved_itrng1_en {
+            // Program on every cold boot, including clearing a previous test's dual-source strap.
+            self.wrapper
+                .regs()
+                .entropy_ctrl
+                .write(EntropyCtrl::Itrng1En.val(u32::from(enable)));
+        }
+
         self.write_otp_memory(&vec![0u8; OTP_SIZE]);
         self.init_otp_with_lc_override(Some(&security_state), lc_state)
             .expect("Failed to initialize OTP");
@@ -630,6 +641,23 @@ impl ModelFpgaSubsystem {
         if !reset {
             self.mmio.enable();
         }
+    }
+
+    /// Check that Core sees the requested iTRNG mode. Images without the
+    /// capability bit may still hardwire ES1 on, so the strap readback is the
+    /// only reliable indicator.
+    fn check_itrng1_mode(&mut self) -> Result<(), String> {
+        let actual = self.soc_ifc().cptra_hw_config().read().dual_i_trng_en();
+        let expected = self.saved_itrng1_en.unwrap_or(false);
+        if actual != expected {
+            return Err(format!(
+                "CPTRA_HW_CONFIG.dual_iTRNG_en is {} but dual iTRNG was {}requested; \
+                 wrong FPGA image for this test",
+                u8::from(actual),
+                if expected { "" } else { "not " },
+            ));
+        }
+        Ok(())
     }
 
     pub fn set_cptra_ss_rst_b(&mut self, value: bool) {
@@ -852,54 +880,85 @@ impl ModelFpgaSubsystem {
         }
     }
 
+    /// Push up to one FIFO load of nibbles. Returns false once `nibbles` ends.
+    fn fill_itrng_fifo(
+        status: &ReadWrite<u32, ItrngFifoStatus::Register>,
+        data: &ReadWrite<u32>,
+        nibbles: &mut dyn Iterator<Item = u8>,
+    ) -> bool {
+        // Once TRNG data is requested the FIFO will continously empty. Load at max one FIFO load at a time.
+        // FPGA ITRNG FIFO is 1024 DW deep.
+        for _ in 0..FPGA_ITRNG_FIFO_SIZE {
+            if status.is_set(ItrngFifoStatus::Full) {
+                break;
+            }
+            let mut itrng_dw = 0;
+            for i in 0..8 {
+                match nibbles.next() {
+                    Some(nibble) => itrng_dw += u32::from(nibble) << (4 * i),
+                    None => return false,
+                }
+            }
+            data.set(itrng_dw);
+        }
+        true
+    }
+
+    /// Clear stale data from the iTRNG FIFOs. Call before releasing the subsystem
+    /// from reset; the ES1 FIFO keeps its contents across subsystem and AXI resets.
+    fn flush_itrng_fifos(wrapper: &Wrapper, itrng1: bool) {
+        let fifo = wrapper.fifo_regs();
+        fifo.itrng_fifo_status.write(ItrngFifoStatus::Reset::SET);
+        fifo.itrng_fifo_status.write(ItrngFifoStatus::Reset::CLEAR);
+        // The ES1 FIFO only exists on dual-iTRNG lab bitstreams.
+        if itrng1 {
+            fifo.itrng1_fifo_status.write(ItrngFifoStatus::Reset::SET);
+            fifo.itrng1_fifo_status.write(ItrngFifoStatus::Reset::CLEAR);
+        }
+        // Small delay to allow reset to complete
+        thread::sleep(Duration::from_millis(1));
+    }
+
     fn realtime_thread_itrng_fn(
         wrapper: Arc<Wrapper>,
         running: Arc<AtomicBool>,
-        mut itrng_nibbles: Box<dyn Iterator<Item = u8> + Send>,
+        itrng_nibbles: Box<dyn Iterator<Item = u8> + Send>,
+        mut itrng1_nibbles: Option<Box<dyn Iterator<Item = u8> + Send>>,
     ) {
-        if let Some(_guard) = wrapper.try_lock_realtime() {
-            // Reset ITRNG FIFO to clear out old data
-            wrapper
-                .fifo_regs()
-                .itrng_fifo_status
-                .write(ItrngFifoStatus::Reset::SET);
-            wrapper
-                .fifo_regs()
-                .itrng_fifo_status
-                .write(ItrngFifoStatus::Reset::CLEAR);
-        }
-
-        // Small delay to allow reset to complete
-        thread::sleep(Duration::from_millis(1));
-
+        // Each stream is retired independently, so withholding one source keeps feeding the other.
+        let mut itrng_nibbles = Some(itrng_nibbles);
         while running.load(Ordering::Acquire) {
+            if itrng_nibbles.is_none() && itrng1_nibbles.is_none() {
+                return;
+            }
             if let Some(_guard) = wrapper.try_lock_realtime() {
-                // Once TRNG data is requested the FIFO will continously empty. Load at max one FIFO load at a time.
-                // FPGA ITRNG FIFO is 1024 DW deep.
-                for _ in 0..FPGA_ITRNG_FIFO_SIZE {
-                    if !wrapper
-                        .fifo_regs()
-                        .itrng_fifo_status
-                        .is_set(ItrngFifoStatus::Full)
-                    {
-                        let mut itrng_dw = 0;
-                        for i in 0..8 {
-                            match itrng_nibbles.next() {
-                                Some(nibble) => itrng_dw += u32::from(nibble) << (4 * i),
-                                None => return,
-                            }
-                        }
-                        wrapper.fifo_regs().itrng_fifo_data.set(itrng_dw);
-                    } else {
-                        break;
+                let fifo = wrapper.fifo_regs();
+                if let Some(es1) = itrng1_nibbles.as_mut() {
+                    if !Self::fill_itrng_fifo(
+                        &fifo.itrng1_fifo_status,
+                        &fifo.itrng1_fifo_data,
+                        es1.as_mut(),
+                    ) {
+                        itrng1_nibbles = None;
+                    }
+                }
+                if let Some(es0) = itrng_nibbles.as_mut() {
+                    if !Self::fill_itrng_fifo(
+                        &fifo.itrng_fifo_status,
+                        &fifo.itrng_fifo_data,
+                        es0.as_mut(),
+                    ) {
+                        itrng_nibbles = None;
                     }
                 }
             } else {
                 thread::sleep(Duration::from_millis(1));
                 continue;
             }
-            // 1 second * (20 MHz / (2^13 throttling counter)) / 8 nibbles per DW: 305 DW of data consumed in 1 second.
-            let end_time = Instant::now() + Duration::from_millis(1000);
+            // At ITRNG_DIVISOR = 400 and ~20 MHz, 8 nibbles/DW drains at ~6250 DW/s,
+            // emptying the 1024-DW FIFO in ~164 ms. Refill every 50 ms so entropy_src
+            // never stalls waiting for the host thread across handoffs or resets.
+            let end_time = Instant::now() + Duration::from_millis(50);
             while running.load(Ordering::Acquire) && Instant::now() < end_time {
                 thread::sleep(Duration::from_millis(1));
             }
@@ -1938,11 +1997,24 @@ impl HwModel for ModelFpgaSubsystem {
         let dev1 = UioDevice::blocking_new(1)?;
         let devs = [dev0, dev1];
 
+        let wrapper_dev = &devs[FPGA_WRAPPER_MAPPING.0];
+        let wrapper_map = FPGA_WRAPPER_MAPPING.1;
         let wrapper = Arc::new(Wrapper::new(
-            devs[FPGA_WRAPPER_MAPPING.0]
-                .map_mapping(FPGA_WRAPPER_MAPPING.1)
+            wrapper_dev
+                .map_mapping(wrapper_map)
                 .map_err(fmt_uio_error)? as *mut u32,
         ));
+        let enable_itrng1 = params.itrng1_nibbles.is_some();
+        let supports_itrng1 = wrapper.regs().status.is_set(Status::DualItrngCapable);
+        if enable_itrng1 && !supports_itrng1 {
+            // Reject before touching the subsystem or any lab-only offsets.
+            let map_size = wrapper_dev.map_size(wrapper_map).map_err(fmt_uio_error)?;
+            unsafe { nix::sys::mman::munmap(wrapper.ptr.cast(), map_size)? };
+            return Err(
+                "itrng1_nibbles requires a dual-iTRNG FPGA image with a selectable ES1 strap"
+                    .into(),
+            );
+        }
         let caliptra_rom_backdoor = devs[CALIPTRA_ROM_MAPPING.0]
             .map_mapping(CALIPTRA_ROM_MAPPING.1)
             .map_err(fmt_uio_error)? as *mut u8;
@@ -2086,6 +2158,7 @@ impl HwModel for ModelFpgaSubsystem {
             saved_security_state: params.security_state,
             saved_lc_state: params.ss_init_params.lc_state,
             saved_use_strap_secrets: params.ss_init_params.use_strap_secrets,
+            saved_itrng1_en: supports_itrng1.then_some(enable_itrng1),
         };
 
         if m.flash_boot && m.use_external_i3c_host {
@@ -2117,6 +2190,9 @@ impl HwModel for ModelFpgaSubsystem {
 
         println!("new_unbooted");
 
+        // Flush before reset release so Core never sees a previous test's entropy.
+        Self::flush_itrng_fifos(&m.wrapper, enable_itrng1);
+
         // Set up all hardware registers (input wires, keys, OTP, reset vector, etc.)
         m.setup_hardware_registers();
 
@@ -2127,8 +2203,11 @@ impl HwModel for ModelFpgaSubsystem {
                 realtime_wrapper,
                 realtime_thread_exit_flag2,
                 params.itrng_nibbles,
+                params.itrng1_nibbles,
             )
         }));
+
+        m.check_itrng1_mode()?;
 
         Ok(m)
     }
@@ -2160,6 +2239,7 @@ impl HwModel for ModelFpgaSubsystem {
         if let Some(reg) = boot_params.initial_ss_strap_generic_2 {
             self.soc_ifc().ss_strap_generic().at(2).write(|_| reg);
         }
+        self.write_initial_entropy_config(&boot_params)?;
 
         if let Some(reg) = boot_params.initial_ss_strap_generic_3 {
             self.soc_ifc().ss_strap_generic().at(3).write(|_| reg);
@@ -2302,18 +2382,6 @@ impl HwModel for ModelFpgaSubsystem {
         //     .cptra_wdt_cfg()
         //     .at(1)
         //     .write(|_| (boot_params.wdt_timeout_cycles >> 32) as u32);
-
-        // if let Some(reg) = boot_params.initial_repcnt_thresh_reg {
-        //     self.soc_ifc()
-        //         .cptra_i_trng_entropy_config_1()
-        //         .write(|_| reg);
-        // }
-
-        // if let Some(reg) = boot_params.initial_adaptp_thresh_reg {
-        //     self.soc_ifc()
-        //         .cptra_i_trng_entropy_config_0()
-        //         .write(|_| reg);
-        // }
 
         // TODO: support passing these into MCU ROM
 
@@ -2686,10 +2754,6 @@ impl HwModel for ModelFpgaSubsystem {
     {
         // Store non-persistent config regs set at boot
         let _dbg_manuf_service_reg = self.soc_ifc().cptra_dbg_manuf_service_reg().read();
-        let _i_trng_entropy_config_1: u32 =
-            self.soc_ifc().cptra_i_trng_entropy_config_1().read().into();
-        let _i_trng_entropy_config_0: u32 =
-            self.soc_ifc().cptra_i_trng_entropy_config_0().read().into();
         // Store mbox pausers
         let mut valid_pausers: Vec<u32> = Vec::new();
         for i in 0..caliptra_api::soc_mgr::NUM_PAUSERS {
@@ -2719,12 +2783,6 @@ impl HwModel for ModelFpgaSubsystem {
         // self.soc_ifc()
         //     .cptra_dbg_manuf_service_reg()
         //     .write(|_| dbg_manuf_service_reg);
-        // self.soc_ifc()
-        //     .cptra_i_trng_entropy_config_1()
-        //     .write(|_| i_trng_entropy_config_1.into());
-        // self.soc_ifc()
-        //     .cptra_i_trng_entropy_config_0()
-        //     .write(|_| i_trng_entropy_config_0.into());
 
         // // Re-set the valid pausers
         // self.setup_mailbox_users(valid_pausers.as_slice())
@@ -2769,6 +2827,7 @@ impl HwModel for ModelFpgaSubsystem {
             // Re-program all hardware registers cleared by AXI reset
             self.setup_hardware_registers();
         }
+        self.check_itrng1_mode().unwrap();
     }
 
     fn fuses(&self) -> &Fuses {

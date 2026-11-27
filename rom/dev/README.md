@@ -93,8 +93,10 @@ and clear on `cptra_pwrgood`. Zero reset values are not OTP-controller defaults.
 
 The former mappings in generic straps `[0]`, `[1]`, and `[3]` are ignored, even
 when their values conflict. MCU provisioning of the named registers is a
-coordinated MCU-side change; this Core change only consumes them. Entropy
-configuration and the fuse-completion/warm-reset handshake are unchanged.
+coordinated MCU-side change; this Core change only consumes them. The
+fuse-completion/warm-reset handshake is unchanged. Entropy configuration moved
+from `SS_STRAP_GENERIC[2]` to the `CPTRA_iTRNG_ENTROPY_CONFIG_*` registers; see
+[Entropy Source Configuration Registers](#entropy-source-configuration-registers).
 
 ### Subsystem Generic Strap Allocation
 
@@ -104,34 +106,64 @@ The following table is the allocation registry for `SS_STRAP_GENERIC[0..3]` fiel
 | :------- | :--------- | :--------- | :------- |
 | `SS_STRAP_GENERIC[0]` | `[31:0]` | Former OTP status configuration; no longer consumed. | Reserved |
 | `SS_STRAP_GENERIC[1]` | `[31:0]` | Former OTP command configuration; no longer consumed. | Reserved |
-| `SS_STRAP_GENERIC[2]` | `[15:0]` | Entropy-source health-test window size. Zero selects the default value of 1024. | ROM entropy-source initialization |
-| `SS_STRAP_GENERIC[2]` | `[16]` | Entropy-source single-bit mode enable. | ROM entropy-source initialization |
-| `SS_STRAP_GENERIC[2]` | `[18:17]` | Entropy-source single-bit lane selector. | ROM entropy-source initialization |
-| `SS_STRAP_GENERIC[2]` | `[30:19]` | Reserved. | — |
-| `SS_STRAP_GENERIC[2]` | `[31]` | Entropy-source conditioning bypass enable. | ROM entropy-source initialization |
+| `SS_STRAP_GENERIC[2]` | `[31:0]` | Former entropy-source configuration; no longer consumed. Use `CPTRA_iTRNG_ENTROPY_CONFIG_2`. | Reserved |
 | `SS_STRAP_GENERIC[3]` | `[31:0]` | Former firmware-feature and owner-manifest SVN allocation; no longer consumed. Owner SVN is numeric `FUSE_SOC_MANIFEST_SVN[2]`. | Reserved |
 
 ### Entropy Source Configuration Registers
 
-The ROM configures the entropy source (CSRNG) during initialization using the following registers:
+With the internal TRNG, the ROM programs each entropy source (`entropy_src`)
+from the following SoC-provisioned registers. ES0 uses
+`CPTRA_iTRNG_ENTROPY_CONFIG_{0,1,2}`; in dual-iTRNG mode ES1 uses
+`CPTRA_iTRNG1_ENTROPY_CONFIG_{0,1,2}` with the same layout. The registers are
+fuse-like: the SoC writes them before `CPTRA_FUSE_WR_DONE`, after which they are
+read-only until power-good reset.
 
-| Register                         | Field/Bits    | Description                                             |
-| :------------------------------- | :------------ | :------------------------------------------------------ |
-| SS_STRAP_GENERIC[2]              | [15:0]  | Health test window size for FIPS mode (default: 1024 samples per lane). The same sample count applies in single-bit and multi-channel modes. |
-| SS_STRAP_GENERIC[2]              | [16]    | Entropy source single-bit mode. When set to 1, ROM enables `rng_bit_enable` and clears `threshold_scope`. |
-| SS_STRAP_GENERIC[2]              | [18:17] | Entropy source single-bit mode `rng_bit_sel`. Selects which RNG bit stream to process when single-bit mode is enabled. |
-| SS_STRAP_GENERIC[2]              | [31]    | Entropy bypass mode. When set to 1, enables bypass mode (`es_type`) to allow entropy characterization directly without passing through conditioning. |
-| CPTRA_I_TRNG_ENTROPY_CONFIG_0    | [15:0]  | Adaptive Proportion test high threshold (default: 75% of the FIPS window, i.e. 768 for the default window). The test fails if a lane's count in any window is at or above this threshold. |
-| CPTRA_I_TRNG_ENTROPY_CONFIG_0    | [31:16] | Adaptive Proportion test low threshold (default: 25% of the FIPS window, i.e. 256 for the default window). The test fails if a lane's count in any window is at or below this threshold. |
-| CPTRA_I_TRNG_ENTROPY_CONFIG_1    | [15:0]  | Repetition Count test threshold (default: 41). The test fails if an RNG wire repeats the same bit this many times in a row. |
-| CPTRA_I_TRNG_ENTROPY_CONFIG_1    | [31:16] | Alert threshold (default: 2). Number of health check failures before an alert is triggered. |
+| Register | Field/Bits | Description |
+| :------- | :--------- | :---------- |
+| `..._CONFIG_0` | `low_threshold` [15:0] | Adaptive Proportion low cutoff. Single-bit mode only; unused in multi-channel mode. Default: 25% of the window. |
+| `..._CONFIG_0` | `high_threshold` [31:16] | Adaptive Proportion high cutoff: `ADAPTP_HI_THRESHOLD` in single-bit mode, `ADAPTPS_THRESHOLD` in multi-channel mode. Default: 75% of the window. |
+| `..._CONFIG_1` | `repetition_count` [15:0] | Repetition Count cutoff: `REPCNT_THRESHOLD` in single-bit mode, `REPCNTS_THRESHOLD` in multi-channel mode. Default: 41. |
+| `..._CONFIG_1` | `alert_threshold` [31:16] | Consecutive failing windows before `entropy_src` alerts and stops. Default: 2. |
+| `..._CONFIG_2` | `fips_window_size` [15:0] | Health-test window in samples (`HEALTH_TEST_WINDOWS.FIPS_WINDOW`): bits of the selected lane in single-bit mode, 4-bit symbols in multi-channel mode. Default: 1024. |
+| `..._CONFIG_2` | `single_bit_mode` [16] | 1: single-bit mode (`CONF.RNG_BIT_ENABLE`). 0: multi-channel mode. |
+| `..._CONFIG_2` | `rng_bit_sel` [18:17] | Lane tested in single-bit mode (`CONF.RNG_BIT_SEL`). |
+| `..._CONFIG_2` | `bypass_mode` [31] | Request conditioning bypass (`ENTROPY_CONTROL.ES_TYPE`) for characterization. Rejected in dual-iTRNG mode. |
 
-**Notes:**
-- If any threshold value is set to 0, the ROM uses the default value specified above.
-- The Adaptive Proportion default thresholds are derived from the FIPS sample window (75% high, 25% low) in both single-bit and multi-channel modes (high: 768, low: 256 for the default window). An explicit threshold or window supplied by the SoC is used as-is.
-- The thresholds, health-test window, and single-bit-mode values are stored in persistent storage after first read to prevent malicious modification (reloaded on cold reset). Conditioning bypass is read directly from the locked `SS_STRAP_GENERIC[2][31]` field.
-- In debug mode (`debug_locked == false`), entropy source configuration registers remain unlocked for characterization.
-- In production mode, ROM locks the entropy source configuration after programming to prevent modification.
+**Health-test programming:**
+- A field value of 0 selects the ROM default. The defaults assume a min-entropy of 1 per sample and are loose; integrators should program cutoffs derived from their characterized noise source.
+- Single-bit mode programs `REPCNT_THRESHOLD`, `ADAPTP_HI_THRESHOLD` and `ADAPTP_LO_THRESHOLD`. If the effective low cutoff is not below the high cutoff, both use their defaults.
+- Multi-channel mode treats the four lanes as one 4-bit symbol source and programs `REPCNTS_THRESHOLD` and `ADAPTPS_THRESHOLD`.
+- The tests not used by the selected mode keep their reset values, which never fail (`0xFFFF` high cutoffs, `0` low cutoff). The ROM clears `CONF.THRESHOLD_SCOPE`.
+- Cutoffs are inclusive: a window fails when a count reaches the high cutoff or falls to the low cutoff. Program the NIST SP 800-90B cutoff `C` as the high threshold and `N - C` as the low threshold.
+- `ALERT_THRESHOLD_INV` is programmed as the 16-bit complement of `ALERT_THRESHOLD`.
+- `CONF.FIPS_FLAG` stays false: SoC-supplied cutoffs are not an approved qualification profile.
+- In single- and dual-iTRNG modes, CSRNG waits for entropy are bounded. A timeout
+  returns `DRIVER_CSRNG_ENTROPY_TIMEOUT` (`0x000d000e`).
+
+**Caching and locking:**
+- On cold reset the decoded configuration is stored in ROM persistent data. Warm and update resets reapply the cached values.
+- In production (`debug_locked == true`), the ROM clears `SW_REGUPD` after programming each source. Debug-unlocked parts stay writable for characterization.
+- Before jumping to FMC, the ROM uninstantiates the DRBG, disables the entropy sources, zeroizes the dual-iTRNG combiner, and disables and re-enables CSRNG, so no DRBG or seed state is handed over. FMC and Runtime instantiate their own DRBG.
+
+### Dual-iTRNG Entropy Combiner
+
+When `CPTRA_HW_CONFIG.dual_iTRNG_en` is set, ES0 and ES1 feed CSRNG through
+the SHA3-384 entropy combiner.
+
+- Before the first entropy request, the ROM runs the combiner known-answer test
+  (a fixed 96-byte message through `KAT_MSG`), checks the 384-bit digest, keeps
+  the hardware-default FIPS policy (CSRNG sees FIPS only when both sources report
+  FIPS), and sets `AHB_LOCK`. A mismatch, timeout or combiner error is fatal.
+- After a firmware-update reset the lock is retained and the KAT is not rerun.
+  A warm reset clears the lock, and the ROM reruns the KAT.
+- Both sources are configured independently, and the driver waits for both to
+  pass their startup health tests. There is no fallback to ES0 alone: a missing
+  or failing ES1 is reported as an error.
+- Every CSRNG operation except Uninstantiate first checks that the combiner is
+  locked, uses the expected FIPS policy, is combining, and has no error status.
+  Otherwise it returns `DRIVER_ENTROPY_COMBINER_BAD_STATE` or
+  `DRIVER_ENTROPY_COMBINER_HW_FAULT`. Uninstantiate skips the check so that a
+  combiner fault cannot prevent clearing the DRBG.
 
 ### Stable Owner Key Root Derivation
 

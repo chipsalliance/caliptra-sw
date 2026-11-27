@@ -17,15 +17,14 @@ Abstract:
 
 use caliptra_cfi_lib::CfiCounter;
 use caliptra_drivers::{
-    Aes, Array4x16, Hmac, HmacData, HmacKey, HmacMode, HmacTag, KeyId, KeyReadArgs, KeyUsage,
-    KeyWriteArgs, LEArray4x8, MlKem1024, MlKem1024Message, MlKem1024Seeds, MlKem1024SharedKey,
-    MlKem1024SharedKeyOut, MlKemPctKvContext, PersistentDataAccessor, Trng,
+    Aes, Array4x16, EntropyRegs, Hmac, HmacData, HmacKey, HmacMode, HmacTag, KeyId, KeyReadArgs,
+    KeyUsage, KeyWriteArgs, LEArray4x8, MlKem1024, MlKem1024Message, MlKem1024Seeds,
+    MlKem1024SharedKey, MlKem1024SharedKeyOut, MlKemPctKvContext, PersistentDataAccessor, Trng,
 };
 use caliptra_registers::abr::AbrReg;
 use caliptra_registers::aes::AesReg;
 use caliptra_registers::aes_clp::AesClpReg;
 use caliptra_registers::csrng::CsrngReg;
-use caliptra_registers::entropy_src::EntropySrcReg;
 use caliptra_registers::hmac::HmacReg;
 use caliptra_registers::soc_ifc::SocIfcReg;
 use caliptra_registers::soc_ifc_trng::SocIfcTrngReg;
@@ -52,7 +51,7 @@ fn seed_abr_entropy() {
     let mut trng = unsafe {
         Trng::new(
             CsrngReg::new(),
-            EntropySrcReg::new(),
+            EntropyRegs::new(),
             SocIfcTrngReg::new(),
             &SocIfcReg::new(),
             PersistentDataAccessor::new(),
@@ -69,7 +68,7 @@ fn test_mlkem_name() {
     let mut trng = unsafe {
         Trng::new(
             CsrngReg::new(),
-            EntropySrcReg::new(),
+            EntropyRegs::new(),
             SocIfcTrngReg::new(),
             &SocIfcReg::new(),
             PersistentDataAccessor::new(),
@@ -293,7 +292,7 @@ fn test_key_pair_generation_from_kv() {
     let mut trng = unsafe {
         Trng::new(
             CsrngReg::new(),
-            EntropySrcReg::new(),
+            EntropyRegs::new(),
             SocIfcTrngReg::new(),
             &SocIfcReg::new(),
             PersistentDataAccessor::new(),

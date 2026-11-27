@@ -14,16 +14,16 @@ Abstract:
 #![no_std]
 #![no_main]
 
-use caliptra_drivers::{Csrng, PersistentDataAccessor};
-use caliptra_registers::{csrng::CsrngReg, entropy_src::EntropySrcReg, soc_ifc::SocIfcReg};
+use caliptra_drivers::{Csrng, EntropyRegs, PersistentDataAccessor};
+use caliptra_registers::{csrng::CsrngReg, soc_ifc::SocIfcReg};
 use caliptra_test_harness::test_suite;
 
 fn test_boot_and_generate_pass() {
     let csrng_reg = unsafe { CsrngReg::new() };
-    let entropy_src_reg = unsafe { EntropySrcReg::new() };
+    let entropy_regs = unsafe { EntropyRegs::new() };
     let soc_ifc_reg = unsafe { SocIfcReg::new() };
     let persistent_data = unsafe { PersistentDataAccessor::new() };
-    let mut csrng = Csrng::new(csrng_reg, entropy_src_reg, &soc_ifc_reg, persistent_data)
+    let mut csrng = Csrng::new(csrng_reg, entropy_regs, &soc_ifc_reg, persistent_data)
         .expect("CSRNG should pass startup health testing");
     let _ = csrng
         .generate12()

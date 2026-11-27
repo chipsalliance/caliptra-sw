@@ -3,11 +3,11 @@
 use core::array;
 
 use caliptra_error::{CaliptraError, CaliptraResult};
-use caliptra_registers::{
-    csrng::CsrngReg, entropy_src::EntropySrcReg, soc_ifc::SocIfcReg, soc_ifc_trng::SocIfcTrngReg,
-};
+use caliptra_registers::{csrng::CsrngReg, soc_ifc::SocIfcReg, soc_ifc_trng::SocIfcTrngReg};
 
-use crate::{trng_ext::TrngExt, Array4x12, Array4x16, Csrng, MfgFlags, PersistentDataAccessor};
+use crate::{
+    trng_ext::TrngExt, Array4x12, Array4x16, Csrng, EntropyRegs, MfgFlags, PersistentDataAccessor,
+};
 
 #[repr(u32)]
 pub enum Trng {
@@ -22,27 +22,52 @@ pub enum Trng {
     Invalid1 = 0x0a8dfe7a,
 }
 
+// Keep `Trng` a single RV32 register (all variants ZSTs) to stay within the
+// 256 KiB runtime image budget.
+const _: () = assert!(core::mem::size_of::<Trng>() == 4);
+
 impl Trng {
     pub fn new(
         csrng: CsrngReg,
-        entropy_src: EntropySrcReg,
+        entropy: EntropyRegs,
         soc_ifc_trng: SocIfcTrngReg,
         soc_ifc: &SocIfcReg,
         persistent_data: PersistentDataAccessor,
     ) -> CaliptraResult<Self> {
+        Self::select_source(soc_ifc_trng, soc_ifc, || {
+            Csrng::new(csrng, entropy, soc_ifc, persistent_data)
+        })
+    }
+
+    /// Construct a TRNG handle assuming ROM has already configured and locked
+    /// `entropy_src` (for FMC and Runtime). Does not read or mutate ROM
+    /// persistent data.
+    pub fn new_configured(
+        csrng: CsrngReg,
+        entropy: EntropyRegs,
+        soc_ifc_trng: SocIfcTrngReg,
+        soc_ifc: &SocIfcReg,
+    ) -> CaliptraResult<Self> {
+        Self::select_source(soc_ifc_trng, soc_ifc, || {
+            Csrng::new_configured(csrng, entropy)
+        })
+    }
+
+    fn select_source(
+        soc_ifc_trng: SocIfcTrngReg,
+        soc_ifc: &SocIfcReg,
+        internal: impl FnOnce() -> CaliptraResult<Csrng>,
+    ) -> CaliptraResult<Self> {
         // If device is unlocked for debug and RNG support is unavailable, return a fake RNG.
-        let flags: MfgFlags = (soc_ifc.regs().cptra_dbg_manuf_service_reg().read() & 0xffff).into();
-        if !soc_ifc.regs().cptra_security_state().read().debug_locked()
-            & flags.contains(MfgFlags::RNG_SUPPORT_UNAVAILABLE)
+        let regs = soc_ifc.regs();
+        let flags: MfgFlags = (regs.cptra_dbg_manuf_service_reg().read() & 0xffff).into();
+        if !regs.cptra_hw_config().read().dual_i_trng_en()
+            && !regs.cptra_security_state().read().debug_locked()
+            && flags.contains(MfgFlags::RNG_SUPPORT_UNAVAILABLE)
         {
             Ok(Self::MfgMode())
-        } else if soc_ifc.regs().cptra_hw_config().read().i_trng_en() {
-            Ok(Self::Internal(Csrng::new(
-                csrng,
-                entropy_src,
-                soc_ifc,
-                persistent_data,
-            )?))
+        } else if regs.cptra_hw_config().read().i_trng_en() {
+            Ok(Self::Internal(internal()?))
         } else {
             Ok(Self::External(TrngExt::new(soc_ifc_trng)))
         }
@@ -55,14 +80,29 @@ impl Trng {
     /// generate command.
     pub unsafe fn assume_initialized(
         csrng: CsrngReg,
-        entropy_src: EntropySrcReg,
+        entropy: EntropyRegs,
         soc_ifc_trng: SocIfcTrngReg,
         soc_ifc: &SocIfcReg,
     ) -> Self {
         if soc_ifc.regs().cptra_hw_config().read().i_trng_en() {
-            Self::Internal(Csrng::assume_initialized(csrng, entropy_src))
+            Self::Internal(Csrng::assume_initialized(csrng, entropy))
         } else {
             Self::External(TrngExt::new(soc_ifc_trng))
+        }
+    }
+
+    /// Clear DRBG and entropy state before handing off to the next boot
+    /// stage. No-op for the external TRNG.
+    pub fn clear_for_handoff(&mut self) -> CaliptraResult<()> {
+        extern "C" {
+            fn cfi_panic_handler(code: u32) -> !;
+        }
+        match self {
+            Self::Internal(csrng) => csrng.clear_for_handoff(),
+            Self::External(_) | Self::MfgMode() => Ok(()),
+            _ => unsafe {
+                cfi_panic_handler(CaliptraError::ROM_CFI_PANIC_UNEXPECTED_MATCH_BRANCH.into())
+            },
         }
     }
 

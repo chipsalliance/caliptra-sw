@@ -5,14 +5,13 @@
 
 use caliptra_cfi_lib::CfiCounter;
 use caliptra_drivers::{
-    Aes, AesKey, Array4x12, Ecc384, Ecc384PrivKeyOut, Ecc384Scalar, Ecc384Seed, KeyId, KeyReadArgs,
-    KeyUsage, KeyWriteArgs, PersistentDataAccessor, Trng,
+    Aes, AesKey, Array4x12, Ecc384, Ecc384PrivKeyOut, Ecc384Scalar, Ecc384Seed, EntropyRegs, KeyId,
+    KeyReadArgs, KeyUsage, KeyWriteArgs, PersistentDataAccessor, Trng,
 };
 use caliptra_registers::aes::AesReg;
 use caliptra_registers::aes_clp::AesClpReg;
 use caliptra_registers::csrng::CsrngReg;
 use caliptra_registers::ecc::EccReg;
-use caliptra_registers::entropy_src::EntropySrcReg;
 use caliptra_registers::soc_ifc::SocIfcReg;
 use caliptra_registers::soc_ifc_trng::SocIfcTrngReg;
 use caliptra_test_harness::test_suite;
@@ -79,7 +78,7 @@ fn test_cmac() {
     let mut trng = unsafe {
         Trng::new(
             CsrngReg::new(),
-            EntropySrcReg::new(),
+            EntropyRegs::new(),
             SocIfcTrngReg::new(),
             &SocIfcReg::new(),
             PersistentDataAccessor::new(),
@@ -107,7 +106,7 @@ fn test_cmac_kv() {
     let mut trng = unsafe {
         Trng::new(
             CsrngReg::new(),
-            EntropySrcReg::new(),
+            EntropyRegs::new(),
             SocIfcTrngReg::new(),
             &SocIfcReg::new(),
             PersistentDataAccessor::new(),
