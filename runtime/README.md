@@ -838,6 +838,15 @@ callers who update infrequently and cannot tolerate a changing DPE API surface.
 * Extend the measurement into PCR31 (`PCR_ID_STASH_MEASUREMENT`).
 * **Note**: This command can only be called in the locality of the PL0 PAUSER.
 
+On 2.2, boot-time measurements are submitted through the SoC stash register bank
+instead of the ROM mailbox. The SoC fills slots sequentially, locks each populated
+slot, then asserts `END_STASH`. When debug is locked, runtime guards its wait
+with the watchdog. It drains the locked slots into DPE and PCR31, then locks the
+bank before accepting mailbox commands. Non-sequential locked slots are rejected
+as an invalid bank status.
+Subsystem boot measurements can already have extended PCR31 before this drain;
+PCR31 must not be assumed to start at zero when the bank is processed.
+
 Command Code: `0x4D45_4153` ("MEAS")
 
 *Table: `STASH_MEASUREMENT` input arguments*

@@ -1,8 +1,8 @@
 // Licensed under the Apache-2.0 license
 
-use crate::common::{run_rt_test, RuntimeTestArgs};
+use crate::common::{default_rt_test_soc_manifest_measurements, run_rt_test, RuntimeTestArgs};
 use caliptra_api::SocManager;
-use caliptra_api_types::SecurityState;
+use caliptra_api_types::{DeviceLifecycle, SecurityState};
 use caliptra_common::mailbox_api::{
     CommandId, GetTaggedTciReq, GetTaggedTciResp, MailboxReq, MailboxReqHeader, QuotePcrsEcc384Req,
     QuotePcrsEcc384Resp, TagTciReq,
@@ -36,10 +36,17 @@ fn run_model(
     debug_locked: bool,
     skip_assert_end_of_stash: bool,
 ) -> DefaultHwModel {
+    let mut security_state = SecurityState::default();
+    security_state.set_debug_locked(debug_locked);
+    if debug_locked {
+        // The FPGA derives debug-lock state from its lifecycle.
+        security_state.set_device_lifecycle(DeviceLifecycle::Production);
+    }
+
     run_rt_test(RuntimeTestArgs {
         successful_reach_rt: false,
         skip_assert_end_of_stash,
-        security_state: Some(*SecurityState::default().set_debug_locked(debug_locked)),
+        security_state: Some(security_state),
         subsystem_mode: subsystem_mode || cfg!(feature = "fpga_subsystem"),
         ..Default::default()
     })
@@ -47,16 +54,19 @@ fn run_model(
 
 // PCR31 value before any measurement from the SoC is drained.
 // In passive mode nothing touches PCR31 before the drain, so it is all zeros.
-// In subsystem mode the runtime stashes the MCU firmware measurement itself
-// before it drains the stash bank, which extends PCR31 with the digest of
-// the MCU image.
+// Subsystem boot extends the default SoC manifest's vendor and owner measurements,
+// followed by the MCU firmware digest, before draining the stash bank.
 fn initial_pcr31(model: &mut DefaultHwModel) -> [u8; 48] {
     let mut pcr31 = [0u8; 48];
     if model.subsystem_mode() {
-        let mut hasher = Sha384::new();
-        hasher.update(pcr31);
-        hasher.update(Sha384::digest(crate::common::DEFAULT_MCU_FW));
-        pcr31.copy_from_slice(&hasher.finalize());
+        let (somv, somo) = default_rt_test_soc_manifest_measurements(0);
+        let mcu_measurement: [u8; 48] = Sha384::digest(crate::common::DEFAULT_MCU_FW).into();
+        for measurement in [somv, somo, mcu_measurement] {
+            let mut hasher = Sha384::new();
+            hasher.update(pcr31);
+            hasher.update(measurement);
+            pcr31.copy_from_slice(&hasher.finalize());
+        }
     }
     pcr31
 }
@@ -230,6 +240,10 @@ fn test_soc_populates_no_measurement() {
 fn test_soc_never_asserted_end_of_stash() {
     // Set debug locked to allow watchdog timer to fire.
     let mut model = run_model(false, true, true);
+    assert!(
+        model.soc_ifc().cptra_security_state().read().debug_locked(),
+        "Watchdog coverage requires debug-locked hardware"
+    );
 
     // Fast-forward until the watchdog timer fires.
     model.step_until_fatal_error(
