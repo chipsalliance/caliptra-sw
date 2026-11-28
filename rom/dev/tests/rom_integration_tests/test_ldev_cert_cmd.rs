@@ -55,6 +55,8 @@ fn test_ldev_ecc384_cert() {
     let (mut hw, image_bundle) =
         helpers::build_hw_model_and_image_bundle(Fuses::default(), Default::default());
 
+    hw.assert_end_of_stash();
+
     // Step till we are ready for mailbox processing
     hw.step_until(|m| {
         m.soc_ifc()
@@ -105,6 +107,8 @@ fn test_ldev_mldsa87_cert() {
     let ldev_resp = get_ldev_mldsa_cert(&mut hw);
     let ldev_cert_rom: X509 =
         X509::from_der(&ldev_resp.data[..ldev_resp.data_size as usize]).unwrap();
+
+    hw.assert_end_of_stash();
 
     // Step till RT is ready for commands
     helpers::test_upload_firmware(

@@ -2243,6 +2243,12 @@ impl HwModel for ModelFpgaSubsystem {
         // and set bit 31 to let MCU ROM proceed.
         if self.flash_boot {
             println!("Flash boot: skipping BMC/I3C recovery, MCU ROM will load from flash");
+
+            // Assert end-of-stash before we boot from flash.
+            if !boot_params.skip_assert_end_of_stash {
+                self.assert_end_of_stash();
+            }
+
             if let Some(cb) = self.rom_callback.take() {
                 cb(self);
             }
@@ -2278,6 +2284,11 @@ impl HwModel for ModelFpgaSubsystem {
         if boot_params.fw_image.is_none() {
             println!("Finished booting with no mutable firmware to load");
             return Ok(());
+        }
+
+        // Assert end-of-stash before we upload the FW image.
+        if !boot_params.skip_assert_end_of_stash {
+            self.assert_end_of_stash();
         }
 
         // This is the binary for:
@@ -2713,6 +2724,8 @@ impl HwModel for ModelFpgaSubsystem {
 
         // Perform the warm reset
         self.warm_reset();
+
+        self.assert_end_of_stash();
 
         // TODO: support passing these into MCU ROM
 

@@ -326,6 +326,9 @@ void caliptra_req_idev_csr_start();
 // Clear IDEV CSR request.
 void caliptra_req_idev_csr_complete();
 
+// Assert end-of-stash from the SoC side;
+void caliptra_assert_end_of_stash(void);
+
 #ifdef __cplusplus
 }
 #endif

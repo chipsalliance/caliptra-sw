@@ -4,7 +4,8 @@ use caliptra_builder::{
     firmware::{self, APP_WITH_UART, FMC_WITH_UART},
     ImageOptions,
 };
-use caliptra_common::mailbox_api::{CommandId, MailboxReq, MailboxReqHeader, StashMeasurementReq};
+use caliptra_common::mailbox_api::CommandId;
+use caliptra_drivers::soc_ifc::stash_measurement::StashMeasurementData;
 use caliptra_hw_model::{
     BootParams, Fuses, HwModel, InitParams, SecurityState, SubsystemInitParams,
 };
@@ -255,18 +256,17 @@ fn test_measurement_in_measurement_log_added_to_dpe() {
 
         // Upload measurement to measurement log
         let measurement: [u8; 48] = [0xdeadbeef_u32; 12].as_bytes().try_into().unwrap();
-        let mut measurement_log_entry = MailboxReq::StashMeasurement(StashMeasurementReq {
-            measurement,
-            hdr: MailboxReqHeader { chksum: 0 },
+        let measurement_entry = StashMeasurementData {
             metadata: [0xAB; 4],
+            measurement,
             context: [0xCD; 48],
-            svn: 0xEF01,
-        });
-        measurement_log_entry.populate_chksum().unwrap();
+            svn: 0xEF01.into(),
+        };
 
         model
-            .upload_measurement(measurement_log_entry.as_bytes().unwrap())
+            .write_stash_measurement_bank(0, measurement_entry.as_bytes())
             .unwrap();
+        model.assert_end_of_stash();
 
         crate::common::test_upload_firmware(
             &mut model,
@@ -286,7 +286,6 @@ fn test_measurement_in_measurement_log_added_to_dpe() {
         let mut hasher = Sha384::new();
         hasher.update(rt_current_pcr);
         hasher.update(cptra_config_init_vals_hash);
-        hasher.update(measurement);
         if model.subsystem_mode() {
             let (somv_measurement, somo_measurement) =
                 default_soc_manifest_measurements(*pqc_key_type, 1);
@@ -296,6 +295,10 @@ fn test_measurement_in_measurement_log_added_to_dpe() {
             hasher.update(somo_measurement);
             hasher.update(mcu_hasher.finalize());
         }
+        // In subsystem mode the runtime creates the SoC manifest and MCU
+        // contexts during recovery, before it drains the stash bank, so the
+        // stashed measurement gets the context slot after them.
+        hasher.update(measurement);
         let expected_measurement_hash = hasher.finalize();
 
         let dpe_measurement_hash = model.mailbox_execute(0x3000_0000, &[]).unwrap().unwrap();
@@ -328,6 +331,7 @@ fn test_boot_encrypted_firmware_rri() {
 
     // Upload firmware using encrypted firmware command
     let soc_manifest = default_soc_manifest_bytes(pqc_key_type, 0);
+    model.assert_end_of_stash();
     model
         .upload_firmware_rri_encrypted(&image, Some(&soc_manifest), Some(&DEFAULT_MCU_FW))
         .unwrap();

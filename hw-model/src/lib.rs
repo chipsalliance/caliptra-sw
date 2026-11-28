@@ -17,6 +17,7 @@ use std::{
     io::{stdout, Write},
 };
 
+use caliptra_drivers::soc_ifc::stash_measurement::DWORDS_PER_SLOT;
 use caliptra_hw_model_types::{
     ErrorInjectionMode, EtrngResponse, HexBytes, HexSlice, RandomEtrngResponses, RandomNibbles,
     DEFAULT_CPTRA_OBF_KEY, DEFAULT_CSR_HMAC_KEY,
@@ -461,6 +462,10 @@ pub struct BootParams<'a> {
     /// Use encrypted firmware boot (RI_DOWNLOAD_ENCRYPTED_FIRMWARE instead of RI_DOWNLOAD_FIRMWARE).
     /// This sets BootMode::EncryptedFirmware and skips MCU activation in the recovery flow.
     pub encrypted_boot: bool,
+    /// Do not automatically assert end-of-stash when a `fw_image` is provided.
+    /// This gives tests the time to submit measurements while runtime waits to
+    /// drain them.
+    pub skip_assert_end_of_stash: bool,
 }
 
 impl Default for BootParams<'_> {
@@ -478,6 +483,7 @@ impl Default for BootParams<'_> {
             soc_manifest: Default::default(),
             mcu_fw_image: Default::default(),
             encrypted_boot: false,
+            skip_assert_end_of_stash: false,
         }
     }
 }
@@ -1003,6 +1009,11 @@ pub trait HwModel: SocManager {
                     "passive"
                 }
             )?;
+
+            if !boot_params.skip_assert_end_of_stash {
+                self.assert_end_of_stash();
+            }
+
             if subsystem_mode {
                 if boot_params.encrypted_boot {
                     self.upload_firmware_rri_encrypted(
@@ -1090,6 +1101,8 @@ pub trait HwModel: SocManager {
         // Re-set the valid pausers
         self.setup_mailbox_users(valid_pausers.as_slice())
             .map_err(ModelError::from)?;
+
+        self.assert_end_of_stash();
 
         // Continue boot
         writeln!(self.output().logger(), "writing to cptra_bootfsm_go")?;
@@ -1804,6 +1817,32 @@ pub trait HwModel: SocManager {
             model: self,
             req: MailboxRequest { cmd, data },
         }))
+    }
+
+    fn write_stash_measurement_bank(
+        &mut self,
+        idx: usize,
+        measurement: &[u8],
+    ) -> Result<(), ModelError> {
+        for (i, chunk) in measurement.chunks_exact(4).enumerate() {
+            let bytes = chunk
+                .try_into()
+                .map_err(|_| ModelError::StashMeasurementFailed)?;
+            self.soc_ifc()
+                .stash_bank_slot_data()
+                .at(idx * DWORDS_PER_SLOT + i)
+                .write(|_| u32::from_le_bytes(bytes))
+        }
+        self.soc_ifc()
+            .stash_bank_soc_lock()
+            .write(|x| x.lock(1 << idx));
+        Ok(())
+    }
+
+    fn assert_end_of_stash(&mut self) {
+        self.soc_ifc()
+            .stash_end_stash()
+            .write(|x| x.end_stash(true));
     }
 
     /// Upload measurement to the mailbox.

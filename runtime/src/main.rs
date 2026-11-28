@@ -107,6 +107,11 @@ pub extern "C" fn entry_point() -> ! {
     cprintln!("[rt] Disable entropy source");
     drivers.trng.disable_entropy_source();
 
+    cprintln!("[rt] Drain stash measurements");
+    if let Err(e) = drivers.drain_stash_measurements() {
+        handle_fatal_error(e.into());
+    }
+
     cprintln!("[rt] RT listening for mailbox commands...");
     if let Err(e) = caliptra_runtime::handle_mailbox_commands(drivers) {
         handle_fatal_error(e.into());

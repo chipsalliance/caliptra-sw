@@ -776,3 +776,5 @@ pub enum ResetReason {
     /// Unknown Reset
     Unknown,
 }
+
+pub mod stash_measurement;

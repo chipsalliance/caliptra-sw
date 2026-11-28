@@ -1,0 +1,253 @@
+// Licensed under the Apache-2.0 license
+
+use crate::common::{default_rt_test_soc_manifest_measurements, run_rt_test, RuntimeTestArgs};
+use caliptra_api::SocManager;
+use caliptra_api_types::{DeviceLifecycle, SecurityState};
+use caliptra_common::mailbox_api::{
+    CommandId, GetTaggedTciReq, GetTaggedTciResp, MailboxReq, MailboxReqHeader, QuotePcrsEcc384Req,
+    QuotePcrsEcc384Resp, TagTciReq,
+};
+use caliptra_drivers::soc_ifc::stash_measurement::{StashMeasurementData, DWORDS_PER_SLOT};
+use caliptra_error::CaliptraError;
+use caliptra_hw_model::{DefaultHwModel, HwModel};
+use caliptra_runtime::RtBootStatus;
+use sha2::{Digest, Sha384};
+use zerocopy::{little_endian::U32, FromBytes, IntoBytes};
+
+const MAX_WAIT_CYCLES: u32 = 30_000_000;
+
+const MEASUREMENTS: [StashMeasurementData; 2] = [
+    StashMeasurementData {
+        metadata: [0xa1; 4],
+        measurement: [0xb1; 48],
+        context: [0xc1; 48],
+        svn: U32::new(0xdeadbeef),
+    },
+    StashMeasurementData {
+        metadata: [0xa2; 4],
+        measurement: [0xb2; 48],
+        context: [0xc2; 48],
+        svn: U32::new(0xdeadc0de),
+    },
+];
+
+fn run_model(
+    subsystem_mode: bool,
+    debug_locked: bool,
+    skip_assert_end_of_stash: bool,
+) -> DefaultHwModel {
+    let mut security_state = SecurityState::default();
+    security_state.set_debug_locked(debug_locked);
+    if debug_locked {
+        // The FPGA derives debug-lock state from its lifecycle.
+        security_state.set_device_lifecycle(DeviceLifecycle::Production);
+    }
+
+    run_rt_test(RuntimeTestArgs {
+        successful_reach_rt: false,
+        skip_assert_end_of_stash,
+        security_state: Some(security_state),
+        subsystem_mode: subsystem_mode || cfg!(feature = "fpga_subsystem"),
+        ..Default::default()
+    })
+}
+
+// PCR31 value before any measurement from the SoC is drained.
+// In passive mode nothing touches PCR31 before the drain, so it is all zeros.
+// Subsystem boot extends the default SoC manifest's vendor and owner measurements,
+// followed by the MCU firmware digest, before draining the stash bank.
+fn initial_pcr31(model: &mut DefaultHwModel) -> [u8; 48] {
+    let mut pcr31 = [0u8; 48];
+    if model.subsystem_mode() {
+        let (somv, somo) = default_rt_test_soc_manifest_measurements(0);
+        let mcu_measurement: [u8; 48] = Sha384::digest(crate::common::DEFAULT_MCU_FW).into();
+        for measurement in [somv, somo, mcu_measurement] {
+            let mut hasher = Sha384::new();
+            hasher.update(pcr31);
+            hasher.update(measurement);
+            pcr31.copy_from_slice(&hasher.finalize());
+        }
+    }
+    pcr31
+}
+
+fn test_drain_slots(mut model: DefaultHwModel, num_slots: usize) {
+    // SoC writes measurements.
+    for (i, measurement) in MEASUREMENTS.get(..num_slots).unwrap().iter().enumerate() {
+        model
+            .write_stash_measurement_bank(i, measurement.as_bytes())
+            .unwrap();
+    }
+
+    // SoC writes end-of-stash.
+    model.assert_end_of_stash();
+
+    // Fast-forward to the mailbox command loop.
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    // At this point Caliptra should have draind the measurements and
+    // have locked the bank.
+    assert!(model.soc_ifc().stash_bank_status().read().cptra_lock());
+
+    // Verify the measurements actually landed in PCR31.
+    let mut cmd = MailboxReq::QuotePcrsEcc384(QuotePcrsEcc384Req {
+        hdr: MailboxReqHeader { chksum: 0 },
+        nonce: [0u8; 32],
+    });
+    cmd.populate_chksum().unwrap();
+
+    let resp = model
+        .mailbox_execute(
+            u32::from(CommandId::QUOTE_PCRS_ECC384),
+            cmd.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .expect("We should have received a response");
+    let resp = QuotePcrsEcc384Resp::read_from_bytes(resp.as_slice()).unwrap();
+
+    let mut expected_pcr31 = initial_pcr31(&mut model);
+    for measurement in MEASUREMENTS.get(..num_slots).unwrap().iter() {
+        let mut hasher = Sha384::new();
+        hasher.update(expected_pcr31);
+        hasher.update(measurement.measurement);
+        expected_pcr31.copy_from_slice(&hasher.finalize());
+    }
+    assert_eq!(resp.pcrs[31], expected_pcr31);
+
+    // Verify DPE actually derived a context for the drained measurements.
+    // The default context should be derived from the last measurement, and
+    // its current TCI should match the test measurement.
+    const TAG: u32 = 0xc01d_cafe;
+    let mut cmd = MailboxReq::TagTci(TagTciReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        // Default context handle.
+        handle: [0u8; 16],
+        tag: TAG,
+    });
+    cmd.populate_chksum().unwrap();
+    model
+        .mailbox_execute(u32::from(CommandId::DPE_TAG_TCI), cmd.as_bytes().unwrap())
+        .unwrap()
+        .expect("We should have received a response");
+
+    let mut cmd = MailboxReq::GetTaggedTci(GetTaggedTciReq {
+        hdr: MailboxReqHeader { chksum: 0 },
+        tag: TAG,
+    });
+    cmd.populate_chksum().unwrap();
+    let resp = model
+        .mailbox_execute(
+            u32::from(CommandId::DPE_GET_TAGGED_TCI),
+            cmd.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .expect("We should have received a response");
+    let resp = GetTaggedTciResp::read_from_bytes(resp.as_slice()).unwrap();
+
+    assert_eq!(
+        resp.tci_current,
+        MEASUREMENTS.get(num_slots - 1).unwrap().measurement
+    );
+    assert_ne!(resp.tci_cumulative, resp.tci_current);
+    assert_ne!(resp.tci_cumulative, [0u8; 48]);
+}
+
+#[test]
+#[cfg_attr(feature = "fpga_realtime", ignore = "requires subsystem mode")]
+fn test_drain_one_stash_measurement_subsystem_mode() {
+    let model = run_model(true, false, true);
+    test_drain_slots(model, 1);
+}
+
+#[cfg_attr(feature = "fpga_subsystem", ignore = "requires passive mode")]
+#[test]
+fn test_drain_multiple_stash_measurements() {
+    let model = run_model(false, false, true);
+    test_drain_slots(model, MEASUREMENTS.len());
+}
+
+#[cfg_attr(feature = "fpga_subsystem", ignore = "requires passive mode")]
+#[test]
+fn test_soc_populates_measurements_with_gaps() {
+    let mut model = run_model(false, false, true);
+
+    // SoC writes measurements.
+    for (i, measurement) in MEASUREMENTS.iter().enumerate() {
+        // Manually submit the measurement instead of using `model.write_stash_measurement_bank`
+        // since we'd like to control which slot is locked.
+        for (j, chunk) in measurement.as_bytes().chunks_exact(4).enumerate() {
+            model
+                .soc_ifc()
+                .stash_bank_slot_data()
+                .at(i * DWORDS_PER_SLOT + j)
+                .write(|_| u32::from_le_bytes(chunk.try_into().unwrap()))
+        }
+
+        // Skip locking the very first slot.
+        if i != 0 {
+            model
+                .soc_ifc()
+                .stash_bank_soc_lock()
+                .write(|x| x.lock(1 << i));
+        }
+    }
+
+    // SoC writes end-of-stash.
+    model.assert_end_of_stash();
+
+    // Fast-forward until the error happens.
+    model.step_until_fatal_error(
+        CaliptraError::RUNTIME_STASH_MEASUREMENT_BANK_INVALID_STATUS.into(),
+        MAX_WAIT_CYCLES,
+    );
+}
+
+#[test]
+fn test_soc_populates_no_measurement() {
+    let mut model = run_model(false, false, false);
+
+    // Fast-forward to the mailbox command loop.
+    model.step_until(|m| {
+        m.soc_ifc().cptra_boot_status().read() == u32::from(RtBootStatus::RtReadyForCommands)
+    });
+
+    // At this point Caliptra should have locked the bank.
+    assert!(model.soc_ifc().stash_bank_status().read().cptra_lock());
+
+    // Verify that PCR31 is not populated.
+    let mut cmd = MailboxReq::QuotePcrsEcc384(QuotePcrsEcc384Req {
+        hdr: MailboxReqHeader { chksum: 0 },
+        nonce: [0u8; 32],
+    });
+    cmd.populate_chksum().unwrap();
+
+    let resp = model
+        .mailbox_execute(
+            u32::from(CommandId::QUOTE_PCRS_ECC384),
+            cmd.as_bytes().unwrap(),
+        )
+        .unwrap()
+        .expect("We should have received a response");
+    let resp = QuotePcrsEcc384Resp::read_from_bytes(resp.as_slice()).unwrap();
+
+    let expected_pcr31 = initial_pcr31(&mut model);
+    assert_eq!(resp.pcrs[31], expected_pcr31);
+}
+
+#[test]
+fn test_soc_never_asserted_end_of_stash() {
+    // Set debug locked to allow watchdog timer to fire.
+    let mut model = run_model(false, true, true);
+    assert!(
+        model.soc_ifc().cptra_security_state().read().debug_locked(),
+        "Watchdog coverage requires debug-locked hardware"
+    );
+
+    // Fast-forward until the watchdog timer fires.
+    model.step_until_fatal_error(
+        CaliptraError::RUNTIME_GLOBAL_WDT_EXPIRED.into(),
+        MAX_WAIT_CYCLES,
+    );
+}
