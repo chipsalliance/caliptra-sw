@@ -305,7 +305,7 @@ fn test_extend_pcr_cmd_restricted_to_pl0() {
     let mut model = run_rt_test(RuntimeTestArgs::default());
     model.set_axi_user(2);
 
-    for pcr in [PcrId::PcrId4, PcrId::PcrId31] {
+    for pcr in [PcrId::PcrId6, PcrId::PcrId31] {
         let cmd = generate_mailbox_extend_pcr_req(pcr.into(), [0xa5; 48]);
         let res = model.mailbox_execute(u32::from(CommandId::EXTEND_PCR), cmd.as_bytes().unwrap());
 

@@ -51,19 +51,6 @@ Tests cover the verdict/comparison truth table, every result word, rejection,
 latched-result behavior, zeroization, resets, and repeated driver operations.
 These are functional emulator tests, not RTL fault-injection qualification.
 
-### Boot integrity
-
-The boot-flow monitor and automatic ICCM-write measurement are enabled only in
-subsystem mode; debug unlock disables the monitor there. ICCM reads, including
-instruction fetches, drive boot-phase transitions. ROM authenticates staged
-payloads and copies them into ICCM without data readback in either mode. It sets
-the ICCM write lock but does not compare PCR values or wait for measurement
-completion. The staging buffer must remain protected through the copy.
-Passive mode disables monitoring regardless of debug-lock state, modeling the
-intended passive integration contract.
-The pinned RTL's passive monitor-enable behavior is a hardware bug awaiting the
-hardware team's fix; no RTL source or hardware pin is changed by this model.
-
 ### Mailbox
 
 #### Class diagram
